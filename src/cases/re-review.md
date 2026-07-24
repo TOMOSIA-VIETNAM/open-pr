@@ -80,9 +80,14 @@ Reply ở mục trên KHÔNG tự động kéo theo phải post thêm 1 review o
 không, có mục nào trong "Overview" ở Bước 7 MỚI phát sinh không (title/body mập mờ mới, CI check
 fail mới, PR template checklist mới thiếu), danh sách file bị skip có entry MỚI không.
 
-- **KHÔNG có gì mới** (toàn bộ việc cần làm đã xử lý xong bằng reply/resolve ở mục trên rồi) → **bỏ
-  hẳn Bước 8/9, DỪNG lệnh ở đây, KHÔNG post gì thêm lên PR chính.** Reply đã có là đủ giá trị; thêm 1
+- **KHÔNG có gì mới VÀ đã reply/resolve ít nhất 1 thread ở mục trên trong CHÍNH lượt chạy này** → bỏ
+  hẳn Bước 8/9, DỪNG lệnh ở đây, KHÔNG post gì thêm lên PR chính. Reply đã có là đủ giá trị; thêm 1
   review overview lặp lại nội dung đã reply riêng từng thread là dư thừa, gây nhiễu cho người nhận.
+- **KHÔNG có gì mới VÀ KHÔNG có reply/resolve nào ở mục trên** (không có finding cũ nào còn mở để
+  xử lý — PR đã sạch từ trước, hoặc mọi thread đã resolve từ lượt review khác) → **vẫn tiếp Bước 8/9
+  như bình thường**, không được bỏ qua chỉ vì "không có gì mới" — nếu không, dev không nhận được bất
+  kỳ xác nhận nào cho lần cập nhật này. Không có phần MỚI nào để nói → theo đúng tier LGTM của
+  `review-pr.md` Bước 8.
 - **Có ít nhất 1 thứ MỚI** → tiếp tục Bước 8/9 bình thường, NHƯNG phần đánh giá chung CHỈ nói về
   phần MỚI/thay đổi lần này, không lặp lại toàn bộ đánh giá tổng thể đã nói ở review trước.
 
