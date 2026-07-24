@@ -379,6 +379,10 @@ không phụ thuộc user tự dọn worktree. `fix-pr.md` bootstrap `fix-pr-met
 `notebooks/review/` vào `.gitignore` gốc (ỷ vào bootstrap của `review-pr.md` đã làm việc đó) — chạy
 `/tms:fix-pr` trước `/tms:review-pr`, hoặc trên repo bootstrap từ bản plugin cũ hơn dòng này, khiến
 file rác lộ ra `git status`; sửa bằng cách tự kiểm/thêm dòng đó ngay trong Bước 2 của `fix-pr.md`.
+`re-review.md` mục "Reaction lên reply của dev" từng xét điều kiện `user.login` KHÁC tài khoản đang
+chạy lệnh — không bao giờ trigger được ở chính repo `tms-review-pr` này (self-dogfood: dev và bot
+dùng chung 1 account, mọi reply luôn cùng login); sửa qua xét reply KHÔNG mang marker
+`<!-- bot-reply -->` thay vì so `user.login`.
 
 **Cấu hình per-repo hỏi 1 lần lúc bootstrap, dùng lại mọi lần review sau của repo đó.** Phần A của
 `setup-flow.md` hỏi user **6 hoặc 7 câu** trong 1 lượt (câu `review_ci_status` chỉ hỏi khi PR đang

@@ -94,10 +94,9 @@ fail mới, PR template checklist mới thiếu), danh sách file bị skip có 
 ## Reaction lên reply của dev (bổ sung, không bắt buộc)
 
 Trong danh sách comment đã fetch, nếu thread của finding (mục trên) có reply KHÔNG mang marker
-`<!-- bot-reply -->` (tức không phải do chính bot tạo ra — không dựa vào `user.login` khác tài khoản
-đang chạy lệnh, vì repo self-dogfood có thể dùng chung 1 account cho cả dev lẫn bot, khiến điều kiện
-login không bao giờ trigger được), `in_reply_to_id` trỏ đúng comment finding hoặc đúng thread đó —
-có thể thêm 1 reaction vào ĐÚNG comment reply đó của dev (KHÔNG phải comment finding gốc), khớp tông
+`<!-- bot-reply -->` (không phải do chính bot tạo ra), `in_reply_to_id` trỏ đúng comment finding
+hoặc đúng thread đó — có thể thêm 1 reaction vào ĐÚNG comment reply đó của dev (KHÔNG phải comment
+finding gốc), khớp tông
 nội dung reply, làm việc BỔ SUNG cho reply text ở nhánh "Đã fix" phía trên, không thay thế nó:
 
 - Dev xác nhận/đồng ý rõ ràng, tông tích cực → `+1` hoặc `rocket`.
