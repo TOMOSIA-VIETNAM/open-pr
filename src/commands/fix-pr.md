@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(gh pr view:*), Bash(gh api --paginate repos/*/pulls/*/comments:*), Bash(gh api --paginate repos/*/pulls/*/reviews:*), Bash(gh api graphql:*), Bash(gh api user:*), Bash(gh api -X POST repos/*/pulls/*/comments/*/replies:*), Bash(gh api -X POST repos/*/issues/*/comments:*), Bash(git remote:*), Bash(git branch --show-current), Bash(git -C * remote:*), Bash(find:*), Bash(cd:*), Bash(git -C notebooks/review add:*), Bash(git -C notebooks/review commit:*), Bash(git -C notebooks/review -c user.name=* -c user.email=* commit:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Read, Grep, Write, Edit, Agent
+allowed-tools: Bash(gh pr view:*), Bash(gh api --paginate repos/*/pulls/*/comments:*), Bash(gh api --paginate repos/*/pulls/*/reviews:*), Bash(gh api graphql:*), Bash(gh api user:*), Bash(gh api -X POST repos/*/pulls/*/comments/*/replies:*), Bash(gh api -X POST repos/*/issues/*/comments:*), Bash(git remote:*), Bash(git branch --show-current), Bash(git -C * remote -v), Bash(find:*), Bash(cd:*), Bash(git -C notebooks/review add:*), Bash(git -C notebooks/review commit:*), Bash(git -C notebooks/review -c user.name=* -c user.email=* commit:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Read, Grep, Write, Edit, Agent
 argument-hint: <GitHub PR URL> [nội dung]
 description: Fix code theo finding /tms:review-pr đã để lại trên 1 PR — tự quyết fix/decline theo severity, sửa code đúng convention dự án, commit/push có kiểm soát, reply lại PR (dev-facing, sửa code thật, không qua worktree).
 ---
@@ -22,7 +22,9 @@ description: Fix code theo finding /tms:review-pr đã để lại trên 1 PR �
 > **Residual gap đã biết (chấp nhận, cùng loại gap đã có ở `review-pr.md`):** pattern GET
 > (`gh api repos/*/pulls/*/reviews:*`, `.../comments:*`) chỉ khớp literal prefix, không neo vị trí
 > flag — `-X POST` đứng SAU path vẫn lách qua được; `git add/commit/push:*` cũng không tự chặn
-> `-A`/`--amend`/`--force` ở tầng permission. Câu cấm TUYỆT ĐỐI ở trên CHÍNH LÀ lớp chặn thật, không
+> `-A`/`--amend`/`--force` ở tầng permission. `find:*`/`cd:*` không neo path cố định được (đích đến
+> ở Bước 1a chưa biết trước) — có thể chạy ở bất kỳ đường dẫn nào trên máy, không riêng dưới pwd.
+> Câu cấm TUYỆT ĐỐI ở trên CHÍNH LÀ lớp chặn thật, không
 > phải `allowed-tools`.
 > Tường thuật tiến trình trong chat — KHÔNG lộ số bước nội bộ ("Bước 5", "Bước 7"...) ra ngoài, và
 > KHÔNG kể lể quá trình làm việc trong reply lên PR (chỉ nói kết quả).
