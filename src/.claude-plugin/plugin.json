@@ -1,7 +1,7 @@
 {
   "name": "open-pr",
   "displayName": "GitHub PR Reviewer",
-  "description": "Review GitHub Pull Request đa stack (Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile) với memory học convention riêng theo từng repo.",
+  "description": "Review multi-stack GitHub Pull Requests (Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile) with memory that learns each repo's own conventions.",
   "author": { "name": "Minh Tang Q." },
   "keywords": ["code-review", "github", "pull-request", "gh-cli"],
   "commands": "./commands/"

@@ -1,54 +1,59 @@
-# Always Rule — quy tắc chung của plugin `review`
+# Always Rule — general rules for the `review` plugin
 
-Phạm vi: áp dụng cho mọi repo review qua plugin `review`. Convention riêng từng repo sống ở
-`notebooks/review/<repo>/`, ngoài phạm vi file này.
+Scope: applies to every repo reviewed via the `review` plugin. Each repo's own convention lives at
+`notebooks/review/<repo>/`, outside the scope of this file.
 
-## Ngôn ngữ output
+## Output language
 
 ```
 {{OUTPUT_LANGUAGE}}
 ```
 
-Bootstrap điền 1 giá trị cụ thể thay `{{OUTPUT_LANGUAGE}}` (vd `English`, `Vietnamese`,
-`Japanese`). Để trống / còn placeholder → hỏi user trước khi review. Chỉ dẫn ngôn ngữ trong
-`ARGUMENTS` hoặc chat phiên hiện tại **thắng** giá trị trên (chỉ lần chạy đó, không sửa file).
+Bootstrap fills in a concrete value in place of `{{OUTPUT_LANGUAGE}}` (e.g. `English`, `Vietnamese`,
+`Japanese`). Left blank / still the placeholder → ask the user before reviewing. A language
+instruction in `ARGUMENTS` or the current chat session **wins over** the value above (that run
+only, does not edit the file).
 
-## Khung review chung (baseline mọi stack)
+## General review framework (baseline for every stack)
 
-Áp dụng cho mọi PR, mọi stack, không phân biệt ngôn ngữ/framework; luôn nạp cùng template đặc thù
-của stack đang review. `templates/<stack>.md` chỉ chứa tiêu chí ĐẶC THÙ (gồm toàn bộ mục 5 "Đặc thù
-framework/language" — mục này không có baseline chung), không lặp lại các mục dưới đây.
+Applies to every PR, every stack, regardless of language/framework; always loaded together with
+the specific template of the stack being reviewed. `templates/<stack>.md` contains ONLY
+STACK-SPECIFIC criteria (including the entirety of item 5 "Framework/language specifics" — this
+item has no shared baseline), and does not repeat the items below.
 
-Các tiêu chí trong file này và trong `templates/*.md` là gợi ý minh họa định hướng, không phải
-checklist đóng. Phạm vi review không giới hạn ở các mục được liệt kê; vấn đề khác phát hiện được
-vẫn nằm trong phạm vi.
+The criteria in this file and in `templates/*.md` are illustrative guidance, not a closed
+checklist. Review scope is not limited to the listed items; any other issue found is still in
+scope.
 
-#### 1. Lỗi & vấn đề logic
-- Có bug rõ ràng hoặc lỗi logic nào không?
-- Các trường hợp biên (giá trị rỗng/null/undefined, giới hạn, mảng/danh sách rỗng) có được xử lý đúng không?
+#### 1. Bugs & logic issues
+- Is there any obvious bug or logic error?
+- Are edge cases (empty/null/undefined values, limits, empty arrays/lists) handled correctly?
 
-#### 2. Bảo mật
-- Code có chứa thông tin nhạy cảm hardcode không (API key, token, mật khẩu, connection string)?
+#### 2. Security
+- Does the code contain hardcoded sensitive information (API key, token, password, connection
+  string)?
 
-#### 3. Hiệu suất
-- Có gọi lại (API/DB/lệnh con/tính toán) lặp không cần thiết mà có thể cache/gom lại không?
+#### 3. Performance
+- Are there unnecessary repeated calls (API/DB/subprocess/computation) that could be
+  cached/batched?
 
-#### 4. Chất lượng code
-- Tên biến/hàm/class/component có rõ ràng, theo convention của dự án không?
-- Có code bị lặp không (nguyên tắc DRY)?
+#### 4. Code quality
+- Are variable/function/class/component names clear and consistent with the project's convention?
+- Is there duplicated code (DRY principle)?
 
-#### 6. Khả năng bảo trì & dễ đọc
-- Có comment giải thích ở những nơi logic không rõ ràng/phức tạp không?
-- Test có được thêm hoặc cập nhật cho thay đổi không? Có bao gồm cả happy path và error path không?
-- Thiết kế có đủ linh hoạt để đáp ứng thay đổi trong tương lai không?
+#### 6. Maintainability & readability
+- Are there explanatory comments where the logic is unclear/complex?
+- Were tests added or updated for the change? Do they cover both the happy path and the error
+  path?
+- Is the design flexible enough to accommodate future change?
 
 ---
 
-## Rule bổ sung
-<!-- User tự thêm rule riêng của mình / tổ chức tại đây. -->
+## Additional rules
+<!-- Add your own team/organization-specific rules here. -->
 
-### Convention riêng
+### Project-specific conventions
 
-### Tiêu chí bổ sung
+### Additional criteria
 
-### Ngoại lệ / lưu ý đặc biệt
+### Exceptions / special notes

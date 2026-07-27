@@ -1,182 +1,209 @@
-# Setup flow — thiết lập lần đầu cho 1 repo
+# Setup flow — first-time setup for a repo
 
-Không phải slash command (nằm ngoài `commands/`); `commands/review.md` nạp bằng `Read` khi repo chưa
-thiết lập xong.
+Not a slash command (lives outside `commands/`); `commands/review.md` loads it via `Read` when the
+repo's setup isn't complete yet.
 
-Toàn bộ thao tác dưới đây chạy tại **ĐÚNG pwd hiện tại của phiên** — thư mục mà lệnh `/open-pr:review`
-được gọi. TUYỆT ĐỐI KHÔNG `cd` sang thư mục khác, KHÔNG tự dò tìm "git root"/"thư mục repo thật
-sự", KHÔNG dùng basename của bất kỳ thư mục nào để suy ra đường dẫn hay tên repo. Tên thư mục memory
-`<repo>` LUÔN là segment `<repo>` đã parse từ PR URL (xem block "Ngữ cảnh" của `review.md`), KHÔNG suy
-từ pwd/thư mục con/git remote. Đứng ở đâu tạo ở đó — không ngoại lệ.
+Every operation below runs at the **EXACT current pwd of the session** — the directory where
+`/open-pr:review` was invoked. ABSOLUTELY do NOT `cd` elsewhere, do NOT self-discover the "git
+root"/"the real repo directory", do NOT use any directory's basename to infer a path or repo name.
+The memory folder name `<repo>` is ALWAYS the `<repo>` segment parsed from the PR URL (see the
+"Context" block of `review.md`), never inferred from pwd/subdirectory/git remote. Wherever you're
+standing, create it there — no exceptions.
 
-Công cụ được phép: `Read`/`Write`/`Edit`, `git`/`cp`/`mkdir` (qua Bash), và `Agent` (chỉ ở Phần C —
-spawn subagent quét convention song song). Dùng `cp` để copy nguyên bản file (không Read+Write lại
-qua context — tốn token); `mkdir -p` để tạo thư mục.
+Allowed tools: `Read`/`Write`/`Edit`, `git`/`cp`/`mkdir` (via Bash), and `Agent` (Part C only —
+spawning subagents to scan conventions in parallel). Use `cp` to copy a file verbatim (not
+Read+Write through context — wastes tokens); `mkdir -p` to create directories.
 
-## Phần A — Bootstrap `notebooks/review/<repo>/`
+## Part A — Bootstrap `notebooks/review/<repo>/`
 
-1. Dùng `Write` tạo `notebooks/review/<repo>/memory.md` — khung index RỖNG:
+1. `Write` to create `notebooks/review/<repo>/memory.md` — an EMPTY index skeleton:
    ```
-   <!-- Index. Mỗi dòng 1 entry, ngắn gọn, không lặp từ:
-        - [tag] [nhãn ngắn](path) — hook 1 dòng
-        `path` trỏ tới memories/<slug>.md (lesson tự học, xem Phần E) HOẶC thẳng path trong repo
-        (tham chiếu convention có sẵn của dự án, xem Phần C — doctor; KHÔNG copy nội dung, chỉ trỏ
-        path). Nhiều tag nếu áp dụng nhiều stack, vd [rails][ruby]. Giữ mỗi dòng dưới 1 câu, gộp ý
-        trùng lặp, không diễn giải lại "xem convention tại..." — bản thân link đã nói điều đó. -->
+   <!-- Index. One entry per line, concise, no repeated words:
+        - [tag] [short label](path) — a 1-line hook
+        `path` points to memories/<slug>.md (a self-learned lesson, see Part E) OR directly to a
+        path within the repo (a reference to the project's existing convention, see Part C —
+        doctor; do NOT copy the content, just point to the path). Multiple tags if it applies to
+        multiple stacks, e.g. [rails][ruby]. Keep each line under 1 sentence, merge duplicate
+        points, don't restate "see the convention at..." — the link itself already says that. -->
    ```
-2. Dùng `Write` tạo `notebooks/review/<repo>/memories/.gitkeep` (rỗng) — chỉ để vật lý hoá
-   thư mục `memories/` (git không track thư mục rỗng).
-3. Dùng `Write` tạo `notebooks/review/<repo>/templates/.gitkeep` (rỗng) — thư mục này sẽ chứa
-   bản LOCAL copy của (các) template stack đang dùng trong repo (xem Phần B), tạo sẵn thư mục trước.
-4. Kiểm `notebooks/review/.gitignore` đã tồn tại chưa (`Read` thử) — file RIÊNG của git nested
-   `notebooks/review/.git` (khác `.gitignore` của repo chính ở bước 8 dưới), cần có để worktree
-   ephemeral chứa code PR checkout (Bước 1 của `review.md`, dưới
-   `notebooks/review/<repo>/worktrees/...`) KHÔNG bao giờ lọt vào git nested này — nested repo chỉ
-   nên chứa memory/template/rule, không phải code PR đang review:
-   - Chưa tồn tại → `Write` tạo mới `notebooks/review/.gitignore` chỉ chứa đúng 1 dòng `worktrees/`.
-   - Tồn tại nhưng CHƯA có dòng `worktrees/` (repo nested có thể đã tạo từ trước Task P11) → `Edit`
-     append thêm dòng đó.
-   - Đã có đủ → bỏ qua.
-5. Copy `ALWAYS_RULE.md` từ plugin vào bản LOCAL của repo bằng `cp` (KHÔNG Read+Write qua context):
-   `cp "${CLAUDE_PLUGIN_ROOT}/ALWAYS_RULE.md" "notebooks/review/<repo>/ALWAYS_RULE.md"`. Từ
-   đây về sau `review.md` (Bước 5) đọc BẢN LOCAL này — team có thể mở/chỉnh sửa ngay trong repo của họ
-   theo dự án, không cần vào tận plugin. Bản trong plugin chỉ là "seed" mặc định lúc bootstrap.
-6. Hỏi user **6 hoặc 7 câu trong 1 lượt bootstrap** (tuỳ có CI hay không — xem câu 5) — dùng tính
-   năng hỏi-đáp dạng lựa chọn có sẵn của agent nếu có (xem CRITICAL `review.md`), mỗi câu kèm
-   sẵn lựa chọn recommend đúng giá trị default ghi dưới đây; tính năng đó giới hạn số câu/lượt gọi
-   (vd tối đa 4) → chia 2 lượt gọi liên tiếp (câu 1-4 rồi câu 5-7, hết lượt trước mới gọi lượt sau).
-   Không có tính năng đó thì hỏi tự nhiên qua chat: (1) ngôn ngữ output — vi/en/ja; (2)
-   `auto_submit_review` true/false (mặc định **false**); (3) `auto_resolve_fixed_findings`
-   true/false (mặc định **false**); (4) `doctor_schedule` — chu kỳ doctor lại convention (`{N} days`
-   | `{N} weeks` | `{N} months` | `never`; mặc định **`1 months`** nếu user không chọn); (5)
-   `review_ci_status` true/false — **CHỈ hỏi nếu mảng "CI checks" ở Ngữ cảnh của PR đang review
-   KHÔNG rỗng** (repo/PR này có ít nhất 1 check thật, dù pass hay fail — nghĩa là có cấu hình CI);
-   mảng đó RỖNG (không có CI nào chạy trên PR này) → **bỏ qua câu hỏi này hoàn toàn** (hỏi cũng vô
-   nghĩa vì chưa có gì để đối chiếu), tự ghi `false`, không cần báo lý do trong chat (hiển nhiên từ
-   ngữ cảnh); (6) `many_files_threshold` — số file thay đổi vượt mức thì hỏi chiến lược review
-   trước khi làm (mặc định **`30`** nếu user không chọn); (7) `big_file_threshold_kb` — size
-   diff/file (KB) vượt mức thì coi là file to/dump, peek có giới hạn thay vì review chi tiết (mặc
-   định **`20`** ~ 5.000 token, ước lượng ~4 ký tự/token, nếu user không chọn). Xử lý câu trả lời:
-   - **Ngôn ngữ** → `Edit` bản LOCAL vừa copy ở bước 5: thay đúng token `{{OUTPUT_LANGUAGE}}` trong
-     khối code fence bằng giá trị cụ thể (`English` / `Vietnamese` / `Japanese`, …). KHÔNG thêm
-     field ngôn ngữ vào `meta.json`. "Đã hỏi chưa" = placeholder còn nguyên hay đã được thay.
-   - **`auto_submit_review` / `auto_resolve_fixed_findings` / `doctor_schedule` / `review_ci_status`
-     / `many_files_threshold` / `big_file_threshold_kb`** → ghi nhớ, đưa vào `meta.json` cùng
-     `bootstrapped: true` ở bước 9 (schema Phần D). `doctor_schedule` thiếu hoặc không parse được →
-     ghi `"1 months"`; `review_ci_status` KHÔNG hỏi (câu 5 bị bỏ qua vì không có CI) → ghi `false`;
-     `many_files_threshold` thiếu/không parse được số → ghi `30`; `big_file_threshold_kb` thiếu/
-     không parse được số → ghi `20`.
-7. Kiểm `notebooks/review/.git` đã tồn tại chưa (thử `Read` file `notebooks/review/.git/HEAD`):
-   - **CHƯA tồn tại** → `git init notebooks/review` — 1 git repo DUY NHẤT, nested, độc lập hoàn
-     toàn với git của repo chính đang review, bao trùm MỌI `<repo>/` sẽ có sau này. TUYỆT ĐỐI
-     KHÔNG set remote, KHÔNG push — chỉ auto-commit local. Sau đó
-     `git -C notebooks/review add <repo>` (kèm `notebooks/review/.gitignore` mới tạo ở bước 4 nếu
-     có) rồi `git -C notebooks/review commit -m "chore: init review memory for <repo>"`
-     — xem cách xác định `user.name`/`user.email` cho commit này ngay dưới đây.
-   - **ĐÃ tồn tại** (đã từng review 1 repo khác trên cùng máy) → KHÔNG init lại. Chỉ
-     `git -C notebooks/review add <repo>` (kèm `notebooks/review/.gitignore` nếu bước 4 vừa
-     tạo/sửa) rồi `git -C notebooks/review commit -m "chore: add review memory for <repo>"`.
+2. `Write` to create `notebooks/review/<repo>/memories/.gitkeep` (empty) — just to materialize the
+   `memories/` directory (git doesn't track empty directories).
+3. `Write` to create `notebooks/review/<repo>/templates/.gitkeep` (empty) — this directory will
+   hold LOCAL copies of the stack template(s) used in the repo (see Part B), create the directory
+   ahead of time.
+4. Check whether `notebooks/review/.gitignore` already exists (try `Read`) — a SEPARATE file
+   belonging to the nested git repo `notebooks/review/.git` (different from the main repo's
+   `.gitignore` in step 8 below), needed so the ephemeral worktree holding the checked-out PR code
+   (`review.md` Step 1, under `notebooks/review/<repo>/worktrees/...`) NEVER leaks into this
+   nested git repo — the nested repo should only ever contain memory/template/rule content, not
+   the PR code under review:
+   - Doesn't exist yet → `Write` a new `notebooks/review/.gitignore` containing exactly 1 line:
+     `worktrees/`.
+   - Exists but does NOT yet have a `worktrees/` line (the nested repo may have been created before
+     this rule existed) → `Edit` to append that line.
+   - Already has it → skip.
+5. Copy `ALWAYS_RULE.md` from the plugin into the repo's LOCAL copy using `cp` (NOT Read+Write
+   through context): `cp "${CLAUDE_PLUGIN_ROOT}/ALWAYS_RULE.md" "notebooks/review/<repo>/ALWAYS_RULE.md"`.
+   From now on `review.md` (Step 5) reads THIS LOCAL COPY — the team can open/edit it directly
+   within their own repo for their project, no need to touch the plugin itself. The plugin's copy
+   is just the default "seed" used at bootstrap time.
+6. Ask the user **6 or 7 questions in 1 bootstrap batch** (depending on whether CI exists — see
+   question 5) — use the agent's built-in choice-based Q&A feature if available (see CRITICAL in
+   `review.md`), each question pre-marked with the recommended choice matching the default value
+   listed below; that feature caps the number of questions per call (e.g. max 4) → split into 2
+   sequential calls (questions 1-4, then 5-7, finishing the first call before making the next). No
+   such feature available → ask naturally via chat: (1) output language — vi/en/ja; (2)
+   `auto_submit_review` true/false (default **false**); (3) `auto_resolve_fixed_findings`
+   true/false (default **false**); (4) `doctor_schedule` — how often to re-scan conventions
+   (`{N} days` | `{N} weeks` | `{N} months` | `never`; default **`1 months`** if the user doesn't
+   choose); (5) `review_ci_status` true/false — **ONLY ask this if the "CI checks" array in the
+   Context of the PR being reviewed is NOT empty** (this repo/PR has at least 1 real check,
+   whether passing or failing — meaning CI is configured); that array is EMPTY (no CI ran on this
+   PR at all) → **skip this question entirely** (asking would be meaningless with nothing to
+   compare against), auto-write `false`, no need to explain why in chat (it's obvious from
+   context); (6) `many_files_threshold` — file-change count above which review strategy gets asked
+   before proceeding (default **`30`** if the user doesn't choose); (7) `big_file_threshold_kb` —
+   diff size per file (KB) above which it's treated as a large/dump file, a limited peek instead
+   of a detailed review (default **`20`** ~ 5,000 tokens, estimated at ~4 characters/token, if the
+   user doesn't choose). Handling the answers:
+   - **Language** → `Edit` the LOCAL copy just made in step 5: replace the exact token
+     `{{OUTPUT_LANGUAGE}}` in the code fence block with a concrete value (`English` /
+     `Vietnamese` / `Japanese`, ...). Do NOT add a language field to `meta.json`. "Already asked" =
+     whether the placeholder is still there or has been replaced.
+   - **`auto_submit_review` / `auto_resolve_fixed_findings` / `doctor_schedule` /
+     `review_ci_status` / `many_files_threshold` / `big_file_threshold_kb`** → remember them, write
+     into `meta.json` together with `bootstrapped: true` in step 9 (Part D schema).
+     `doctor_schedule` missing or unparsable → write `"1 months"`; `review_ci_status` NOT asked
+     (question 5 skipped because there's no CI) → write `false`; `many_files_threshold`
+     missing/unparsable as a number → write `30`; `big_file_threshold_kb` missing/unparsable as a
+     number → write `20`.
+7. Check whether `notebooks/review/.git` already exists (try `Read`-ing the file
+   `notebooks/review/.git/HEAD`):
+   - **Doesn't exist yet** → `git init notebooks/review` — a SINGLE nested git repo, fully
+     independent from the main repo being reviewed, encompassing EVERY `<repo>/` that will exist
+     under it later. ABSOLUTELY do NOT set a remote, do NOT push — local auto-commits only. Then
+     `git -C notebooks/review add <repo>` (including the `notebooks/review/.gitignore` just
+     created in step 4 if applicable) then
+     `git -C notebooks/review commit -m "chore: init review memory for <repo>"`
+     — see how to determine `user.name`/`user.email` for this commit right below.
+   - **Already exists** (some other repo was already reviewed on this machine) → do NOT re-init.
+     Just `git -C notebooks/review add <repo>` (including `notebooks/review/.gitignore` if step 4
+     just created/edited it) then
+     `git -C notebooks/review commit -m "chore: add review memory for <repo>"`.
 
-   **Danh tính commit** (áp dụng cho mọi commit vào `notebooks/review/.git`, ở đây và ở Phần B/C/E):
-   thử `git config user.name` / `git config user.email` tại pwd (root repo CHÍNH đang review — lệnh
-   `git config` không kèm `--local`/`--global` tự resolve local (project) trước rồi global, đúng thứ
-   tự ưu tiên cần dùng). Nếu có kết quả → dùng giá trị đó cho commit vào `notebooks/review/.git`
-   bằng cờ `-c user.name="<giá trị>" -c user.email="<giá trị>"` NGAY SAU `-C notebooks/review` (tức
-   `git -C notebooks/review -c user.name="..." -c user.email="..." commit -m "..."` — giữ đúng thứ
-   tự này để khớp `allowed-tools`, KHÔNG đặt `-c` trước `-C`). Nếu CẢ project lẫn global đều không
-   có `user.name`/`user.email` nào (commit báo lỗi thiếu identity) → mới dùng fallback
-   `-c user.name="review-plugin" -c user.email="review-plugin@local"`. KHÔNG set global config của
-   máy trong bất kỳ trường hợp nào.
-8. Kiểm `.gitignore` tại pwd hiện tại (dùng `Read` tại `./.gitignore`):
-   - Tồn tại và CHƯA có dòng `notebooks/review/` → dùng `Edit` append thêm dòng đó.
-   - Chưa có `.gitignore` → dùng `Write` tạo mới chỉ chứa đúng 1 dòng `notebooks/review/`.
-9. Ghi nhận vào `notebooks/review/<repo>/meta.json` (tạo file nếu chưa có, giữ nguyên các field
-   khác nếu file đã tồn tại từ trước — xem Phần D): `"bootstrapped": true`,
-   `"auto_submit_review": <bước 6>`, `"auto_resolve_fixed_findings": <bước 6>`,
-   `"doctor_schedule": "<bước 6, default 1 months>"`,
-   `"review_ci_status": <bước 6 — PR có CI → hỏi, default true nếu user không chọn; PR không có
-   CI → không hỏi, ghi thẳng false>`,
-   `"many_files_threshold": <bước 6, default 30>`, `"big_file_threshold_kb": <bước 6, default 20>`,
-   và object `_comments` (ít nhất key
-   `doctor_schedule` — text gợi ý giá trị hợp lệ để user sửa tay; xem Phần D). Runtime/`review.md`
-   **bỏ qua** mọi key trong `_comments` (chỉ là chú thích cho người đọc file).
+   **Commit identity** (applies to every commit into `notebooks/review/.git`, here and in Part
+   B/C/E): try `git config user.name` / `git config user.email` at pwd (the root of the MAIN repo
+   being reviewed — `git config` without `--local`/`--global` resolves local (project) first then
+   global, the exact priority order needed here). If it returns a result → use that value for the
+   commit into `notebooks/review/.git` via the flags `-c user.name="<value>" -c user.email="<value>"`
+   placed IMMEDIATELY AFTER `-C notebooks/review` (i.e.
+   `git -C notebooks/review -c user.name="..." -c user.email="..." commit -m "..."` — keep this
+   exact order to match `allowed-tools`, do NOT put `-c` before `-C`). If NEITHER the project NOR
+   global config has any `user.name`/`user.email` at all (commit errors about a missing identity)
+   → only then fall back to
+   `-c user.name="review-plugin" -c user.email="review-plugin@local"`. Never set the machine's
+   global config under any circumstance.
+8. Check `.gitignore` at the current pwd (`Read` at `./.gitignore`):
+   - Exists and does NOT yet have a `notebooks/review/` line → `Edit` to append that line.
+   - No `.gitignore` yet → `Write` a new one containing exactly 1 line: `notebooks/review/`.
+9. Record into `notebooks/review/<repo>/meta.json` (create the file if it doesn't exist, keep
+   every other field untouched if the file already existed — see Part D): `"bootstrapped": true`,
+   `"auto_submit_review": <step 6>`, `"auto_resolve_fixed_findings": <step 6>`,
+   `"doctor_schedule": "<step 6, default 1 months>"`,
+   `"review_ci_status": <step 6 — PR has CI → asked, default true if the user didn't choose; PR has
+   no CI → not asked, write false directly>`,
+   `"many_files_threshold": <step 6, default 30>`, `"big_file_threshold_kb": <step 6, default 20>`,
+   and the `_comments` object (at minimum the key
+   `doctor_schedule` — hint text listing valid values, for a user editing the file by hand; see
+   Part D). The runtime/`review.md` **ignores** every key inside `_comments` (it's purely a
+   comment for human readers).
 
-## Phần B — Copy/tạo local template cho (các) stack hiện có trong PR đang review
+## Part B — Copy/create a local template for the stack(s) present in the PR being reviewed
 
-Với MỖI stack đã detect được ở Bước 2 của `review.md` mà CHƯA có trong `templates_copied` (mảng trong
-`meta.json`, xem Phần D):
+For EACH stack detected at Step 2 of `review.md` that is NOT YET in `templates_copied` (an array in
+`meta.json`, see Part D):
 
-1. Kiểm `${CLAUDE_PLUGIN_ROOT}/templates/<stack>.md` có tồn tại không (plugin có sẵn template cho
-   stack này chưa).
-   - **Có sẵn** → copy nguyên bản bằng `cp` (KHÔNG Read+Write qua context — tốn token với file dài):
+1. Check whether `${CLAUDE_PLUGIN_ROOT}/templates/<stack>.md` exists (does the plugin already have
+   a template for this stack).
+   - **Already exists** → copy it verbatim with `cp` (NOT Read+Write through context — wastes
+     tokens on a long file):
      `cp "${CLAUDE_PLUGIN_ROOT}/templates/<stack>.md" "notebooks/review/<repo>/templates/<stack>.md"`
-     (bản LOCAL, repo có thể tự chỉnh sửa riêng sau này mà không ảnh hưởng plugin dùng chung cho
-     repo khác).
-   - **CHƯA có sẵn** (plugin chưa cover stack này) → tự soạn 1 template MỚI theo đúng khung 6 mục
-     (1.Lỗi&logic 2.Bảo mật 3.Hiệu suất 4.Chất lượng code 5.Đặc thù framework/ngôn ngữ 6.Bảo trì&dễ
-     đọc — tham khảo các file trong `${CLAUDE_PLUGIN_ROOT}/templates/` để giữ văn phong/độ chi tiết
-     nhất quán, KHÔNG lặp tiêu chí đã có trong baseline `ALWAYS_RULE.md`, chỉ viết phần đặc thù),
-     lưu vào `notebooks/review/<repo>/templates/<stack>.md`. Báo cho user biết trong chat là
-     đã tự tạo template mới cho stack này, kèm gợi ý: user có thể tự copy file này vào
-     `${CLAUDE_PLUGIN_ROOT}/templates/` để dùng chung cho repo khác — plugin KHÔNG tự động làm (tránh
-     mutate file dùng chung từ 1 phiên review của 1 repo cụ thể).
-2. Thêm `<stack>` vào mảng `templates_copied` trong `meta.json`.
-3. `git -C notebooks/review add <repo>` + commit (local only) phần thay đổi này.
+     (the LOCAL copy; the repo can edit its own version later without affecting the plugin's
+     shared copy used by other repos).
+   - **Not available yet** (the plugin doesn't cover this stack) → author a NEW template yourself
+     following the exact 6-item framework (1. Bugs & logic 2. Security 3. Performance 4. Code
+     quality 5. Framework/language specifics 6. Maintainability & readability — refer to the files
+     in `${CLAUDE_PLUGIN_ROOT}/templates/` to keep tone/level of detail consistent, do NOT repeat
+     criteria already covered in the `ALWAYS_RULE.md` baseline, write only the stack-specific
+     part), save it to `notebooks/review/<repo>/templates/<stack>.md`. Tell the user in chat that
+     a new template was authored for this stack, along with a suggestion: the user can manually
+     copy this file into `${CLAUDE_PLUGIN_ROOT}/templates/` to share it with other repos — the
+     plugin does NOT do this automatically (to avoid mutating a shared file from a single repo's
+     review session).
+2. Add `<stack>` to the `templates_copied` array in `meta.json`.
+3. `git -C notebooks/review add <repo>` + commit (local only) this change.
 
-## Phần C — Doctor: khám phá convention có sẵn của dự án
+## Part C — Doctor: discovering the project's existing conventions
 
-Mục tiêu: nếu dự án đang review đã tự định nghĩa convention/coding rule riêng ở đâu đó (README,
-CLAUDE.md, AGENTS.md, docs/, wiki, cursor/copilot rules...), review phải THAM CHIẾU tới đúng nguồn
-đó thay vì đoán mò hoặc áp đặt rule ngoài không phù hợp.
+Goal: if the project being reviewed has already defined its own convention/coding rules somewhere
+(README, CLAUDE.md, AGENTS.md, docs/, wiki, cursor/copilot rules...), the review must REFERENCE
+that exact source instead of guessing or imposing an unrelated external rule.
 
-Doctor chạy khi `doctored` chưa `true`, **hoặc** lịch `doctor_schedule` đã hết hạn so với
-`doctored_at` (xem `review.md` Bước 3), **hoặc** user chủ động "doctor lại". Mỗi lần chạy phải
-làm THẬT KỸ: quét TOÀN BỘ repo, không giới hạn theo stack/tính năng PR hiện tại.
+Doctor runs when `doctored` isn't `true` yet, **or** the `doctor_schedule` has expired relative to
+`doctored_at` (see `review.md` Step 3), **or** the user proactively asks to "doctor again". Every
+run must be THOROUGH: scan the ENTIRE repo, not scoped to the current PR's stack/feature.
 
-1. **Quét ĐỆ QUY toàn bộ cây thư mục repo tại pwd** (KHÔNG chỉ root) để tìm HẾT mọi nguồn convention
-   — dự án thật thường rải nhiều file ở subfolder, vd `app/operation/AGENTS.md`,
-   `app/serializers/AGENTS.md`, không chỉ 1 file gốc. Tìm: `README.md`, `CLAUDE.md`, `AGENTS.md`,
-   `GEMINI.md` (và biến thể tương tự như `.md` hướng-dẫn-agent khác), thư mục `docs/`, `wiki/`,
-   `.cursorrules` / `.cursor/rules/`, `.github/copilot-instructions.md` — bất kể nằm ở subfolder
-   nào. Bỏ qua nguồn không tồn tại, không coi là lỗi.
-   **Dùng `Agent` để chạy SONG SONG cho nhanh trên repo lớn** (đã có trong `allowed-tools` của
-   `review.md`): 1 subagent quét toàn cây thư mục (glob/grep) trả về DANH SÁCH path các file convention;
-   rồi spawn NHIỀU subagent song song (mỗi subagent 1 file hoặc 1 nhóm file) để đọc + tóm tắt +
-   phát hiện convention/mâu thuẫn — thay vì main agent đọc tuần tự từng file (chậm). Không giới hạn
-   loại subagent cụ thể (portable qua các môi trường team cấu hình tên subagent khác nhau).
+1. **RECURSIVELY scan the entire repo directory tree at pwd** (NOT just the root) to find EVERY
+   convention source — real projects often scatter multiple files across subfolders, e.g.
+   `app/operation/AGENTS.md`, `app/serializers/AGENTS.md`, not just one root file. Look for:
+   `README.md`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` (and similar agent-instruction-style `.md`
+   variants), a `docs/` folder, `wiki/`, `.cursorrules` / `.cursor/rules/`,
+   `.github/copilot-instructions.md` — regardless of which subfolder they're in. Skip sources that
+   don't exist, don't treat that as an error.
+   **Use `Agent` to run this IN PARALLEL for speed on large repos** (already present in
+   `review.md`'s `allowed-tools`): 1 subagent scans the whole directory tree (glob/grep) and
+   returns a LIST of convention-file paths; then spawn MULTIPLE subagents in parallel (each
+   handling 1 file or 1 group of files) to read + summarize + surface conventions/conflicts —
+   instead of the main agent reading each file sequentially (slow). No specific subagent type
+   required (stays portable across environments where teams configure different subagent names).
 
-   **Cùng lượt quét này (KHÔNG thêm bước riêng), kiểm tra thêm sự tồn tại của PR template của dự
-   án** — khác `project_docs_found` ở trên (nguồn convention chung), đây là 1 field riêng dùng ở
-   `review.md` Bước 7 để đối chiếu checklist PR template với description thật của PR. Kiểm các path phổ
-   biến: `.github/PULL_REQUEST_TEMPLATE.md`, `.github/pull_request_template.md`,
-   `.github/PULL_REQUEST_TEMPLATE/*.md` (GitHub hỗ trợ 1 thư mục nhiều template, chọn qua query
-   param), `PULL_REQUEST_TEMPLATE.md` (root), `docs/PULL_REQUEST_TEMPLATE.md`. Giữ lại danh sách
-   path THỰC SỰ tồn tại (mảng rỗng nếu không path nào có) để ghi vào `meta.json` ở bước 6 dưới đây.
-2. Với mỗi nguồn tìm được, đọc phần nội dung liên quan tới coding convention/tiêu chí review (bỏ qua
-   phần không liên quan như giới thiệu sản phẩm, hướng dẫn cài đặt/deploy).
-3. **KHÔNG copy nội dung đã đọc vào memory.** Với mỗi nguồn có convention rõ ràng, không mâu thuẫn
-   với gì khác, chỉ thêm 1 dòng THAM CHIẾU vào `memory.md`, đúng format đã ghi ở khung comment Phần
-   A: `- [tag nếu xác định được stack liên quan] [nhãn ngắn](path) — hook 1 dòng tóm tắt convention`
-   — vd `- [rails] [Controllers](app/controllers/AGENTS.md) — mỏng, không params.permit`. Hook phải
-   NGẮN, cô đọng đúng ý chính, không lặp lại cụm "xem convention dự án tại" (bản thân link đã trỏ
-   rồi). Khi review, agent tự đọc lại đúng file tại path đó lúc cần — không dựa vào bản copy có thể
-   đã lỗi thời.
-4. **Nếu phát hiện mâu thuẫn** — 2 nguồn nói khác nhau về cùng 1 vấn đề, HOẶC 1 nguồn tự mâu
-   thuẫn/mơ hồ, HOẶC nguồn đó xung đột với baseline/template của plugin (`ALWAYS_RULE.md`/template):
-   tự phán đoán cách reconcile hợp lý nhất (ưu tiên nguồn viết riêng cho convention/AI-agent như
-   `CLAUDE.md`/`AGENTS.md` hơn `README.md` giới thiệu chung; ưu tiên nguồn cụ thể/chi tiết hơn nguồn
-   chung chung). Ghi bản đã reconcile thành 1 lesson theo Phần E (nội dung do agent tự soạn để giải
-   quyết mâu thuẫn, không copy nguyên văn 1 nguồn nào), nêu rõ nguồn nào mâu thuẫn với nguồn nào và
-   vì sao chọn hướng này. Đây là trường hợp DUY NHẤT ghi lesson mà không cần xác nhận user (agent tự
-   soạn trong lúc doctor).
-5. Ghi nhận vào `meta.json`: `"doctored": true`, `"doctored_at": "<ngày giờ hiện tại>"`,
-   `"project_docs_found": [<danh sách path đã tìm thấy ở bước 1, mảng rỗng nếu không có>]`,
-   `"pr_template_paths": [<danh sách path PR template đã tìm thấy ở bước 1, mảng rỗng nếu không có>]`.
-   (Submodule KHÔNG detect ở đây — `review.md` Bước 1 mục 5 tự kiểm `.gitmodules` trực tiếp mỗi
-   lần, không cache qua `meta.json`.)
-6. `git -C notebooks/review add <repo>` + commit (local only) phần thay đổi này.
+   **In this SAME scan pass (do NOT add a separate step), also check for the existence of the
+   project's PR template** — different from `project_docs_found` above (a general convention
+   source), this is its own separate field used at `review.md` Step 7 to cross-check the PR
+   template checklist against the PR's real description. Check the common paths:
+   `.github/PULL_REQUEST_TEMPLATE.md`, `.github/pull_request_template.md`,
+   `.github/PULL_REQUEST_TEMPLATE/*.md` (GitHub supports multiple templates in one directory,
+   selected via a query param), `PULL_REQUEST_TEMPLATE.md` (root), `docs/PULL_REQUEST_TEMPLATE.md`.
+   Keep the list of paths that ACTUALLY exist (an empty array if none exist) to record into
+   `meta.json` at step 6 below.
+2. For each source found, read the parts relevant to coding convention/review criteria (skip
+   irrelevant parts like a product intro or install/deploy instructions).
+3. **Do NOT copy the content you read into memory.** For each source with a clear convention that
+   doesn't conflict with anything else, only add 1 REFERENCE line to `memory.md`, in the exact
+   format given in the comment skeleton in Part A:
+   `- [tag if a related stack can be identified] [short label](path) — a 1-line hook summarizing the convention`
+   — e.g. `- [rails] [Controllers](app/controllers/AGENTS.md) — thin, no params.permit`. The hook
+   must be SHORT, condensing the main point, not repeating the phrase "see the project's
+   convention at" (the link itself already points there). While reviewing, the agent reads that
+   exact file at that path again when needed — it does not rely on a copy that may have gone
+   stale.
+4. **If a conflict is found** — 2 sources disagree about the same issue, OR 1 source
+   contradicts/is ambiguous with itself, OR that source conflicts with the plugin's
+   baseline/template (`ALWAYS_RULE.md`/template): use your own best judgment on how to reconcile
+   it (prefer a source written specifically for convention/AI-agents, like
+   `CLAUDE.md`/`AGENTS.md`, over a general-purpose `README.md`; prefer a specific/detailed source
+   over a generic one). Record the reconciled version as 1 lesson per Part E (content you author
+   yourself to resolve the conflict, not copied verbatim from either source), stating clearly which
+   sources conflicted and why this direction was chosen. This is the ONE case where a lesson gets
+   logged without needing the user's confirmation (the agent authors it itself during doctor).
+5. Record into `meta.json`: `"doctored": true`, `"doctored_at": "<current date/time>"`,
+   `"project_docs_found": [<list of paths found in step 1, empty array if none>]`,
+   `"pr_template_paths": [<list of PR template paths found in step 1, empty array if none>]`.
+   (Submodules are NOT detected here — `review.md` Step 1 item 5 checks `.gitmodules` directly
+   every time, with no caching via `meta.json`.)
+6. `git -C notebooks/review add <repo>` + commit (local only) this change.
 
-## Phần D — Schema `meta.json`
+## Part D — `meta.json` schema
 
 ```json
 {
@@ -198,84 +225,98 @@ làm THẬT KỸ: quét TOÀN BỘ repo, không giới hạn theo stack/tính n�
 }
 ```
 
-`_comments` (object string): chú thích cho người sửa `meta.json` tay — **không** phải config runtime.
-`review.md` / doctor / bootstrap bỏ qua toàn bộ keys trong đây. Bootstrap (Phần A bước 9) LUÔN
-ghi (hoặc bổ sung nếu thiếu) `_comments.doctor_schedule` đúng text mẫu trên. Khi Phần C/`Edit`
-`meta.json`, giữ nguyên `_comments` nếu đã có.
+`_comments` (an object of strings): a note for whoever edits `meta.json` by hand — **not** runtime
+config. `review.md` / doctor / bootstrap ignore every key inside it. Bootstrap (Part A step 9)
+ALWAYS writes (or backfills if missing) `_comments.doctor_schedule` with the exact sample text
+above. Whenever Part C/`Edit` touches `meta.json`, keep `_comments` unchanged if already present.
 
-**3 nhóm field — phân loại rõ để không nhầm khi thêm field mới:**
-- **User config** (Phần A hỏi user lúc bootstrap, đổi lại được qua "đổi cấu hình review"):
+**4 field groups — clearly categorized so new fields aren't miscategorized:**
+- **User config** (Part A asks the user at bootstrap, changeable later via "reconfigure review"):
   `auto_submit_review`, `auto_resolve_fixed_findings`, `doctor_schedule`, `review_ci_status`,
-  `many_files_threshold`, `big_file_threshold_kb`. Thiếu ở repo đã bootstrap từ trước →
-  `review.md` Bước 3 tự backfill
-  default + báo 1 lần (chi tiết đầy đủ nằm ở Bước 3 đó, không lặp lại ở đây).
-- **Doctor-detected** (Phần C tự dò lại theo lịch, không phải setting user chọn): `project_docs_found`,
-  `templates_copied`, `pr_template_paths`. Thiếu vì doctor chưa từng chạy/đang due → chờ Phần C chạy
-  lại bình thường, KHÔNG áp dụng backfill của nhóm User config.
-- **Internal/system state** (cờ trạng thái nội bộ của chính plugin — không phải setting, không có
-  khái niệm "thiếu vì outdate"): `bootstrapped`, `doctored`, `doctored_at`, `_comments`. KHÔNG áp
-  dụng backfill/notify gì cả — luôn được Phần A/C ghi đúng lúc cần.
+  `many_files_threshold`, `big_file_threshold_kb`. Missing on a repo bootstrapped before it existed
+  → `review.md` Step 3 backfills the default itself + notifies once (full detail lives in that
+  Step 3, not repeated here).
+- **Doctor-detected** (Part C re-detects it on its own schedule, not a setting the user chooses):
+  `project_docs_found`, `templates_copied`, `pr_template_paths`. Missing because doctor has never
+  run/is due → just wait for Part C to run again normally, do NOT apply the User config group's
+  backfill behavior.
+- **Internal/system state** (the plugin's own internal state flags — not a setting, no concept of
+  "missing because outdated"): `bootstrapped`, `doctored`, `doctored_at`, `_comments`. NO
+  backfill/notification applies at all — always written by Part A/C exactly when needed.
+- **Detected-once** (not asked at Part A, not a fixed default to backfill): `chat_language`.
+  Detected on demand at `review.md` Step 3 (chain: `ARGUMENTS` free text → this chat session's own
+  language → this project's Claude Code memory, if any → OS locale → ask as a last resort), then
+  remembered. Missing → run that detection, do not silently backfill a fixed default (there isn't
+  one to fall back to).
 
-**Khi thêm field mới vào schema này**: xếp NGAY vào đúng 1 trong 3 nhóm trên tại chính đoạn này. Nếu
-là **User config** → PHẢI thêm luôn vào câu "Giữ từ meta" ở Bước 3 `review.md` (đó là nơi DUY
-NHẤT quyết định backfill/notify cho repo cũ) — 2 chỗ phải khớp, thêm ở đây mà quên bên đó thì field
-mới sẽ không bao giờ được backfill cho repo đã golive.
+**When adding a new field to this schema**: classify it IMMEDIATELY into exactly 1 of the 4 groups
+above, right in this section. If it's a **User config** field → it MUST ALSO be added to the
+"Retained from meta" sentence at Step 3 of `review.md` (that's the SOLE place that decides
+backfill/notification for existing repos) — the two places must stay in sync; adding it here but
+forgetting there means the new field will never get backfilled for already-live repos.
 
-`review.md` coi bootstrap xong khi `bootstrapped: true`. Doctor: `doctored: true` **và** lịch
-chưa hết hạn (`doctor_schedule` + `doctored_at`). `templates_copied` kiểm riêng mỗi lần (Phần B) —
-stack mới vẫn copy được sau khi bootstrap/doctor xong.
+`review.md` treats bootstrap as done once `bootstrapped: true`. Doctor: `doctored: true` **and**
+the schedule hasn't expired (`doctor_schedule` + `doctored_at`). `templates_copied` is checked
+separately each time (Part B) — a new stack can still get its template copied after bootstrap/
+doctor are already done.
 
-`doctor_schedule` (string): `{N} days` | `{N} weeks` | `{N} months` | `never`. Hỏi lúc bootstrap
-(Phần A bước 6), mặc định `"1 months"`. Thiếu field (repo cũ) → coi `"1 months"`. `never` → không
-tự doctor lại theo lịch (vẫn chạy khi user "doctor lại" hoặc `doctored: false`). Hết hạn khi
-`now > doctored_at + schedule` (parse N + đơn vị; thiếu/`invalid` `doctored_at` mà `doctored: true`
-→ coi hết hạn, chạy lại Phần C). Sau mỗi Phần C thành công: cập nhật `doctored_at` (và
-`doctored: true`).
+`doctor_schedule` (string): `{N} days` | `{N} weeks` | `{N} months` | `never`. Asked at bootstrap
+(Part A step 6), default `"1 months"`. Field missing (old repo) → treat as `"1 months"`. `never` →
+never re-runs doctor on a schedule (still runs when the user asks to "doctor again" or when
+`doctored: false`). Expired when `now > doctored_at + schedule` (parse N + unit; missing/`invalid`
+`doctored_at` while `doctored: true` → treat as expired, rerun Part C). After every successful
+Part C run: update `doctored_at` (and `doctored: true`).
 
-Submodule KHÔNG có field riêng trong `meta.json` — `review.md` Bước 1 mục 5 tự `Read` thử
-`<worktree>/.gitmodules` trực tiếp mỗi lần (không cache), tránh gap "PR đầu tiên của repo mới luôn
-bị bỏ qua submodule vì doctor chưa từng chạy".
+Submodules have NO dedicated field in `meta.json` — `review.md` Step 1 item 5 itself tries
+`Read`-ing `<worktree>/.gitmodules` directly every time (no caching), avoiding the gap where "the
+first PR of a new repo always skips submodule handling because doctor has never run".
 
-`auto_submit_review`/`auto_resolve_fixed_findings`/`doctor_schedule` hỏi + ghi lúc bootstrap (Phần A
-bước 6/9). `review.md` Bước 3 đọc lại; dùng ở Bước 6/9 và gate doctor lịch.
+`auto_submit_review`/`auto_resolve_fixed_findings`/`doctor_schedule` are asked + written at
+bootstrap (Part A step 6/9). `review.md` Step 3 reads them back; used at Step 6/9 and the doctor
+schedule gate.
 
-`pr_template_paths` ghi lúc doctor (Phần C bước 1/5). `review.md` Bước 3 đọc, Bước 7 dùng.
+`pr_template_paths` is written at doctor time (Part C step 1/5). `review.md` Step 3 reads it,
+Step 7 uses it.
 
-`review_ci_status` (boolean): chỉ HỎI lúc bootstrap (Phần A bước 6/9) khi PR đang review có ít nhất
-1 CI check (mảng "CI checks" ở Ngữ cảnh không rỗng) — default `true` nếu user không chọn; PR không
-có CI nào → KHÔNG hỏi, ghi thẳng `false` (hỏi cũng vô nghĩa). Thiếu field (repo cũ, backfill ở
-`review.md` Bước 3) → coi theo tín hiệu CI checks của LẦN REVIEW HIỆN TẠI (không mặc định cứng
-`true`). `review.md` Bước 3 đọc lại; Bước 7 dùng để quyết định có nêu cảnh báo CI check fail (đã
-fetch ở Ngữ cảnh) trong overview hay bỏ qua hoàn toàn.
+`review_ci_status` (boolean): ONLY ASKED at bootstrap (Part A step 6/9) when the PR being reviewed
+has at least 1 CI check (the "CI checks" array in Context is non-empty) — default `true` if the
+user doesn't choose; PR has no CI at all → NOT asked, write `false` directly (asking would be
+pointless). Field missing (old repo, backfilled at `review.md` Step 3) → treat it according to the
+CURRENT review run's CI-checks signal (not a hardcoded `true`). `review.md` Step 3 reads it back;
+Step 7 uses it to decide whether to raise a warning about a failing CI check (already fetched in
+Context) in the overview, or skip it entirely.
 
-`many_files_threshold` (number): hỏi + ghi lúc bootstrap (Phần A bước 6/9), mặc định `30`. Thiếu
-field hoặc không phải số hợp lệ (repo cũ) → coi `30`. `review.md` Bước 3 đọc lại; Bước 7 dùng ở
-guard số lượng file (PR đổi nhiều hơn ngưỡng này → hỏi chiến lược review, trừ khi ARGUMENTS/chat đã
-chỉ định sẵn).
+`many_files_threshold` (number): asked + written at bootstrap (Part A step 6/9), default `30`.
+Field missing or not a valid number (old repo) → treat as `30`. `review.md` Step 3 reads it back;
+Step 7 uses it in the file-count guard (a PR changing more files than this threshold → ask about
+review strategy, unless ARGUMENTS/chat already specified one).
 
-`big_file_threshold_kb` (number): hỏi + ghi lúc bootstrap (Phần A bước 6/9), mặc định `20` (~5.000
-token, ước lượng ~4 ký tự/token — chỉ là quy đổi tham khảo, không chính xác tuyệt đối vì phụ thuộc
-tokenizer/ngôn ngữ thật). Thiếu field hoặc không phải số hợp lệ (repo cũ) → coi `20`. `review.md`
-Bước 3 đọc lại; Bước 7 dùng ở guard size/dump (file có diff vượt ngưỡng này, tính bằng KB, hoặc
-`UNKNOWN` → peek có giới hạn để phân loại data/dump thay vì review chi tiết dòng-by-dòng).
+`big_file_threshold_kb` (number): asked + written at bootstrap (Part A step 6/9), default `20`
+(~5,000 tokens, estimated at ~4 characters/token — just a rough reference conversion, not exact
+since it depends on the real tokenizer/language). Field missing or not a valid number (old repo) →
+treat as `20`. `review.md` Step 3 reads it back; Step 7 uses it in the size/dump guard (a file
+whose diff exceeds this threshold, in KB, or `UNKNOWN` → a limited peek to classify data/dump
+instead of a detailed line-by-line review).
 
-## Phần E — Ghi 1 lesson vào memory
+## Part E — Logging 1 lesson into memory
 
-Quy trình mechanical dùng chung cho: đồng thuận thread (Bước 6 / `re-review.md` — **sau** user
-xác nhận trong chat), góp ý convention user gõ trong chat (`review.md` Bước 10 — ghi ngay, không
-hỏi lại), và mâu thuẫn reconcile ở Phần C (không hỏi). Phần E chỉ mô tả thao tác ghi.
+The mechanical procedure shared by: thread consensus (Step 6 / `re-review.md` — **after** the user
+confirms in chat), a convention suggestion the user types in chat (`review.md` Step 10 — log it
+immediately, no re-confirmation), and a conflict reconciled in Part C (no confirmation needed).
+Part E only describes the write operation itself.
 
-1. Tạo `notebooks/review/<repo>/memories/<lesson-slug>.md` (slug kebab-case ngắn gọn, không
-   dùng số thứ tự vô nghĩa). Nội dung tối thiểu: mô tả convention; ví dụ code trước/sau (nếu có);
-   tag stack; ngày ghi nhận; nguồn (link PR liên quan nếu có).
-2. Thêm 1 dòng vào index `notebooks/review/<repo>/memory.md`, đúng format đã ghi ở khung comment
-   Phần A: `- [tag-stack] [nhãn ngắn](memories/<lesson-slug>.md) — hook 1 dòng` (nhiều tag nếu áp
-   dụng nhiều stack). Hook ngắn gọn, không lặp từ, không diễn giải dài dòng — chi tiết đã có trong
-   file `memories/<lesson-slug>.md`, index chỉ cần đủ để nhận ra lesson là gì.
-3. `git -C notebooks/review add <repo>` + commit (local only, không push; nếu commit lỗi thiếu
-   `user.name`/`user.email`, dùng cờ `-c` như Phần A).
+1. Create `notebooks/review/<repo>/memories/<lesson-slug>.md` (a short kebab-case slug, no
+   meaningless sequence numbers). Minimum content: a description of the convention; before/after
+   code example (if any); stack tag; date logged; source (a link to the related PR if any).
+2. Add 1 line to the index at `notebooks/review/<repo>/memory.md`, in the exact format given in
+   the comment skeleton in Part A: `- [stack-tag] [short label](memories/<lesson-slug>.md) — a
+   1-line hook` (multiple tags if it applies to multiple stacks). Keep the hook concise, no
+   repeated words, no lengthy explanation — the detail already lives in the
+   `memories/<lesson-slug>.md` file, the index only needs enough to recognize what the lesson is.
+3. `git -C notebooks/review add <repo>` + commit (local only, no push; if the commit errors about
+   a missing `user.name`/`user.email`, use the `-c` flags as in Part A).
 
-## Khi user yêu cầu "doctor lại" / "quét lại convention dự án"
+## When the user asks to "doctor again" / "rescan the project's conventions"
 
-Sửa `doctored` trong `meta.json` thành `false` (hoặc xoá hẳn field đó) rồi thực hiện lại Phần C.
-Có thể làm ngay trong chat, không cần đợi lần `/open-pr:review` kế tiếp.
+Change `doctored` in `meta.json` to `false` (or delete that field entirely) then redo Part C. Can
+be done right in chat, no need to wait for the next `/open-pr:review` run.

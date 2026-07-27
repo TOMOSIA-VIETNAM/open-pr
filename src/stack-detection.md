@@ -1,35 +1,35 @@
 # Stack detection
 
-Ánh xạ mỗi file trong diff sang (các) stack review áp dụng. Một PR có thể trộn nhiều stack; giữ
-danh sách cặp `(file, [stack áp dụng])`, không gán chung 1 stack cho cả PR khi các file thuộc stack
-khác nhau.
+Maps each file in the diff to the applicable review stack(s). A PR can mix multiple stacks; keep a
+list of `(file, [applicable stacks])` pairs, do not assign a single stack to the whole PR when its
+files belong to different stacks.
 
-## Bảng mapping đuôi file / path → stack nền
+## Base stack mapping table — file extension / path
 
-| Điều kiện file | Stack |
+| File condition | Stack |
 |---|---|
 | `.rb`, `.erb`, `.haml` | `rails` |
 | `.vue` | `vue` |
-| `.jsx`, `.tsx` (không phải `.vue`; heuristic hỗ trợ: path chứa `src/components`, `pages/`, hoặc file có import `react`) | `react` |
+| `.jsx`, `.tsx` (not `.vue`; supporting heuristic: path contains `src/components`, `pages/`, or the file imports `react`) | `react` |
 | `.py` | `python` |
-| `.js`, `.ts` còn lại (không thuộc `.vue` / `.jsx` / `.tsx` / thư mục FE nêu trên) | `nodejs` |
+| remaining `.js`, `.ts` (not `.vue` / `.jsx` / `.tsx` / the FE directories above) | `nodejs` |
 | `.sh`, `.bash` | `shell` |
 | `Makefile`, `makefile`, `*.mk` | `makefile` |
-| `.php` (không rơi vào overlay Laravel/WordPress bên dưới) | `php` |
-| `.md` là chỉ dẫn cho AI agent, không phải docs cho người đọc (xem chú thích dưới bảng) | `agent-instructions` |
+| `.php` (not caught by the Laravel/WordPress overlays below) | `php` |
+| `.md` that is instructions for an AI agent, not documentation for a human reader (see the note below the table) | `agent-instructions` |
 
-_Nhận diện `agent-instructions`: phán đoán qua NỘI DUNG, không phải chỉ đuôi file — giọng imperative
-hướng dẫn hành động, không phải tường thuật cho người đọc. Ví dụ path/tên file minh hoạ, không giới
-hạn ở đây: `.claude/commands/`, `.claude/skills/`, `.cursor/rules/`, `CLAUDE.md`, `AGENTS.md`,
-`*.cursorrules`, `copilot-instructions.md`._
+_Detecting `agent-instructions`: judged by CONTENT, not just the file extension — imperative,
+action-directing tone, not a narrative for a human reader. Illustrative example paths/filenames,
+not an exhaustive list: `.claude/commands/`, `.claude/skills/`, `.cursor/rules/`, `CLAUDE.md`,
+`AGENTS.md`, `*.cursorrules`, `copilot-instructions.md`._
 
-## Overlay (cộng thêm lên stack nền, không thay thế)
+## Overlays (added on top of a base stack, not a replacement)
 
-- **Lambda** — path chứa `lambda`/`lambdas`/`functions/`, HOẶC repo có `serverless.yml` /
-  `template.yaml` / `sam.yaml`, HOẶC filename `handler.py`/`handler.js`/`index.py`/`index.js` nằm
-  cạnh một trong các file config trên → cộng thêm `lambda-common` lên `python` (file `.py`) hoặc
-  `nodejs` (file `.js`/`.ts`).
-- **Laravel** — repo có `artisan`, `composer.json` chứa `laravel/framework`, hoặc path
-  `app/Http/Controllers`, `resources/views/*.blade.php` → cộng thêm `laravel` lên `php`.
-- **WordPress** — repo có `wp-config.php`, path `wp-content/plugins/` hoặc `wp-content/themes/`,
-  hoặc `style.css` có theme header → cộng thêm `wordpress` lên `php`.
+- **Lambda** — path contains `lambda`/`lambdas`/`functions/`, OR the repo has `serverless.yml` /
+  `template.yaml` / `sam.yaml`, OR a filename `handler.py`/`handler.js`/`index.py`/`index.js` sits
+  next to one of the config files above → add `lambda-common` on top of `python` (for `.py` files)
+  or `nodejs` (for `.js`/`.ts` files).
+- **Laravel** — repo has `artisan`, `composer.json` contains `laravel/framework`, or the path is
+  `app/Http/Controllers`, `resources/views/*.blade.php` → add `laravel` on top of `php`.
+- **WordPress** — repo has `wp-config.php`, path `wp-content/plugins/` or `wp-content/themes/`, or
+  `style.css` has a theme header → add `wordpress` on top of `php`.

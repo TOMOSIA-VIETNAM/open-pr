@@ -1,23 +1,23 @@
-name: 🐛 Báo lỗi (Bug report)
-description: Plugin review sai, crash, hoặc hoạt động không như mong đợi
+name: 🐛 Bug report
+description: The plugin reviews incorrectly, crashes, or doesn't behave as expected
 labels: ["bug"]
 body:
   - type: textarea
     id: description
     attributes:
-      label: Mô tả lỗi
-      description: Chuyện gì xảy ra? Bạn mong đợi điều gì thay vào đó?
+      label: Bug description
+      description: What happened? What did you expect instead?
       placeholder: |
-        Vd: Chạy /open-pr:review trên PR X, plugin post review nhưng comment cấp LINE bị gắn nhầm dòng.
-        Mong đợi: comment đúng dòng bị đổi trong diff.
+        E.g.: Ran /open-pr:review on PR X, the plugin posted a review but the LINE-level comment
+        was attached to the wrong line. Expected: comment on the actual changed line in the diff.
     validations:
       required: true
 
   - type: textarea
     id: steps
     attributes:
-      label: Bước tái hiện
-      description: Càng cụ thể càng dễ fix — lệnh đã gõ, thứ tự thao tác.
+      label: Steps to reproduce
+      description: The more specific, the easier to fix — commands typed, order of actions.
       placeholder: |
         1. /open-pr:review https://github.com/<owner>/<repo>/pull/<n>
         2. ...
@@ -27,8 +27,8 @@ body:
   - type: input
     id: pr_url
     attributes:
-      label: PR URL lúc gặp lỗi (nếu có)
-      description: Link PR thật đang review khi gặp lỗi — giúp tái hiện chính xác hơn.
+      label: PR URL when the bug occurred (if any)
+      description: Link to the actual PR being reviewed when the bug occurred — helps reproduce accurately.
       placeholder: https://github.com/<owner>/<repo>/pull/<number>
     validations:
       required: false
@@ -36,31 +36,32 @@ body:
   - type: textarea
     id: evidence
     attributes:
-      label: Minh chứng (log/output/screenshot)
+      label: Evidence (log/output/screenshot)
       description: |
-        Dán output/log thật, comment GitHub bị lỗi, ảnh chụp... Bug càng có minh chứng cụ thể càng
-        dễ xác nhận và fix nhanh. Kéo-thả ảnh trực tiếp vào ô này để đính kèm.
-      placeholder: Dán log/link comment lỗi/ảnh chụp tại đây...
+        Paste the actual output/log, the broken GitHub comment, a screenshot... The more concrete
+        evidence, the faster this can be confirmed and fixed. You can drag-and-drop images directly
+        into this field to attach them.
+      placeholder: Paste log/error comment link/screenshot here...
     validations:
       required: false
 
   - type: input
     id: version
     attributes:
-      label: Version plugin đang dùng
-      description: Xem qua `/plugin list` trong Claude Code, hoặc tag release gần nhất bạn đã update tới.
-      placeholder: vd v0.2.0, hoặc commit SHA
+      label: Plugin version in use
+      description: Check via `/plugin list` in Claude Code, or the latest release tag you updated to.
+      placeholder: e.g. v0.2.0, or a commit SHA
     validations:
       required: false
 
   - type: textarea
     id: env
     attributes:
-      label: Môi trường
-      description: OS, phiên bản Claude Code, stack của repo đang review (nếu liên quan tới lỗi).
+      label: Environment
+      description: OS, Claude Code version, stack of the repo being reviewed (if relevant to the bug).
       placeholder: |
         - OS: macOS 15
         - Claude Code: ...
-        - Stack repo đang review: Rails/Vue/...
+        - Stack of repo being reviewed: Rails/Vue/...
     validations:
       required: false

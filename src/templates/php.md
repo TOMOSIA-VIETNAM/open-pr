@@ -1,32 +1,36 @@
-# PHP (nền chung, không đặc thù framework)
+# PHP (shared base, not framework-specific)
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; chỉ liệt kê tiêu chí đặc thù stack, không lặp baseline._
+_Additions to the `ALWAYS_RULE.md` baseline; lists only stack-specific criteria, does not repeat
+the baseline._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic issues
 
-- Type juggling nguy hiểm có xảy ra không — dùng `==` thay vì `===` ở nơi cần so sánh strict (đặc biệt so sánh string/number dễ dính lỗi kiểu `"0" == "abc"`)?
-- Error/exception handling có tránh dùng `@` để nuốt lỗi âm thầm không?
+- Does dangerous type juggling occur — using `==` instead of `===` where a strict comparison is
+  needed (especially string/number comparisons prone to bugs like `"0" == "abc"`)?
+- Does error/exception handling avoid using `@` to silently swallow errors?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Có lỗ hổng SQL injection không — có dùng PDO prepared statement/parameter binding thay vì nội suy chuỗi trực tiếp vào query không?
-- Output có escape chống XSS không (`htmlspecialchars` khi render dữ liệu user ra HTML)?
-- Session/cookie có cấu hình an toàn không (`httponly`, `secure`, `samesite` flag)?
+- Is there a SQL injection vulnerability — are PDO prepared statements/parameter binding used
+  instead of interpolating strings directly into the query?
+- Is output escaped against XSS (`htmlspecialchars` when rendering user data into HTML)?
+- Are sessions/cookies configured safely (`httponly`, `secure`, `samesite` flags)?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Có truy vấn database lặp không cần thiết trong loop không?
+- Are there unnecessary repeated database queries inside a loop?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Autoload có tuân theo chuẩn PSR-4/composer không (tránh `require`/`include` thủ công tùy tiện)?
+- Does autoloading follow the PSR-4/composer standard (avoiding arbitrary manual
+  `require`/`include`)?
 
-#### 5. Đặc thù PHP
+#### 5. PHP specifics
 
-- Type hint tham số/return type có được khai báo đầy đủ không (PHP 7+)?
-- Namespace có tổ chức rõ ràng, khớp cấu trúc thư mục (PSR-4) không?
-- Có tận dụng tính năng ngôn ngữ hợp lý (null coalescing `??`, arrow function, match expression) không?
+- Are parameter/return type hints fully declared (PHP 7+)?
+- Is the namespace clearly organized, matching the directory structure (PSR-4)?
+- Are language features used sensibly (null coalescing `??`, arrow functions, match expressions)?
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-- Test có dùng PHPUnit không?
+- Do tests use PHPUnit?

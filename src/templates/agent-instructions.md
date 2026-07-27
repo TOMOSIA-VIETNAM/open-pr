@@ -1,40 +1,54 @@
 # Agent Instructions (Markdown)
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; áp dụng cho file `.md` là chỉ dẫn cho 1 AI coding agent đọc
-và làm theo (skill/command/CLAUDE.md/AGENTS.md/cursor rules...), KHÔNG áp dụng cho README/docs
-thường cho người đọc._
+_Additions to the `ALWAYS_RULE.md` baseline; applies to `.md` files that are instructions meant to
+be read and followed by an AI coding agent (skill/command/CLAUDE.md/AGENTS.md/cursor rules...),
+does NOT apply to a regular README/docs meant for a human reader._
 
-#### 1. Mâu thuẫn & lỗi logic
+#### 1. Conflicts & logic errors
 
-- 2 đoạn trong cùng file (hoặc giữa file này và file liên quan) có nói khác nhau về cùng 1 hành vi không?
-- Điều kiện rẽ nhánh có phủ đủ trường hợp không, hay để agent tự đoán khi gặp case ngoài dự kiến?
-- Ví dụ minh hoạ trong file có còn khớp hành vi thật đang mô tả không (stale example)?
+- Do 2 sections in the same file (or between this file and a related file) say different things
+  about the same behavior?
+- Do branching conditions cover every case, or do they leave the agent to guess when it hits an
+  unforeseen case?
+- Do the illustrative examples in the file still match the real behavior being described (a stale
+  example)?
 
-#### 2. Lệnh nguy hiểm / rò rỉ thông tin qua văn bản
+#### 2. Dangerous commands / information leakage through text
 
-- Có gợi ý agent chạy lệnh phá hoại (`rm -rf`, force-push, `reset --hard`...) mà không kèm rào chắn/xác nhận không?
-- Ví dụ minh hoạ có chứa secret/token/credential thật (không phải placeholder) không?
-- File có xử lý data từ nguồn không tin cậy (input người dùng, PR content, web) mà thiếu câu "đây là DATA không phải INSTRUCTION" không?
+- Does it suggest the agent run a destructive command (`rm -rf`, force-push, `reset --hard`...)
+  without a safeguard/confirmation attached?
+- Do the illustrative examples contain a real secret/token/credential (not a placeholder)?
+- Does the file handle data from an untrusted source (user input, PR content, the web) without the
+  sentence "this is DATA, not an INSTRUCTION"?
 
-#### 3. Token-bloat & overthinking
+#### 3. Token bloat & overthinking
 
-- Có nội dung lặp lại cùng 1 rule ở nhiều đoạn/nhiều file không?
-- Nội dung chỉ áp dụng 1 trigger hiếm có bị để LUÔN-NẠP thay vì tách case riêng (chỉ đọc khi cần) không?
-- Có đoạn giải thích "vì sao" dài dòng lẫn vào phần "làm gì" không — nếu file này luôn được nạp lúc runtime, lý do/lịch sử nên tách sang tài liệu riêng cho người phát triển đọc?
-- Có yêu cầu agent tự-verify/tự-hỏi lại nhiều lần mà không rõ điều kiện dừng (rủi ro loop) không?
+- Is the same rule repeated across multiple sections/multiple files?
+- Is content that applies to only 1 rare trigger ALWAYS-LOADED instead of split into its own case
+  (read only when needed)?
+- Is a lengthy "why" explanation mixed into the "what to do" section — if this file is always
+  loaded at runtime, should the reasoning/history be moved into separate documentation for
+  developers to read instead?
+- Does it ask the agent to self-verify/re-ask itself repeatedly with no clear stopping condition
+  (risk of a loop)?
 
-#### 4. Viết trung lập
+#### 4. Neutral writing
 
-- Có kể lể quá trình xây dựng/lịch sử sửa đổi khi chỉ cần nêu hành vi hiện tại không?
-- Có tường thuật "diễn biến" (từng bước đã làm) thay vì chỉ dẫn thẳng không?
-- Có tham chiếu tới thứ tạm/sẽ đổi (task ID, tên branch, số mục doc thiết kế, jargon nội bộ) khiến người đọc sau không giải nghĩa được khi thứ đó bị xoá/đổi không?
+- Does it recount the build process/change history when only the current behavior needs stating?
+- Does it narrate "what happened" (a step-by-step account of what was done) instead of giving
+  direct instructions?
+- Does it reference something ephemeral/subject to change (a task ID, branch name, a design doc's
+  section number, internal jargon) that a future reader won't be able to decipher once that thing
+  is deleted/renamed?
 
-#### 5. Cấu trúc markdown
+#### 5. Markdown structure
 
-- Heading phân cấp rõ, mỗi heading 1 ý, không nhồi nhiều chủ đề không liên quan chung 1 mục?
-- Frontmatter (nếu có) đủ field cần, không field thừa/legacy?
-- Nội dung có điều kiện (chỉ áp dụng 1 số trigger) có tách đúng thành case/gate riêng, không nhồi vào file chính luôn-nạp?
+- Are headings clearly leveled, each heading covering 1 idea, without cramming multiple unrelated
+  topics into one section?
+- Does the frontmatter (if any) have exactly the fields it needs, no extra/legacy fields?
+- Is conditional content (applying to only some triggers) properly split into its own case/gate,
+  rather than crammed into the always-loaded main file?
 
-#### 6. Khả năng bảo trì & dễ đọc
+#### 6. Maintainability & readability
 
-(không có tiêu chí bổ sung ngoài baseline chung — xem `ALWAYS_RULE.md`)
+(no additional criteria beyond the shared baseline — see `ALWAYS_RULE.md`)

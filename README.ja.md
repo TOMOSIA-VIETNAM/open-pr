@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
 
-[Tiếng Việt](./README.md) · [English](./README.en.md) · **日本語**
+[Tiếng Việt](./README.vi.md) · [English](./README.md) · **日本語**
 
 GitHub の Pull Request を**一貫した基準で**レビューする方法を Agent に教えるプラグイン — 使うほどあなたのプロジェクトを正しく理解します。
 
@@ -80,6 +80,9 @@ URL の直後に指示を追加すると、**その実行のみ**に適用され
 5. **CI の実際の状態を照合するか？**（`review_ci_status`）— **この PR に CI check が1つでもある場合のみ質問**（CI が無いリポジトリではこの質問はスキップされ、自動的に `false` になります）；質問された場合のデフォルトは `true`；失敗した check があれば概要に一言警告（必須修正としては数えない）
 6. **レビュー戦略を確認する変更ファイル数のしきい値？**（`many_files_threshold`）— デフォルト **30**；この数を超えて変更する PR では、浅く全体をレビューするか、重要な部分だけ深くレビューするか、あるいは中断して PR 分割を提案するか、方針を尋ねます
 7. **巨大/ダンプファイルとみなすファイルごとのサイズしきい値？**（`big_file_threshold_kb`）— デフォルト **20**（KB、目安 ~5,000 token、1 token ≈ 4 文字の粗い換算）；このしきい値を超える変更ファイル（例：`package-lock.json`）は簡易分類のみ行い、行ごとの詳細レビューはしません — 質問 6 の変更ファイル数のしきい値とは独立しています
+
+この 7 問とは別に、プラグインは**チャットで使う言語**も自動判定します — 判定できない場合のみ質問し、
+リポジトリごとに記憶します。質問 1（レビューコメント自体の言語）とは独立しています。
 
 その後、既存の規約ドキュメントを読み込み、以降の実行のために記憶します。
 

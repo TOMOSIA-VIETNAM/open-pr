@@ -1,44 +1,56 @@
 # Vue 2/3, Nuxt
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; chỉ liệt kê tiêu chí đặc thù stack, không lặp baseline._
+_Additions to the `ALWAYS_RULE.md` baseline; lists only stack-specific criteria, does not repeat
+the baseline._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic issues
 
-- Xử lý lỗi cho các thao tác async (Promise, async/await, axios) có phù hợp không?
-- Dữ liệu từ API có được validate trước khi render không?
+- Is error handling for async operations (Promise, async/await, axios) appropriate?
+- Is data from an API validated before being rendered?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Có nguy cơ XSS qua `v-html` không (dữ liệu user input không được escape)?
-- Kiểm tra file `.env` không được commit.
-- Các API call có gắn token xác thực đúng không?
+- Is there an XSS risk via `v-html` (user input data not escaped)?
+- Check that the `.env` file isn't committed.
+- Do API calls attach the correct authentication token?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Có re-render không cần thiết không? Kiểm tra `computed` thay vì `methods` cho giá trị phụ thuộc reactive.
-- `v-for` có dùng `:key` đúng (không dùng index làm key khi danh sách có thể thay đổi thứ tự) không?
-- Instance Component có được destroy đúng trong `beforeDestroy` không?
-- Ảnh và static asset có được tối ưu không?
+- Is there unnecessary re-rendering? Check for `computed` instead of `methods` for reactive
+  derived values.
+- Does `v-for` use `:key` correctly (not using the index as the key when the list's order can
+  change)?
+- Is the Component instance destroyed correctly in `beforeDestroy`?
+- Are images and static assets optimized?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Xem xét tách code lặp thành mixin hoặc composable.
-- TypeScript type có được định nghĩa đúng không (không lạm dụng `any`)? Interface nên đặt trong thư mục `interfaces/`.
-- Hằng số có được đặt trong thư mục `constants/` không?
-- Utility function có được đặt trong thư mục `utils/` không?
+- Consider extracting duplicated code into a mixin or composable.
+- Are TypeScript types defined correctly (not overusing `any`)? Interfaces should live in the
+  `interfaces/` directory.
+- Are constants placed in the `constants/` directory?
+- Are utility functions placed in the `utils/` directory?
 
-#### 5. Nuxt 2 / Vue 2 cụ thể
+#### 5. Nuxt 2 / Vue 2 specifics
 
-- **Component**: Dùng `@Component` decorator (nuxt-property-decorator) đúng cách không? `@Prop`, `@Watch`, `@Emit` có được dùng thay vì Options API thuần không?
-- **Vuex**: Action/mutation/getter có được đặt đúng module không? Tránh commit mutation trực tiếp từ component, dùng action thay thế.
-- **Routing**: Dùng `nuxt-link` thay `router-link`, `this.$router.push` có xử lý lỗi không?
-- **Lifecycle hooks**: `mounted` vs `created` có được dùng đúng ngữ cảnh (SSR-aware) không? Tránh DOM access trong `created`.
-- **API calls**: Dùng `@nuxtjs/axios` (`this.$axios`) thống nhất không? Error handling có dùng try/catch hoặc `.catch()` không?
-- **Ant Design Vue**: Component import có đúng không? Event listener dùng `@change` / `@click` thay vì `v-on` thuần không?
-- **SCSS**: Style có scoped (`<style scoped>`) không? Tránh override global style không cần thiết. Biến SCSS có import từ `assets/` không?
-- **nuxt.config.js**: Nếu có thay đổi config, kiểm tra plugin/module đăng ký đúng không, tránh thêm thư viện nặng vào `head` global.
+- **Component**: Is the `@Component` decorator (nuxt-property-decorator) used correctly? Are
+  `@Prop`, `@Watch`, `@Emit` used instead of the plain Options API?
+- **Vuex**: Are actions/mutations/getters placed in the correct module? Avoid committing a
+  mutation directly from a component, use an action instead.
+- **Routing**: Is `nuxt-link` used instead of `router-link`, does `this.$router.push` handle
+  errors?
+- **Lifecycle hooks**: Are `mounted` vs `created` used in the correct context (SSR-aware)? Avoid
+  DOM access in `created`.
+- **API calls**: Is `@nuxtjs/axios` (`this.$axios`) used consistently? Does error handling use
+  try/catch or `.catch()`?
+- **Ant Design Vue**: Are component imports correct? Do event listeners use `@change` / `@click`
+  instead of plain `v-on`?
+- **SCSS**: Is the style scoped (`<style scoped>`)? Avoid unnecessary global style overrides. Are
+  SCSS variables imported from `assets/`?
+- **nuxt.config.js**: If the config changed, check that plugins/modules are registered correctly,
+  avoid adding a heavy library into the global `head`.
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-- Component có quá lớn không? Nên tách nếu vượt ~300 dòng.
-- ESLint/Prettier có pass không? Không nên có `// eslint-disable` mà không có lý do.
+- Is the component too large? Should be split up if it exceeds ~300 lines.
+- Does ESLint/Prettier pass? There should be no `// eslint-disable` without a reason.

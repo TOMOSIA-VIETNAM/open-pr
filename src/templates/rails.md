@@ -1,39 +1,40 @@
 # Rails (API + View)
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; chỉ liệt kê tiêu chí đặc thù stack, không lặp baseline._
+_Additions to the `ALWAYS_RULE.md` baseline; lists only stack-specific criteria, does not repeat
+the baseline._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic issues
 
-- Có nhánh điều kiện nào bị thiếu không?
-- Xử lý transaction có đúng không (rollback có được áp dụng khi cần không)?
+- Is any conditional branch missing?
+- Is transaction handling correct (is rollback applied when needed)?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Có lỗ hổng SQL injection nào không (ví dụ: nội suy chuỗi trong `where`)?
-- Có lỗ hổng mass assignment nào không (`permit` được cấu hình đúng chưa)?
-- Có thiếu kiểm tra xác thực (authentication) hay phân quyền (authorization) không?
+- Is there any SQL injection vulnerability (e.g. string interpolation in a `where`)?
+- Is there any mass assignment vulnerability (is `permit` configured correctly)?
+- Is authentication or authorization checking missing?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Có vấn đề N+1 query không?
-- `includes` / `preload` / `eager_load` có được dùng khi cần không?
-- `find_each` hoặc `in_batches` có được dùng khi xử lý tập dữ liệu lớn không?
+- Is there an N+1 query issue?
+- Are `includes` / `preload` / `eager_load` used where needed?
+- Are `find_each` or `in_batches` used when processing a large dataset?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Trách nhiệm của các method có được tách biệt đúng không?
-- Code có được viết theo phong cách Ruby thuần không (`map`, `select`, `each_with_object`, v.v.)?
-- Comment disable Rubocop có được giải thích lý do hợp lệ không?
+- Are method responsibilities properly separated?
+- Is the code written in idiomatic Ruby style (`map`, `select`, `each_with_object`, etc.)?
+- Is a Rubocop-disable comment explained with a valid reason?
 
-#### 5. Ruby on Rails cụ thể
+#### 5. Ruby on Rails specifics
 
-- Validations của ActiveRecord có phù hợp không?
-- Scope và class method có được dùng đúng không?
-- Có tác dụng phụ không mong muốn từ callback (`before_save`, v.v.) không?
-- Việc tách service class và concern có hợp lý không?
-- Nếu có mutation/query GraphQL, định nghĩa type có đúng không?
-- RSpec test có được thêm hoặc cập nhật cho thay đổi không?
+- Are ActiveRecord validations appropriate?
+- Are scopes and class methods used correctly?
+- Are there unintended side effects from callbacks (`before_save`, etc.)?
+- Is the split between service classes and concerns reasonable?
+- If there's a GraphQL mutation/query, is the type definition correct?
+- Were RSpec tests added or updated for the change?
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-- Hằng số và mapping có được định nghĩa phù hợp không?
+- Are constants and mappings defined appropriately?

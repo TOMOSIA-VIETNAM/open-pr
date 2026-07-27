@@ -1,38 +1,48 @@
 # Python
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; chỉ liệt kê tiêu chí đặc thù stack, không lặp baseline._
+_Additions to the `ALWAYS_RULE.md` baseline; lists only stack-specific criteria, does not repeat
+the baseline._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic issues
 
-- Mutable default argument (`def f(x=[])`, `def f(x={})`) có bị dùng sai gây side-effect giữa các lần gọi không?
-- Có nhánh điều kiện/exception nào bị thiếu xử lý không?
+- Is a mutable default argument (`def f(x=[])`, `def f(x={})`) misused, causing a side effect
+  shared across calls?
+- Is any conditional branch/exception left unhandled?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Nên cấu hình secret qua biến môi trường thay vì hardcode.
-- Có input nào được đưa thẳng vào query/command/eval mà không qua kiểm tra không?
-- Exception handling có tránh nuốt lỗi âm thầm (bare `except:`) làm mất thông tin bảo mật/debug không?
+- Secrets should be configured via environment variables instead of hardcoded.
+- Is any input passed directly into a query/command/eval without being checked?
+- Does exception handling avoid silently swallowing errors (a bare `except:`) that would lose
+  security/debugging information?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Có vấn đề N+1 query nếu dùng ORM (SQLAlchemy/Django) không — có thiếu `select_related`/`prefetch_related` (Django) hoặc `joinedload`/`selectinload` (SQLAlchemy) không?
-- Có xử lý dữ liệu lớn theo cách tốn bộ nhớ không (nên dùng generator/iterator thay vì load hết vào list)?
-- Có tính toán lặp lại không cần thiết có thể cache (`functools.lru_cache`) không?
+- Is there an N+1 query issue when using an ORM (SQLAlchemy/Django) — is
+  `select_related`/`prefetch_related` (Django) or `joinedload`/`selectinload` (SQLAlchemy)
+  missing?
+- Is large data handled in a memory-wasteful way (should use a generator/iterator instead of
+  loading everything into a list)?
+- Is there unnecessary repeated computation that could be cached (`functools.lru_cache`)?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Type hints có đầy đủ cho public function/method không?
-- Exception handling có cụ thể (bắt đúng loại exception cần) thay vì bare `except:` không? Khi re-raise có dùng exception chaining (`raise ... from e`) để giữ traceback gốc không?
-- Context manager (`with`) có được dùng cho resource cần đóng (file, db connection, socket) thay vì quản lý mở/đóng thủ công không?
+- Are type hints complete for public functions/methods?
+- Is exception handling specific (catching the exact exception type needed) instead of a bare
+  `except:`? When re-raising, is exception chaining used (`raise ... from e`) to preserve the
+  original traceback?
+- Is a context manager (`with`) used for resources that need closing (file, DB connection, socket)
+  instead of manually managing open/close?
 
-#### 5. Đặc thù Python
+#### 5. Python specifics
 
-- Dùng `logging` thay vì `print` trong code chạy production không?
-- Docstring có đầy đủ cho function phức tạp/public API không?
-- Có tận dụng idiom Python (list/dict comprehension, unpacking, `enumerate`, `zip`) hợp lý, tránh code kiểu ngôn ngữ khác dịch sang không?
-- Cấu trúc package/module (import) có rõ ràng, tránh circular import không?
+- Is `logging` used instead of `print` in production-running code?
+- Are docstrings complete for complex functions/public APIs?
+- Are Python idioms used sensibly (list/dict comprehension, unpacking, `enumerate`, `zip`),
+  avoiding code that reads like it was translated from another language?
+- Is the package/module structure (imports) clear, avoiding circular imports?
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-- Tên biến/hàm/class có tuân theo PEP 8 không?
-- Test có dùng pytest không?
+- Do variable/function/class names follow PEP 8?
+- Do tests use pytest?

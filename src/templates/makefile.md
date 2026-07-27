@@ -1,35 +1,45 @@
 # Makefile
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; chỉ liệt kê tiêu chí đặc thù stack, không lặp baseline._
+_Additions to the `ALWAYS_RULE.md` baseline; lists only stack-specific criteria, does not repeat
+the baseline._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic issues
 
-- Dependency giữa các target có đúng thứ tự không (không thiếu prerequisite khiến target chạy trước khi cần)?
-- Target mặc định (target đầu tiên trong file, chạy khi gõ `make` trơn) có tránh side-effect ẩn ngoài ý muốn không (ví dụ vô tình chạy `deploy`/`clean` thay vì `build`/`help`)?
+- Are dependencies between targets in the correct order (no missing prerequisite causing a target
+  to run before it should)?
+- Does the default target (the first target in the file, run by a bare `make`) avoid an unintended
+  hidden side effect (e.g. accidentally running `deploy`/`clean` instead of `build`/`help`)?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Có lệnh tải file/script từ nguồn ngoài rồi thực thi ngay mà không kiểm tra không?
+- Does it download a file/script from an external source and execute it immediately without any
+  verification?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Có target chạy lại công việc không cần thiết dù output đã up-to-date (thiếu khai báo file target/prerequisite đúng) không?
-- Có tận dụng parallel build (`-j`) hợp lý khi các target độc lập không?
+- Does a target redo unnecessary work even when the output is already up-to-date (missing correct
+  file target/prerequisite declarations)?
+- Does it make good use of parallel builds (`-j`) when targets are independent?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Dùng biến (`$(VAR)`) thay vì hardcode path/giá trị lặp lại ở nhiều target không?
-- Tránh duplicate logic giữa các targets không — có nên dùng pattern rule hoặc `include` file chung để DRY không?
-- Kiểm tra exit code lệnh con trong recipe có đúng không (không âm thầm nuốt lỗi bằng dấu `-` đứng trước lệnh hoặc nối lệnh bằng `;` sai chỗ khiến lỗi bị bỏ qua)?
+- Are variables (`$(VAR)`) used instead of hardcoding repeated paths/values across multiple
+  targets?
+- Is duplicated logic between targets avoided — should a pattern rule or a shared `include` file
+  be used for DRY?
+- Are subcommand exit codes in the recipe checked correctly (not silently swallowing errors with a
+  leading `-` before the command, or chaining commands with a misplaced `;` that causes errors to
+  be ignored)?
 
-#### 5. Đặc thù Makefile
+#### 5. Makefile specifics
 
-- Khai báo `.PHONY` có đủ cho mọi target không sinh ra file thật tương ứng tên target (`build`, `test`, `clean`, `deploy`...) không?
-- Tab/indent trong recipe có đúng chuẩn Makefile (dùng tab, không phải space) không?
-- Biến môi trường/override (`?=`, `:=`, `=`) có được dùng đúng ngữ nghĩa không?
+- Is `.PHONY` declared for every target that doesn't produce a real file matching the target's name
+  (`build`, `test`, `clean`, `deploy`...)?
+- Is the tab/indentation in the recipe correct per Makefile convention (tabs, not spaces)?
+- Are environment variables/overrides (`?=`, `:=`, `=`) used with the correct semantics?
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-- Tên target có rõ ràng, mô tả đúng hành động không?
-- Có comment giải thích cho target/logic phức tạp không?
-- Có target `help` liệt kê các lệnh sẵn có không (giúp người mới dễ dùng)?
+- Are target names clear, accurately describing the action?
+- Is there a comment explaining complex targets/logic?
+- Is there a `help` target listing the available commands (helping newcomers use it easily)?

@@ -1,36 +1,45 @@
 # Shell script (bash/sh)
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; chỉ liệt kê tiêu chí đặc thù stack, không lặp baseline._
+_Additions to the `ALWAYS_RULE.md` baseline; lists only stack-specific criteria, does not repeat
+the baseline._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic issues
 
-- Script có `set -euo pipefail` ở đầu không (dừng ngay khi có lệnh lỗi, biến chưa khai báo, hoặc lỗi trong pipeline)?
-- Kiểm tra exit code của lệnh con quan trọng có đầy đủ không (không bỏ qua `$?` khi cần biết lệnh trước có thành công không)?
-- Có nhánh điều kiện nào bị thiếu (file không tồn tại, biến rỗng) không?
+- Does the script have `set -euo pipefail` at the top (stopping immediately on a failing command,
+  an undeclared variable, or a failure inside a pipeline)?
+- Is the exit code of important subcommands checked properly (not ignoring `$?` when it matters
+  whether the previous command succeeded)?
+- Is any conditional branch missing (file doesn't exist, an empty variable)?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Có input từ bên ngoài (argument, env var, output lệnh khác) được đưa thẳng vào lệnh thực thi (`eval`, `bash -c`) mà không kiểm tra không?
-- Có dùng quyền `sudo`/chạy với quyền cao hơn cần thiết không?
+- Is external input (an argument, env var, another command's output) passed directly into an
+  executed command (`eval`, `bash -c`) without being checked?
+- Does it use `sudo`/run with more privilege than necessary?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Có gọi lệnh con lặp lại không cần thiết trong loop (nên gom lại) không?
-- Có xử lý file lớn theo cách tốn tài nguyên (đọc hết vào biến thay vì stream) không?
+- Are subcommands called repeatedly and unnecessarily inside a loop (should be batched)?
+- Is a large file handled in a resource-wasteful way (reading it entirely into a variable instead
+  of streaming)?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Quoting biến có đúng không (`"$var"` thay vì `$var` trần, tránh word splitting/glob không mong muốn)?
-- Dùng `[[ ]]` thay `[ ]` khi có thể (bash) để tránh lỗi parsing/so sánh không mong muốn không?
-- Có tránh parse output của `ls` (nên dùng glob hoặc `find` trực tiếp) không?
-- Có nên tách function khi logic lặp lại không?
+- Is variable quoting correct (`"$var"` instead of a bare `$var`, avoiding unintended word
+  splitting/glob expansion)?
+- Is `[[ ]]` used instead of `[ ]` where possible (bash) to avoid unintended parsing/comparison
+  errors?
+- Does it avoid parsing `ls` output (should use a glob or `find` directly instead)?
+- Should a function be extracted when logic repeats?
 
-#### 5. Đặc thù Shell
+#### 5. Shell specifics
 
-- Script có shellcheck-clean không (không có warning nghiêm trọng)?
-- Xử lý path có khoảng trắng/ký tự đặc biệt có đúng không (quoting, `IFS`, `find ... -print0` + `xargs -0` khi cần)?
-- Idempotency khi script chạy lại nhiều lần có được đảm bảo không (không tạo lỗi/side-effect kép nếu chạy 2 lần)?
+- Is the script shellcheck-clean (no serious warnings)?
+- Is handling of paths with spaces/special characters correct (quoting, `IFS`,
+  `find ... -print0` + `xargs -0` when needed)?
+- Is idempotency guaranteed when the script is run multiple times (no duplicated errors/side
+  effects if run twice)?
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-(không có tiêu chí bổ sung ngoài baseline chung — xem `ALWAYS_RULE.md`)
+(no additional criteria beyond the shared baseline — see `ALWAYS_RULE.md`)
