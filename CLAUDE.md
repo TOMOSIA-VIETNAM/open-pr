@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo là gì
 
-Claude Code **plugin** tên `tms` — 1 slash command duy nhất `/tms:review-pr <PR_URL>` để review PR
+Claude Code **plugin** tên `open-code-review` — 1 slash command duy nhất `/open-code-review:review-pr <PR_URL>` để review PR
 GitHub đa stack (Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell,
 Makefile), tự học convention riêng theo từng repo được review, post kết quả (summary + inline
 line-by-line) trực tiếp lên PR qua `gh api`.
 
 Không có build/lint/test — toàn bộ plugin là markdown (command + template nội dung) và 1 file JSON
 cấu hình. Không có runtime code riêng của repo này để chạy/test độc lập; cách "chạy thử" là cài
-plugin vào Claude Code rồi gọi `/tms:review-pr <PR_URL>` thật trên 1 repo khác.
+plugin vào Claude Code rồi gọi `/open-code-review:review-pr <PR_URL>` thật trên 1 repo khác.
 
 ## Cấu trúc
 
@@ -23,7 +23,7 @@ backlogs/, scripts/ ở repo root (phục vụ phát triển repo này) không l
 ```
 .claude-plugin/marketplace.json  Marketplace tự host (source: "./src") — chỉ copy `src/` vào
                                plugin cache lúc install, không phải cả repo root
-src/.claude-plugin/plugin.json   Metadata plugin (name: "tms", trỏ commands: "./commands/" — path
+src/.claude-plugin/plugin.json   Metadata plugin (name: "open-code-review", trỏ commands: "./commands/" — path
                                tính từ root MỚI là src/, không phải repo root)
 scripts/reinstall.sh          Script dev: uninstall/re-add marketplace/install lại (đọc tên qua
                                2 manifest trên, không đụng nội dung src/)
@@ -32,7 +32,7 @@ backlogs/*.md                 Task breakdown lịch sử khi build plugin lần 
                                khi xong dự án — không phải doc vận hành runtime)
 .gitignore                    Dev repo, không liên quan runtime plugin
 
-src/commands/review-pr.md            Slash command DUY NHẤT /tms:review-pr — **thin orchestrator**: mindset +
+src/commands/review-pr.md            Slash command DUY NHẤT /open-code-review:review-pr — **thin orchestrator**: mindset +
                                xương quy trình + invariant cứng (giọng imperative ngắn). Không nhồi
                                chú thích "vì sao / đã bug thật" (chúng nằm ở file này, mục D dưới).
                                Chi tiết detect-stack → `src/stack-detection.md`; setup →
@@ -152,7 +152,7 @@ minh (parse từ PR URL) thay vì để `gh` tự đoán remote qua git config l
 pwd có nhiều remote hoặc không remote nào khớp đúng repo đang review.
 
 **Cô lập giữa các lần review chạy song song, không cần lock.** Vì tên worktree ngẫu nhiên và không
-tái sử dụng, nhiều lần `/tms:review-pr` chạy đồng thời (cùng PR hay khác PR, cùng hay khác repo) luôn có
+tái sử dụng, nhiều lần `/open-code-review:review-pr` chạy đồng thời (cùng PR hay khác PR, cùng hay khác repo) luôn có
 thư mục riêng biệt, không đụng nhau. Rủi ro còn lại (thấp, CHẤP NHẬN, không xây lock cho case hiếm
 này): `meta.json`/`memory.md` là file DÙNG CHUNG giữa các lần chạy của CÙNG 1 repo — 2 phiên ghi đồng
 thời đúng lúc setup/thêm template có thể mất 1 write.
@@ -360,7 +360,7 @@ Tránh viết dạng liệt kê khiến agent hiểu nhầm là chỉ cần tìm
 câu kiểu "ví dụ, không giới hạn ở đây" khi thêm tiêu chí mới.
 
 **Memory là state runtime, sống ngoài repo này.** `notebooks/review/<repo>/{memory.md,
-memories/, templates/, ALWAYS_RULE.md, meta.json, worktrees/}` được `/tms:review-pr` tự tạo bên trong
+memories/, templates/, ALWAYS_RULE.md, meta.json, worktrees/}` được `/open-code-review:review-pr` tự tạo bên trong
 repo đang được review (không phải trong plugin), có git nested riêng (không push). Bootstrap +
 doctor (`meta.json.bootstrapped`/`.doctored`) chỉ chạy 1 lần; local template copy
 (`meta.json.templates_copied`) chạy lại mỗi khi gặp stack chưa từng thấy ở repo đó, kể cả sau khi đã

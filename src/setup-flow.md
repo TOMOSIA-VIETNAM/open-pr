@@ -3,7 +3,7 @@
 Không phải slash command (nằm ngoài `commands/`); `commands/review-pr.md` nạp bằng `Read` khi repo chưa
 thiết lập xong.
 
-Toàn bộ thao tác dưới đây chạy tại **ĐÚNG pwd hiện tại của phiên** — thư mục mà lệnh `/tms:review-pr`
+Toàn bộ thao tác dưới đây chạy tại **ĐÚNG pwd hiện tại của phiên** — thư mục mà lệnh `/open-code-review:review-pr`
 được gọi. TUYỆT ĐỐI KHÔNG `cd` sang thư mục khác, KHÔNG tự dò tìm "git root"/"thư mục repo thật
 sự", KHÔNG dùng basename của bất kỳ thư mục nào để suy ra đường dẫn hay tên repo. Tên thư mục memory
 `<repo>` LUÔN là segment `<repo>` đã parse từ PR URL (xem block "Ngữ cảnh" của `review-pr.md`), KHÔNG suy
@@ -275,4 +275,4 @@ hỏi lại), và mâu thuẫn reconcile ở Phần C (không hỏi). Phần E c
 ## Khi user yêu cầu "doctor lại" / "quét lại convention dự án"
 
 Sửa `doctored` trong `meta.json` thành `false` (hoặc xoá hẳn field đó) rồi thực hiện lại Phần C.
-Có thể làm ngay trong chat, không cần đợi lần `/tms:review-pr` kế tiếp.
+Có thể làm ngay trong chat, không cần đợi lần `/open-code-review:review-pr` kế tiếp.

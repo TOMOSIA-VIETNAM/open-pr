@@ -8,7 +8,7 @@ body:
       label: Mô tả lỗi
       description: Chuyện gì xảy ra? Bạn mong đợi điều gì thay vào đó?
       placeholder: |
-        Vd: Chạy /tms:review-pr trên PR X, plugin post review nhưng comment cấp LINE bị gắn nhầm dòng.
+        Vd: Chạy /open-code-review:review-pr trên PR X, plugin post review nhưng comment cấp LINE bị gắn nhầm dòng.
         Mong đợi: comment đúng dòng bị đổi trong diff.
     validations:
       required: true
@@ -19,7 +19,7 @@ body:
       label: Bước tái hiện
       description: Càng cụ thể càng dễ fix — lệnh đã gõ, thứ tự thao tác.
       placeholder: |
-        1. /tms:review-pr https://github.com/<owner>/<repo>/pull/<n>
+        1. /open-code-review:review-pr https://github.com/<owner>/<repo>/pull/<n>
         2. ...
     validations:
       required: true

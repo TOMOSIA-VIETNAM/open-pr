@@ -88,7 +88,7 @@ release trước, phòng README đã đổi lệnh):
 
 ```
 /plugin marketplace update review-pr
-/plugin update tms@review-pr
+/plugin update open-code-review@review-pr
 ```
 
 rồi `/reload-plugins` (hoặc mở phiên mới).

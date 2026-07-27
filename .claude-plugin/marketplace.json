@@ -1,10 +1,10 @@
 {
   "name": "review-pr",
-  "description": "Local marketplace for the tms plugin (multi-stack GitHub PR reviewer).",
+  "description": "Local marketplace for the open-code-review plugin (multi-stack GitHub PR reviewer).",
   "owner": { "name": "Minh Tang Q." },
   "plugins": [
     {
-      "name": "tms",
+      "name": "open-code-review",
       "source": "./src",
       "description": "Review GitHub Pull Requests across Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, and Makefile, learning per-repo convention over time."
     }

@@ -14,7 +14,7 @@
 
 <!--
 Repo này không có build/lint/test tự động — cách "chạy thử" thật là cài plugin (./scripts/reinstall.sh)
-rồi gọi /tms:review-pr <PR_URL> trên 1 PR thật. Dán link PR đã dùng để test, hoặc mô tả cách verify khác.
+rồi gọi /open-code-review:review-pr <PR_URL> trên 1 PR thật. Dán link PR đã dùng để test, hoặc mô tả cách verify khác.
 -->
 
 ## Checklist

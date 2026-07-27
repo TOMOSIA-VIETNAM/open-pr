@@ -37,8 +37,8 @@ Trống hoặc không có pattern → in lỗi dưới, DỪNG (bỏ qua output 
 
 ```
 ❌ Lỗi: Chưa cung cấp URL PR.
-Cách dùng: /tms:review-pr <GitHub PR URL>
-Ví dụ: /tms:review-pr https://github.com/org/repo/pull/123
+Cách dùng: /open-code-review:review-pr <GitHub PR URL>
+Ví dụ: /open-code-review:review-pr https://github.com/org/repo/pull/123
 ```
 
 Phần `ARGUMENTS` ngoài URL = chỉ dẫn bổ sung lần này. Chỉ dẫn ngôn ngữ trong ARGUMENTS/chat phiên
@@ -339,7 +339,7 @@ Happy path không đọc file đó.
 
 ## Bước 10 — Memory / doctor ngoài luồng review thuần
 
-Áp dụng khi repo đã có `notebooks/review/<repo>/` (sau lần `/tms:review-pr` trước), kể cả lúc chat
+Áp dụng khi repo đã có `notebooks/review/<repo>/` (sau lần `/open-code-review:review-pr` trước), kể cả lúc chat
 trong cùng phiên không đang post review:
 
 - User nêu sửa đổi/góp ý convention **trong chat** (chính user điều khiển Claude) → ghi lesson ngay

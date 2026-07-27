@@ -1,4 +1,4 @@
-# /tms:review-pr — Agent Review Pull Request Github
+# /open-code-review:review-pr — Agent Review Pull Request Github
 
 [![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/tms-review-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/tms-review-pr/releases)
 [![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/tms-review-pr)](./LICENSE)
@@ -12,7 +12,7 @@ GitHub の Pull Request を**一貫した基準で**レビューする方法を 
 
 提案が PR コメント上にしか存在しない場合は？ 記憶する前にあなたへ確認します（PR 経由で偽のルールが混入するのを防ぐため）。
 
-プロジェクトの規約は固定ではありません — `/tms:review-pr` のたびに、更新時期が来ていればプラグインが規約ドキュメントを読み直し、メモリが古くならないようにします。スケジュールの詳細：[規約の更新サイクル](#規約の更新サイクル)。
+プロジェクトの規約は固定ではありません — `/open-code-review:review-pr` のたびに、更新時期が来ていればプラグインが規約ドキュメントを読み直し、メモリが古くならないようにします。スケジュールの詳細：[規約の更新サイクル](#規約の更新サイクル)。
 
 ## 事前準備
 
@@ -25,7 +25,7 @@ Claude Code のセッション内で：
 
 ```
 /plugin marketplace add TOMOSIA-VIETNAM/tms-review-pr
-/plugin install tms@review-pr
+/plugin install open-code-review@review-pr
 ```
 
 ## 最新版へ更新
@@ -34,7 +34,7 @@ Claude Code のセッション内で：
 
 ```
 /plugin marketplace update review-pr
-/plugin update tms@review-pr
+/plugin update open-code-review@review-pr
 ```
 
 その後 `/reload-plugins`（または新しい Claude Code セッションを開く）で再読み込みします。
@@ -45,10 +45,10 @@ Claude Code のセッション内で：
 
 ## 使い方
 
-スラッシュコマンドは**入力したときだけ実行されます** — Claude が勝手に `/tms:review-pr` を呼ぶことはありません。
+スラッシュコマンドは**入力したときだけ実行されます** — Claude が勝手に `/open-code-review:review-pr` を呼ぶことはありません。
 
 ```
-/tms:review-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-code-review:review-pr https://github.com/<owner>/<repo>/pull/<number>
 ```
 
 `/files`、`/changes`、クエリ文字列付きの URL… すべて動作します — 有効な PR リンクを含んでさえいれば OK です。
@@ -56,10 +56,10 @@ Claude Code のセッション内で：
 URL の直後に指示を追加すると、**その実行のみ**に適用されます（保存済みの設定は変更しません）。例：
 
 ```
-/tms:review-pr https://github.com/org/repo/pull/123 focus on security
+/open-code-review:review-pr https://github.com/org/repo/pull/123 focus on security
 ```
 
-**並行作業でもブランチを壊す心配なし。** レビューのたびに、PR のコードは専用の [git worktree](https://git-scm.com/docs/git-worktree) へチェックアウトされます — あなたが作業中のリポジトリのブランチ／ワーキングツリーは変更されません。現在のブランチで通常どおりコミット／編集しながら、複数の `/tms:review-pr` セッション（同時に複数の PR）を開けます。
+**並行作業でもブランチを壊す心配なし。** レビューのたびに、PR のコードは専用の [git worktree](https://git-scm.com/docs/git-worktree) へチェックアウトされます — あなたが作業中のリポジトリのブランチ／ワーキングツリーは変更されません。現在のブランチで通常どおりコミット／編集しながら、複数の `/open-code-review:review-pr` セッション（同時に複数の PR）を開けます。
 
 ## セットアップ未実施のリポジトリでの初回
 
@@ -82,7 +82,7 @@ URL の直後に指示を追加すると、**その実行のみ**に適用され
 ## 仕組み（概要）
 
 ```
-/tms:review-pr <PR_URL>
+/open-code-review:review-pr <PR_URL>
         │
         ▼
 PR のコードを専用の worktree へチェックアウト（作業中のブランチには触れない）
@@ -104,7 +104,7 @@ PR のコードを専用の worktree へチェックアウト（作業中のブ�
 
 ## 規約の更新サイクル
 
-プロジェクトの規約は時とともに変化します。プラグインは `/tms:review-pr` の実行時に**定期的に読み直す**ことができ、メモリが古くならないようにします。
+プロジェクトの規約は時とともに変化します。プラグインは `/open-code-review:review-pr` の実行時に**定期的に読み直す**ことができ、メモリが古くならないようにします。
 
 | 希望 | `doctor_schedule` に設定 |
 |------|--------------------------|
