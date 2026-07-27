@@ -1,9 +1,9 @@
 ---
 allowed-tools: Bash(git branch --show-current), Bash(git checkout main), Bash(git fetch origin:*), Bash(git pull --ff-only origin main), Bash(git tag:*), Bash(git push origin v*:*), Bash(git log:*), Bash(gh repo view:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh api repos/*/pulls/*/commits:*), Bash(gh release create:*), Bash(gh release view:*), AskUserQuestion, Read
-description: Tạo git tag + GitHub Release cho tms-review-pr — release chính thức nếu đứng trên main, RC nếu đứng trên branch có PR đang mở (dev tool riêng repo này, không ship trong plugin).
+description: Tạo git tag + GitHub Release cho open-pr — release chính thức nếu đứng trên main, RC nếu đứng trên branch có PR đang mở (dev tool riêng repo này, không ship trong plugin).
 ---
 
-> **Lệnh này CHỈ tạo git tag + GitHub Release trên CHÍNH repo `tms-review-pr`.** KHÔNG merge/push
+> **Lệnh này CHỈ tạo git tag + GitHub Release trên CHÍNH repo `open-pr`.** KHÔNG merge/push
 > code, KHÔNG force-push, KHÔNG sửa/xoá branch, KHÔNG đụng release/tag cũ. Tag + Release là hành
 > động PUBLIC, khó đảo ngược sạch (người khác có thể đã pull/thấy) — LUÔN nêu rõ mode đã phát hiện
 > (release chính thức / RC) và cho user xem draft version + nội dung, xác nhận trước khi

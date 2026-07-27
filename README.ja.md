@@ -1,7 +1,7 @@
 # /open-pr:review — Agent Review Pull Request Github
 
-[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/tms-review-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/tms-review-pr/releases)
-[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/tms-review-pr)](./LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/open-pr/releases)
+[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
 
 [Tiếng Việt](./README.md) · [English](./README.en.md) · **日本語**
@@ -24,7 +24,7 @@ GitHub の Pull Request を**一貫した基準で**レビューする方法を 
 Claude Code のセッション内で：
 
 ```
-/plugin marketplace add TOMOSIA-VIETNAM/tms-review-pr
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@review-pr
 ```
 

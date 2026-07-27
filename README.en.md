@@ -1,7 +1,7 @@
 # /open-pr:review — Agent Review Pull Request Github
 
-[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/tms-review-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/tms-review-pr/releases)
-[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/tms-review-pr)](./LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/open-pr/releases)
+[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
 
 [Tiếng Việt](./README.md) · **English** · [日本語](./README.ja.md)
@@ -24,7 +24,7 @@ Project conventions don't stand still — on each `/open-pr:review`, if it's due
 Inside a Claude Code session:
 
 ```
-/plugin marketplace add TOMOSIA-VIETNAM/tms-review-pr
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@review-pr
 ```
 
