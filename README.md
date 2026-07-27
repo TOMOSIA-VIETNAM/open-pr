@@ -1,7 +1,7 @@
-# /tms:review-pr — Agent Review Pull Request Github
+# /open-pr:review — Agent Review Pull Request Github
 
-[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/tms-review-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/tms-review-pr/releases)
-[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/tms-review-pr)](./LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/open-pr/releases)
+[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
 
 **Tiếng Việt** · [English](./README.en.md) · [日本語](./README.ja.md)
@@ -14,7 +14,7 @@ thật, ít áp luật chung chung.
 
 Nếu góp ý chỉ nằm trên comment PR? Nó sẽ hỏi bạn trước khi nhớ (tránh nhét rule giả qua PR).
 
-Quy ước dự án không đứng yên — mỗi lần `/tms:review-pr`, nếu đã đến kỳ thì plugin tự đọc lại tài liệu
+Quy ước dự án không đứng yên — mỗi lần `/open-pr:review`, nếu đã đến kỳ thì plugin tự đọc lại tài liệu
 convention để memory không lỗi thời. Chi tiết lịch: [Chu kỳ cập nhật quy ước](#chu-kỳ-cập-nhật-quy-ước).
 
 ## Cần gì trước
@@ -27,8 +27,8 @@ convention để memory không lỗi thời. Chi tiết lịch: [Chu kỳ cập 
 Trong phiên Claude Code:
 
 ```
-/plugin marketplace add TOMOSIA-VIETNAM/tms-review-pr
-/plugin install tms@review-pr
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
+/plugin install open-pr@review-pr
 ```
 
 ## Cập nhật lên bản mới nhất
@@ -38,7 +38,7 @@ Trong phiên Claude Code:
 
 ```
 /plugin marketplace update review-pr
-/plugin update tms@review-pr
+/plugin update open-pr@review-pr
 ```
 
 Rồi `/reload-plugins` (hoặc mở phiên Claude Code mới) để nạp lại.
@@ -49,10 +49,10 @@ hình review").
 
 ## Dùng thế nào
 
-Slash command **chỉ chạy khi bạn gõ đúng lệnh** — Claude không tự gọi `/tms:review-pr`
+Slash command **chỉ chạy khi bạn gõ đúng lệnh** — Claude không tự gọi `/open-pr:review`
 
 ```
-/tms:review-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:review https://github.com/<owner>/<repo>/pull/<number>
 ```
 
 URL có đuôi `/files`, `/changes`, query… vẫn được — chỉ cần chứa link PR hợp lệ.
@@ -60,12 +60,12 @@ URL có đuôi `/files`, `/changes`, query… vẫn được — chỉ cần ch�
 Thêm chỉ dẫn ngay sau URL cho **lần chạy đó** (không đổi cấu hình đã lưu), ví dụ:
 
 ```
-/tms:review-pr https://github.com/org/repo/pull/123 focus on security
+/open-pr:review https://github.com/org/repo/pull/123 focus on security
 ```
 
 **Làm việc song song, không sợ đụng branch.** Mỗi lần review, code PR được checkout vào một
 [git worktree](https://git-scm.com/docs/git-worktree) riêng — không đổi branch/working tree repo gốc
-bạn đang code. Có thể mở nhiều phiên `/tms:review-pr` (nhiều PR cùng lúc) trong khi vẫn commit/
+bạn đang code. Có thể mở nhiều phiên `/open-pr:review` (nhiều PR cùng lúc) trong khi vẫn commit/
 chỉnh sửa bình thường trên nhánh hiện tại.
 
 **Review nhiều PR liên quan trong 1 lần gọi** (vd 1 feature đụng 2 repo) — gõ nhiều URL trong cùng
@@ -73,7 +73,7 @@ lệnh, plugin tự xử lý tuần tự từng PR (không song song, để gi�
 các PR, vd cùng 1 API contract):
 
 ```
-/tms:review-pr https://github.com/org/repo-a/pull/12 https://github.com/org/repo-b/pull/34
+/open-pr:review https://github.com/org/repo-a/pull/12 https://github.com/org/repo-b/pull/34
 ```
 
 **Tự viết prompt giao subagent làm review?** Đừng tóm tắt rule bằng tay — bảo subagent đó đọc thẳng
@@ -113,7 +113,7 @@ không push). Nên để thư mục này trong `.gitignore` của dự án — p
 ## Cách hoạt động (ngắn)
 
 ```
-/tms:review-pr <PR_URL>
+/open-pr:review <PR_URL>
         │
         ▼
 Checkout code PR vào worktree riêng (không đụng branch bạn đang làm)
@@ -138,7 +138,7 @@ Makefile, và cả file markdown điều khiển AI agent (skill/command/CLAUDE.
 ## Chu kỳ cập nhật quy ước
 
 Quy ước dự án thay đổi theo thời gian. Plugin có thể **tự đọc lại định kỳ** khi bạn chạy
-`/tms:review-pr`, để memory không bị lỗi thời.
+`/open-pr:review`, để memory không bị lỗi thời.
 
 | Bạn muốn | Điền vào `doctor_schedule` |
 |----------|----------------------------|
@@ -161,16 +161,16 @@ Trong repo đã review ít nhất một lần:
 | Đăng ngay / nháp, tự resolve thread, chu kỳ đọc lại quy ước | `notebooks/review/<repo>/meta.json` |
 | Quy tắc riêng team | `ALWAYS_RULE.md` mục Rule bổ sung, hoặc nói trong chat để ghi lesson |
 
-## Sau khi review xong: `/tms:fix-pr`
+## Sau khi review xong: `/open-pr:fix-pr`
 
-`/tms:review-pr` chỉ review + comment, không sửa code giúp bạn. Cầm PR đã được review xong rồi, gọi
+`/open-pr:review` chỉ review + comment, không sửa code giúp bạn. Cầm PR đã được review xong rồi, gọi
 tiếp:
 
 ```
-/tms:fix-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:fix-pr https://github.com/<owner>/<repo>/pull/<number>
 ```
 
-Khác `/tms:review-pr` ở chỗ **dev-facing, sửa code thật** ngay tại working directory hiện tại của
+Khác `/open-pr:review` ở chỗ **dev-facing, sửa code thật** ngay tại working directory hiện tại của
 bạn (không qua worktree riêng) — nó đọc đúng finding bot đã để lại, tự quyết fix/decline theo mức độ
 nghiêm trọng (🔵 SUGGESTION/📝 NOTE luôn hỏi bạn trước), sửa code đúng convention dự án đã học, gom
 thành 1 commit, rồi reply lại từng finding trên PR. Chạy được ở đâu, làm gì tự động, hỏi gì trước —
@@ -179,5 +179,5 @@ xem chi tiết ngay trong lệnh khi gọi lần đầu trên 1 repo (hỏi 2 c�
 Thêm chỉ dẫn để thu hẹp phạm vi cho lượt đó, ví dụ:
 
 ```
-/tms:fix-pr https://github.com/org/repo/pull/123 chỉ fix phần security
+/open-pr:fix-pr https://github.com/org/repo/pull/123 chỉ fix phần security
 ```

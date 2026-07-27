@@ -1,7 +1,7 @@
-# /tms:review-pr — Agent Review Pull Request Github
+# /open-pr:review — Agent Review Pull Request Github
 
-[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/tms-review-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/tms-review-pr/releases)
-[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/tms-review-pr)](./LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/open-pr/releases)
+[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
 
 [Tiếng Việt](./README.md) · [English](./README.en.md) · **日本語**
@@ -12,7 +12,7 @@ GitHub の Pull Request を**一貫した基準で**レビューする方法を 
 
 提案が PR コメント上にしか存在しない場合は？ 記憶する前にあなたへ確認します（PR 経由で偽のルールが混入するのを防ぐため）。
 
-プロジェクトの規約は固定ではありません — `/tms:review-pr` のたびに、更新時期が来ていればプラグインが規約ドキュメントを読み直し、メモリが古くならないようにします。スケジュールの詳細：[規約の更新サイクル](#規約の更新サイクル)。
+プロジェクトの規約は固定ではありません — `/open-pr:review` のたびに、更新時期が来ていればプラグインが規約ドキュメントを読み直し、メモリが古くならないようにします。スケジュールの詳細：[規約の更新サイクル](#規約の更新サイクル)。
 
 ## 事前準備
 
@@ -24,8 +24,8 @@ GitHub の Pull Request を**一貫した基準で**レビューする方法を 
 Claude Code のセッション内で：
 
 ```
-/plugin marketplace add TOMOSIA-VIETNAM/tms-review-pr
-/plugin install tms@review-pr
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
+/plugin install open-pr@review-pr
 ```
 
 ## 最新版へ更新
@@ -34,7 +34,7 @@ Claude Code のセッション内で：
 
 ```
 /plugin marketplace update review-pr
-/plugin update tms@review-pr
+/plugin update open-pr@review-pr
 ```
 
 その後 `/reload-plugins`（または新しい Claude Code セッションを開く）で再読み込みします。
@@ -45,10 +45,10 @@ Claude Code のセッション内で：
 
 ## 使い方
 
-スラッシュコマンドは**入力したときだけ実行されます** — Claude が勝手に `/tms:review-pr` を呼ぶことはありません。
+スラッシュコマンドは**入力したときだけ実行されます** — Claude が勝手に `/open-pr:review` を呼ぶことはありません。
 
 ```
-/tms:review-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:review https://github.com/<owner>/<repo>/pull/<number>
 ```
 
 `/files`、`/changes`、クエリ文字列付きの URL… すべて動作します — 有効な PR リンクを含んでさえいれば OK です。
@@ -56,15 +56,15 @@ Claude Code のセッション内で：
 URL の直後に指示を追加すると、**その実行のみ**に適用されます（保存済みの設定は変更しません）。例：
 
 ```
-/tms:review-pr https://github.com/org/repo/pull/123 focus on security
+/open-pr:review https://github.com/org/repo/pull/123 focus on security
 ```
 
-**並行作業でもブランチを壊す心配なし。** レビューのたびに、PR のコードは専用の [git worktree](https://git-scm.com/docs/git-worktree) へチェックアウトされます — あなたが作業中のリポジトリのブランチ／ワーキングツリーは変更されません。現在のブランチで通常どおりコミット／編集しながら、複数の `/tms:review-pr` セッション（同時に複数の PR）を開けます。
+**並行作業でもブランチを壊す心配なし。** レビューのたびに、PR のコードは専用の [git worktree](https://git-scm.com/docs/git-worktree) へチェックアウトされます — あなたが作業中のリポジトリのブランチ／ワーキングツリーは変更されません。現在のブランチで通常どおりコミット／編集しながら、複数の `/open-pr:review` セッション（同時に複数の PR）を開けます。
 
 **関連する複数の PR を1回の呼び出しでレビュー**（例：1つの機能が2つのリポジトリに跨る場合）— 同じ呼び出しに複数の URL を渡すと、プラグインは順番に（並行ではなく）1件ずつ処理します。並行にしない理由は、共有 API contract のような PR 間の関連に気づける可能性を残すためです：
 
 ```
-/tms:review-pr https://github.com/org/repo-a/pull/12 https://github.com/org/repo-b/pull/34
+/open-pr:review https://github.com/org/repo-a/pull/12 https://github.com/org/repo-b/pull/34
 ```
 
 **サブエージェントにレビュー作業を委任するプロンプトを自分で書く場合？** ルールを手で要約しないでください — そのサブエージェントに実際のコマンドファイル（プラグインキャッシュ内）を `Read` させ、それに従わせてください。サブエージェントはあなたのようにスラッシュコマンドを「入力」する手段を持たないため、手で要約したプロンプトは実際の PR に投稿する段階でルール/フォーマットがずれる原因になりやすいです。
@@ -90,7 +90,7 @@ URL の直後に指示を追加すると、**その実行のみ**に適用され
 ## 仕組み（概要）
 
 ```
-/tms:review-pr <PR_URL>
+/open-pr:review <PR_URL>
         │
         ▼
 PR のコードを専用の worktree へチェックアウト（作業中のブランチには触れない）
@@ -112,7 +112,7 @@ PR のコードを専用の worktree へチェックアウト（作業中のブ�
 
 ## 規約の更新サイクル
 
-プロジェクトの規約は時とともに変化します。プラグインは `/tms:review-pr` の実行時に**定期的に読み直す**ことができ、メモリが古くならないようにします。
+プロジェクトの規約は時とともに変化します。プラグインは `/open-pr:review` の実行時に**定期的に読み直す**ことができ、メモリが古くならないようにします。
 
 | 希望 | `doctor_schedule` に設定 |
 |------|--------------------------|
@@ -134,18 +134,18 @@ PR のコードを専用の worktree へチェックアウト（作業中のブ�
 | 今すぐ投稿／下書き、スレッド自動解決、規約の再読み込みサイクル | `notebooks/review/<repo>/meta.json` |
 | チーム固有のルール | `ALWAYS_RULE.md` の追加ルール節、またはチャットで伝えて lesson を記録 |
 
-## レビュー後に使う：`/tms:fix-pr`
+## レビュー後に使う：`/open-pr:fix-pr`
 
-`/tms:review-pr` はレビュー＋コメントのみで、代わりにコードを直しません。レビュー済みの PR に対して次を呼びます：
+`/open-pr:review` はレビュー＋コメントのみで、代わりにコードを直しません。レビュー済みの PR に対して次を呼びます：
 
 ```
-/tms:fix-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:fix-pr https://github.com/<owner>/<repo>/pull/<number>
 ```
 
-`/tms:review-pr` と違い、こちらは **dev 向けで実際にコードを編集します**。専用の worktree ではなく、いま作業中のディレクトリで直接実行します — bot が残した指摘を読み、重要度に応じて修正するか見送るかを判断し（🔵 SUGGESTION／📝 NOTE は必ず先に確認）、学習済みのプロジェクト規約に沿ってコードを直し、まとめて 1 コミットにし、PR の各指摘へ返信します。どこで動くか・何を自動でやるか・何を先に確認するかは、そのリポジトリで初めて呼んだときにコマンド内で確認できます（設定を 2 問だけ、一度だけ質問）。
+`/open-pr:review` と違い、こちらは **dev 向けで実際にコードを編集します**。専用の worktree ではなく、いま作業中のディレクトリで直接実行します — bot が残した指摘を読み、重要度に応じて修正するか見送るかを判断し（🔵 SUGGESTION／📝 NOTE は必ず先に確認）、学習済みのプロジェクト規約に沿ってコードを直し、まとめて 1 コミットにし、PR の各指摘へ返信します。どこで動くか・何を自動でやるか・何を先に確認するかは、そのリポジトリで初めて呼んだときにコマンド内で確認できます（設定を 2 問だけ、一度だけ質問）。
 
 その実行だけ範囲を絞りたい場合は、指示を追加します。例：
 
 ```
-/tms:fix-pr https://github.com/org/repo/pull/123 セキュリティ部分だけ直して
+/open-pr:fix-pr https://github.com/org/repo/pull/123 セキュリティ部分だけ直して
 ```

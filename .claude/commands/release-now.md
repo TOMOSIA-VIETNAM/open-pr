@@ -1,9 +1,9 @@
 ---
 allowed-tools: Bash(git branch --show-current), Bash(git checkout main), Bash(git fetch origin:*), Bash(git pull --ff-only origin main), Bash(git tag:*), Bash(git push origin v*:*), Bash(git log:*), Bash(gh repo view:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh api repos/*/pulls/*/commits:*), Bash(gh release create:*), Bash(gh release view:*), AskUserQuestion, Read
-description: Tạo git tag + GitHub Release cho tms-review-pr — release chính thức nếu đứng trên main, RC nếu đứng trên branch có PR đang mở (dev tool riêng repo này, không ship trong plugin).
+description: Tạo git tag + GitHub Release cho open-pr — release chính thức nếu đứng trên main, RC nếu đứng trên branch có PR đang mở (dev tool riêng repo này, không ship trong plugin).
 ---
 
-> **Lệnh này CHỈ tạo git tag + GitHub Release trên CHÍNH repo `tms-review-pr`.** KHÔNG merge/push
+> **Lệnh này CHỈ tạo git tag + GitHub Release trên CHÍNH repo `open-pr`.** KHÔNG merge/push
 > code, KHÔNG force-push, KHÔNG sửa/xoá branch, KHÔNG đụng release/tag cũ. Tag + Release là hành
 > động PUBLIC, khó đảo ngược sạch (người khác có thể đã pull/thấy) — LUÔN nêu rõ mode đã phát hiện
 > (release chính thức / RC) và cho user xem draft version + nội dung, xác nhận trước khi
@@ -76,7 +76,7 @@ Breaking change...), không theo tên file/commit. Đọc `git show <sha>` hoặ
 
 **Xác minh số liệu/claim trước khi viết, không suy từ release note cũ hoặc trí nhớ:** mọi con số cụ
 thể (số câu hỏi bootstrap, giá trị default, tên field...) PHẢI đọc lại đúng file nguồn hiện tại
-(`src/setup-flow.md`, `src/commands/review-pr.md`, `README.md`) tại thời điểm viết — file có thể đã
+(`src/setup-flow.md`, `src/commands/review.md`, `README.md`) tại thời điểm viết — file có thể đã
 đổi sau lần release trước, dùng số cũ sẽ SAI (đã xảy ra thật: "7 câu" viết cứng trong 1 bản release
 trong khi code đã sửa thành "6 hoặc 7 câu tuỳ điều kiện").
 
@@ -88,7 +88,7 @@ release trước, phòng README đã đổi lệnh):
 
 ```
 /plugin marketplace update review-pr
-/plugin update tms@review-pr
+/plugin update open-pr@review-pr
 ```
 
 rồi `/reload-plugins` (hoặc mở phiên mới).
@@ -96,7 +96,7 @@ rồi `/reload-plugins` (hoặc mở phiên mới).
 Ngay sau đó, thêm 1 câu cho repo đã setup từ trước: muốn kiểm tra/cập nhật cấu hình theo bản mới
 (field mới nếu có sẽ backfill ngay, không cần đợi lần review kế) — gõ trong chat ở repo đó: "làm
 mới cấu hình" (hoặc "đổi cấu hình review"). Trigger này khớp theo Ý ĐỊNH (xem Bước 10
-`review-pr.md`), không phải string cứng — không cần user nhớ đúng chữ.
+`review.md`), không phải string cứng — không cần user nhớ đúng chữ.
 
 **Nhóm commit** theo prefix conventional-commit (`feat`/`fix`/`security`/`chore`/`docs`/`refactor`/
 `revert`...) làm khung, rồi viết lại từng nhóm theo văn phong Vấn đề → Giải pháp ở trên.

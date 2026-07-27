@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reinstall the "tms" Claude Code plugin from this local directory, forcing a
+# Reinstall the "open-pr" Claude Code plugin from this local directory, forcing a
 # clean pull of the current plugin.json/commands/ (no stale marketplace/plugin
 # registration left over from a previous install).
 set -euo pipefail
@@ -84,5 +84,5 @@ else
 fi
 
 echo
-echo "✅ Installed. Restart Claude Code (or start a new session) to load /tms:review-pr."
+echo "✅ Installed. Restart Claude Code (or start a new session) to load /open-pr:review."
 claude plugin list

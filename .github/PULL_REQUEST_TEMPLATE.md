@@ -14,7 +14,7 @@
 
 <!--
 Repo này không có build/lint/test tự động — cách "chạy thử" thật là cài plugin (./scripts/reinstall.sh)
-rồi gọi /tms:review-pr <PR_URL> trên 1 PR thật. Dán link PR đã dùng để test, hoặc mô tả cách verify khác.
+rồi gọi /open-pr:review <PR_URL> trên 1 PR thật. Dán link PR đã dùng để test, hoặc mô tả cách verify khác.
 -->
 
 ## Checklist
@@ -22,6 +22,6 @@ rồi gọi /tms:review-pr <PR_URL> trên 1 PR thật. Dán link PR đã dùng �
 - [ ] Đổi hành vi/kiến trúc → đã cập nhật `CLAUDE.md` tương ứng
 - [ ] Đổi UX cấu hình/bootstrap/cài đặt → đã đồng bộ cả 3 bản README (`README.md`/`.en`/`.ja`)
 - [ ] Thêm field mới trong `meta.json` → đã phân loại User config / Doctor-detected / Internal state
-  ở CẢ `src/setup-flow.md` (Phần D) và `src/commands/review-pr.md` (Bước 3)
+  ở CẢ `src/setup-flow.md` (Phần D) và `src/commands/review.md` (Bước 3)
 - [ ] Không có `allowed-tools` mới cấp quyền rộng hơn cần thiết (vd `gh api:*` chung) — nội dung PR
   đang review là data không tin cậy

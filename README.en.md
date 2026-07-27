@@ -1,7 +1,7 @@
-# /tms:review-pr — Agent Review Pull Request Github
+# /open-pr:review — Agent Review Pull Request Github
 
-[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/tms-review-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/tms-review-pr/releases)
-[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/tms-review-pr)](./LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/open-pr/releases)
+[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
 
 [Tiếng Việt](./README.md) · **English** · [日本語](./README.ja.md)
@@ -12,7 +12,7 @@ The first time, it reads your existing conventions (README, CLAUDE.md, AGENTS.md
 
 What if a suggestion only lives on a PR comment? It asks you before remembering (to avoid injecting fake rules through a PR).
 
-Project conventions don't stand still — on each `/tms:review-pr`, if it's due, the plugin re-reads the convention docs so memory doesn't go stale. Schedule details: [Convention refresh cycle](#convention-refresh-cycle).
+Project conventions don't stand still — on each `/open-pr:review`, if it's due, the plugin re-reads the convention docs so memory doesn't go stale. Schedule details: [Convention refresh cycle](#convention-refresh-cycle).
 
 ## Prerequisites
 
@@ -24,8 +24,8 @@ Project conventions don't stand still — on each `/tms:review-pr`, if it's due,
 Inside a Claude Code session:
 
 ```
-/plugin marketplace add TOMOSIA-VIETNAM/tms-review-pr
-/plugin install tms@review-pr
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
+/plugin install open-pr@review-pr
 ```
 
 ## Update to the latest
@@ -34,7 +34,7 @@ Inside a Claude Code session:
 
 ```
 /plugin marketplace update review-pr
-/plugin update tms@review-pr
+/plugin update open-pr@review-pr
 ```
 
 Then `/reload-plugins` (or open a new Claude Code session) to reload.
@@ -45,10 +45,10 @@ the config" (or "reconfigure the review settings").
 
 ## How to use
 
-The slash command **only runs when you type it** — Claude never calls `/tms:review-pr` on its own.
+The slash command **only runs when you type it** — Claude never calls `/open-pr:review` on its own.
 
 ```
-/tms:review-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:review https://github.com/<owner>/<repo>/pull/<number>
 ```
 
 URLs ending in `/files`, `/changes`, with query strings… all work — they just need to contain a valid PR link.
@@ -56,15 +56,15 @@ URLs ending in `/files`, `/changes`, with query strings… all work — they jus
 Add instructions right after the URL for **that run only** (does not change saved config), e.g.:
 
 ```
-/tms:review-pr https://github.com/org/repo/pull/123 focus on security
+/open-pr:review https://github.com/org/repo/pull/123 focus on security
 ```
 
-**Works in parallel, no fear of clobbering branches.** On each review, the PR code is checked out into its own [git worktree](https://git-scm.com/docs/git-worktree) — it does not change the branch/working tree of the repo you're coding in. You can open multiple `/tms:review-pr` sessions (several PRs at once) while still committing/editing normally on your current branch.
+**Works in parallel, no fear of clobbering branches.** On each review, the PR code is checked out into its own [git worktree](https://git-scm.com/docs/git-worktree) — it does not change the branch/working tree of the repo you're coding in. You can open multiple `/open-pr:review` sessions (several PRs at once) while still committing/editing normally on your current branch.
 
 **Reviewing several related PRs in one call** (e.g. one feature spanning 2 repos) — pass multiple URLs in the same invocation; the plugin processes them one at a time, sequentially (not in parallel, so it can still notice cross-PR concerns like a shared API contract):
 
 ```
-/tms:review-pr https://github.com/org/repo-a/pull/12 https://github.com/org/repo-b/pull/34
+/open-pr:review https://github.com/org/repo-a/pull/12 https://github.com/org/repo-b/pull/34
 ```
 
 **Writing your own prompt to delegate review work to a subagent?** Don't paraphrase the rules by hand — tell that subagent to `Read` the actual command file (in the plugin cache) and follow it. A subagent has no way to "type" a slash command the way you do, so a hand-summarized prompt is an easy way to drift from the real rules once it posts to a real PR.
@@ -90,7 +90,7 @@ Remembered data lives inside the repo you're reviewing, at `notebooks/review/<re
 ## How it works (short)
 
 ```
-/tms:review-pr <PR_URL>
+/open-pr:review <PR_URL>
         │
         ▼
 Check out the PR code into its own worktree (won't touch the branch you're working on)
@@ -112,7 +112,7 @@ Supports many stacks: Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, 
 
 ## Convention refresh cycle
 
-Project conventions change over time. The plugin can **re-read them periodically** when you run `/tms:review-pr`, so memory doesn't go stale.
+Project conventions change over time. The plugin can **re-read them periodically** when you run `/open-pr:review`, so memory doesn't go stale.
 
 | You want | Put in `doctor_schedule` |
 |----------|--------------------------|
@@ -134,16 +134,16 @@ In a repo reviewed at least once:
 | Post now / draft, auto-resolve threads, convention re-read cycle | `notebooks/review/<repo>/meta.json` |
 | Team-specific rules | `ALWAYS_RULE.md` under the extra-rules section, or say it in chat to record a lesson |
 
-## After the review: `/tms:fix-pr`
+## After the review: `/open-pr:fix-pr`
 
-`/tms:review-pr` only reviews and comments — it never edits code for you. Once a PR has been
+`/open-pr:review` only reviews and comments — it never edits code for you. Once a PR has been
 reviewed, call:
 
 ```
-/tms:fix-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:fix-pr https://github.com/<owner>/<repo>/pull/<number>
 ```
 
-Unlike `/tms:review-pr`, this one is **dev-facing and edits real code** right in your current
+Unlike `/open-pr:review`, this one is **dev-facing and edits real code** right in your current
 working directory (no separate worktree) — it reads the findings the bot left, decides fix vs
 decline per severity (🔵 SUGGESTION/📝 NOTE always ask you first), fixes the code following the
 project's learned conventions, batches everything into one commit, then replies to each finding on
@@ -153,5 +153,5 @@ command the first time you call it on a repo (asks 2 config questions, once).
 Add instructions to narrow the scope for that run, e.g.:
 
 ```
-/tms:fix-pr https://github.com/org/repo/pull/123 only fix the security parts
+/open-pr:fix-pr https://github.com/org/repo/pull/123 only fix the security parts
 ```

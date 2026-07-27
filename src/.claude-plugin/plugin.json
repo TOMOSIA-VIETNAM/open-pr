@@ -1,5 +1,5 @@
 {
-  "name": "tms",
+  "name": "open-pr",
   "displayName": "GitHub PR Reviewer",
   "description": "Review GitHub Pull Request đa stack (Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile) với memory học convention riêng theo từng repo.",
   "author": { "name": "Minh Tang Q." },
