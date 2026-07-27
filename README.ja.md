@@ -134,12 +134,12 @@ PR のコードを専用の worktree へチェックアウト（作業中のブ�
 | 今すぐ投稿／下書き、スレッド自動解決、規約の再読み込みサイクル | `notebooks/review/<repo>/meta.json` |
 | チーム固有のルール | `ALWAYS_RULE.md` の追加ルール節、またはチャットで伝えて lesson を記録 |
 
-## レビュー後に使う：`/open-pr:fix-pr`
+## レビュー後に使う：`/open-pr:fix`
 
 `/open-pr:review` はレビュー＋コメントのみで、代わりにコードを直しません。レビュー済みの PR に対して次を呼びます：
 
 ```
-/open-pr:fix-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:fix https://github.com/<owner>/<repo>/pull/<number>
 ```
 
 `/open-pr:review` と違い、こちらは **dev 向けで実際にコードを編集します**。専用の worktree ではなく、いま作業中のディレクトリで直接実行します — bot が残した指摘を読み、重要度に応じて修正するか見送るかを判断し（🔵 SUGGESTION／📝 NOTE は必ず先に確認）、学習済みのプロジェクト規約に沿ってコードを直し、まとめて 1 コミットにし、PR の各指摘へ返信します。どこで動くか・何を自動でやるか・何を先に確認するかは、そのリポジトリで初めて呼んだときにコマンド内で確認できます（設定を 2 問だけ、一度だけ質問）。
@@ -147,5 +147,5 @@ PR のコードを専用の worktree へチェックアウト（作業中のブ�
 その実行だけ範囲を絞りたい場合は、指示を追加します。例：
 
 ```
-/open-pr:fix-pr https://github.com/org/repo/pull/123 セキュリティ部分だけ直して
+/open-pr:fix https://github.com/org/repo/pull/123 セキュリティ部分だけ直して
 ```

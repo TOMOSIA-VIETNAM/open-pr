@@ -161,13 +161,13 @@ Trong repo đã review ít nhất một lần:
 | Đăng ngay / nháp, tự resolve thread, chu kỳ đọc lại quy ước | `notebooks/review/<repo>/meta.json` |
 | Quy tắc riêng team | `ALWAYS_RULE.md` mục Rule bổ sung, hoặc nói trong chat để ghi lesson |
 
-## Sau khi review xong: `/open-pr:fix-pr`
+## Sau khi review xong: `/open-pr:fix`
 
 `/open-pr:review` chỉ review + comment, không sửa code giúp bạn. Cầm PR đã được review xong rồi, gọi
 tiếp:
 
 ```
-/open-pr:fix-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:fix https://github.com/<owner>/<repo>/pull/<number>
 ```
 
 Khác `/open-pr:review` ở chỗ **dev-facing, sửa code thật** ngay tại working directory hiện tại của
@@ -179,5 +179,5 @@ xem chi tiết ngay trong lệnh khi gọi lần đầu trên 1 repo (hỏi 2 c�
 Thêm chỉ dẫn để thu hẹp phạm vi cho lượt đó, ví dụ:
 
 ```
-/open-pr:fix-pr https://github.com/org/repo/pull/123 chỉ fix phần security
+/open-pr:fix https://github.com/org/repo/pull/123 chỉ fix phần security
 ```

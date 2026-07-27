@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Claude Code **plugin** tên `open-pr` — 2 slash command: `/open-pr:review <PR_URL>` review PR GitHub
 đa stack (Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile), tự
 học convention riêng theo từng repo được review, post kết quả (summary + inline line-by-line) trực
-tiếp lên PR qua `gh api`; và `/open-pr:fix-pr <PR_URL>` dev-facing, đọc đúng finding
+tiếp lên PR qua `gh api`; và `/open-pr:fix <PR_URL>` dev-facing, đọc đúng finding
 `/open-pr:review` đã để lại, tự fix code đúng convention dự án, commit/push có kiểm soát, reply lại
 PR.
 
@@ -51,12 +51,12 @@ src/commands/review.md        Slash command DUY NHẤT /open-pr:review — **thi
                                `mkdir`, `Agent`, `Read`, `Grep`, `Write`, `Edit` — không
                                `gh pr close/merge`, không `git push/branch -D/reset --hard`, không
                                `git branch`/`git checkout` trần
-src/commands/fix-pr.md   Slash command THỨ HAI /open-pr:fix-pr <PR_URL> — dev-facing, SỬA
+src/commands/fix.md   Slash command THỨ HAI /open-pr:fix <PR_URL> — dev-facing, SỬA
                                CODE THẬT tại pwd hiện tại (KHÔNG qua worktree, khác review.md).
                                Đọc finding review.md để lại trên 1 PR, tự quyết fix/decline theo
                                severity, commit/push có kiểm soát, reply lại đúng thread/issue. Verify
                                remote+branch+branch-bảo-vệ ở đầu lệnh, DỪNG NGAY nếu sai. Bootstrap
-                               setting riêng `fix-pr-meta.json` (sibling `meta.json`, không
+                               setting riêng `fix-meta.json` (sibling `meta.json`, không
                                chung field). allowed-tools: `gh pr view`, `gh api` scope path cụ thể
                                (comments/reviews/graphql/user GET, POST đúng reply LINE-level +
                                comment OVERVIEW-level, KHÔNG POST reviews), `git remote`,
@@ -127,7 +127,7 @@ xác nhận submodule PR lệch...) ưu tiên dùng tính năng hỏi-đáp dạ
 test bootstrap phải tự gõ câu trả lời bằng tay dù các lựa chọn đã rõ (vi/en/ja, true/false...) —
 UX kém hơn hẳn so với chọn + Enter mà tính năng đó cho phép, và Cursor/agent khác cũng có tính năng
 tương đương. Rule đặt ở CRITICAL block `review.md` (áp dụng luôn cho mọi case file được `Read`
-vào cùng phiên) + `fix-pr.md` (case file riêng của lệnh đó) — không lặp lại ở từng case file
+vào cùng phiên) + `fix.md` (case file riêng của lệnh đó) — không lặp lại ở từng case file
 lẻ, vì agent đã thấy rule này trong CRITICAL block trước khi đọc tới bất kỳ case nào.
 
 **2 bổ sung sau khi user test thật:** (1) tính năng hỏi-đáp này thường giới hạn số CÂU HỎI ĐỘC LẬP
@@ -273,7 +273,7 @@ lỗi POST → `post-review.md`, retry 1 lần, KHÔNG tạo/xoá comment test t
 
 **Marker `<!-- bot-reply -->` — cùng nguyên tắc với `<!-- bot-finding -->`, nhưng đánh dấu REPLY
 (không phải finding gốc), dùng chung giữa `review.md` (qua `re-review.md`, reply xác nhận đã fix)
-và `fix-pr.md` (mọi reply/comment lệnh đó tạo ra — fix, decline, cả LINE-level lẫn
+và `fix.md` (mọi reply/comment lệnh đó tạo ra — fix, decline, cả LINE-level lẫn
 FILE-level).** HTML comment, không hiện trên GitHub, ổn định qua thời gian như `<!-- bot-finding -->`
 — hiện chưa có case nào cần PARSE lại marker này (không giống `<!-- bot-finding -->` được
 `re-review.md` đọc lại để nhận diện finding cũ), chỉ đang đóng vai trò nhận diện "reply do bot tạo"
@@ -376,10 +376,10 @@ là gì") ngay trước nhánh rẽ theo setting, không chỉ nối tiếp bằ
 branch -d` báo lỗi "checked out at <path>" ở repo gốc của họ — `gh pr checkout` trong worktree Bước 1
 để lại 1 branch thật (không detached) đang checked-out, git khoá branch đó ở MỌI worktree cùng repo
 cho tới khi worktree bị xoá; sửa bằng `git checkout --detach` ngay sau checkout trong cùng subshell,
-không phụ thuộc user tự dọn worktree. `fix-pr.md` bootstrap `fix-pr-meta.json` từng không tự thêm
+không phụ thuộc user tự dọn worktree. `fix.md` bootstrap `fix-meta.json` từng không tự thêm
 `notebooks/review/` vào `.gitignore` gốc (ỷ vào bootstrap của `review.md` đã làm việc đó) — chạy
-`/open-pr:fix-pr` trước `/open-pr:review`, hoặc trên repo bootstrap từ bản plugin cũ hơn dòng này, khiến
-file rác lộ ra `git status`; sửa bằng cách tự kiểm/thêm dòng đó ngay trong Bước 2 của `fix-pr.md`.
+`/open-pr:fix` trước `/open-pr:review`, hoặc trên repo bootstrap từ bản plugin cũ hơn dòng này, khiến
+file rác lộ ra `git status`; sửa bằng cách tự kiểm/thêm dòng đó ngay trong Bước 2 của `fix.md`.
 `re-review.md` mục "Reaction lên reply của dev" từng xét điều kiện `user.login` KHÁC tài khoản đang
 chạy lệnh — không bao giờ trigger được ở chính repo `open-pr` này (self-dogfood: dev và bot
 dùng chung 1 account, mọi reply luôn cùng login); sửa qua xét reply KHÔNG mang marker
@@ -485,9 +485,9 @@ THAM CHIẾU path vào `memory.md`; mâu thuẫn → lesson Phần E không hỏ
 **Phân loại file-level vs line-level finding là phán đoán ngữ cảnh của agent lúc review**, cố tình
 không có danh sách cứng/enum trong `review.md` — đừng thêm danh sách cứng vào đó khi sửa.
 
-## `/open-pr:fix-pr` — dev-facing, sửa code thật
+## `/open-pr:fix` — dev-facing, sửa code thật
 
-**`src/commands/fix-pr.md` chạy trực tiếp tại pwd thật của dev, KHÔNG qua worktree** — khác
+**`src/commands/fix.md` chạy trực tiếp tại pwd thật của dev, KHÔNG qua worktree** — khác
 hoàn toàn `review.md` (chỉ đọc/review trong worktree ephemeral). Vì có quyền `Edit`/`git commit`/
 `git push` thật, Bước 1 (verify remote khớp owner/repo của PR, branch hiện tại khớp `headRefName`,
 branch hiện tại KHÔNG phải nhánh bảo vệ) PHẢI chạy trước mọi thao tác khác và dừng cứng nếu sai — đây
@@ -509,7 +509,7 @@ hình nào bật/tắt được. Mọi câu cần hỏi trong 1 lượt (severit
 xác nhận) gộp thành ĐÚNG 1 câu, chờ trả lời đầy đủ trước khi `Edit` file nào — không fix phần chắc
 trước rồi hỏi phần còn lại sau.
 
-**`fix-pr-meta.json` là file SETTING RIÊNG, sibling `meta.json`, không chung field** — cùng
+**`fix-meta.json` là file SETTING RIÊNG, sibling `meta.json`, không chung field** — cùng
 thư mục `notebooks/review/<repo>/`, dùng lại git nested + `.gitignore` `review.md` đã tạo (không
 `git init`/`.gitignore` mới). Schema 2 field: `decline_needs_confirmation` (default `true`),
 `auto_push` (default `false`). Repo CHƯA từng chạy `/open-pr:review` (không có

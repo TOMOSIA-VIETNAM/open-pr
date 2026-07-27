@@ -52,9 +52,9 @@ Không có URL hợp lệ → in lỗi dưới, DỪNG (bỏ qua Ngữ cảnh n�
 
 ```
 ❌ Lỗi: Chưa cung cấp URL PR.
-Cách dùng: /open-pr:fix-pr <GitHub PR URL> [nội dung]
-Ví dụ: /open-pr:fix-pr https://github.com/org/repo/pull/123
-Ví dụ có chỉ dẫn: /open-pr:fix-pr https://github.com/org/repo/pull/123 chỉ fix phần security
+Cách dùng: /open-pr:fix <GitHub PR URL> [nội dung]
+Ví dụ: /open-pr:fix https://github.com/org/repo/pull/123
+Ví dụ có chỉ dẫn: /open-pr:fix https://github.com/org/repo/pull/123 chỉ fix phần security
 ```
 
 ## Ngữ cảnh
@@ -151,9 +151,9 @@ Qua đủ 1a + 1b → tiếp Bước 2.
 
 ## Bước 2 — Bootstrap setting
 
-`Read` thử `notebooks/review/<repo>/fix-pr-meta.json`.
+`Read` thử `notebooks/review/<repo>/fix-meta.json`.
 
-- **Chưa tồn tại** (lần đầu gọi `/open-pr:fix-pr` trên repo này) → hỏi dev 2 câu trong 1 lượt, kèm
+- **Chưa tồn tại** (lần đầu gọi `/open-pr:fix` trên repo này) → hỏi dev 2 câu trong 1 lượt, kèm
   recommend, chờ trả lời đầy đủ trước khi ghi:
   1. `decline_needs_confirmation` (true/false, đề xuất mặc định **true**) — MUST/SHOULD FIX mà agent
      tự thấy sai có cần hỏi dev trước khi decline không.
@@ -169,13 +169,13 @@ Qua đủ 1a + 1b → tiếp Bước 2.
 - **Đã tồn tại** → `Read` thẳng, dùng giá trị hiện có, KHÔNG hỏi lại.
 
 Repo CHƯA từng `/open-pr:review` (không có `notebooks/review/<repo>/`) → vẫn tạo riêng
-`notebooks/review/<repo>/fix-pr-meta.json` (chỉ file này — KHÔNG tạo `memory.md`/
+`notebooks/review/<repo>/fix-meta.json` (chỉ file này — KHÔNG tạo `memory.md`/
 `ALWAYS_RULE.md`/`templates/`, đó là việc riêng của `review.md`); Bước 4 tự bỏ qua phần đọc
 convention khi thư mục đó chưa tồn tại.
 
-Sau khi `Write`/`Edit` `fix-pr-meta.json` (bootstrap lần đầu HOẶC sửa qua "Đổi cấu hình fix-pr"):
+Sau khi `Write`/`Edit` `fix-meta.json` (bootstrap lần đầu HOẶC sửa qua "Đổi cấu hình fix"):
 `notebooks/review/<repo>/` ĐÃ là git nested (có sẵn `.git`, do `/open-pr:review` từng `git init`) →
-`git -C notebooks/review add "<repo>/fix-pr-meta.json"` rồi `git -C notebooks/review commit -m
+`git -C notebooks/review add "<repo>/fix-meta.json"` rồi `git -C notebooks/review commit -m
 "..."` (dùng `-c user.name=* -c user.email=*` nếu git nested chưa có identity riêng), giữ nhất quán
 lịch sử local với `meta.json` của `review.md`. CHƯA có git nested (repo chưa từng
 `/open-pr:review`) → bỏ qua bước commit này, KHÔNG tự `git init` (đó là việc của `review.md`).
@@ -307,12 +307,12 @@ khác `re-review.md`, lệnh này không có setting bật auto-resolve).
 Bất cứ lúc nào trong flow phát hiện 1 finding phản ánh convention CHUNG của dự án (không riêng PR
 này) → đề xuất trong chat (nội dung + tag stack + Recommend nên/không nên + lý do), CHỜ dev xác nhận,
 CHỈ ghi sau khi đồng ý — theo Phần E `"${CLAUDE_PLUGIN_ROOT}"/setup-flow.md` (`Read` nếu chưa nạp),
-dùng CHUNG `memory.md`/`ALWAYS_RULE.md` của repo (không tạo file lesson riêng cho `/open-pr:fix-pr`).
+dùng CHUNG `memory.md`/`ALWAYS_RULE.md` của repo (không tạo file lesson riêng cho `/open-pr:fix`).
 
-## Đổi cấu hình fix-pr
+## Đổi cấu hình fix
 
-Dev gõ ý định tương đương "đổi cấu hình fix-pr" (khớp theo Ý ĐỊNH, không string cứng) — bất cứ
-lúc nào, không cần đợi lượt fix kế tiếp: `Read` `notebooks/review/<repo>/fix-pr-meta.json`, in
+Dev gõ ý định tương đương "đổi cấu hình fix" (khớp theo Ý ĐỊNH, không string cứng) — bất cứ
+lúc nào, không cần đợi lượt fix kế tiếp: `Read` `notebooks/review/<repo>/fix-meta.json`, in
 từng field + giá trị hiện tại (field nào file đang thiếu → in kèm giá trị default sẽ dùng), hỏi dev
 muốn đổi field nào + giá trị mới, CHỜ xác nhận rồi `Edit` ghi ngay — commit theo đúng nhánh git
 nested đã mô tả ở Bước 2 (có `.git` thì commit, chưa có thì bỏ qua, không tự `git init`).
