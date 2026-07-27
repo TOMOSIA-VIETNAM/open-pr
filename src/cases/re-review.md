@@ -1,6 +1,6 @@
-# Re-review — đồng thuận thread mới + finding cũ đã fix chưa (Bước 6 `review-pr.md`)
+# Re-review — đồng thuận thread mới + finding cũ đã fix chưa (Bước 6 `review.md`)
 
-Không phải slash command (nằm ngoài `commands/`). `review-pr.md` Bước 6 `Read` file này khi review comments
+Không phải slash command (nằm ngoài `commands/`). `review.md` Bước 6 `Read` file này khi review comments
 đã fetch ở block "Ngữ cảnh" (`gh api .../pulls/{pull_number}/comments`) không rỗng — response rỗng
 (PR mới toanh, chưa có comment nào) thì bỏ qua hoàn toàn, không đọc file này.
 
@@ -20,7 +20,7 @@ Cả 2 phần dưới đây dùng CHUNG dữ liệu comment đã fetch đó, kh�
   CHỜ user xác nhận (yes / no / sửa lại nội dung).
 - CHỈ SAU KHI user đồng ý trong chat: ghi lesson theo Phần E của
   `"${CLAUDE_PLUGIN_ROOT}"/setup-flow.md` (đọc bằng `Read` nếu chưa nạp ở Bước 3/4 của
-  `review-pr.md`).
+  `review.md`).
 
 ## Kiểm tra finding cũ (do chính lệnh này để lại) đã được fix chưa
 
@@ -38,14 +38,14 @@ Mục tiêu riêng, khác việc học convention ở trên:
      trước lúc marker ra đời (không có lịch tự động xoá — người sửa code tự quyết định lúc dọn).
    Cả 2 đều là finding do chính lệnh này để lại ở (các) lần chạy trước trên PR này.
 3. Với MỖI comment như vậy: đối chiếu mô tả vấn đề trong comment với code HIỆN TẠI tại đúng
-   path/vùng đó (đã có sẵn trong worktree tạo ở Bước 1 của `review-pr.md`, dùng `Read` tại
+   path/vùng đó (đã có sẵn trong worktree tạo ở Bước 1 của `review.md`, dùng `Read` tại
    `<worktree>/<path>` — KHÔNG phải path trực tiếp ở pwd) — tự phán đoán vấn đề đã được fix hay
    chưa, không có rule cứng, dựa vào đọc hiểu thực tế.
    - **Đã fix** → reply ngắn gọn xác nhận vào ĐÚNG thread đó, ĐÚNG giọng REVIEWER xác nhận (không
      viết như thể chính reviewer là người vừa sửa code):
      `gh api -X POST repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies -f
      body="<xác nhận ngắn, 1 câu, theo ngôn ngữ output đã chọn, vd 'Xác nhận đã fix, cảm ơn bạn!'/'Confirmed fixed, thanks!'>"`.
-     Sau đó rẽ theo `auto_resolve_fixed_findings` (đọc từ `meta.json` ở Bước 3 của `review-pr.md`):
+     Sau đó rẽ theo `auto_resolve_fixed_findings` (đọc từ `meta.json` ở Bước 3 của `review.md`):
      - **`true`** → resolve luôn thread: query `reviewThreads` qua GraphQL để tìm `threadId` ứng với
        `comment_id` đó
        (`gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{id comments(first:1){nodes{databaseId}}}}}}}' -f o={owner} -f r={repo} -F n={pull_number}`),
@@ -57,11 +57,11 @@ Mục tiêu riêng, khác việc học convention ở trên:
        chưa resolve, để user tự resolve trên GitHub nếu muốn.
    - **Chưa fix** → KHÔNG làm gì cả, giữ nguyên comment, không nhắc lại, không tạo thêm nội dung gì.
      **Ghi nhớ `<path>` + mô tả ngắn của finding này (còn mở, chưa fix)** — dùng ngay ở mục dưới để
-     Bước 7 `review-pr.md` loại trừ, tránh tạo lại finding trùng cho đúng vấn đề đang có thread mở.
+     Bước 7 `review.md` loại trừ, tránh tạo lại finding trùng cho đúng vấn đề đang có thread mở.
 
 ## Không tạo lại finding trùng ở Bước 7
 
-Trong lúc Bước 7 `review-pr.md` review diff của lần cập nhật này: với MỖI finding cũ CHƯA fix đã
+Trong lúc Bước 7 `review.md` review diff của lần cập nhật này: với MỖI finding cũ CHƯA fix đã
 ghi nhớ ở mục trên, nếu vấn đề đang thấy ở Bước 7 là ĐÚNG vấn đề đó (cùng path, cùng bản chất lỗi) →
 KHÔNG tạo finding mới cho nó, để nguyên thread cũ (đã đang mở, không cần lặp lại). Vấn đề THẬT SỰ
 khác (khác path, hoặc cùng path nhưng lỗi khác hẳn) → vẫn tạo finding mới bình thường, không liên
@@ -70,7 +70,7 @@ quan gì tới rule này.
 ## Gate dừng sớm ở Bước 8 — không phải lúc nào re-review cũng cần overview
 
 Reply ở mục trên KHÔNG tự động kéo theo phải post thêm 1 review overview. Sau khi Bước 7
-`review-pr.md` chạy xong (review diff của lần cập nhật này), kiểm tra: có finding FILE/LINE nào MỚI
+`review.md` chạy xong (review diff của lần cập nhật này), kiểm tra: có finding FILE/LINE nào MỚI
 không, có mục nào trong "Overview" ở Bước 7 MỚI phát sinh không (title/body mập mờ mới, CI check
 fail mới, PR template checklist mới thiếu), danh sách file bị skip có entry MỚI không.
 
