@@ -1,6 +1,6 @@
-# Post-review — lỗi POST hoặc verify lệch (Bước 9 `review-pr.md`)
+# Post-review — lỗi POST hoặc verify lệch (Bước 9 `review.md`)
 
-Không phải slash command. `review-pr.md` Bước 9 chỉ `Read` file này khi:
+Không phải slash command. `review.md` Bước 9 chỉ `Read` file này khi:
 
 - lệnh `POST .../pulls/{pull_number}/reviews` trả lỗi (vd 422), **hoặc**
 - verify `state` lệch kỳ vọng so với `auto_submit_review`.

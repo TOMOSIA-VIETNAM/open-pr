@@ -1,4 +1,4 @@
-# /open-code-review:review-pr — Agent Review Pull Request Github
+# /open-pr:review — Agent Review Pull Request Github
 
 [![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/tms-review-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/tms-review-pr/releases)
 [![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/tms-review-pr)](./LICENSE)
@@ -12,7 +12,7 @@ The first time, it reads your existing conventions (README, CLAUDE.md, AGENTS.md
 
 What if a suggestion only lives on a PR comment? It asks you before remembering (to avoid injecting fake rules through a PR).
 
-Project conventions don't stand still — on each `/open-code-review:review-pr`, if it's due, the plugin re-reads the convention docs so memory doesn't go stale. Schedule details: [Convention refresh cycle](#convention-refresh-cycle).
+Project conventions don't stand still — on each `/open-pr:review`, if it's due, the plugin re-reads the convention docs so memory doesn't go stale. Schedule details: [Convention refresh cycle](#convention-refresh-cycle).
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ Inside a Claude Code session:
 
 ```
 /plugin marketplace add TOMOSIA-VIETNAM/tms-review-pr
-/plugin install open-code-review@review-pr
+/plugin install open-pr@review-pr
 ```
 
 ## Update to the latest
@@ -34,7 +34,7 @@ Inside a Claude Code session:
 
 ```
 /plugin marketplace update review-pr
-/plugin update open-code-review@review-pr
+/plugin update open-pr@review-pr
 ```
 
 Then `/reload-plugins` (or open a new Claude Code session) to reload.
@@ -45,10 +45,10 @@ the config" (or "reconfigure the review settings").
 
 ## How to use
 
-The slash command **only runs when you type it** — Claude never calls `/open-code-review:review-pr` on its own.
+The slash command **only runs when you type it** — Claude never calls `/open-pr:review` on its own.
 
 ```
-/open-code-review:review-pr https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:review https://github.com/<owner>/<repo>/pull/<number>
 ```
 
 URLs ending in `/files`, `/changes`, with query strings… all work — they just need to contain a valid PR link.
@@ -56,10 +56,10 @@ URLs ending in `/files`, `/changes`, with query strings… all work — they jus
 Add instructions right after the URL for **that run only** (does not change saved config), e.g.:
 
 ```
-/open-code-review:review-pr https://github.com/org/repo/pull/123 focus on security
+/open-pr:review https://github.com/org/repo/pull/123 focus on security
 ```
 
-**Works in parallel, no fear of clobbering branches.** On each review, the PR code is checked out into its own [git worktree](https://git-scm.com/docs/git-worktree) — it does not change the branch/working tree of the repo you're coding in. You can open multiple `/open-code-review:review-pr` sessions (several PRs at once) while still committing/editing normally on your current branch.
+**Works in parallel, no fear of clobbering branches.** On each review, the PR code is checked out into its own [git worktree](https://git-scm.com/docs/git-worktree) — it does not change the branch/working tree of the repo you're coding in. You can open multiple `/open-pr:review` sessions (several PRs at once) while still committing/editing normally on your current branch.
 
 ## First time for a repo that's never been set up
 
@@ -82,7 +82,7 @@ Remembered data lives inside the repo you're reviewing, at `notebooks/review/<re
 ## How it works (short)
 
 ```
-/open-code-review:review-pr <PR_URL>
+/open-pr:review <PR_URL>
         │
         ▼
 Check out the PR code into its own worktree (won't touch the branch you're working on)
@@ -104,7 +104,7 @@ Supports many stacks: Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, 
 
 ## Convention refresh cycle
 
-Project conventions change over time. The plugin can **re-read them periodically** when you run `/open-code-review:review-pr`, so memory doesn't go stale.
+Project conventions change over time. The plugin can **re-read them periodically** when you run `/open-pr:review`, so memory doesn't go stale.
 
 | You want | Put in `doctor_schedule` |
 |----------|--------------------------|

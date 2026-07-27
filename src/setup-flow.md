@@ -1,12 +1,12 @@
 # Setup flow — thiết lập lần đầu cho 1 repo
 
-Không phải slash command (nằm ngoài `commands/`); `commands/review-pr.md` nạp bằng `Read` khi repo chưa
+Không phải slash command (nằm ngoài `commands/`); `commands/review.md` nạp bằng `Read` khi repo chưa
 thiết lập xong.
 
-Toàn bộ thao tác dưới đây chạy tại **ĐÚNG pwd hiện tại của phiên** — thư mục mà lệnh `/open-code-review:review-pr`
+Toàn bộ thao tác dưới đây chạy tại **ĐÚNG pwd hiện tại của phiên** — thư mục mà lệnh `/open-pr:review`
 được gọi. TUYỆT ĐỐI KHÔNG `cd` sang thư mục khác, KHÔNG tự dò tìm "git root"/"thư mục repo thật
 sự", KHÔNG dùng basename của bất kỳ thư mục nào để suy ra đường dẫn hay tên repo. Tên thư mục memory
-`<repo>` LUÔN là segment `<repo>` đã parse từ PR URL (xem block "Ngữ cảnh" của `review-pr.md`), KHÔNG suy
+`<repo>` LUÔN là segment `<repo>` đã parse từ PR URL (xem block "Ngữ cảnh" của `review.md`), KHÔNG suy
 từ pwd/thư mục con/git remote. Đứng ở đâu tạo ở đó — không ngoại lệ.
 
 Công cụ được phép: `Read`/`Write`/`Edit`, `git`/`cp`/`mkdir` (qua Bash), và `Agent` (chỉ ở Phần C —
@@ -30,7 +30,7 @@ qua context — tốn token); `mkdir -p` để tạo thư mục.
    bản LOCAL copy của (các) template stack đang dùng trong repo (xem Phần B), tạo sẵn thư mục trước.
 4. Kiểm `notebooks/review/.gitignore` đã tồn tại chưa (`Read` thử) — file RIÊNG của git nested
    `notebooks/review/.git` (khác `.gitignore` của repo chính ở bước 8 dưới), cần có để worktree
-   ephemeral chứa code PR checkout (Bước 1 của `review-pr.md`, dưới
+   ephemeral chứa code PR checkout (Bước 1 của `review.md`, dưới
    `notebooks/review/<repo>/worktrees/...`) KHÔNG bao giờ lọt vào git nested này — nested repo chỉ
    nên chứa memory/template/rule, không phải code PR đang review:
    - Chưa tồn tại → `Write` tạo mới `notebooks/review/.gitignore` chỉ chứa đúng 1 dòng `worktrees/`.
@@ -39,7 +39,7 @@ qua context — tốn token); `mkdir -p` để tạo thư mục.
    - Đã có đủ → bỏ qua.
 5. Copy `ALWAYS_RULE.md` từ plugin vào bản LOCAL của repo bằng `cp` (KHÔNG Read+Write qua context):
    `cp "${CLAUDE_PLUGIN_ROOT}/ALWAYS_RULE.md" "notebooks/review/<repo>/ALWAYS_RULE.md"`. Từ
-   đây về sau `review-pr.md` (Bước 5) đọc BẢN LOCAL này — team có thể mở/chỉnh sửa ngay trong repo của họ
+   đây về sau `review.md` (Bước 5) đọc BẢN LOCAL này — team có thể mở/chỉnh sửa ngay trong repo của họ
    theo dự án, không cần vào tận plugin. Bản trong plugin chỉ là "seed" mặc định lúc bootstrap.
 6. Hỏi user **6 hoặc 7 câu trong 1 lượt** (tuỳ có CI hay không — xem câu 5), ngay trong chat (câu
    hỏi tự nhiên là đủ, không bắt buộc tool cụ thể): (1) ngôn ngữ output — vi/en/ja; (2)
@@ -95,12 +95,12 @@ qua context — tốn token); `mkdir -p` để tạo thư mục.
    CI → không hỏi, ghi thẳng false>`,
    `"many_files_threshold": <bước 6, default 30>`, `"big_file_threshold_kb": <bước 6, default 20>`,
    và object `_comments` (ít nhất key
-   `doctor_schedule` — text gợi ý giá trị hợp lệ để user sửa tay; xem Phần D). Runtime/`review-pr.md`
+   `doctor_schedule` — text gợi ý giá trị hợp lệ để user sửa tay; xem Phần D). Runtime/`review.md`
    **bỏ qua** mọi key trong `_comments` (chỉ là chú thích cho người đọc file).
 
 ## Phần B — Copy/tạo local template cho (các) stack hiện có trong PR đang review
 
-Với MỖI stack đã detect được ở Bước 2 của `review-pr.md` mà CHƯA có trong `templates_copied` (mảng trong
+Với MỖI stack đã detect được ở Bước 2 của `review.md` mà CHƯA có trong `templates_copied` (mảng trong
 `meta.json`, xem Phần D):
 
 1. Kiểm `${CLAUDE_PLUGIN_ROOT}/templates/<stack>.md` có tồn tại không (plugin có sẵn template cho
@@ -127,7 +127,7 @@ CLAUDE.md, AGENTS.md, docs/, wiki, cursor/copilot rules...), review phải THAM 
 đó thay vì đoán mò hoặc áp đặt rule ngoài không phù hợp.
 
 Doctor chạy khi `doctored` chưa `true`, **hoặc** lịch `doctor_schedule` đã hết hạn so với
-`doctored_at` (xem `review-pr.md` Bước 3), **hoặc** user chủ động "doctor lại". Mỗi lần chạy phải
+`doctored_at` (xem `review.md` Bước 3), **hoặc** user chủ động "doctor lại". Mỗi lần chạy phải
 làm THẬT KỸ: quét TOÀN BỘ repo, không giới hạn theo stack/tính năng PR hiện tại.
 
 1. **Quét ĐỆ QUY toàn bộ cây thư mục repo tại pwd** (KHÔNG chỉ root) để tìm HẾT mọi nguồn convention
@@ -137,14 +137,14 @@ làm THẬT KỸ: quét TOÀN BỘ repo, không giới hạn theo stack/tính n�
    `.cursorrules` / `.cursor/rules/`, `.github/copilot-instructions.md` — bất kể nằm ở subfolder
    nào. Bỏ qua nguồn không tồn tại, không coi là lỗi.
    **Dùng `Agent` để chạy SONG SONG cho nhanh trên repo lớn** (đã có trong `allowed-tools` của
-   `review-pr.md`): 1 subagent quét toàn cây thư mục (glob/grep) trả về DANH SÁCH path các file convention;
+   `review.md`): 1 subagent quét toàn cây thư mục (glob/grep) trả về DANH SÁCH path các file convention;
    rồi spawn NHIỀU subagent song song (mỗi subagent 1 file hoặc 1 nhóm file) để đọc + tóm tắt +
    phát hiện convention/mâu thuẫn — thay vì main agent đọc tuần tự từng file (chậm). Không giới hạn
    loại subagent cụ thể (portable qua các môi trường team cấu hình tên subagent khác nhau).
 
    **Cùng lượt quét này (KHÔNG thêm bước riêng), kiểm tra thêm sự tồn tại của PR template của dự
    án** — khác `project_docs_found` ở trên (nguồn convention chung), đây là 1 field riêng dùng ở
-   `review-pr.md` Bước 7 để đối chiếu checklist PR template với description thật của PR. Kiểm các path phổ
+   `review.md` Bước 7 để đối chiếu checklist PR template với description thật của PR. Kiểm các path phổ
    biến: `.github/PULL_REQUEST_TEMPLATE.md`, `.github/pull_request_template.md`,
    `.github/PULL_REQUEST_TEMPLATE/*.md` (GitHub hỗ trợ 1 thư mục nhiều template, chọn qua query
    param), `PULL_REQUEST_TEMPLATE.md` (root), `docs/PULL_REQUEST_TEMPLATE.md`. Giữ lại danh sách
@@ -169,7 +169,7 @@ làm THẬT KỸ: quét TOÀN BỘ repo, không giới hạn theo stack/tính n�
 5. Ghi nhận vào `meta.json`: `"doctored": true`, `"doctored_at": "<ngày giờ hiện tại>"`,
    `"project_docs_found": [<danh sách path đã tìm thấy ở bước 1, mảng rỗng nếu không có>]`,
    `"pr_template_paths": [<danh sách path PR template đã tìm thấy ở bước 1, mảng rỗng nếu không có>]`.
-   (Submodule KHÔNG detect ở đây — `review-pr.md` Bước 1 mục 5 tự kiểm `.gitmodules` trực tiếp mỗi
+   (Submodule KHÔNG detect ở đây — `review.md` Bước 1 mục 5 tự kiểm `.gitmodules` trực tiếp mỗi
    lần, không cache qua `meta.json`.)
 6. `git -C notebooks/review add <repo>` + commit (local only) phần thay đổi này.
 
@@ -196,7 +196,7 @@ làm THẬT KỸ: quét TOÀN BỘ repo, không giới hạn theo stack/tính n�
 ```
 
 `_comments` (object string): chú thích cho người sửa `meta.json` tay — **không** phải config runtime.
-`review-pr.md` / doctor / bootstrap bỏ qua toàn bộ keys trong đây. Bootstrap (Phần A bước 9) LUÔN
+`review.md` / doctor / bootstrap bỏ qua toàn bộ keys trong đây. Bootstrap (Phần A bước 9) LUÔN
 ghi (hoặc bổ sung nếu thiếu) `_comments.doctor_schedule` đúng text mẫu trên. Khi Phần C/`Edit`
 `meta.json`, giữ nguyên `_comments` nếu đã có.
 
@@ -204,7 +204,7 @@ ghi (hoặc bổ sung nếu thiếu) `_comments.doctor_schedule` đúng text m�
 - **User config** (Phần A hỏi user lúc bootstrap, đổi lại được qua "đổi cấu hình review"):
   `auto_submit_review`, `auto_resolve_fixed_findings`, `doctor_schedule`, `review_ci_status`,
   `many_files_threshold`, `big_file_threshold_kb`. Thiếu ở repo đã bootstrap từ trước →
-  `review-pr.md` Bước 3 tự backfill
+  `review.md` Bước 3 tự backfill
   default + báo 1 lần (chi tiết đầy đủ nằm ở Bước 3 đó, không lặp lại ở đây).
 - **Doctor-detected** (Phần C tự dò lại theo lịch, không phải setting user chọn): `project_docs_found`,
   `templates_copied`, `pr_template_paths`. Thiếu vì doctor chưa từng chạy/đang due → chờ Phần C chạy
@@ -214,11 +214,11 @@ ghi (hoặc bổ sung nếu thiếu) `_comments.doctor_schedule` đúng text m�
   dụng backfill/notify gì cả — luôn được Phần A/C ghi đúng lúc cần.
 
 **Khi thêm field mới vào schema này**: xếp NGAY vào đúng 1 trong 3 nhóm trên tại chính đoạn này. Nếu
-là **User config** → PHẢI thêm luôn vào câu "Giữ từ meta" ở Bước 3 `review-pr.md` (đó là nơi DUY
+là **User config** → PHẢI thêm luôn vào câu "Giữ từ meta" ở Bước 3 `review.md` (đó là nơi DUY
 NHẤT quyết định backfill/notify cho repo cũ) — 2 chỗ phải khớp, thêm ở đây mà quên bên đó thì field
 mới sẽ không bao giờ được backfill cho repo đã golive.
 
-`review-pr.md` coi bootstrap xong khi `bootstrapped: true`. Doctor: `doctored: true` **và** lịch
+`review.md` coi bootstrap xong khi `bootstrapped: true`. Doctor: `doctored: true` **và** lịch
 chưa hết hạn (`doctor_schedule` + `doctored_at`). `templates_copied` kiểm riêng mỗi lần (Phần B) —
 stack mới vẫn copy được sau khi bootstrap/doctor xong.
 
@@ -229,37 +229,37 @@ tự doctor lại theo lịch (vẫn chạy khi user "doctor lại" hoặc `doct
 → coi hết hạn, chạy lại Phần C). Sau mỗi Phần C thành công: cập nhật `doctored_at` (và
 `doctored: true`).
 
-Submodule KHÔNG có field riêng trong `meta.json` — `review-pr.md` Bước 1 mục 5 tự `Read` thử
+Submodule KHÔNG có field riêng trong `meta.json` — `review.md` Bước 1 mục 5 tự `Read` thử
 `<worktree>/.gitmodules` trực tiếp mỗi lần (không cache), tránh gap "PR đầu tiên của repo mới luôn
 bị bỏ qua submodule vì doctor chưa từng chạy".
 
 `auto_submit_review`/`auto_resolve_fixed_findings`/`doctor_schedule` hỏi + ghi lúc bootstrap (Phần A
-bước 6/9). `review-pr.md` Bước 3 đọc lại; dùng ở Bước 6/9 và gate doctor lịch.
+bước 6/9). `review.md` Bước 3 đọc lại; dùng ở Bước 6/9 và gate doctor lịch.
 
-`pr_template_paths` ghi lúc doctor (Phần C bước 1/5). `review-pr.md` Bước 3 đọc, Bước 7 dùng.
+`pr_template_paths` ghi lúc doctor (Phần C bước 1/5). `review.md` Bước 3 đọc, Bước 7 dùng.
 
 `review_ci_status` (boolean): chỉ HỎI lúc bootstrap (Phần A bước 6/9) khi PR đang review có ít nhất
 1 CI check (mảng "CI checks" ở Ngữ cảnh không rỗng) — default `true` nếu user không chọn; PR không
 có CI nào → KHÔNG hỏi, ghi thẳng `false` (hỏi cũng vô nghĩa). Thiếu field (repo cũ, backfill ở
-`review-pr.md` Bước 3) → coi theo tín hiệu CI checks của LẦN REVIEW HIỆN TẠI (không mặc định cứng
-`true`). `review-pr.md` Bước 3 đọc lại; Bước 7 dùng để quyết định có nêu cảnh báo CI check fail (đã
+`review.md` Bước 3) → coi theo tín hiệu CI checks của LẦN REVIEW HIỆN TẠI (không mặc định cứng
+`true`). `review.md` Bước 3 đọc lại; Bước 7 dùng để quyết định có nêu cảnh báo CI check fail (đã
 fetch ở Ngữ cảnh) trong overview hay bỏ qua hoàn toàn.
 
 `many_files_threshold` (number): hỏi + ghi lúc bootstrap (Phần A bước 6/9), mặc định `30`. Thiếu
-field hoặc không phải số hợp lệ (repo cũ) → coi `30`. `review-pr.md` Bước 3 đọc lại; Bước 7 dùng ở
+field hoặc không phải số hợp lệ (repo cũ) → coi `30`. `review.md` Bước 3 đọc lại; Bước 7 dùng ở
 guard số lượng file (PR đổi nhiều hơn ngưỡng này → hỏi chiến lược review, trừ khi ARGUMENTS/chat đã
 chỉ định sẵn).
 
 `big_file_threshold_kb` (number): hỏi + ghi lúc bootstrap (Phần A bước 6/9), mặc định `20` (~5.000
 token, ước lượng ~4 ký tự/token — chỉ là quy đổi tham khảo, không chính xác tuyệt đối vì phụ thuộc
-tokenizer/ngôn ngữ thật). Thiếu field hoặc không phải số hợp lệ (repo cũ) → coi `20`. `review-pr.md`
+tokenizer/ngôn ngữ thật). Thiếu field hoặc không phải số hợp lệ (repo cũ) → coi `20`. `review.md`
 Bước 3 đọc lại; Bước 7 dùng ở guard size/dump (file có diff vượt ngưỡng này, tính bằng KB, hoặc
 `UNKNOWN` → peek có giới hạn để phân loại data/dump thay vì review chi tiết dòng-by-dòng).
 
 ## Phần E — Ghi 1 lesson vào memory
 
 Quy trình mechanical dùng chung cho: đồng thuận thread (Bước 6 / `re-review.md` — **sau** user
-xác nhận trong chat), góp ý convention user gõ trong chat (`review-pr.md` Bước 10 — ghi ngay, không
+xác nhận trong chat), góp ý convention user gõ trong chat (`review.md` Bước 10 — ghi ngay, không
 hỏi lại), và mâu thuẫn reconcile ở Phần C (không hỏi). Phần E chỉ mô tả thao tác ghi.
 
 1. Tạo `notebooks/review/<repo>/memories/<lesson-slug>.md` (slug kebab-case ngắn gọn, không
@@ -275,4 +275,4 @@ hỏi lại), và mâu thuẫn reconcile ở Phần C (không hỏi). Phần E c
 ## Khi user yêu cầu "doctor lại" / "quét lại convention dự án"
 
 Sửa `doctored` trong `meta.json` thành `false` (hoặc xoá hẳn field đó) rồi thực hiện lại Phần C.
-Có thể làm ngay trong chat, không cần đợi lần `/open-code-review:review-pr` kế tiếp.
+Có thể làm ngay trong chat, không cần đợi lần `/open-pr:review` kế tiếp.
