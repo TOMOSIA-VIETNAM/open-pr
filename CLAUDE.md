@@ -72,6 +72,12 @@ acceptable; the agent misreading it is not.
 
 Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/seeds/`.
 
+**No patchwork, no past tense.** The commonest failure when an agent edits these files: bolting a new
+clause on beside the old one instead of rewriting the rule, and narrating history — "used to do X",
+"this broke when…", a bug report followed by its fix, a note about a past decision. State only what is
+true now, once, in the place that owns it. The reader needs the rule, not how it came to exist. This
+governs `memory.md` and every lesson the plugin writes into a reviewed repo too, not just `src/`.
+
 **Never duplicate content across files.** A rule has exactly 1 owner. Accepted exceptions live in
 `tests/duplication_allowlist.json` with a written reason.
 

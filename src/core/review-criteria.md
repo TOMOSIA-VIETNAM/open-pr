@@ -38,6 +38,8 @@ Illustrative, not a closed checklist: a real problem outside the list is still w
 - Names clear and consistent with this project's convention?
 - Duplicated code?
 - Responsibilities separated, rather than one unit doing everything?
+- Dead leftovers — commented-out block, unused branch/flag/import, or a comment or list item pointing
+  at a TODO, task or plan that no longer exists?
 
 #### 5. Framework/language specifics
 
@@ -46,5 +48,7 @@ Illustrative, not a closed checklist: a real problem outside the list is still w
 #### 6. Maintainability & readability
 
 - Comments where the logic is non-obvious?
+- Comments state what the code does NOW — FORBIDDEN: narrating history ("was broken before", "changed
+  because…"), a bug report and its fix, or a ticket id a future reader can't resolve?
 - Tests added or updated, covering the happy path and the error path?
 - Design leaves room for the next change?
