@@ -28,29 +28,32 @@ src/templates/    per-stack criteria, cp'd into the reviewed repo
 src/reference/    FORBIDDEN to Read at run time (schema + vendor contract, for humans)
 src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
-scripts/          token_report.py
+scripts/          check.sh · token_report.py · dup_scan.py
 tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
 backlogs/         historical, not an ops doc
 ```
 
 ## Rules
 
-**Token budget is a hard rule.** After ANY edit under `src/`, run:
+**Token budget is a hard rule.** After ANY edit under `src/`, run `scripts/check.sh <base-ref>` — the
+tests, the duplication scan and the context-cost report in one pass.
 
-```
-python3 scripts/token_report.py --base <branch-before-the-change>
-```
-
-- went DOWN → good, lower the ceilings in `tests/budgets.json` to the new numbers
+- went DOWN → good, `token_report.py --base <ref> --update-budgets` locks in the new ceilings
 - went UP → **WARN the user explicitly**, state which scenario grew, by how much, and WHY. Never
   present an increase as neutral. Only acceptable when the increase buys something named and the
   user agrees; otherwise revert.
 - NEVER trade away core behaviour for tokens. Losing a rule, a guard, a vendor entry or a severity
   level is a failure even if the number improves.
 
-**Run the tests before saying done:** `python3 -m pytest tests/ -q`. They enforce ref integrity,
-vendor-entry parity across vendors, single-source-of-truth for config defaults, cross-file
-duplication, axis names, reachability, and the token ceilings.
+**Nothing is done until `scripts/check.sh` passes.** The suite enforces ref integrity, vendor-entry
+parity, single-source config defaults, duplication both across and inside files, template axis names,
+reachability from a command, and the token ceilings.
+
+| want | run |
+|---|---|
+| where the tokens sit inside a file | `token_report.py --sections 'commands/*.md'` |
+| hunt duplication harder than the gate | `dup_scan.py --window 10 --all --min-waste 20` |
+| accept a duplicate | its `sha` + a reason in `tests/duplication_allowlist.json` |
 
 **Write for the machine, not for a reader.** In every file an agent Reads at run time
 (`src/commands/`, `src/core/`, `src/setup/`, `src/cases/`, `src/vendors/`, `src/templates/`, and this
@@ -78,8 +81,9 @@ clause on beside the old one instead of rewriting the rule, and narrating histor
 true now, once, in the place that owns it. The reader needs the rule, not how it came to exist. This
 governs `memory.md` and every lesson the plugin writes into a reviewed repo too, not just `src/`.
 
-**Never duplicate content across files.** A rule has exactly 1 owner. Accepted exceptions live in
-`tests/duplication_allowlist.json` with a written reason.
+**Never duplicate content, across files OR inside one.** A rule has exactly 1 owner. `dup_scan.py`
+catches near-verbatim repeats only — a restatement in fresh words is the common case and still needs
+you to spot it.
 
 **Split a file only when the split-off part is conditional.** An extra `Read` costs ~40-60 tokens;
 splitting an always-loaded file into 2 always-loaded files is a pure loss.

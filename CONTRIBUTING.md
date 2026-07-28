@@ -36,14 +36,23 @@ Only `src/` ships to users. Everything else is repo-side.
 ## Verify before opening a PR
 
 ```
-python3 -m pytest tests/ -q
-python3 scripts/token_report.py --base main
+scripts/check.sh main
 ```
 
-The tests check reference integrity, vendor parity, single-source config defaults, duplication, and
-the token ceilings. If the report shows a scenario got cheaper, lower its ceiling in
-`tests/budgets.json`. If one got more expensive, say so in the PR and explain why — and never trade
-away a rule, a guard or a vendor entry to win tokens back.
+That runs the test suite, the duplication scan and the context-cost report. The tests check reference
+integrity, vendor parity, single-source config defaults, duplication across and inside files, and the
+token ceilings.
+
+If a scenario got cheaper, lock it in with `python3 scripts/token_report.py --base main
+--update-budgets`. If one got more expensive, say so in the PR and explain why — and never trade away
+a rule, a guard or a vendor entry to win tokens back.
+
+Two tools for when you are looking for something specific:
+
+```
+python3 scripts/token_report.py --sections 'commands/*.md'    # where the tokens sit in a file
+python3 scripts/dup_scan.py --window 10 --all --min-waste 20  # duplication, harder than the gate
+```
 
 ## Common changes
 

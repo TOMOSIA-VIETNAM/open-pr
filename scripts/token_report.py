@@ -18,6 +18,7 @@ Encoders:
 
 import argparse
 import json
+import re
 import os
 import subprocess
 import sys
@@ -185,6 +186,21 @@ def scenario_totals(per_file):
     return totals
 
 
+def print_sections(per_text, count, pattern):
+    """Token cost per `##` section — the view you need before deciding what to cut."""
+    import fnmatch
+    hits = [k for k in sorted(per_text) if fnmatch.fnmatch(k, pattern)]
+    if not hits:
+        print(f"no file matches {pattern!r}")
+        return
+    for name in hits:
+        body = per_text[name]
+        print(f"\n{count(body):>6}  {name}")
+        for part in re.split(r"\n(?=## )", body):
+            head = part.splitlines()[0][:58] if part.strip() else "(empty)"
+            print(f"  {count(part):>5}  {head}")
+
+
 def bar(delta_pct, width=18):
     n = min(width, int(abs(delta_pct) / 100 * width * 2))
     return ("-" if delta_pct < 0 else "+") * max(n, 1) if delta_pct else ""
@@ -204,9 +220,16 @@ def main():
     ap.add_argument("--head", help="git ref to measure (default: working tree)")
     ap.add_argument("--encoder", default="tiktoken", choices=["tiktoken", "anthropic"])
     ap.add_argument("--json", help="also write raw numbers to this path")
+    ap.add_argument("--sections", metavar="GLOB",
+                    help="print per-section tokens for files matching this glob, then exit")
+    ap.add_argument("--update-budgets", action="store_true",
+                    help="rewrite tests/budgets.json from this measurement (+2%% headroom)")
     args = ap.parse_args()
 
     count, enc_label = make_counter(args.encoder)
+    if args.sections:
+        print_sections(read_tree(args.head), count, args.sections)
+        return 0
     head = tokenize_tree(read_tree(args.head), count)
     base = tokenize_tree(read_tree(args.base), count) if args.base else None
 
@@ -251,6 +274,14 @@ def main():
         print(f"{fmt_delta(int(hm), int(bm))}  MEAN over {len(both)} comparable scenarios")
         if skipped:
             print(f"{'':>7}  (head-only, excluded from the mean: {', '.join(skipped)})")
+
+    if args.update_budgets:
+        b = {"scenarios": {k: int(v["tokens"] * 1.02) for k, v in hs.items()},
+             "mean": int(sum(v["tokens"] for v in hs.values()) / len(hs) * 1.02),
+             "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. "
+                      "Lower them when a change wins tokens back."}
+        (REPO / "tests" / "budgets.json").write_text(json.dumps(b, indent=2) + "\n")
+        print("\nwrote tests/budgets.json")
 
     if args.json:
         Path(args.json).write_text(json.dumps(

@@ -10,7 +10,6 @@ any good) is out of scope — that needs live evals against real PRs.
 Run: pytest tests/ -q     or     python3 tests/test_prompt_graph.py
 """
 
-import hashlib
 import json
 import re
 import sys
@@ -21,6 +20,7 @@ SRC = REPO / "src"
 TESTS = REPO / "tests"
 
 sys.path.insert(0, str(REPO / "scripts"))
+import dup_scan  # noqa: E402
 from token_report import ROLES, SCENARIOS, scenario_totals  # noqa: E402
 
 VENDORS = sorted(p.name for p in (SRC / "vendors").iterdir() if p.is_dir())
@@ -230,87 +230,26 @@ def test_seeds_are_copied_never_read():
             assert m.group(1) == "cp", f"{name}: seeds reached via {m.group(1)}, expected cp"
 
 
-SHINGLE = 18  # words
-
-
-def _shingles(body):
-    words = re.sub(r"[^a-z0-9 ]+", " ", body.lower()).split()
-    for i in range(len(words) - SHINGLE + 1):
-        run = " ".join(words[i:i + SHINGLE])
-        yield hashlib.sha1(run.encode()).hexdigest()[:12], run
-
-
 def test_no_unapproved_cross_file_duplication():
-    """Any run of 18+ words shared by 2 files is duplicated content.
-
-    Accepted duplication must be listed in duplication_allowlist.json WITH a
-    reason — usually "both files always load, so extracting costs more than it
-    saves". An unexplained entry is a bug: the rule now has two owners.
-    """
-    allow = json.loads((TESTS / "duplication_allowlist.json").read_text())
-    approved = {e["sha"] for e in allow["approved"]}
-    seen, offenders = {}, {}
-    for name, body in all_text().items():
-        for h, run in _shingles(body):
-            if h in approved:
-                continue
-            if h in seen and seen[h][0] != name:
-                offenders.setdefault(h, {"run": run, "files": {seen[h][0]}})["files"].add(name)
-            else:
-                seen.setdefault(h, (name, run))
-    report = [f"{sorted(v['files'])}: {v['run'][:110]}…" for v in offenders.values()]
-    assert not offenders, "unapproved duplication:\n  " + "\n  ".join(sorted(report)[:15])
-
-
-INTRA_SHINGLE = 12  # words — a repeat inside ONE file is suspicious sooner
-
-
-def _strip_fences(body):
-    """Code fences are verbatim by policy, so a repeat inside them is not a
-    duplicated rule. Replace them with blanks and keep the line count intact."""
-    out, in_fence = [], False
-    for line in body.splitlines():
-        if line.lstrip().startswith("```"):
-            in_fence = not in_fence
-            out.append("")
-        else:
-            out.append("" if in_fence else line)
-    return out
-
-
-def _words_with_lines(lines):
-    for n, line in enumerate(lines, 1):
-        for w in re.sub(r"[^a-z0-9 ]+", " ", line.lower()).split():
-            yield w, n
+    """The same rule owned by two files. Accepted cases live in
+    duplication_allowlist.json WITH a reason; an unexplained one means a rule has
+    two owners and they will drift."""
+    found = dup_scan.scan("cross")
+    assert not found, "unapproved cross-file duplication:\n" + _fmt(found)
 
 
 def test_no_unapproved_intra_file_duplication():
-    """A rule restated twice in the same file is the same defect as across two —
-    and the harder one to spot, since both copies read as if they belong.
+    """The same rule restated inside one file, where both copies read as if they
+    belong. Only near-verbatim repeats surface — see scripts/dup_scan.py."""
+    found = dup_scan.scan("intra")
+    assert not found, "unapproved repeat inside one file:\n" + _fmt(found)
 
-    Only near-verbatim repeats are caught. A restatement in fresh words (the
-    common case) still needs a human to notice, so a clean run here is not proof
-    the file says everything once.
-    """
-    allow = {e["sha"] for e in json.loads((TESTS / "duplication_allowlist.json").read_text())["approved"]}
-    blocks = {}
-    for name, body in all_text().items():
-        pairs = list(_words_with_lines(_strip_fences(body)))
-        seen = {}
-        for i in range(len(pairs) - INTRA_SHINGLE + 1):
-            window = pairs[i:i + INTRA_SHINGLE]
-            run = " ".join(w for w, _ in window)
-            h = hashlib.sha1(run.encode()).hexdigest()[:12]
-            line = window[0][1]
-            if h in seen and line - seen[h] >= INTRA_SHINGLE:
-                # A repeat longer than the window shows up as several overlapping
-                # hits; key by location so one block needs one allowlist entry.
-                blocks.setdefault(f"{name}:{seen[h]}+{line}", (h, run))
-            else:
-                seen.setdefault(h, line)
-    offenders = {k: v for k, (sha, v) in blocks.items() if sha not in allow}
-    assert not offenders, "unapproved repeat inside one file:\n  " + "\n  ".join(
-        f"{k} — {v[:110]}…" for k, v in sorted(offenders.items())[:15])
+
+def _fmt(found):
+    return "\n".join(
+        f"  ~{f['waste']} tok  {f['occurrences'][0][0]}:{f['occurrences'][0][1]}"
+        f" + {f['occurrences'][1][0]}:{f['occurrences'][1][1]}  {f['run'][:90]}…"
+        for f in found[:15])
 
 
 # --------------------------------------------------------------------------- #
