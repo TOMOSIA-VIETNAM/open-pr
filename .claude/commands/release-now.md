@@ -84,7 +84,7 @@ the problem" — don't guess.
 
 **Verify numbers/claims before writing, don't infer from an old release note or memory:** every
 concrete number (number of bootstrap questions, default value, field name...) MUST be read from
-the current source file (`src/setup-flow.md`, `src/commands/review.md`, `README.md`) at the time
+the current source file (`src/setup/bootstrap.md`, `src/core/repo-settings.md`, `src/commands/review.md`, `README.md`) at the time
 of writing — the file may have changed since the last release, using an old number WILL BE WRONG
 (this actually happened: "7 questions" was hardcoded in one release note while the code had
 already changed to "6 or 7 depending on the condition").

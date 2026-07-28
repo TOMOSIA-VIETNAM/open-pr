@@ -1,113 +1,88 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Mission
 
-A Claude Code **plugin** named `open-pr`, providing three slash commands. Supports **GitHub and
-GitLab** PRs/MRs (Bitbucket not yet supported — see `src/vendors/`).
+Claude Code plugin `open-pr`. 3 slash commands, GitHub + GitLab (no Bitbucket yet):
 
-- `/open-pr:review <PR_URL>` — reviews a GitHub or GitLab PR across multiple stacks, learns each
-  reviewed repo's own conventions over time, and posts results directly on the PR via that vendor's
-  own CLI/API (`gh api` for GitHub, `glab api` for GitLab).
-- `/open-pr:fix <PR_URL>` — dev-facing. Reads the findings `/open-pr:review` left on a PR, fixes
-  the code to match the project's convention, commits/pushes in a controlled way, and replies on
-  the PR.
-- `/open-pr:update-plugin` — dev-facing, no PR involved. Upgrades the CURRENT repo's local
-  review/fix config to the plugin's latest schema by fetching migrations live from
-  `llm-upgrades/index.md` in this plugin's own GitHub repo.
+- `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review via the
+  vendor's own CLI (`gh`/`glab`).
+- `/open-pr:fix <PR_URL>` — read the findings review left, fix the code, 1 commit, reply on the PR.
+  Edits real code at pwd.
+- `/open-pr:update-plugin` — no PR. Migrate the CURRENT repo's local config to the latest
+  `schema_version`, fetching `llm-upgrades/` live from this plugin's GitHub repo.
 
-Both commands auto-detect which language to chat in (falls back to asking once, then remembers it
-per repo) — independent from the language review comments themselves get posted in.
+Everything is markdown + 1 JSON config. No build, no runtime. "Trying it" = install the plugin and
+call it against a real PR. The only automated checks are `tests/` (static invariants, see below).
 
-The whole plugin is markdown (command files + content templates) plus one JSON config file. There
-is no build/lint/test and no standalone runtime code to run in isolation — "trying it" means
-installing the plugin and calling `/open-pr:review <PR_URL>` for real against another repo.
+## Structure
 
-## Features
+`src/` is the plugin root — `/plugin install` copies only `src/`. Repo-root files never ship.
 
-### `/open-pr:review <PR_URL>`
+```
+src/commands/     entry points; ONLY these have frontmatter
+src/core/         shared procedure any run may Read
+src/setup/        per-repo provisioning: bootstrap, doctor, template, lesson
+src/cases/        gated branches, read only when the caller's condition matched
+src/vendors/<v>/  fetch | worktree | post | thread — same entry names on every vendor
+src/templates/    per-stack criteria, cp'd into the reviewed repo
+src/reference/    FORBIDDEN to Read at run time (schema + vendor contract, for humans)
+src/ALWAYS_RULE.md  seed for the team's own rules — empty by design
+llm-upgrades/     config migrations, fetched live, never packaged
+scripts/          token_report.py
+tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
+backlogs/         historical, not an ops doc
+```
 
-- Reviews one or more GitHub or GitLab PRs (Bitbucket not yet supported). Multiple PR URLs in one
-  invocation run sequentially in the same chat session, never as parallel subagents, so the agent
-  can notice cross-PR relationships.
-- Detects the stack of every changed file (Rails, Vue, React, Python, Node.js, Lambda, PHP,
-  Laravel, WordPress, Shell, Makefile, or `agent-instructions`) and mixes stacks within one PR.
-- Learns and reuses each repo's own coding convention: a per-repo local rule file, a per-repo
-  memory of past lessons, and per-repo local copies of stack templates.
-- Bootstraps a per-repo config on first use (output language, auto-submit, auto-resolve, doctor
-  schedule, CI-failure handling, large-diff thresholds) and reuses it on every later review.
-- Scans the target repo's own documented conventions (README/CLAUDE.md/AGENTS.md/docs/wiki/cursor
-  or copilot rules) via a "doctor" pass — on first run, on a schedule, or on request — and records
-  references to them instead of copying their content.
-- Re-reviews a PR that already has past review comments: checks whether old findings got fixed,
-  proposes new convention lessons from thread consensus (only after the user confirms in chat), and
-  skips posting a redundant overview when a round produced nothing new.
-- Cross-checks the PR description against the repo's own PR template checklist, when the repo has
-  one.
-- Detects a submodule pointer bump; if the main PR links a submodule PR, reviews that PR too and
-  posts a second, separate review on it.
-- Guards against oversized PRs: asks for a review strategy above a file-count threshold, and gives
-  a limited classification peek (data/dump vs. real logic) to any file above a size threshold.
-- Posts exactly one review (a summary body + inline line comments) via that vendor's own CLI/API
-  (`gh api` for GitHub, `glab api` for GitLab), with findings labeled by severity (MUST FIX / SHOULD
-  FIX / SUGGESTION / NOTE).
-- Supports "reconfigure review" and "doctor again" at any time in chat, without waiting for the
-  next review.
+## Rules
 
-### `/open-pr:fix <PR_URL>`
+**Token budget is a hard rule.** After ANY edit under `src/`, run:
 
-- Reads the findings a previous `/open-pr:review` left on a PR — both inline LINE comments and
-  FILE-level bullets inside a review body.
-- Decides fix vs. decline per finding by severity; only asks the dev for low-severity items or for
-  a high-severity finding the agent itself judges to be wrong.
-- Edits the real code at the current working directory (no worktree) to match the project's
-  learned convention, producing exactly one commit per run.
-- Leaves the commit local by default; pushes only when the dev asks (or immediately if `auto_push`
-  is enabled), and replies on the PR only after the code has actually reached the remote.
-- Supports "reconfigure fix" at any time in chat, without waiting for the next run.
+```
+python3 scripts/token_report.py --base <branch-before-the-change>
+```
 
-### `/open-pr:update-plugin`
+- went DOWN → good, lower the ceilings in `tests/budgets.json` to the new numbers
+- went UP → **WARN the user explicitly**, state which scenario grew, by how much, and WHY. Never
+  present an increase as neutral. Only acceptable when the increase buys something named and the
+  user agrees; otherwise revert.
+- NEVER trade away core behaviour for tokens. Losing a rule, a guard, a vendor entry or a severity
+  level is a failure even if the number improves.
 
-- Takes no PR URL — operates on whichever repo the session's pwd is currently in.
-- Reads that repo's local config `schema_version` checkpoint, fetches `llm-upgrades/index.md` live
-  from `TOMOSIA-VIETNAM/open-pr`, and fetches every `vN.md` newer than the checkpoint in one batch.
-- Applies the fetched migrations cumulatively and writes the new checkpoint — the only command with
-  any notion of config schema versioning; `review.md`/`fix.md` never check or upgrade it themselves.
+**Run the tests before saying done:** `python3 -m pytest tests/ -q`. They enforce ref integrity,
+vendor-entry parity across vendors, single-source-of-truth for config defaults, cross-file
+duplication, axis names, reachability, and the token ceilings.
 
-## Project structure
+**Write for the machine, not for a reader.** In every file an agent Reads at run time
+(`src/commands/`, `src/core/`, `src/setup/`, `src/cases/`, `src/vendors/`, `src/templates/`, and this
+file), optimise for tokens-per-rule, not for prose quality. A human finding it terse or cryptic is
+acceptable; the agent misreading it is not.
 
-`src/` is the real plugin root (has its own `.claude-plugin/plugin.json`). `/plugin install` copies
-only `src/` — READMEs, this file, `backlogs/`, and `scripts/` at the repo root never reach a user's
-machine.
+- Prefer any notation an agent parses unambiguously over the words for it — operators, arrows, math
+  and logic symbols, ASCII shorthand, a table, a diagram. Reach for whatever fits the thought; the
+  symbols already in these files (`→ ⇒ ⇔ || && ≠ ≥ ≡ §N`) are examples of the habit, not a fixed set.
+- Imperative keywords carry the force (`MUST`, `NEVER`, `FORBIDDEN:` …). Drop softeners entirely.
+- Drop articles, hedging, and any rationale that doesn't change what the agent does. State a reason
+  only when the reason IS the rule, e.g. a value being attacker-controlled.
+- Structure beats repetition: a branch set, field list or mapping becomes a table, never the same
+  sentence shape restated per case.
+- Symbols and emoji only when they carry meaning (severity 🔴🟠🔵📝), never as decoration.
+- Verbatim and untouched: command lines, code fences, payload shapes, markers, error text the agent
+  must print.
+- Compression stops where ambiguity starts. Two readings possible ⇒ spend the tokens.
 
-- `src/commands/review.md` — the `/open-pr:review` command.
-- `src/commands/fix.md` — the `/open-pr:fix` command.
-- `src/commands/update-plugin.md` — the `/open-pr:update-plugin` command: applies config migrations
-  to the repo the user is currently in.
-- `src/stack-detection.md` — file/path → stack mapping table.
-- `src/setup-flow.md` — per-repo bootstrap/doctor flow, loaded only when needed.
-- `src/cases/*.md` — conditional review-time logic, one file per case, hard-gated.
-- `src/vendors/github.md` — every `gh`/`git` command `review.md`/`fix.md`/`cases/*.md` run against
-  GitHub, gathered into 1 reference file (fetch PR context, checkout worktree, post/verify/submit a
-  review, reply, resolve a thread, react...); no frontmatter, not a slash command. `review.md`/
-  `fix.md`'s "Context" sections fetch via the real `Bash` tool too (not a `!`...`` auto-exec block
-  anymore — see Rules below) so they `Read` this file like every other Step.
-- `src/vendors/gitlab.md` — the SAME 19 entries as `github.md` (copied heading names verbatim, an
-  interface both files share), but against `glab`/GitLab's REST API — Draft Notes + `bulk_publish`
-  instead of a single review object, since that concept doesn't exist on GitLab (see the file's own
-  "Post a review" entry). `review.md`/`fix.md`/`cases/*.md` never hardcode which of the 2 files to
-  `Read` — they substitute `${CLAUDE_PLUGIN_ROOT}/vendors/<git_remote_type>.md` at the exact call
-  site, `<git_remote_type>` resolved per-PR from the PR/MR URL's own shape (`setup-flow.md` Part D).
-  Adding a 3rd vendor later = 1 new `src/vendors/<name>.md` with these same 19 headings, no change
-  needed to `review.md`/`fix.md`/`cases/*.md`.
-- `src/templates/*.md` — per-stack review criteria (source of truth; each repo keeps a local copy).
-- `src/ALWAYS_RULE.md` — baseline review criteria seed, common to every stack.
-- `.claude-plugin/marketplace.json`, `src/.claude-plugin/plugin.json` — plugin/marketplace manifests.
-- `scripts/reinstall.sh` — dev script to reinstall the plugin locally.
-- `backlogs/*.md` — historical task breakdowns from the initial build; temporary, not an ops doc.
-- `llm-upgrades/index.md` (+ `llm-upgrades/vN.md`) — at the repo ROOT, NOT under `src/`: never
-  packaged into `/plugin install`. `/open-pr:update-plugin` fetches it LIVE via `gh api` from
-  `TOMOSIA-VIETNAM/open-pr` every time it runs; it is not a local file the plugin ships with. A
-  machine-readable index of config `schema_version` migrations, not a human-facing changelog
-  (GitHub Releases, drafted by the dev-only `.claude/commands/release-now.md`, cover that).
+Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/ALWAYS_RULE.md`.
+
+**Never duplicate content across files.** A rule has exactly 1 owner. Accepted exceptions live in
+`tests/duplication_allowlist.json` with a written reason.
+
+**Split a file only when the split-off part is conditional.** An extra `Read` costs ~40-60 tokens;
+splitting an always-loaded file into 2 always-loaded files is a pure loss.
+
+**Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). A new vendor =
+4 new files under `src/vendors/<name>/`, nothing else.
+
+**Files must be self-contained.** No refs to task ids, plan phases, design-doc sections, or anything
+that gets deleted. Inline the rule or point at a durable file.
+
+**`src/ALWAYS_RULE.md` belongs to the user.** Human prose only — no criteria, no placeholders, no
+machine instructions. Baseline criteria live in `src/core/review-criteria.md`.

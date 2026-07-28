@@ -1,9 +1,6 @@
 # PHP (shared base, not framework-specific)
 
-_Additions to the `ALWAYS_RULE.md` baseline; stack-specific criteria only, does not repeat the
-baseline._
-
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - Dangerous type juggling — `==` used instead of `===` where strict comparison is needed
   (especially string/number comparisons prone to bugs like `"0" == "abc"`)?
@@ -15,10 +12,6 @@ baseline._
   strings directly into the query?
 - Output escaped against XSS (`htmlspecialchars` when rendering user data into HTML)?
 - Sessions/cookies configured safely (`httponly`, `secure`, `samesite` flags)?
-
-#### 3. Performance
-
-- Unnecessary repeated database queries inside a loop?
 
 #### 4. Code quality
 

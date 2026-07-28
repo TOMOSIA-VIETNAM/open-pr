@@ -2,7 +2,7 @@
 
 _Overlay on top of `php.md`, applied together. Laravel-specific criteria only._
 
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - Migrations safe — a proper `down()` rollback defined, symmetric with `up()`?
 - Route model binding used instead of manual queries (`Model::find($id)`) repeated in the
@@ -25,6 +25,8 @@ _Overlay on top of `php.md`, applied together. Laravel-specific criteria only._
 
 #### 4. Code quality
 
+- Laravel naming convention followed (singular Model, plural Controller, methods named per REST
+  resource)?
 - Form Request (a dedicated `FormRequest` class) used to validate input instead of manual
   validation in the controller?
 - Business logic separated from the controller (a Service/Action class) instead of letting the
@@ -40,6 +42,4 @@ _Overlay on top of `php.md`, applied together. Laravel-specific criteria only._
 
 #### 6. Maintainability & readability
 
-- Laravel naming convention followed (singular Model, plural Controller, methods named per REST
-  resource)?
 - Tests correctly distinguish Feature tests (via HTTP) from Unit tests (pure logic)?

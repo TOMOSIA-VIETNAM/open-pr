@@ -1,9 +1,6 @@
 # Makefile
 
-_Additions to the `ALWAYS_RULE.md` baseline; stack-specific criteria only, does not repeat the
-baseline._
-
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - Dependencies between targets in the correct order (no missing prerequisite causing a target to
   run before it should)?
@@ -23,6 +20,7 @@ baseline._
 
 #### 4. Code quality
 
+- Target names clear, accurately describing the action?
 - Variables (`$(VAR)`) used instead of hardcoding repeated paths/values across multiple targets?
 - Duplicated logic between targets avoided — a pattern rule or a shared `include` file for DRY?
 - Subcommand exit codes in the recipe checked correctly (not silently swallowing errors with a
@@ -37,6 +35,4 @@ baseline._
 
 #### 6. Maintainability & readability
 
-- Target names clear, accurately describing the action?
-- Comment explaining complex targets/logic?
 - A `help` target listing available commands (helps newcomers use it easily)?

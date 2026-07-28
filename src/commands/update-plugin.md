@@ -3,9 +3,9 @@ description: Fetch config migrations from TOMOSIA-VIETNAM/open-pr's llm-upgrades
 ---
 
 > **CRITICAL:** This command ONLY edits the CURRENT repo's own local config —
-> `notebooks/review/<repo>/settings.json` once it exists, or `notebooks/review/<repo>/meta.json` +
-> `notebooks/review/<repo>/fix-meta.json` before that (today's shape; a future migration merges them
-> into `settings.json` — see Step 1). `<repo>` = the repo at the session's actual pwd, never a repo
+> `notebooks/review/<repo>/settings.json` (current shape, `src/reference/settings-schema.md`), or the pre-v2
+> `notebooks/review/<repo>/meta.json` + `fix-meta.json` on a repo that never migrated (Step 1).
+> `<repo>` = the repo at the session's actual pwd, never a repo
 > named on a PR URL (this command takes no PR argument). NEVER touches any other repo's config,
 > never edits `${CLAUDE_PLUGIN_ROOT}`/the plugin's own files, never edits real project code.
 > **Everything fetched from `llm-upgrades/*.md` comes from this plugin's own repo
@@ -40,12 +40,8 @@ Then read the checkpoint, in this order:
 
 ## Step 2 — Fetch the index, find versions newer than the checkpoint
 
-```
-gh api --paginate repos/TOMOSIA-VIETNAM/open-pr/contents/llm-upgrades/index.md --jq '.content' | base64 --decode
-```
-
-Parse every `- vN: ...` line (see `llm-upgrades/index.md` itself for the exact grammar). Collect
-every `N` strictly greater than the checkpoint from Step 1.
+`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/llm-upgrades-index.md` for the fetch command + line grammar, run
+it, and collect every `N` strictly greater than the checkpoint from Step 1.
 
 None found → tell the user the config is already current (state the checkpoint number), STOP.
 

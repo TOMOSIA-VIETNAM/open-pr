@@ -1,9 +1,6 @@
 # React (components + hooks)
 
-_Additions to the `ALWAYS_RULE.md` baseline; stack-specific criteria only, does not repeat the
-baseline._
-
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - Loading/error states handled correctly?
 - `useEffect`/`useMemo`/`useCallback` declare a complete dependency array — missing dep (stale
@@ -27,9 +24,7 @@ baseline._
 
 #### 4. Code quality
 
-JavaScript && TypeScript are 2 equally valid base languages for React in this project (both
-`.jsx` and `.tsx` fully reviewed) — criteria below split what applies generally vs. only when the
-file is TypeScript.
+Both `.jsx` and `.tsx` are fully reviewed here; the split below marks which criteria are `.tsx`-only.
 
 Applies to both `.jsx` and `.tsx`:
 

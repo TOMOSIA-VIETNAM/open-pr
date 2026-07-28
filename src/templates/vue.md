@@ -1,9 +1,6 @@
 # Vue 2/3, Nuxt
 
-_Additions to the `ALWAYS_RULE.md` baseline; stack-specific criteria only, does not repeat the
-baseline._
-
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - Error handling for async operations (Promise, async/await, axios) appropriate?
 - Data from an API validated before being rendered?

@@ -4,7 +4,7 @@ _Overlay on top of the base language template (`python.md` for a Python handler,
 Node.js handler), applied together when reviewing a lambda handler. Serverless-specific criteria
 only._
 
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - Idempotency guaranteed on Lambda retry — side effects (DB write, external API call, publishing a
   message) safe when the handler is invoked again with the same event?
@@ -47,4 +47,4 @@ only._
 #### 6. Maintainability & readability
 
 - Comment explaining why a specific memory/timeout/concurrency value was chosen (if unusual)?
-- Design flexible enough to add a new trigger/event source in the future?
+- Adding a new trigger/event source later wouldn't require reshaping the handler?

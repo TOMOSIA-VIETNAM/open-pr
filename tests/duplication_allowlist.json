@@ -1,0 +1,14 @@
+{
+  "_note": "Cross-file duplication that is accepted. Every entry needs a reason; an unexplained entry means a rule has two owners. Regenerate a sha with tests/test_prompt_graph.py's reporter.",
+  "approved": [
+    {
+      "sha": "21b1e62f9627",
+      "files": [
+        "commands/fix.md",
+        "commands/review.md"
+      ],
+      "sample": "critical read claude plugin root core guardrails md first shared rules not repeated here on top of those",
+      "reason": "The pointer to core/guardrails.md must exist verbatim in every command file \u2014 it is the delegation itself, not a rule. Extracting it would mean a file telling the agent to read the file it is already reading."
+    }
+  ]
+}

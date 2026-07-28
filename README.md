@@ -1,4 +1,4 @@
-# /open-pr:review — Agent Review Pull Request Github
+# open-pr — PR review, by an agent that learns your project
 
 [![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/open-pr/releases)
 [![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
@@ -6,159 +6,95 @@
 
 [Tiếng Việt](./README.vi.md) · **English** · [日本語](./README.ja.md)
 
-A plugin that teaches the Agent to review Pull/Merge Requests **consistently** — the more you use it, the better it understands your project. Supports **GitHub** (`.../pull/<number>` URLs) and **GitLab** (`.../-/merge_requests/<number>` URLs, self-hosted instances included) — Bitbucket isn't supported yet.
+A Claude Code plugin that reviews Pull/Merge Requests and remembers each repo's own conventions, so
+reviews get closer to your project every time instead of repeating generic advice.
 
-The first time, it reads your existing conventions (README, CLAUDE.md, AGENTS.md, docs, wiki…). After that it always applies that repo's specific rules; type an extra rule in chat and it remembers it right away into the memory for that repo — close to the real conventions, light on generic rules.
+Works with **GitHub** (`.../pull/<n>`) and **GitLab** (`.../-/merge_requests/<n>`, self-hosted
+included). Bitbucket is not supported yet.
 
-What if a suggestion only lives on a PR comment? It asks you before remembering (to avoid injecting fake rules through a PR).
+## Requirements
 
-Project conventions don't stand still — on each `/open-pr:review`, if it's due, the plugin re-reads the convention docs so memory doesn't go stale. Schedule details: [Convention refresh cycle](#convention-refresh-cycle).
-
-## Prerequisites
-
-- [Claude Code](https://claude.ai/code) installed
-- Reviewing a GitHub PR → [`gh`](https://cli.github.com/) logged in (`gh auth login`) — the plugin posts reviews through this account
-- Reviewing a GitLab MR → [`glab`](https://gitlab.com/gitlab-org/cli) logged in (`glab auth login`) — same idea, GitLab's own account
+- [Claude Code](https://claude.ai/code)
+- [`gh`](https://cli.github.com/) logged in for GitHub PRs, or [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab MRs — the review is posted through that account
 
 ## Install
-
-Inside a Claude Code session:
 
 ```
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@review-pr
 ```
 
-## Update to the latest
-
-`plugin.json` declares no `version` (the project is under active development) — every new commit on `main` becomes a build of its own. Once installed, pull the latest:
+Update later:
 
 ```
 /plugin marketplace update review-pr
 /plugin update open-pr@review-pr
 ```
 
-Then `/reload-plugins` (or open a new Claude Code session) to reload.
+Then `/reload-plugins` or start a new session. In a repo you set up with an older version, run
+`/open-pr:update-plugin` once to bring its local config up to date.
 
-Already set up a repo before? Run `/open-pr:update-plugin` inside it — it fetches any config
-migration the new version needs straight from this repo and applies it, so an older repo's config
-catches up without waiting for the next review/fix.
+## Use
 
-## How to use
-
-The slash command **only runs when you type it** — Claude never calls `/open-pr:review` on its own.
+Commands run only when you type them.
 
 ```
-/open-pr:review https://github.com/<owner>/<repo>/pull/<number>
-/open-pr:review https://gitlab.com/<owner>/<repo>/-/merge_requests/<number>
+/open-pr:review https://github.com/<owner>/<repo>/pull/<n>
+/open-pr:review https://gitlab.com/<owner>/<repo>/-/merge_requests/<n>
 ```
 
-URLs ending in `/files`, `/changes`, with query strings… all work — they just need to contain a valid PR/MR link. GitLab self-hosted instances work too (any hostname, as long as the path still has `/-/merge_requests/<number>`).
+Reviews the PR and posts one review: an overview plus line comments where needed, each finding
+tagged 🔴 MUST FIX / 🟠 SHOULD FIX / 🔵 SUGGESTION / 📝 NOTE. A clean PR gets **LGTM 🌟**.
 
-Add instructions right after the URL for **that run only** (does not change saved config), e.g.:
+The PR code is checked out into its own git worktree, so your current branch is never touched — you
+can keep working while a review runs.
+
+```
+/open-pr:fix https://github.com/<owner>/<repo>/pull/<n>
+```
+
+Reads the findings from a previous review and fixes them **in your working directory**, one commit
+per run. It asks before acting on 🔵/📝 findings, and replies on the PR once the code is pushed.
+
+Extra words after the URL apply to that run only:
 
 ```
 /open-pr:review https://github.com/org/repo/pull/123 focus on security
+/open-pr:fix https://github.com/org/repo/pull/123 only the security parts
 ```
 
-**Works in parallel, no fear of clobbering branches.** On each review, the PR code is checked out into its own [git worktree](https://git-scm.com/docs/git-worktree) — it does not change the branch/working tree of the repo you're coding in. You can open multiple `/open-pr:review` sessions (several PRs at once) while still committing/editing normally on your current branch.
-
-**Reviewing several related PRs in one call** (e.g. one feature spanning 2 repos) — pass multiple URLs in the same invocation; the plugin processes them one at a time, sequentially (not in parallel, so it can still notice cross-PR concerns like a shared API contract):
+Several related PRs in one go — passed one after another, not in parallel:
 
 ```
 /open-pr:review https://github.com/org/repo-a/pull/12 https://github.com/org/repo-b/pull/34
 ```
 
-**Writing your own prompt to delegate review work to a subagent?** Don't paraphrase the rules by hand — tell that subagent to `Read` the actual command file (in the plugin cache) and follow it. A subagent has no way to "type" a slash command the way you do, so a hand-summarized prompt is an easy way to drift from the real rules once it posts to a real PR.
+## First run on a repo
 
-## First time for a repo that's never been set up
+It asks a short batch of setup questions once (review language, post immediately or keep as a draft,
+how often to re-read your convention docs, thresholds for large PRs), then reads whatever conventions
+your repo already documents — README, CLAUDE.md, AGENTS.md, docs, wiki, cursor/copilot rules.
 
-The plugin asks **once** (7 or 8 questions, depending on whether the repo has CI — see question 6):
+Everything it remembers lives in the repo you review, at `notebooks/review/<repo>/` — its own local
+git, never pushed. The plugin adds that path to your `.gitignore`.
 
-1. **GitHub or GitLab?** (`git_remote_type`) — pre-filled from the shape of the PR/MR URL you just gave (`.../pull/N` → GitHub, `.../-/merge_requests/N` → GitLab), you just confirm
-2. Review **language** (vi / en / ja)
-3. **Post the review now or keep it as a draft?** (`auto_submit_review`) — `true`: everyone sees it immediately; `false` (default): a draft/pending result you Submit yourself
-4. **Auto-close a thread when an old finding is fixed?** (`auto_resolve_fixed_findings`) — default `false`
-5. **How often to re-scan project conventions?** — see [Convention refresh cycle](#convention-refresh-cycle) below (default every **1 month**)
-6. **Cross-check real CI status?** (`review_ci_status`) — **only asked if this PR has any CI check** (no CI on this repo → question is skipped, set to `false` automatically); default `true` when asked; a failing check gets a one-line warning in the overview (not counted as a must-fix issue)
-7. **File-count threshold to ask for a review strategy?** (`many_files_threshold`) — default **30**; a PR touching more files than this asks whether you want a shallow full review, a selective deep review, or to stop and suggest splitting the PR
-8. **Per-file size threshold to treat as a big/dump file?** (`big_file_threshold_kb`) — default **20** (KB, ~5,000 tokens, at a rough ~4 chars/token); a changed file over this threshold (e.g. `package-lock.json`) only gets a quick classification pass instead of a line-by-line review — independent of the file-count threshold in question 7
+| To change | Edit |
+|---|---|
+| Your team's own review rules | `notebooks/review/<repo>/ALWAYS_RULE.md` — starts empty, write plain sentences |
+| Review language, draft vs post, auto-resolve, refresh cycle, size thresholds | `notebooks/review/<repo>/settings.json` |
 
-Separately from those questions, the plugin also figures out what language to *chat* with you in
-— auto-detected, only asks if it genuinely can't tell, remembered per repo. This is independent
-from question 2 above, which is only about the language review comments get posted in.
+Or just say it in chat: **reconfigure review**, **doctor again**, or a new rule you want remembered.
 
-After that it reads your existing convention docs and remembers them for later runs.
+Convention docs are re-read on a schedule (`doctor_schedule`: `"7 days"`, `"2 weeks"`, `"1 months"`
+by default, or `"never"`) so memory doesn't go stale.
 
-**Repo you've used for a while, from before one of these settings existed?** The next review still runs fine — it just falls back to the default for whatever's missing (`git_remote_type` falls back to `"github"`, since every repo predating GitLab support here was reviewed on GitHub). Run `/open-pr:update-plugin` in that repo whenever you want the file itself to catch up. Want to change any of these settings (anytime, no need to wait for a review run) — just say "reconfigure the review settings" (or similar) in chat; the plugin prints the values in effect and asks which one to change.
+## Good to know
 
-Remembered data lives inside the repo you're reviewing, at `notebooks/review/<repo-name>/` (its own local git, not pushed). Keep this directory in your project's `.gitignore` — the plugin adds it if missing.
-
-## How it works (short)
-
-```
-/open-pr:review <PR_URL>
-        │
-        ▼
-Check out the PR code into its own worktree (won't touch the branch you're working on)
-        │
-        ▼
-Review the changes, following:
-  • general technical rules
-  • the conventions / memory of this specific repo
-        │
-        ▼
-Post 1 review: overview + line-by-line comments (when needed)
-  • severity as emoji: 🔴 MUST FIX / 🟠 SHOULD FIX / 🔵 SUGGESTION / 📝 NOTE
-  • clean PR → **LGTM 🌟**, no nitpicking
-```
-
-Supports many stacks: Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile, and markdown files that instruct an AI agent (skills/commands/CLAUDE.md/AGENTS.md/cursor rules...) (and extends itself when it meets a new stack).
-
-**Review + comment only.** No closing/merging PRs, no branch switching, no editing code for you.
-
-## Convention refresh cycle
-
-Project conventions change over time. The plugin can **re-read them periodically** when you run `/open-pr:review`, so memory doesn't go stale.
-
-| You want | Put in `doctor_schedule` |
-|----------|--------------------------|
-| Every week | `"1 weeks"` or `"7 days"` |
-| Every 2 weeks | `"2 weeks"` |
-| Every month (default) | `"1 months"` |
-| Every quarter | `"3 months"` |
-| Never re-read automatically | `"never"` |
-
-Edit it in `notebooks/review/<repo>/settings.json`'s `review` node — next to the field is a `_comments` line with a quick explanation. Want to re-read **now** (without waiting for the schedule): say **doctor again** / **re-scan conventions** in chat.
-
-## Customize after you've used it
-
-In a repo reviewed at least once:
-
-| Want to change | Edit here |
-|----------------|-----------|
-| Default language | `notebooks/review/<repo>/ALWAYS_RULE.md` — the `Output language` block |
-| Post now / draft, auto-resolve threads, convention re-read cycle | `notebooks/review/<repo>/settings.json`'s `review` node |
-| Team-specific rules | `ALWAYS_RULE.md` under the extra-rules section, or say it in chat to record a lesson |
-
-## After the review: `/open-pr:fix`
-
-`/open-pr:review` only reviews and comments — it never edits code for you. Once a PR has been
-reviewed, call:
-
-```
-/open-pr:fix https://github.com/<owner>/<repo>/pull/<number>
-```
-
-Unlike `/open-pr:review`, this one is **dev-facing and edits real code** right in your current
-working directory (no separate worktree) — it reads the findings the bot left, decides fix vs
-decline per severity (🔵 SUGGESTION/📝 NOTE always ask you first), fixes the code following the
-project's learned conventions, batches everything into one commit, then replies to each finding on
-the PR. What runs where, what's automatic, what it asks first — see the details right in the
-command the first time you call it on a repo (asks 2 config questions, once).
-
-Add instructions to narrow the scope for that run, e.g.:
-
-```
-/open-pr:fix https://github.com/org/repo/pull/123 only fix the security parts
-```
+- Stacks covered: Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell,
+  Makefile, and markdown written as instructions for an AI agent. A new stack gets a template
+  written on the spot.
+- `/open-pr:review` never edits code, never closes or merges anything. Only `/open-pr:fix` writes
+  code, and only in the directory you run it from.
+- A rule suggested inside a PR comment is confirmed with you before it is remembered.
+- Delegating a review to your own subagent? Have it `Read` the command file rather than retyping the
+  rules — a paraphrase drifts.

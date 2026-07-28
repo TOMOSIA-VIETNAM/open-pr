@@ -1,9 +1,6 @@
 # Node.js (backend runtime — does not cover JSX/components, see `react.md`)
 
-_Additions to the `ALWAYS_RULE.md` baseline; stack-specific criteria only, does not repeat the
-baseline._
-
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - async/await handles errors fully — `try/catch` around `await`, unhandled promise rejection
   avoided (a Promise not `await`-ed/`.catch()`-ed)?
@@ -24,9 +21,7 @@ baseline._
 
 #### 4. Code quality
 
-JavaScript && TypeScript are 2 equally valid base languages for the Node.js backend in this
-project (both `.js` and `.ts` fully reviewed) — criteria below split what applies generally vs.
-only when the file is TypeScript.
+Both `.js` and `.ts` are fully reviewed here; the split below marks which criteria are `.ts`-only.
 
 Applies to both `.js` and `.ts`:
 

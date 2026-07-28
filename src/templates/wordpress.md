@@ -2,7 +2,7 @@
 
 _Overlay on top of `php.md`, applied together. WordPress-specific criteria only._
 
-#### 1. Bugs & logic issues
+#### 1. Bugs & logic
 
 - Hooks/filters used correctly — `add_action`/`add_filter` declare the correct priority, avoiding
   hidden side effects (wrong order, running multiple times) when the hook fires?
@@ -29,6 +29,7 @@ _Overlay on top of `php.md`, applied together. WordPress-specific criteria only.
 #### 4. Code quality
 
 - Hook callbacks named clearly, avoiding anonymous functions hard to unhook when needed?
+- Coding standard follows the WordPress Coding Standards (WPCS)?
 
 #### 5. WordPress specifics
 
@@ -40,6 +41,5 @@ _Overlay on top of `php.md`, applied together. WordPress-specific criteria only.
 #### 6. Maintainability & readability
 
 - Dependency order between hooks (what runs before/after, which priority) clearly noted?
-- Coding standard follows the WordPress Coding Standards (WPCS)?
 - Design resilient to WordPress core/other plugin updates (avoiding reliance on undocumented
   internal behavior)?
