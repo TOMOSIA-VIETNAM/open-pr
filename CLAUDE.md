@@ -55,6 +55,39 @@ reachability from a command, and the token ceilings.
 | hunt duplication harder than the gate | `dup_scan.py --window 10 --all --min-waste 20` |
 | accept a duplicate | its `sha` + a reason in `tests/duplication_allowlist.json` |
 
+## Compressing without losing quality
+
+Structural cuts are the cheap ones; prose compression is the weakest lever, worth roughly a third of
+what deleting a restatement yields in the same file. So work in this order.
+
+1. **Measure first.** `scripts/check.sh <base-ref>`. Never compress against a red suite — a lost rule
+   and a pre-existing failure look identical.
+2. **Aim at what always loads.** `token_report.py --sections '<glob>'`. A token saved in a file every
+   run reads is worth many saved in a `cases/` file that fires occasionally. Rank by size × load
+   frequency.
+3. **Cut in this order.** Everything above step 5 is free of rule loss:
+   1. a restatement — another file or section already owns that rule ⇒ delete this copy
+   2. a conditional block inside an always-loaded file ⇒ move it to `cases/` or its own atom
+   3. the same sentence shape repeated per case ⇒ one table
+   4. prose: articles, hedging, rationale that changes no behaviour ⇒ compress
+   5. a rule, a guard, a vendor entry, a severity level ⇒ FORBIDDEN. Only the user decides that, only
+      when asked outright, and the trade must be stated.
+4. **Hunt the restatements the scanner cannot see.** `dup_scan.py --window 10 --all --min-waste 20`
+   reports near-verbatim repeats. The valuable kind is reworded: read a section and ask which file OWNS
+   this rule. Intra-file is the easiest to miss — both copies read as native.
+5. **Prove nothing was lost.** The suite covers refs, parity, defaults and ceilings; it does NOT prove
+   a rule survived an edit. Grep the invariants you touched — a `MUST`, a `FORBIDDEN:`, a marker, a
+   threshold, a vendor entry name — and confirm each still has exactly one home.
+6. **Lock in, then report.** `token_report.py --base <ref> --update-budgets`, then state the
+   per-scenario numbers. An increase gets the warning above, never a shrug.
+
+**Suspect the measurement before the content** when a number moves the wrong way. A role whose
+pre-refactor path went missing makes the base look cheaper than it was; counting a `cp`-ed seed as a
+load overstates a run. Fix the model first, then judge the content.
+
+**Dedupe between `review.md` and `fix.md` wins nothing per run** — only one of them ever loads. Do it
+for single ownership, but never book it as a saving.
+
 **Write for the machine, not for a reader.** In every file an agent Reads at run time
 (`src/commands/`, `src/core/`, `src/setup/`, `src/cases/`, `src/vendors/`, `src/templates/`, and this
 file), optimise for tokens-per-rule, not for prose quality. A human finding it terse or cryptic is
