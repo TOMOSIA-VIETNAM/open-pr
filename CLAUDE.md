@@ -12,7 +12,7 @@ Claude Code plugin `open-pr`. 3 slash commands, GitHub + GitLab (no Bitbucket ye
   `schema_version`, fetching `llm-upgrades/` live from this plugin's GitHub repo.
 
 Everything is markdown + 1 JSON config. No build, no runtime. "Trying it" = install the plugin and
-call it against a real PR. The only automated checks are `tests/` (static invariants, see below).
+call it against a real PR.
 
 ## Structure
 
@@ -35,58 +35,20 @@ backlogs/         historical, not an ops doc
 
 ## Rules
 
-**Token budget is a hard rule.** After ANY edit under `src/`, run `scripts/check.sh <base-ref>` — the
-tests, the duplication scan and the context-cost report in one pass.
+**No patchwork, no past tense.** The commonest failure when an agent edits these files: bolting a new
+clause on beside the old one instead of rewriting the rule, and narrating history — "used to do X",
+"this broke when…", a bug report followed by its fix. State only what is true now, once, in the place
+that owns it. The reader needs the rule, not how it came to exist. Governs `memory.md` and every lesson
+the plugin writes into a reviewed repo too, not just `src/`.
 
-- went DOWN → good, `token_report.py --base <ref> --update-budgets` locks in the new ceilings
-- went UP → **WARN the user explicitly**, state which scenario grew, by how much, and WHY. Never
-  present an increase as neutral. Only acceptable when the increase buys something named and the
-  user agrees; otherwise revert.
-- NEVER trade away core behaviour for tokens. Losing a rule, a guard, a vendor entry or a severity
-  level is a failure even if the number improves.
+**Never duplicate content, across files OR inside one.** A rule has exactly 1 owner. `dup_scan.py`
+reports near-verbatim repeats only — a restatement in fresh words is the common case and still needs you
+to spot it. Accepted duplicates need their `sha` and a written reason in
+`tests/duplication_allowlist.json`.
 
-**Nothing is done until `scripts/check.sh` passes.** The suite enforces ref integrity, vendor-entry
-parity, single-source config defaults, duplication both across and inside files, template axis names,
-reachability from a command, and the token ceilings.
-
-| want | run |
-|---|---|
-| where the tokens sit inside a file | `token_report.py --sections 'commands/*.md'` |
-| hunt duplication harder than the gate | `dup_scan.py --window 10 --all --min-waste 20` |
-| accept a duplicate | its `sha` + a reason in `tests/duplication_allowlist.json` |
-
-## Compressing without losing quality
-
-Structural cuts are the cheap ones; prose compression is the weakest lever, worth roughly a third of
-what deleting a restatement yields in the same file. So work in this order.
-
-1. **Measure first.** `scripts/check.sh <base-ref>`. Never compress against a red suite — a lost rule
-   and a pre-existing failure look identical.
-2. **Aim at what always loads.** `token_report.py --sections '<glob>'`. A token saved in a file every
-   run reads is worth many saved in a `cases/` file that fires occasionally. Rank by size × load
-   frequency.
-3. **Cut in this order.** Everything above step 5 is free of rule loss:
-   1. a restatement — another file or section already owns that rule ⇒ delete this copy
-   2. a conditional block inside an always-loaded file ⇒ move it to `cases/` or its own atom
-   3. the same sentence shape repeated per case ⇒ one table
-   4. prose: articles, hedging, rationale that changes no behaviour ⇒ compress
-   5. a rule, a guard, a vendor entry, a severity level ⇒ FORBIDDEN. Only the user decides that, only
-      when asked outright, and the trade must be stated.
-4. **Hunt the restatements the scanner cannot see.** `dup_scan.py --window 10 --all --min-waste 20`
-   reports near-verbatim repeats. The valuable kind is reworded: read a section and ask which file OWNS
-   this rule. Intra-file is the easiest to miss — both copies read as native.
-5. **Prove nothing was lost.** The suite covers refs, parity, defaults and ceilings; it does NOT prove
-   a rule survived an edit. Grep the invariants you touched — a `MUST`, a `FORBIDDEN:`, a marker, a
-   threshold, a vendor entry name — and confirm each still has exactly one home.
-6. **Lock in, then report.** `token_report.py --base <ref> --update-budgets`, then state the
-   per-scenario numbers. An increase gets the warning above, never a shrug.
-
-**Suspect the measurement before the content** when a number moves the wrong way. A role whose
-pre-refactor path went missing makes the base look cheaper than it was; counting a `cp`-ed seed as a
-load overstates a run. Fix the model first, then judge the content.
-
-**Dedupe between `review.md` and `fix.md` wins nothing per run** — only one of them ever loads. Do it
-for single ownership, but never book it as a saving.
+**NEVER trade core behaviour for tokens.** Losing a rule, a guard, a vendor entry or a severity level is
+a failure even when the number improves. Only the user may decide such a trade, only when asked
+outright, and the cost must be stated.
 
 **Write for the machine, not for a reader.** In every file an agent Reads at run time
 (`src/commands/`, `src/core/`, `src/setup/`, `src/cases/`, `src/vendors/`, `src/templates/`, and this
@@ -108,16 +70,6 @@ acceptable; the agent misreading it is not.
 
 Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/seeds/`.
 
-**No patchwork, no past tense.** The commonest failure when an agent edits these files: bolting a new
-clause on beside the old one instead of rewriting the rule, and narrating history — "used to do X",
-"this broke when…", a bug report followed by its fix, a note about a past decision. State only what is
-true now, once, in the place that owns it. The reader needs the rule, not how it came to exist. This
-governs `memory.md` and every lesson the plugin writes into a reviewed repo too, not just `src/`.
-
-**Never duplicate content, across files OR inside one.** A rule has exactly 1 owner. `dup_scan.py`
-catches near-verbatim repeats only — a restatement in fresh words is the common case and still needs
-you to spot it.
-
 **Split a file only when the split-off part is conditional.** An extra `Read` costs ~40-60 tokens;
 splitting an always-loaded file into 2 always-loaded files is a pure loss.
 
@@ -130,3 +82,44 @@ that gets deleted. Inline the rule or point at a durable file.
 **A seed belongs to the user once copied.** `src/seeds/*` is `cp`-ed into the reviewed repo and then
 theirs — human prose only, no criteria, no config placeholders, and never `Read` back into context.
 Baseline criteria live in `src/core/review-criteria.md`.
+
+## Working loop
+
+After ANY edit under `src/`. `scripts/check.sh <base-ref>` runs all three checks — suite, duplication
+scan, context-cost report — and nothing is done until it passes. The suite covers ref integrity, vendor
+parity, single-source defaults, duplication, template axis names, reachability and the token ceilings;
+it does NOT prove a rule survived an edit, which is why step 5 exists.
+
+Structural cuts are the cheap ones. Prose compression is the weakest lever — worth roughly a third of
+what deleting a restatement yields in the same file — so work in this order.
+
+1. **Measure first.** Never compress against a red suite: a lost rule and a pre-existing failure look
+   identical.
+2. **Aim at what always loads.** A token saved where every run reads beats several saved in a `cases/`
+   file that fires occasionally. Rank by size × load frequency.
+3. **Cut in this order** — 1-4 lose no rule, 5 is the wall:
+   1. a restatement ⇒ delete this copy, keep the owner
+   2. a conditional block inside an always-loaded file ⇒ move it to `cases/` or its own atom
+   3. repetition ⇒ table
+   4. prose ⇒ compress
+   5. a rule, guard, vendor entry, severity level ⇒ FORBIDDEN
+4. **Hunt what the scanner misses.** Read a section and ask which file OWNS that rule. Intra-file hides
+   best — both copies read as native.
+5. **Prove nothing was lost.** Grep the invariants you touched — a `MUST`, a `FORBIDDEN:`, a marker, a
+   threshold, a vendor entry name — and confirm each still has exactly one home.
+6. **Lock in, then report.** Cheaper ⇒ `--update-budgets`. More expensive ⇒ **WARN the user
+   explicitly**: which scenario, by how much, and why. Never present an increase as neutral.
+
+| want | run |
+|---|---|
+| all three checks | `scripts/check.sh <base-ref>` |
+| where the tokens sit inside a file | `token_report.py --sections 'commands/*.md'` |
+| new ceilings after a win | `token_report.py --base <ref> --update-budgets` |
+| duplication, harder than the gate | `dup_scan.py --window 10 --all --min-waste 20` |
+
+**Suspect the measurement before the content** when a number moves the wrong way. A role whose
+pre-refactor path went missing makes the base look cheaper than it was; counting a `cp`-ed seed as a
+load overstates a run. Fix the model first, then judge the content.
+
+**Dedupe between `review.md` and `fix.md` wins nothing per run** — only one of them ever loads. Do it
+for single ownership, but never book it as a saving.
