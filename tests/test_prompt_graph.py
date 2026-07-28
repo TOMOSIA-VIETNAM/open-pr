@@ -262,6 +262,57 @@ def test_no_unapproved_cross_file_duplication():
     assert not offenders, "unapproved duplication:\n  " + "\n  ".join(sorted(report)[:15])
 
 
+INTRA_SHINGLE = 12  # words — a repeat inside ONE file is suspicious sooner
+
+
+def _strip_fences(body):
+    """Code fences are verbatim by policy, so a repeat inside them is not a
+    duplicated rule. Replace them with blanks and keep the line count intact."""
+    out, in_fence = [], False
+    for line in body.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            out.append("")
+        else:
+            out.append("" if in_fence else line)
+    return out
+
+
+def _words_with_lines(lines):
+    for n, line in enumerate(lines, 1):
+        for w in re.sub(r"[^a-z0-9 ]+", " ", line.lower()).split():
+            yield w, n
+
+
+def test_no_unapproved_intra_file_duplication():
+    """A rule restated twice in the same file is the same defect as across two —
+    and the harder one to spot, since both copies read as if they belong.
+
+    Only near-verbatim repeats are caught. A restatement in fresh words (the
+    common case) still needs a human to notice, so a clean run here is not proof
+    the file says everything once.
+    """
+    allow = {e["sha"] for e in json.loads((TESTS / "duplication_allowlist.json").read_text())["approved"]}
+    blocks = {}
+    for name, body in all_text().items():
+        pairs = list(_words_with_lines(_strip_fences(body)))
+        seen = {}
+        for i in range(len(pairs) - INTRA_SHINGLE + 1):
+            window = pairs[i:i + INTRA_SHINGLE]
+            run = " ".join(w for w, _ in window)
+            h = hashlib.sha1(run.encode()).hexdigest()[:12]
+            line = window[0][1]
+            if h in seen and line - seen[h] >= INTRA_SHINGLE:
+                # A repeat longer than the window shows up as several overlapping
+                # hits; key by location so one block needs one allowlist entry.
+                blocks.setdefault(f"{name}:{seen[h]}+{line}", (h, run))
+            else:
+                seen.setdefault(h, line)
+    offenders = {k: v for k, (sha, v) in blocks.items() if sha not in allow}
+    assert not offenders, "unapproved repeat inside one file:\n  " + "\n  ".join(
+        f"{k} — {v[:110]}…" for k, v in sorted(offenders.items())[:15])
+
+
 # --------------------------------------------------------------------------- #
 # durability of the files themselves
 # --------------------------------------------------------------------------- #

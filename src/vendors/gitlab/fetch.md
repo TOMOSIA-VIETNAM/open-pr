@@ -63,7 +63,7 @@ not applicable; LINE-level detection is unaffected.
 
 ## Fetch review threads (id + isResolved + comment ids)
 
-`glab api --paginate "projects/<owner>%2F<repo>/merge_requests/<pull_number>/discussions"` — each
-discussion carries `id`, `resolved` (GitLab's name for `isResolved`), and `notes[]` whose `id` is the
-comment id to match a finding's `comment_id` against. This ONE call also backs "Resolve a review
-thread" — no second fetch needed.
+REUSE the response of "Fetch PR review comments" above — the same one call serves this entry and
+"Resolve a review thread"; FORBIDDEN: fetching it again. Each discussion carries `id`, `resolved`
+(GitLab's name for `isResolved`), and `notes[]` whose `id` is the comment id to match a finding's
+`comment_id` against.

@@ -9,6 +9,14 @@
       ],
       "sample": "critical read claude plugin root core guardrails md first shared rules not repeated here on top of those",
       "reason": "The pointer to core/guardrails.md must exist verbatim in every command file \u2014 it is the delegation itself, not a rule. Extracting it would mean a file telling the agent to read the file it is already reading."
+    },
+    {
+      "sha": "3b677685fcb8",
+      "files": [
+        "vendors/gitlab/post.md"
+      ],
+      "sample": "glab api x post projects owner 2f repo merge requests pull number",
+      "reason": "A shared URL prefix of two different endpoints (draft_notes and draft_notes/bulk_publish), not a rule stated twice. Shortening it would hide which endpoint each entry calls."
     }
   ]
 }
