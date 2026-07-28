@@ -6,23 +6,16 @@ verbatim file copy (never Read+Write through context), `mkdir -p` for directorie
 
 ## 1. Skeleton
 
-- `memory.md` — EMPTY index, exactly this comment and nothing else:
-  ```
-  <!-- Index. One entry per line, concise, no repeated words:
-       - [tag] [short label](path) — a 1-line hook
-       `path` → `memories/<slug>.md` (a self-learned lesson, see `setup/lesson.md`) OR a path INSIDE
-       the reviewed repo (a pointer to the project's own convention, see `setup/doctor.md` — never a
-       copy of its content). Several tags if it spans stacks, e.g. [rails][ruby]. ≤1 sentence per
-       line; merge duplicates; don't restate "see the convention at…", the link already says it. -->
-  ```
+- `cp "${CLAUDE_PLUGIN_ROOT}/seeds/memory.md" "notebooks/review/<repo>/memory.md"` — an empty index
+  whose own comment defines the entry format every later write follows.
 - `memories/.gitkeep`, `templates/.gitkeep` — empty files, so git tracks both dirs.
 - `notebooks/review/.gitignore` MUST contain the line `worktrees/` (`Write` it when absent, `Edit` to
   append when the file exists without it). This is the NESTED repo's ignore file, separate from the
   reviewed repo's own `.gitignore` (`core/repo-settings.md`): it keeps the ephemeral worktree
   (`review.md` Step 1) out of the memory repo, which must only ever hold rules/memory/templates.
-- `cp "${CLAUDE_PLUGIN_ROOT}/ALWAYS_RULE.md" "notebooks/review/<repo>/ALWAYS_RULE.md"` — an empty file
-  for the team's own rules, theirs from here on. The plugin's baseline criteria are NOT in it
-  (`core/review-criteria.md` owns those) — FORBIDDEN: writing criteria into this copy.
+- `cp "${CLAUDE_PLUGIN_ROOT}/seeds/ALWAYS_RULE.md" "notebooks/review/<repo>/ALWAYS_RULE.md"` — an
+  empty file for the team's own rules, theirs from here on. The plugin's baseline criteria are NOT in
+  it (`core/review-criteria.md` owns those) — FORBIDDEN: writing criteria into this copy.
 
 ## 2. Ask — 1 batch, every option pre-marked with the default below
 

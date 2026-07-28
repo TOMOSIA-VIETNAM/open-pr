@@ -18,7 +18,7 @@ scoped to the current PR's stack or feature.
    `.github/PULL_REQUEST_TEMPLATE/*.md`, `PULL_REQUEST_TEMPLATE.md`, `docs/PULL_REQUEST_TEMPLATE.md`.
 2. Read each source's convention/review-criteria parts only — skip product intro, install/deploy.
 3. FORBIDDEN: copying that content into memory. Each clear, non-conflicting source → 1 REFERENCE line
-   in `memory.md`, format per `setup/bootstrap.md`'s skeleton, e.g.
+   in `memory.md`, format per its own index comment, e.g.
    `- [rails] [Controllers](app/controllers/AGENTS.md) — thin, no params.permit`. The reviewing agent
    re-reads that path when needed, so a stale copy can never mislead it.
 4. **Conflict** (2 sources disagree, || 1 source contradicts itself, || a source contradicts

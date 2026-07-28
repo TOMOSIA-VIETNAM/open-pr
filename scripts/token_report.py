@@ -36,7 +36,7 @@ ROLES = {
     "fix-cmd": ["commands/fix.md"],
     # second candidate = the pre-refactor location, so a base ref still resolves
     "stack": ["core/stack-detection.md", "stack-detection.md"],
-    "always-rule": ["ALWAYS_RULE.md"],
+    "always-rule": ["seeds/ALWAYS_RULE.md", "ALWAYS_RULE.md"],
     # baseline criteria: plugin-side since v4, inside the local rule file before that
     "criteria": ["core/review-criteria.md", "ALWAYS_RULE.md"],
     "pr-target": ["core/pr-target.md"],

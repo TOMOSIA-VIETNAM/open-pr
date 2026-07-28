@@ -26,7 +26,7 @@ src/cases/        gated branches, read only when the caller's condition matched
 src/vendors/<v>/  fetch | worktree | post | thread — same entry names on every vendor
 src/templates/    per-stack criteria, cp'd into the reviewed repo
 src/reference/    FORBIDDEN to Read at run time (schema + vendor contract, for humans)
-src/ALWAYS_RULE.md  seed for the team's own rules — empty by design
+src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
 scripts/          token_report.py
 tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
@@ -70,7 +70,7 @@ acceptable; the agent misreading it is not.
   must print.
 - Compression stops where ambiguity starts. Two readings possible ⇒ spend the tokens.
 
-Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/ALWAYS_RULE.md`.
+Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/seeds/`.
 
 **Never duplicate content across files.** A rule has exactly 1 owner. Accepted exceptions live in
 `tests/duplication_allowlist.json` with a written reason.
@@ -84,5 +84,6 @@ splitting an always-loaded file into 2 always-loaded files is a pure loss.
 **Files must be self-contained.** No refs to task ids, plan phases, design-doc sections, or anything
 that gets deleted. Inline the rule or point at a durable file.
 
-**`src/ALWAYS_RULE.md` belongs to the user.** Human prose only — no criteria, no placeholders, no
-machine instructions. Baseline criteria live in `src/core/review-criteria.md`.
+**A seed belongs to the user once copied.** `src/seeds/*` is `cp`-ed into the reviewed repo and then
+theirs — human prose only, no criteria, no config placeholders, and never `Read` back into context.
+Baseline criteria live in `src/core/review-criteria.md`.

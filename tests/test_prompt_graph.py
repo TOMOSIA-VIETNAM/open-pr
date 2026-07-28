@@ -26,9 +26,11 @@ from token_report import ROLES, SCENARIOS, scenario_totals  # noqa: E402
 VENDORS = sorted(p.name for p in (SRC / "vendors").iterdir() if p.is_dir())
 GROUPS = ("fetch", "worktree", "post", "thread")
 
-# reference/ exists for humans and for whoever adds a vendor; a review/fix run
-# must never pay for it.
-NEVER_LOADED = {"reference/settings-schema.md", "reference/vendor-interface.md"}
+# Files no scenario can put a number on. reference/ is for humans and a run must
+# never pay for it. seeds/memory.md is `cp`-ed into the reviewed repo and read back
+# only as that repo's own memory index, whose real size the team drives, not us.
+NEVER_LOADED = {"reference/settings-schema.md", "reference/vendor-interface.md",
+                "seeds/memory.md"}
 
 
 def md_files():
@@ -208,12 +210,24 @@ def test_template_axes_match_the_baseline():
     assert not bad, f"axis name drift (file, axis, found, expected): {bad}"
 
 
-def test_seed_rule_file_holds_no_criteria():
-    """ALWAYS_RULE.md is the team's file. Shipping criteria in it freezes them
-    per repo — the plugin could never improve them again."""
-    body = text(SRC / "ALWAYS_RULE.md")
-    assert "####" not in body, "ALWAYS_RULE.md must not carry review criteria"
-    assert "{{" not in body, "ALWAYS_RULE.md must not carry a config placeholder"
+def test_seeds_carry_no_criteria_and_no_config():
+    """A seed is `cp`-ed verbatim into the reviewed repo and then belongs to the
+    team. Criteria inside one would freeze per repo, beyond the plugin's reach;
+    a config placeholder inside one would be config living outside settings.json."""
+    seeds = sorted((SRC / "seeds").glob("*.md"))
+    assert seeds, "src/seeds/ is empty"
+    for p in seeds:
+        body = text(p)
+        assert "####" not in body, f"{rel(p)} must not carry review criteria"
+        assert "{{" not in body, f"{rel(p)} must not carry a config placeholder"
+
+
+def test_seeds_are_copied_never_read():
+    """`cp` keeps a seed's content out of context. A `Read` of one would pay for
+    it in tokens for no reason."""
+    for name, body in all_text().items():
+        for m in re.finditer(r'(\w+)\s+`?"?\$\{CLAUDE_PLUGIN_ROOT\}"?/seeds/', body):
+            assert m.group(1) == "cp", f"{name}: seeds reached via {m.group(1)}, expected cp"
 
 
 SHINGLE = 18  # words
