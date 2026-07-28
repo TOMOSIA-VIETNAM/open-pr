@@ -1,0 +1,63 @@
+# Contributing
+
+This plugin is markdown, not code. There is no build and no runtime — the "program" is a set of files
+an agent reads in order. So the conventions below are about **what a file is allowed to contain** and
+**how much context a run costs**.
+
+`CLAUDE.md` holds the full rule set (it is what the agent itself follows). This page is the short
+version for a human.
+
+## Where things go
+
+Only `src/` ships to users. Everything else is repo-side.
+
+| Directory | Holds | Loaded |
+|---|---|---|
+| `src/commands/` | the 3 slash commands | always (one per run) |
+| `src/core/` | procedure shared by any run | always |
+| `src/setup/` | per-repo provisioning (bootstrap, doctor, template, lesson) | first run / on schedule |
+| `src/cases/` | branches behind a condition | only when that condition matched |
+| `src/vendors/<name>/` | `fetch` · `worktree` · `post` · `thread` | per phase, per vendor |
+| `src/templates/` | per-stack review criteria | per detected stack |
+| `src/seeds/` | files copied into the reviewed repo | never — copied with `cp` |
+| `src/reference/` | schema + vendor contract, for humans | never |
+| `llm-upgrades/` | config migrations, fetched live | not packaged |
+
+## Conventions that get enforced
+
+- **One owner per rule.** If two files say the same thing, one of them is wrong. Accepted exceptions
+  live in `tests/duplication_allowlist.json` with a reason.
+- **Split a file only when the split-off part is conditional.** An extra read costs tokens; splitting
+  something that always loads is a loss.
+- **Callers never name a vendor.** They write `V§"<entry>"` and the entry resolves per vendor.
+- **Context cost may not grow.** Every scenario has a ceiling in `tests/budgets.json`.
+- **Files must be self-contained.** No pointers to task ids, plan phases or docs that get deleted.
+
+## Verify before opening a PR
+
+```
+python3 -m pytest tests/ -q
+python3 scripts/token_report.py --base main
+```
+
+The tests check reference integrity, vendor parity, single-source config defaults, duplication, and
+the token ceilings. If the report shows a scenario got cheaper, lower its ceiling in
+`tests/budgets.json`. If one got more expensive, say so in the PR and explain why — and never trade
+away a rule, a guard or a vendor entry to win tokens back.
+
+## Common changes
+
+- **New stack** — add `src/templates/<stack>.md` and a row in `src/core/stack-detection.md`. Every
+  bullet must name a concrete API, idiom or tool of that stack; generic criteria already live in
+  `src/core/review-criteria.md`.
+- **New vendor** — add `src/vendors/<name>/{fetch,worktree,post,thread}.md` with the same entry
+  headings the existing vendors use (`src/reference/vendor-interface.md` lists them). No caller
+  changes.
+- **New config field** — classify it in `src/reference/settings-schema.md`, add its read-time default
+  to `src/core/repo-settings.md`, and add an `llm-upgrades/vN.md` migration plus an index line so
+  existing repos catch up.
+
+## Commits
+
+Conventional commits (`refactor(scope): …`). Once a PR has been reviewed, push follow-up work as new
+commits — no amend, no squash, no force-push over what a reviewer already read.

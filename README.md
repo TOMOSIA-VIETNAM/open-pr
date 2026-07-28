@@ -88,6 +88,8 @@ Or just say it in chat: **reconfigure review**, **doctor again**, or a new rule 
 Convention docs are re-read on a schedule (`doctor_schedule`: `"7 days"`, `"2 weeks"`, `"1 months"`
 by default, or `"never"`) so memory doesn't go stale.
 
+Contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Good to know
 
 - Stacks covered: Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell,
