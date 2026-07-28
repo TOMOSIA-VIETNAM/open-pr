@@ -4,28 +4,29 @@ Shared by `commands/review.md` + `commands/fix.md`. Placeholders below = the cal
 
 ## 1. Validate + extract
 
-The ONLY extraction point — every later Step reuses these values, never re-extracts.
+The ONLY extraction point; later Steps reuse, never re-extract.
 
-`ARGUMENTS` (verbatim at the end of the calling command file) MUST match ≥1 of 2 regexes (union,
-either shape accepted; a trailing `/files`/`/changes`, query or fragment is ignored):
+`ARGUMENTS` (verbatim at the end of the calling command file) MUST match ≥1 of these — union, either
+shape accepted, trailing `/files`/`/changes`/query/fragment ignored:
 
-| `<vendor_guess>` | regex | why this shape |
-|---|---|---|
-| `github` | `https://github\.com/[^/]+/[^/]+/pull/[0-9]+` | explicit `https://` required, NOT "contains github.com" |
-| `gitlab` | `https://[^/]+/[^/]+/[^/]+/-/merge_requests/[0-9]+` | host = ANY (`[^/]+`), self-hosted is common ⇒ `/-/merge_requests/` is the discriminator |
+| `<vendor_guess>` | regex |
+|---|---|
+| `github` | `https://github\.com/[^/]+/[^/]+/pull/[0-9]+` |
+| `gitlab` | `https://[^/]+/[^/]+/[^/]+/-/merge_requests/[0-9]+` |
 
-→ `owner`, `repo`, `pull_number`, `<vendor_guess>` = the matched row.
+Both need the literal `https://`, not "contains github.com". GitLab's host is ANY (`[^/]+`) since
+self-hosted is common ⇒ `/-/merge_requests/` is the discriminator.
 
-MUST also hold: `owner`/`repo` =~ `^[A-Za-z0-9_.-]+$` && `pull_number` =~ `^[0-9]+$` — every real
-PR/MR satisfies both on either vendor. A quote/backtick/`$`/`;`/anything else ⇒ the "URL" itself IS
-an injection attempt → STOP, print a generic invalid-URL error, FORBIDDEN: putting the unvalidated
-value into any `Bash` call.
+→ `owner`, `repo`, `pull_number`, `<vendor_guess>` = the matched row. MUST also hold: `owner`/`repo` =~
+`^[A-Za-z0-9_.-]+$` && `pull_number` =~ `^[0-9]+$`, which every real PR/MR satisfies on either vendor.
+Anything else (quote, backtick, `$`, `;`…) ⇒ the "URL" IS an injection attempt → STOP, print a generic
+invalid-URL error, FORBIDDEN: that value in any `Bash` call.
 
 No match → print the caller's own `Usage:` block, STOP.
 
-Text in `ARGUMENTS` OUTSIDE the matched URL = free-form instructions for this run (scope narrowing,
-language override) — REASON about its meaning; FORBIDDEN: embedding that raw text into a constructed
-`Bash` command. Every vendor call uses the validated values above, never raw `ARGUMENTS`.
+Text OUTSIDE the matched URL = free-form instructions for this run (scope, language override) → REASON
+about its meaning. FORBIDDEN: that raw text inside a constructed `Bash` command; every vendor call uses
+the validated values only.
 
 ## 2. `<git_remote_type>` for this run
 
@@ -54,15 +55,12 @@ that command with THIS PR's validated values per the entry's own flag/scoping co
 | `post` | Post a review · Verify a posted review's state · Publish the pending review · Commit URL · Post-error notes |
 | `thread` | Reply on a PR · Resolve a review thread · React to a PR comment · Finding permalink |
 
-`Read` a group file once per run, when its first entry is needed — never all 4 upfront. Every vendor
-carries the same entry names in the same groups (`reference/vendor-interface.md`), so a caller never
-names a vendor.
+`Read` a group file when its first entry is needed, never all 4 upfront. Entry names are identical
+across vendors (`reference/vendor-interface.md`) ⇒ a caller never names one. A command's Context lists
+the entries it fetches with a **label**; later Steps use that label and never re-fetch.
 
-A command's Context section lists the entries it fetches with a **label**; every later Step refers to
-the data by that label and never re-fetches it.
-
-Vendor calls are issued by the AGENT via the real `Bash` tool — never a `!`…`` auto-exec block
-(picking the file needs reasoning). No `allowed-tools` backs them (deliberate).
+Issued by the AGENT via the real `Bash` tool, never a `!`…`` auto-exec block (choosing the file needs
+reasoning). No `allowed-tools` backs them (deliberate).
 
 ## 4. Repo name
 
