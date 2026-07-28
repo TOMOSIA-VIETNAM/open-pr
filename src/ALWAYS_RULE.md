@@ -1,7 +1,7 @@
 # Always Rule — general rules for the `review` plugin
 
-Scope: applies to every repo reviewed via the `review` plugin. Each repo's own convention lives at
-`notebooks/review/<repo>/`, outside the scope of this file.
+Scope: every repo reviewed via the `review` plugin. Each repo's own convention lives at
+`notebooks/review/<repo>/`, outside this file's scope.
 
 ## Output language
 
@@ -9,43 +9,39 @@ Scope: applies to every repo reviewed via the `review` plugin. Each repo's own c
 {{OUTPUT_LANGUAGE}}
 ```
 
-Bootstrap fills in a concrete value in place of `{{OUTPUT_LANGUAGE}}` (e.g. `English`, `Vietnamese`,
-`Japanese`). Left blank / still the placeholder → ask the user before reviewing. A language
-instruction in `ARGUMENTS` or the current chat session **wins over** the value above (that run
-only, does not edit the file).
+Bootstrap fills in a concrete value in place of `{{OUTPUT_LANGUAGE}}` (e.g. `English`,
+`Vietnamese`, `Japanese`). Blank / still the placeholder → ask the user before reviewing. A
+language instruction in `ARGUMENTS`/the current chat session WINS over the value above (that run
+only, never edits the file).
 
 ## General review framework (baseline for every stack)
 
-Applies to every PR, every stack, regardless of language/framework; always loaded together with
-the specific template of the stack being reviewed. `templates/<stack>.md` contains ONLY
-STACK-SPECIFIC criteria (including the entirety of item 5 "Framework/language specifics" — this
-item has no shared baseline), and does not repeat the items below.
+Applies to every PR, every stack, regardless of language/framework — ALWAYS loaded together with
+the stack's own template. `templates/<stack>.md` contains ONLY STACK-SPECIFIC criteria (including
+the entirety of item 5 "Framework/language specifics" — no shared baseline for that item), never
+repeats the items below.
 
-The criteria in this file and in `templates/*.md` are illustrative guidance, not a closed
-checklist. Review scope is not limited to the listed items; any other issue found is still in
-scope.
+Illustrative guidance, not a closed checklist — review scope isn't limited to the listed items;
+any other issue found is still in scope.
 
 #### 1. Bugs & logic issues
-- Is there any obvious bug or logic error?
-- Are edge cases (empty/null/undefined values, limits, empty arrays/lists) handled correctly?
+- Obvious bug or logic error?
+- Edge cases (empty/null/undefined, limits, empty arrays/lists) handled correctly?
 
 #### 2. Security
-- Does the code contain hardcoded sensitive information (API key, token, password, connection
-  string)?
+- Hardcoded sensitive info (API key, token, password, connection string)?
 
 #### 3. Performance
-- Are there unnecessary repeated calls (API/DB/subprocess/computation) that could be
-  cached/batched?
+- Unnecessary repeated calls (API/DB/subprocess/computation) that could be cached/batched?
 
 #### 4. Code quality
-- Are variable/function/class/component names clear and consistent with the project's convention?
-- Is there duplicated code (DRY principle)?
+- Variable/function/class/component names clear + consistent with the project's convention?
+- Duplicated code (DRY)?
 
 #### 6. Maintainability & readability
-- Are there explanatory comments where the logic is unclear/complex?
-- Were tests added or updated for the change? Do they cover both the happy path and the error
-  path?
-- Is the design flexible enough to accommodate future change?
+- Explanatory comments where the logic is unclear/complex?
+- Tests added/updated for the change? Cover both the happy path && the error path?
+- Design flexible enough for future change?
 
 ---
 

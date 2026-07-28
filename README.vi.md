@@ -43,9 +43,9 @@ Trong phiên Claude Code:
 
 Rồi `/reload-plugins` (hoặc mở phiên Claude Code mới) để nạp lại.
 
-Repo đã setup từ trước, muốn kiểm tra/cập nhật cấu hình theo bản mới (field mới nếu có sẽ backfill
-ngay, không cần đợi lần review kế) — gõ trong chat ở repo đó: "làm mới cấu hình" (hoặc "đổi cấu
-hình review").
+Repo đã setup từ trước? Chạy `/open-pr:update-plugin` ngay trong repo đó — lệnh tự lấy migration
+cấu hình mà bản mới cần (nếu có) và áp dụng, để cấu hình repo cũ theo kịp mà không cần đợi lần
+review/fix kế tiếp.
 
 ## Dùng thế nào
 
@@ -106,8 +106,9 @@ dung review post lên PR).
 
 Sau đó nó đọc tài liệu quy ước sẵn có và nhớ lại cho các lần sau.
 
-**Repo đã dùng lâu, từ trước khi 1 cài đặt nào đó mới xuất hiện?** Không cần làm gì — lần review kế
-tiếp plugin tự nhận ra, tạm dùng default, báo 1 câu trong chat cho biết. Muốn đổi lại 1 trong 7 cài
+**Repo đã dùng lâu, từ trước khi 1 cài đặt nào đó mới xuất hiện?** Lần review kế tiếp vẫn chạy bình
+thường — field nào thiếu thì tạm dùng default. Muốn file cấu hình cập nhật thật sự thì chạy
+`/open-pr:update-plugin` trong repo đó. Muốn đổi lại 1 trong 7 cài
 đặt (bất cứ lúc nào, không cần chờ review chạy) — gõ trong chat "đổi cấu hình review" (hoặc "xem
 setting hiện tại"), plugin in ra giá trị đang áp dụng và hỏi bạn muốn đổi field nào.
 
@@ -152,7 +153,7 @@ Quy ước dự án thay đổi theo thời gian. Plugin có thể **tự đọc
 | Mỗi quý | `"3 months"` |
 | Không bao giờ tự đọc lại | `"never"` |
 
-Sửa trong `notebooks/review/<repo>/meta.json` — cạnh field có dòng `_comments` giải thích nhanh.
+Sửa trong node `review` của `notebooks/review/<repo>/settings.json` — cạnh field có dòng `_comments` giải thích nhanh.
 Muốn đọc lại **ngay** (không đợi lịch): trong chat nói **doctor lại** / **quét lại convention**.
 
 ## Tuỳ chỉnh sau khi đã dùng
@@ -162,7 +163,7 @@ Trong repo đã review ít nhất một lần:
 | Muốn đổi | Sửa đâu |
 |----------|---------|
 | Ngôn ngữ mặc định | `notebooks/review/<repo>/ALWAYS_RULE.md` — khối `Ngôn ngữ output` |
-| Đăng ngay / nháp, tự resolve thread, chu kỳ đọc lại quy ước | `notebooks/review/<repo>/meta.json` |
+| Đăng ngay / nháp, tự resolve thread, chu kỳ đọc lại quy ước | node `review` của `notebooks/review/<repo>/settings.json` |
 | Quy tắc riêng team | `ALWAYS_RULE.md` mục Rule bổ sung, hoặc nói trong chat để ghi lesson |
 
 ## Sau khi review xong: `/open-pr:fix`

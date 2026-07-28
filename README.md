@@ -39,9 +39,9 @@ Inside a Claude Code session:
 
 Then `/reload-plugins` (or open a new Claude Code session) to reload.
 
-Already set up a repo before? Want to check/update its config for the new version (new fields get
-backfilled right away, no need to wait for the next review) — say in chat in that repo: "refresh
-the config" (or "reconfigure the review settings").
+Already set up a repo before? Run `/open-pr:update-plugin` inside it — it fetches any config
+migration the new version needs straight from this repo and applies it, so an older repo's config
+catches up without waiting for the next review/fix.
 
 ## How to use
 
@@ -87,7 +87,7 @@ from question 1 above, which is only about the language review comments get post
 
 After that it reads your existing convention docs and remembers them for later runs.
 
-**Repo you've used for a while, from before one of these settings existed?** No action needed — on the next review the plugin notices, uses the default for now, and mentions it once in chat. Want to change any of the 7 settings (anytime, no need to wait for a review run) — just say "reconfigure the review settings" (or similar) in chat; the plugin prints the values in effect and asks which one to change.
+**Repo you've used for a while, from before one of these settings existed?** The next review still runs fine — it just falls back to the default for whatever's missing. Run `/open-pr:update-plugin` in that repo whenever you want the file itself to catch up. Want to change any of the 7 settings (anytime, no need to wait for a review run) — just say "reconfigure the review settings" (or similar) in chat; the plugin prints the values in effect and asks which one to change.
 
 Remembered data lives inside the repo you're reviewing, at `notebooks/review/<repo-name>/` (its own local git, not pushed). Keep this directory in your project's `.gitignore` — the plugin adds it if missing.
 
@@ -126,7 +126,7 @@ Project conventions change over time. The plugin can **re-read them periodically
 | Every quarter | `"3 months"` |
 | Never re-read automatically | `"never"` |
 
-Edit it in `notebooks/review/<repo>/meta.json` — next to the field is a `_comments` line with a quick explanation. Want to re-read **now** (without waiting for the schedule): say **doctor again** / **re-scan conventions** in chat.
+Edit it in `notebooks/review/<repo>/settings.json`'s `review` node — next to the field is a `_comments` line with a quick explanation. Want to re-read **now** (without waiting for the schedule): say **doctor again** / **re-scan conventions** in chat.
 
 ## Customize after you've used it
 
@@ -135,7 +135,7 @@ In a repo reviewed at least once:
 | Want to change | Edit here |
 |----------------|-----------|
 | Default language | `notebooks/review/<repo>/ALWAYS_RULE.md` — the `Output language` block |
-| Post now / draft, auto-resolve threads, convention re-read cycle | `notebooks/review/<repo>/meta.json` |
+| Post now / draft, auto-resolve threads, convention re-read cycle | `notebooks/review/<repo>/settings.json`'s `review` node |
 | Team-specific rules | `ALWAYS_RULE.md` under the extra-rules section, or say it in chat to record a lesson |
 
 ## After the review: `/open-pr:fix`
