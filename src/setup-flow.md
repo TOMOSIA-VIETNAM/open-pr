@@ -42,26 +42,35 @@ through context — wastes tokens); `mkdir -p` to create directories.
    Read+Write through context). From now on `review.md` Step 5 reads THIS LOCAL COPY — the team
    can edit it directly for their project, no need to touch the plugin. The plugin's copy is just
    the default "seed" at bootstrap time.
-6. Ask the user **6 or 7 questions in 1 bootstrap batch** (7th depends on CI, see q5) — use the
+6. Ask the user **7 or 8 questions in 1 bootstrap batch** (8th depends on CI, see q6) — use the
    built-in choice-Q&A feature if available (CRITICAL, `review.md`), each pre-marked with the
    recommended default below; feature caps questions per call (e.g. 4) ⇒ split into 2 SEQUENTIAL
-   calls (q1-4, then q5-7, finish the first before the next). No such feature → ask naturally:
-   1. output language — vi/en/ja.
-   2. `auto_submit_review` true/false (default **false**).
-   3. `auto_resolve_fixed_findings` true/false (default **false**).
-   4. `doctor_schedule` — re-scan frequency (`{N} days`|`{N} weeks`|`{N} months`|`never`; default
+   calls (q1-4, then q5-8, finish the first before the next). No such feature → ask naturally:
+   1. `git_remote_type` — `"github"`|`"gitlab"` (only these 2 at this stage, no `"bitbucket"`
+      yet). Recommended default = the preliminary vendor guess the calling command already
+      computed at its own Step 0 from the PR URL's PATH shape (`/pull/` ⇒ `github`,
+      `/-/merge_requests/` ⇒ `gitlab` — works for self-hosted instances too, since that shape
+      doesn't depend on hostname; a `github.com`/`gitlab.com` URL is simply the common case of the
+      same shape). Reuse that value here, do NOT re-derive/ask a second time — see `review.md`
+      Step 3 for exactly how it's carried over.
+   2. output language — vi/en/ja.
+   3. `auto_submit_review` true/false (default **false**).
+   4. `auto_resolve_fixed_findings` true/false (default **false**).
+   5. `doctor_schedule` — re-scan frequency (`{N} days`|`{N} weeks`|`{N} months`|`never`; default
       **`"1 months"`** if unchosen).
-   5. `review_ci_status` true/false — ONLY ask WHEN the PR's "CI checks" array in Context is NOT
+   6. `review_ci_status` true/false — ONLY ask WHEN the PR's "CI checks" array in Context is NOT
       empty (≥1 real check, passing or failing ⇒ CI is configured). Empty (no CI ran) → SKIP this
       question entirely (meaningless with nothing to compare against), auto-write `false`, no need
       to explain why in chat (obvious from context).
-   6. `many_files_threshold` — file-change count above which review strategy gets asked before
+   7. `many_files_threshold` — file-change count above which review strategy gets asked before
       proceeding (default **`30`** if unchosen).
-   7. `big_file_threshold_kb` — diff size per file (KB) above which it's a large/dump file
+   8. `big_file_threshold_kb` — diff size per file (KB) above which it's a large/dump file
       (limited peek instead of detailed review; default **`20`** ≈ 5,000 tokens ≈ 4 chars/token,
       if unchosen).
 
    Handling answers:
+   - **`git_remote_type`** → remember, write into `settings.json`'s `shared` node (NOT `.review`)
+     at step 9 below — different node, same step.
    - **Language** → `Edit` the LOCAL copy from step 5: replace the exact token
      `{{OUTPUT_LANGUAGE}}` in the code fence with a concrete value (`English`/`Vietnamese`/
      `Japanese`...). FORBIDDEN: adding a language field to `settings.json` — `chat_language` is a
@@ -103,17 +112,27 @@ through context — wastes tokens); `mkdir -p` to create directories.
    `"big_file_threshold_kb": <step 6, default 20>`, + the `_comments` object (at minimum key
    `doctor_schedule` — hint text of valid values, for a human editing the file by hand; Part D).
    `review.md`/doctor/bootstrap IGNORE every key inside `_comments` (comment only, not runtime).
+   ALSO write `"git_remote_type": <step 6 q1>` into the `shared` node (a DIFFERENT node from
+   `.review` — same step, 2 separate writes) — never `false`/omit, a value was always obtained at
+   q1 (either the reused guess or the user's own pick).
 
-   **File doesn't exist yet** → `Write` fresh: top-level `"schema_version": 2` (plugin's current
-   latest — bump this AND Part D's schema block on any future migration, since a brand-new repo
-   bootstraps directly into the target shape, never needs its own migration) + the `.review` node
-   above. FORBIDDEN: adding `.fix`/`.shared` yet — created later independently, by whichever of
-   `/open-pr:fix`'s bootstrap (`fix.md` Step 2) or this `review.md`'s chat-language detection
-   (Step 3) runs first.
+   **File doesn't exist yet** → first determine the plugin's current latest `schema_version`
+   (NEVER a literal number written here — this file must stay correct across future schema bumps
+   without being edited): fetch `llm-upgrades/index.md` live —
+   `gh api --paginate repos/TOMOSIA-VIETNAM/open-pr/contents/llm-upgrades/index.md --jq '.content' |
+   base64 --decode` (same source + call shape `update-plugin.md` Step 2 uses) — parse every `- vN:
+   ...` line, take the HIGHEST `N` listed. A version only ever appears there because it required a
+   migration (`llm-upgrades/index.md`'s own rule), so the highest listed `N` always equals the
+   current schema shape, never a gap. `Write` fresh: top-level `schema_version` = that `N` + the
+   `.review` node above + a `shared` node holding ONLY `git_remote_type` (`chat_language` still
+   absent — added later independently, by whichever of `/open-pr:fix`'s bootstrap (`fix.md` Step 2)
+   or this `review.md`'s chat-language detection (Step 3) runs first). FORBIDDEN: adding `.fix` yet.
 
    **File already exists** (an earlier `/open-pr:fix` run created it with just `.fix`, possibly
-   `.shared.chat_language`) → `Edit` in place: keep `schema_version`/`.fix`/`.shared` untouched,
-   only add/overwrite the `.review` node above.
+   `.shared.chat_language`) → `Edit` in place: keep `schema_version`/`.fix` untouched, add/overwrite
+   the `.review` node above, and merge `git_remote_type` into the EXISTING `shared` node (keep
+   `chat_language` if already there — never overwrite it here, this step only ever writes
+   `git_remote_type` into `shared`).
 
 ## Part B — Copy/create a local template for the stack(s) present in the PR being reviewed
 
@@ -194,16 +213,18 @@ THOROUGH: scan the ENTIRE repo, not scoped to the current PR's stack/feature.
 ## Part D — `settings.json` schema
 
 One shared file per repo, `notebooks/review/<repo>/settings.json` — split into 1 node per
-feature. `review.md` ONLY reads/writes `.review` (+ `.shared` for `chat_language`); `fix.md` ONLY
+feature. `review.md` ONLY reads/writes `.review` (+ `.shared` for `chat_language`/`git_remote_type`
+— the latter written ONLY at Part A bootstrap, `fix.md` never writes it); `fix.md` ONLY
 reads/writes `.fix` (+ `.shared` for `chat_language`). Neither ever writes the other's node — this
 invariant makes the `chat_language` dual-write bug-class (PR #19) structurally impossible, not
 just patched.
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "shared": {
-    "chat_language": "vi"
+    "chat_language": "vi",
+    "git_remote_type": "github"
   },
   "review": {
     "bootstrapped": true,
@@ -229,11 +250,12 @@ just patched.
 }
 ```
 
-`schema_version` (top-level number): ONE checkpoint governing the WHOLE file, not per-node —
-read/written ONLY by `/open-pr:update-plugin` (CLAUDE.md Rules). Fresh bootstrap (Part A, or
-`fix.md` Step 2) writes it directly at the plugin's current latest value (`2` as of this schema) —
-a brand-new repo starts already at the target shape, never needs its own migration. Neither
-`review.md` nor `fix.md` ever reads/changes this field themselves.
+`schema_version` (top-level number): ONE checkpoint governing the WHOLE file, not per-node. An
+ALREADY-bootstrapped repo only ever gets it changed by `/open-pr:update-plugin`.
+Fresh bootstrap (Part A, or `fix.md` Step 2) is the ONE other place that writes it — derived live
+from `llm-upgrades/index.md` (see Part A step 9 above), never a literal written in either prompt
+file, since a brand-new repo starts already at the current target shape and never needs its own
+migration. Neither `review.md` nor `fix.md` ever READS/checks this field themselves.
 
 `_comments` (object of strings, nested under `.review`): a note for whoever edits `settings.json`
 by hand — NOT runtime config. `review.md`/doctor/bootstrap ignore every key inside it. Bootstrap
@@ -246,7 +268,7 @@ above. Part C/`Edit` touching `.review` → keep `_comments` unchanged if alread
   `many_files_threshold`, `big_file_threshold_kb`. Missing on a repo bootstrapped before it
   existed → `review.md` Step 3 falls back to the listed default AT READ TIME ONLY, never writing
   it into the file (full detail lives in that Step 3, not repeated here) — upgrading the file
-  itself is the sole job of `/open-pr:update-plugin` (CLAUDE.md Rules), never inline during a
+  itself is the sole job of `/open-pr:update-plugin`, never inline during a
   review/fix run.
 - **User config, `.fix` node** (asked at `fix.md` Step 2's OWN bootstrap, NOT Part A — changeable
   via "reconfigure fix"): `decline_needs_confirmation`, `auto_push`. Same
@@ -266,14 +288,25 @@ above. Part C/`Edit` touching `.review` → keep `_comments` unchanged if alread
   `.shared.chat_language`. Missing → run that detection, no fixed default to fall back to instead.
   Whichever command writes it first, the other reads that SAME value later, never
   re-detects/overwrites it.
+- **User config, `.shared` node** (asked ONLY at Part A bootstrap, like `.review`'s User config
+  fields, but lives in `shared` because BOTH `review.md` and `fix.md` need it to pick the right
+  vendor file — never asked again by `fix.md`, changeable via "reconfigure review"):
+  `git_remote_type` (`"github"`|`"gitlab"`). Missing on a repo bootstrapped before it existed →
+  falls back to `"github"` AT READ TIME ONLY (every repo on this plugin so far has been GitHub —
+  see `llm-upgrades/v3.md`), never written until `/open-pr:update-plugin` runs. Each command's own
+  Step 0 also computes its OWN preliminary vendor guess straight from the PR URL's path shape
+  (`/pull/` vs `/-/merge_requests/`) — used directly for that run's vendor-file `Read` calls, never
+  blocked on this stored field; the stored field is reconciled against that guess separately (see
+  `review.md` Step 3) so a stale/wrong stored value gets caught and corrected, not silently trusted.
 
-**Adding a new field to this schema:** classify it IMMEDIATELY into exactly 1 of the 5 groups
+**Adding a new field to this schema:** classify it IMMEDIATELY into exactly 1 of the 6 groups
 above, right in this section. A **User config, `.review`** field → MUST ALSO be added to the
 `.review` fields sentence at `review.md` Step 3 (SOLE place listing the in-memory default
 `review.md` falls back to when a field is missing from an older repo's file) — keep the two places
 in sync; adding here but forgetting there ⇒ an older repo has no fallback for that field until
 `/open-pr:update-plugin` upgrades it. A **User config, `.fix`** field → the equivalent sentence
-lives at `fix.md` Step 2 instead.
+lives at `fix.md` Step 2 instead. A **User config, `.shared`** field → the equivalent sentence
+lives at `review.md` Step 3's own dedicated subsection for that field (e.g. "Git remote type:").
 
 `review.md` treats bootstrap as done once `.review.bootstrapped: true`. Doctor: `.review.doctored:
 true` && the schedule hasn't expired (`.review.doctor_schedule` + `.review.doctored_at`).

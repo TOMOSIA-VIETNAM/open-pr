@@ -29,3 +29,4 @@ always means no action is needed for it, never an omission to double-check elsew
 
 - v2: RENAMED merge `meta.json` + `fix-meta.json` into 1 file `settings.json` (node split:
   `shared`/`review`/`fix`), ADDED top-level `schema_version` + `shared.chat_language` — llm-upgrades/v2.md
+- v3: ADDED `shared.git_remote_type` (default `"github"` for pre-existing repos) — llm-upgrades/v3.md

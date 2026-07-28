@@ -7,7 +7,7 @@ normally, nothing here applies:
 - **File-count guard**: files in "Files" (Context, `--name-only`) > `many_files_threshold` (Step 3
   `review.md`, default `30`).
 - **Large/dump-file guard**: ≥1 file whose "Diff size per file" (Context) > `big_file_threshold_kb`
-  KB (Step 3, default `20`), or `UNKNOWN` (GitHub dropped the patch, too large).
+  KB (Step 3, default `20`), or `UNKNOWN` (the vendor dropped the patch, too large).
 
 The 2 guards are independent — a PR may match only 1 (e.g. 5 files but 1 huge → only the
 large/dump-file guard applies, "File-count guard" below is skipped entirely). "Interaction of the
@@ -37,7 +37,7 @@ large/dump-file guard applies, "File-count guard" below is skipped entirely). "I
   dissect line-by-line.
 - **(c)** → FORBIDDEN: running Step 7 (the actual review) → go to Step 9 `review.md`. Chat-only:
   state file count + threshold, suggest splitting the PR, STOP the command entirely — post nothing
-  to GitHub (same as Step 0's early-exit).
+  to the vendor (same as Step 0's early-exit).
 
 **Anti-forgotten-file checklist** (only WHEN (a)/(b) was chosen — N/A to (c), nothing is
 reviewed):

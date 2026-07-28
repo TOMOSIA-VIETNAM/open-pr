@@ -6,7 +6,7 @@
 
 **Tiếng Việt** · [English](./README.md) · [日本語](./README.ja.md)
 
-Plugin dạy Agent review Pull Request GitHub **một cách nhất quán** — càng dùng càng hiểu đúng dự án của bạn.
+Plugin dạy Agent review Pull/Merge Request **một cách nhất quán** — càng dùng càng hiểu đúng dự án của bạn. Hỗ trợ **GitHub** (URL dạng `.../pull/<số>`) và **GitLab** (URL dạng `.../-/merge_requests/<số>`, kể cả bản self-hosted) — Bitbucket chưa hỗ trợ.
 
 Lần đầu nó đọc quy ước sẵn có (README, CLAUDE.md, AGENTS.md, docs, wiki…). Các lần sau luôn áp dụng rule đặc thù
 của repo đó; bạn gõ thêm quy tắc trong chat thì nó nhớ ngay vào memory đúng repo — sát convention
@@ -20,7 +20,8 @@ convention để memory không lỗi thời. Chi tiết lịch: [Chu kỳ cập 
 ## Cần gì trước
 
 - [Claude Code](https://claude.ai/code) đã cài
-- [`gh`](https://cli.github.com/) đã đăng nhập (`gh auth login`) — plugin đăng review qua tài khoản này
+- Review PR GitHub → [`gh`](https://cli.github.com/) đã đăng nhập (`gh auth login`) — plugin đăng review qua tài khoản này
+- Review MR GitLab → [`glab`](https://gitlab.com/gitlab-org/cli) đã đăng nhập (`glab auth login`) — tương tự, tài khoản GitLab riêng
 
 ## Cài đặt
 
@@ -53,9 +54,10 @@ Slash command **chỉ chạy khi bạn gõ đúng lệnh** — Claude không t�
 
 ```
 /open-pr:review https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:review https://gitlab.com/<owner>/<repo>/-/merge_requests/<number>
 ```
 
-URL có đuôi `/files`, `/changes`, query… vẫn được — chỉ cần chứa link PR hợp lệ.
+URL có đuôi `/files`, `/changes`, query… vẫn được — chỉ cần chứa link PR/MR hợp lệ. GitLab self-hosted cũng dùng được (hostname bất kỳ, miễn path còn `/-/merge_requests/<number>`).
 
 Thêm chỉ dẫn ngay sau URL cho **lần chạy đó** (không đổi cấu hình đã lưu), ví dụ:
 
@@ -82,32 +84,35 @@ slash command như bạn, nên tóm tắt tay dễ lệch rule/format khi post l
 
 ## Lần đầu cho 1 repo chưa từng thiết lập
 
-Plugin hỏi **một lần** (6 hoặc 7 câu, tuỳ repo có CI hay không — xem câu 5):
+Plugin hỏi **một lần** (7 hoặc 8 câu, tuỳ repo có CI hay không — xem câu 6):
 
-1. **Ngôn ngữ** review (vi / en / ja)
-2. **Đăng review ngay hay để nháp?** (`auto_submit_review`) — `true`: mọi người thấy ngay; `false`
-   (mặc định): bản nháp trên GitHub, bạn tự bấm Submit
-3. **Tự đóng thread khi finding cũ đã fix?** (`auto_resolve_fixed_findings`) — mặc định `false`
-4. **Bao lâu quét lại quy ước dự án?** — xem mục [Chu kỳ cập nhật quy ước](#chu-kỳ-cập-nhật-quy-ước)
+1. **GitHub hay GitLab?** (`git_remote_type`) — tự điền sẵn từ hình dạng URL PR/MR bạn vừa đưa
+   (`.../pull/N` → GitHub, `.../-/merge_requests/N` → GitLab), bạn chỉ cần xác nhận lại
+2. **Ngôn ngữ** review (vi / en / ja)
+3. **Đăng review ngay hay để nháp?** (`auto_submit_review`) — `true`: mọi người thấy ngay; `false`
+   (mặc định): bản nháp/pending, bạn tự bấm Submit
+4. **Tự đóng thread khi finding cũ đã fix?** (`auto_resolve_fixed_findings`) — mặc định `false`
+5. **Bao lâu quét lại quy ước dự án?** — xem mục [Chu kỳ cập nhật quy ước](#chu-kỳ-cập-nhật-quy-ước)
    bên dưới (mặc định mỗi **1 tháng**)
-5. **Có đối chiếu trạng thái CI check thật không?** (`review_ci_status`) — **chỉ hỏi nếu PR này có
+6. **Có đối chiếu trạng thái CI check thật không?** (`review_ci_status`) — **chỉ hỏi nếu PR này có
    CI check** (repo không có CI → bỏ qua câu này, tự để `false`); mặc định `true` nếu được hỏi; CI
    có check fail thì cảnh báo 1 câu trong tổng quan (không tính lỗi phải fix)
-6. **Ngưỡng số file để hỏi chiến lược review?** (`many_files_threshold`) — mặc định **30**; PR đổi
+7. **Ngưỡng số file để hỏi chiến lược review?** (`many_files_threshold`) — mặc định **30**; PR đổi
    nhiều file hơn số này thì plugin hỏi bạn muốn review nông toàn bộ, review sâu có chọn lọc, hay
    dừng đề nghị tách PR
-7. **Ngưỡng size/file để coi là file to/dump?** (`big_file_threshold_kb`) — mặc định **20** (KB,
+8. **Ngưỡng size/file để coi là file to/dump?** (`big_file_threshold_kb`) — mặc định **20** (KB,
    ~5.000 token, ước lượng ~4 ký tự/token); file đổi vượt ngưỡng này (vd `package-lock.json`) chỉ
-   lướt qua phân loại, không review chi tiết dòng-by-dòng — độc lập với ngưỡng số file ở câu 6
+   lướt qua phân loại, không review chi tiết dòng-by-dòng — độc lập với ngưỡng số file ở câu 7
 
-Tách biệt với 7 câu trên, plugin còn tự nhận diện ngôn ngữ *chat* với bạn — tự động, chỉ hỏi khi
-không đoán được, nhớ theo từng repo. Cái này độc lập với câu 1 (câu 1 chỉ quyết định ngôn ngữ nội
+Tách biệt với các câu trên, plugin còn tự nhận diện ngôn ngữ *chat* với bạn — tự động, chỉ hỏi khi
+không đoán được, nhớ theo từng repo. Cái này độc lập với câu 2 (câu 2 chỉ quyết định ngôn ngữ nội
 dung review post lên PR).
 
 Sau đó nó đọc tài liệu quy ước sẵn có và nhớ lại cho các lần sau.
 
 **Repo đã dùng lâu, từ trước khi 1 cài đặt nào đó mới xuất hiện?** Lần review kế tiếp vẫn chạy bình
-thường — field nào thiếu thì tạm dùng default. Muốn file cấu hình cập nhật thật sự thì chạy
+thường — field nào thiếu thì tạm dùng default (`git_remote_type` mặc định `"github"`, vì mọi repo
+dùng plugin trước khi có GitLab đều đang review trên GitHub). Muốn file cấu hình cập nhật thật sự thì chạy
 `/open-pr:update-plugin` trong repo đó. Muốn đổi lại 1 trong 7 cài
 đặt (bất cứ lúc nào, không cần chờ review chạy) — gõ trong chat "đổi cấu hình review" (hoặc "xem
 setting hiện tại"), plugin in ra giá trị đang áp dụng và hỏi bạn muốn đổi field nào.

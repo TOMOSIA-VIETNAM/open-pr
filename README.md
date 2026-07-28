@@ -6,7 +6,7 @@
 
 [Tiếng Việt](./README.vi.md) · **English** · [日本語](./README.ja.md)
 
-A plugin that teaches the Agent to review GitHub Pull Requests **consistently** — the more you use it, the better it understands your project.
+A plugin that teaches the Agent to review Pull/Merge Requests **consistently** — the more you use it, the better it understands your project. Supports **GitHub** (`.../pull/<number>` URLs) and **GitLab** (`.../-/merge_requests/<number>` URLs, self-hosted instances included) — Bitbucket isn't supported yet.
 
 The first time, it reads your existing conventions (README, CLAUDE.md, AGENTS.md, docs, wiki…). After that it always applies that repo's specific rules; type an extra rule in chat and it remembers it right away into the memory for that repo — close to the real conventions, light on generic rules.
 
@@ -17,7 +17,8 @@ Project conventions don't stand still — on each `/open-pr:review`, if it's due
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code) installed
-- [`gh`](https://cli.github.com/) logged in (`gh auth login`) — the plugin posts reviews through this account
+- Reviewing a GitHub PR → [`gh`](https://cli.github.com/) logged in (`gh auth login`) — the plugin posts reviews through this account
+- Reviewing a GitLab MR → [`glab`](https://gitlab.com/gitlab-org/cli) logged in (`glab auth login`) — same idea, GitLab's own account
 
 ## Install
 
@@ -49,9 +50,10 @@ The slash command **only runs when you type it** — Claude never calls `/open-p
 
 ```
 /open-pr:review https://github.com/<owner>/<repo>/pull/<number>
+/open-pr:review https://gitlab.com/<owner>/<repo>/-/merge_requests/<number>
 ```
 
-URLs ending in `/files`, `/changes`, with query strings… all work — they just need to contain a valid PR link.
+URLs ending in `/files`, `/changes`, with query strings… all work — they just need to contain a valid PR/MR link. GitLab self-hosted instances work too (any hostname, as long as the path still has `/-/merge_requests/<number>`).
 
 Add instructions right after the URL for **that run only** (does not change saved config), e.g.:
 
@@ -71,23 +73,24 @@ Add instructions right after the URL for **that run only** (does not change save
 
 ## First time for a repo that's never been set up
 
-The plugin asks **once** (6 or 7 questions, depending on whether the repo has CI — see question 5):
+The plugin asks **once** (7 or 8 questions, depending on whether the repo has CI — see question 6):
 
-1. Review **language** (vi / en / ja)
-2. **Post the review now or keep it as a draft?** (`auto_submit_review`) — `true`: everyone sees it immediately; `false` (default): a draft on GitHub you Submit yourself
-3. **Auto-close a thread when an old finding is fixed?** (`auto_resolve_fixed_findings`) — default `false`
-4. **How often to re-scan project conventions?** — see [Convention refresh cycle](#convention-refresh-cycle) below (default every **1 month**)
-5. **Cross-check real CI status?** (`review_ci_status`) — **only asked if this PR has any CI check** (no CI on this repo → question is skipped, set to `false` automatically); default `true` when asked; a failing check gets a one-line warning in the overview (not counted as a must-fix issue)
-6. **File-count threshold to ask for a review strategy?** (`many_files_threshold`) — default **30**; a PR touching more files than this asks whether you want a shallow full review, a selective deep review, or to stop and suggest splitting the PR
-7. **Per-file size threshold to treat as a big/dump file?** (`big_file_threshold_kb`) — default **20** (KB, ~5,000 tokens, at a rough ~4 chars/token); a changed file over this threshold (e.g. `package-lock.json`) only gets a quick classification pass instead of a line-by-line review — independent of the file-count threshold in question 6
+1. **GitHub or GitLab?** (`git_remote_type`) — pre-filled from the shape of the PR/MR URL you just gave (`.../pull/N` → GitHub, `.../-/merge_requests/N` → GitLab), you just confirm
+2. Review **language** (vi / en / ja)
+3. **Post the review now or keep it as a draft?** (`auto_submit_review`) — `true`: everyone sees it immediately; `false` (default): a draft/pending result you Submit yourself
+4. **Auto-close a thread when an old finding is fixed?** (`auto_resolve_fixed_findings`) — default `false`
+5. **How often to re-scan project conventions?** — see [Convention refresh cycle](#convention-refresh-cycle) below (default every **1 month**)
+6. **Cross-check real CI status?** (`review_ci_status`) — **only asked if this PR has any CI check** (no CI on this repo → question is skipped, set to `false` automatically); default `true` when asked; a failing check gets a one-line warning in the overview (not counted as a must-fix issue)
+7. **File-count threshold to ask for a review strategy?** (`many_files_threshold`) — default **30**; a PR touching more files than this asks whether you want a shallow full review, a selective deep review, or to stop and suggest splitting the PR
+8. **Per-file size threshold to treat as a big/dump file?** (`big_file_threshold_kb`) — default **20** (KB, ~5,000 tokens, at a rough ~4 chars/token); a changed file over this threshold (e.g. `package-lock.json`) only gets a quick classification pass instead of a line-by-line review — independent of the file-count threshold in question 7
 
-Separately from those 7 questions, the plugin also figures out what language to *chat* with you in
+Separately from those questions, the plugin also figures out what language to *chat* with you in
 — auto-detected, only asks if it genuinely can't tell, remembered per repo. This is independent
-from question 1 above, which is only about the language review comments get posted in.
+from question 2 above, which is only about the language review comments get posted in.
 
 After that it reads your existing convention docs and remembers them for later runs.
 
-**Repo you've used for a while, from before one of these settings existed?** The next review still runs fine — it just falls back to the default for whatever's missing. Run `/open-pr:update-plugin` in that repo whenever you want the file itself to catch up. Want to change any of the 7 settings (anytime, no need to wait for a review run) — just say "reconfigure the review settings" (or similar) in chat; the plugin prints the values in effect and asks which one to change.
+**Repo you've used for a while, from before one of these settings existed?** The next review still runs fine — it just falls back to the default for whatever's missing (`git_remote_type` falls back to `"github"`, since every repo predating GitLab support here was reviewed on GitHub). Run `/open-pr:update-plugin` in that repo whenever you want the file itself to catch up. Want to change any of these settings (anytime, no need to wait for a review run) — just say "reconfigure the review settings" (or similar) in chat; the plugin prints the values in effect and asks which one to change.
 
 Remembered data lives inside the repo you're reviewing, at `notebooks/review/<repo-name>/` (its own local git, not pushed). Keep this directory in your project's `.gitignore` — the plugin adds it if missing.
 

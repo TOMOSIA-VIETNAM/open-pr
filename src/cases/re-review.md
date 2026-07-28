@@ -1,8 +1,8 @@
 # Re-review — new thread consensus + whether old findings got fixed (Step 6 `review.md`)
 
 Not a slash command (lives outside `commands/`). `review.md` Step 6 `Read`s this file WHEN the
-review comments fetched in "Context" (`gh api .../pulls/{pull_number}/comments`) are non-empty —
-empty (brand-new PR, no comments yet) ⇒ skip entirely.
+review comments fetched in "Context" (this vendor's own "Fetch PR review comments" entry) are
+non-empty — empty (brand-new PR, no comments yet) ⇒ skip entirely.
 
 The 2 sections below share the SAME fetched comment data — not independent of each other.
 
@@ -25,8 +25,8 @@ The 2 sections below share the SAME fetched comment data — not independent of 
 
 A separate goal from the lesson-learning above:
 
-1. Get the account running the command — `Read` `"${CLAUDE_PLUGIN_ROOT}"/vendors/github.md` "Fetch
-   account running the command".
+1. Get the account running the command — `Read`
+   `"${CLAUDE_PLUGIN_ROOT}"/vendors/<git_remote_type>.md` "Fetch account running the command".
 2. From the fetched comments: filter TOP-LEVEL comments (no `in_reply_to_id`) with `user.login`
    matching that account AND matching 1 of 2 patterns (check the marker first, fall back to the
    other ONLY if no match — not both required):
@@ -42,9 +42,9 @@ A separate goal from the lesson-learning above:
    actually reading it, no rigid rule.
    - **Already fixed** → reply briefly on THAT EXACT thread, in the tone of a REVIEWER confirming
      (never as if the reviewer itself just fixed the code) — `Read`
-     `"${CLAUDE_PLUGIN_ROOT}"/vendors/github.md` "Reply on a PR" (LINE-level variant), body = a
-     short 1-sentence confirmation in the chosen output language (e.g. "Xác nhận đã fix, cảm ơn
-     bạn!"/"Confirmed fixed, thanks!") + `<!-- bot-reply -->` — same marker principle as
+     `"${CLAUDE_PLUGIN_ROOT}"/vendors/<git_remote_type>.md` "Reply on a PR" (LINE-level variant),
+     body = a short 1-sentence confirmation in the chosen output language (e.g. "Xác nhận đã fix,
+     cảm ơn bạn!"/"Confirmed fixed, thanks!") + `<!-- bot-reply -->` — same marker principle as
      `<!-- bot-finding -->` (Step 7 `review.md`), stable recognition of every reply this command
      left, independent of prose shape. MUST reply successfully FIRST before considering resolve —
      FORBIDDEN: resolving a thread WITHOUT a prior reply, regardless of
@@ -52,11 +52,13 @@ A separate goal from the lesson-learning above:
      thread disappeared. Then branch on `auto_resolve_fixed_findings` (Step 3 `review.md`,
      `.review` node):
      - **`true`** → ALSO resolve the thread (ONLY AFTER the reply above successfully POSTed) — `Read`
-       the same vendors file, "Resolve a review thread (GraphQL)", matching `threadId`'s
-       `databaseId` against `comment_id`. Error (missing permission etc.) → ignore, NOT a blocking
-       error — the confirmation reply already delivered the main value.
-     - **`false`** → ONLY reply as above, FORBIDDEN: calling the GraphQL resolve mutation — leave
-       the thread unresolved, let the user resolve it on GitHub themselves.
+       the same vendors file, "Resolve a review thread (GraphQL)" (the heading name is shared
+       across vendors for interface consistency — the mechanism it describes may not literally be
+       GraphQL for every vendor, read that entry's own body), matching the thread against
+       `comment_id`. Error (missing permission etc.) → ignore, NOT a blocking error — the
+       confirmation reply already delivered the main value.
+     - **`false`** → ONLY reply as above, FORBIDDEN: calling the resolve mechanism above — leave
+       the thread unresolved, let the user resolve it themselves.
    - **Not fixed yet** → do NOTHING — leave the comment as-is, never repeat it, never add new
      content. MUST remember `<path>` + a short description (still open) — used right below so
      Step 7 `review.md` can exclude it, avoiding a duplicate finding for an issue already
@@ -110,5 +112,5 @@ A finding's thread (above) has a reply NOT carrying `<!-- bot-reply -->` (not th
 - FORBIDDEN: `-1` or any negative reaction whatsoever.
 - Tone unclear → skip, do not force a reaction.
 
-API:
-`gh api -X POST repos/{owner}/{repo}/pulls/comments/{comment_id_of_the_dev's_reply}/reactions -f content=<+1|heart|hooray|rocket|confused|eyes>`.
+`Read` `"${CLAUDE_PLUGIN_ROOT}"/vendors/<git_remote_type>.md` "React to a PR comment" for the exact
+command, `comment_id` = the dev's reply comment above.
