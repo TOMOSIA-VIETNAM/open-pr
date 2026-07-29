@@ -196,6 +196,25 @@ def test_glab_api_never_uses_the_gh_only_jq_flag():
     assert not bad, f"invalid glab flag combination: {bad}"
 
 
+SEVERITY_HEADINGS = ["#### 🔴 MUST FIX", "#### 🟠 SHOULD FIX",
+                     "#### 🔵 SUGGESTION", "#### 📝 NOTE"]
+
+
+def test_overview_headings_carry_emoji_and_label():
+    """A grouping heading names the severity for someone skimming the PR body; an
+    individual finding carries the emoji alone, because its description already says what
+    the problem is. The two got conflated once in each direction, so both halves are
+    pinned: review.md's own structure block, and every case file that writes into it."""
+    review = text(SRC / "commands" / "review.md")
+    for h in SEVERITY_HEADINGS:
+        assert h in review, f"review.md's structure block lost {h!r}"
+    labels = {h.split(" ", 2)[2] for h in SEVERITY_HEADINGS}   # drop "####" and the emoji
+    for p in sorted((SRC / "cases").glob("*.md")):
+        for m in re.finditer(r"`#### ([🔴🟠🔵📝])([^`]*)`", text(p)):
+            assert m.group(2).strip() in labels, \
+                f"{rel(p)}: heading {m.group(0)!r} has no severity label"
+
+
 def test_markers_are_byte_identical_everywhere():
     """The bot markers are the plugin's cross-run identity — a variant spelling
     makes past findings invisible to re-review and fix."""

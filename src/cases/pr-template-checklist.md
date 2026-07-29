@@ -12,4 +12,4 @@ instead of real content. Contextual judgment; there is no fixed list of mandator
 
 ≥1 unfilled spot → EXACTLY 1 CONSOLIDATED finding listing every missing item (FORBIDDEN: one finding
 per checkbox), in the Step 7 finding format, rated **🟠 SHOULD FIX**, FILE-level ⇒ the Step 8 body under
-`#### 🟠`, never `comments[]`.
+`#### 🟠 SHOULD FIX`, never `comments[]`.

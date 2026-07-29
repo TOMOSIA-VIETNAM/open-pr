@@ -179,7 +179,8 @@ finding inside `comments[]`.
 `<!-- bot-finding -->` MUST end EVERY finding, FILE and LINE alike — the marker `core/finding-markers.md`
 matches on later.
 
-FORBIDDEN: a text label before the description ("Vấn đề"/"Issue") — the emoji IS the label. Severity:
+FORBIDDEN: a text label before the description ("Vấn đề"/"Issue") — in a finding the emoji IS the label,
+unlike a Step 8 grouping heading, which names the severity too. Severity:
 🔴 MUST FIX / 🟠 SHOULD FIX / 🔵 SUGGESTION; out-of-scope or genuinely not worth fixing in this PR → 📝
 NOTE (minor-but-easy-now is 🔵, not 📝). Each finding carries its own emoji, independent of any grouping
 heading.
@@ -225,10 +226,10 @@ above), then 1 sentence of reply instructions, addressing the reader as "you". T
 note if any. Assessment prose is OPTIONAL: include it ONLY to carry a conclusion no finding below
 does. Nothing such ⇒ stop after the reply instructions.
 
-#### 🔴
-#### 🟠
-#### 🔵
-#### 📝
+#### 🔴 MUST FIX
+#### 🟠 SHOULD FIX
+#### 🔵 SUGGESTION
+#### 📝 NOTE
 
 #### Files skipped for detailed review
 - `<path>` — <short reason, e.g. "diff ~35KB, looks like seed/dump data">
@@ -236,8 +237,11 @@ does. Nothing such ⇒ stop after the reply instructions.
 
 Only FILE findings get the full Fix + path structure; LINE stays inline-only. Before printing any
 `#### <emoji>` heading: ≥1 FILE finding at EXACTLY that severity? No — even if a LINE finding has it,
-even for 📝 → drop the heading. FORBIDDEN: an empty heading, or writing "no issues". Headings are the
-emoji alone: no "Must fix" wording, no count of N.
+even for 📝 → drop the heading. FORBIDDEN: an empty heading, writing "no issues", or a count of N.
+
+A heading carries emoji + label, verbatim as above — it groups findings for someone skimming the PR
+body, who needs the severity named. An individual finding carries the emoji ALONE (Step 7), heading or
+not: there the emoji sits against a description that already says what the problem is.
 
 **Files skipped for detailed review** = the content of `<worktree>/.review-skipped.md` (`Read` it again
 while writing this Step, don't rely on context) → ALWAYS last in the overview WHEN that file exists
