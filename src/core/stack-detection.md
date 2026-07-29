@@ -1,8 +1,7 @@
 # Stack detection
 
-Maps each diff file to its applicable review stack(s). A PR can mix multiple stacks — keep a list
-of `(file, [applicable stacks])` pairs, never assign 1 stack to the whole PR when its files belong
-to different stacks.
+Keep a `(file, [stacks])` pair per diff file. A PR mixes stacks — FORBIDDEN: 1 stack for the whole PR
+when its files differ.
 
 ## Base stack mapping table — file extension / path
 
@@ -16,20 +15,19 @@ to different stacks.
 | `.sh`, `.bash` | `shell` |
 | `Makefile`, `makefile`, `*.mk` | `makefile` |
 | `.php` (not caught by the Laravel/WordPress overlays below) | `php` |
-| `.md` that is instructions for an AI agent, not documentation for a human reader (see note below) | `agent-instructions` |
+| `.md` whose content instructs an AI agent rather than documenting for a human | `agent-instructions` |
 
-_Detecting `agent-instructions`: judged by CONTENT, not just extension — imperative,
-action-directing tone, not a narrative for a human reader. Illustrative paths/filenames, not
-exhaustive: `.claude/commands/`, `.claude/skills/`, `.cursor/rules/`, `CLAUDE.md`, `AGENTS.md`,
-`*.cursorrules`, `copilot-instructions.md`._
+_Judged by CONTENT, never extension alone: imperative text aimed at a model, not a narrative for a
+human. Illustrative paths: `.claude/commands/`, `.claude/skills/`, `.cursor/rules/`, `CLAUDE.md`,
+`AGENTS.md`, `*.cursorrules`, `copilot-instructions.md`._
 
-## Overlays (added on top of a base stack, not a replacement)
+## Overlays (added on top of a base stack, never replacing it)
 
-- **Lambda** — path has `lambda`/`lambdas`/`functions/`, OR repo has `serverless.yml`/
-  `template.yaml`/`sam.yaml`, OR a filename `handler.py`/`handler.js`/`index.py`/`index.js` sits
-  next to one of the config files above → add `lambda-common` on top of `python` (`.py` files) or
-  `nodejs` (`.js`/`.ts` files).
-- **Laravel** — repo has `artisan`, `composer.json` contains `laravel/framework`, or path is
-  `app/Http/Controllers`, `resources/views/*.blade.php` → add `laravel` on top of `php`.
-- **WordPress** — repo has `wp-config.php`, path `wp-content/plugins/` or `wp-content/themes/`, or
-  `style.css` has a theme header → add `wordpress` on top of `php`.
+Any 1 signal is enough.
+
+| overlay | signals | on top of |
+|---|---|---|
+| `lambda-common` | path has `lambda`/`lambdas`/`functions/` · repo has `serverless.yml`/`template.yaml`/`sam.yaml` · a `handler.py`/`handler.js`/`index.py`/`index.js` sits next to one of those configs | `python` (`.py`) or `nodejs` (`.js`/`.ts`) |
+| `laravel` | repo has `artisan` · `composer.json` contains `laravel/framework` · path `app/Http/Controllers` or `resources/views/*.blade.php` | `php` |
+| `wordpress` | repo has `wp-config.php` · path `wp-content/plugins/` or `wp-content/themes/` · `style.css` carries a theme header | `php` |
+| `agent-instructions` | prompt text inside code/config/data: a multi-line string/heredoc/template literal instructing a model · a `SYSTEM_PROMPT`/`INSTRUCTIONS`-style name · a `system`/`instructions` key in YAML/JSON · a `role: system` message payload · a `prompts/` or `*.prompt.*` path | that file's base stack — code reviewed as code, prompt as prompt |
