@@ -5,6 +5,9 @@ Measures what a run actually LOADS into context, not just repo size — a whole
 file enters context the moment the agent `Read`s it, so per-file totals matter
 more than the sum of everything shipped.
 
+Scope: `src/` only. `CLAUDE.md` is dev context that never ships (--sections can still
+inspect it), and README*/CONTRIBUTING are human prose.
+
 Usage:
     python3 scripts/token_report.py                       # working tree vs itself
     python3 scripts/token_report.py --base <git-ref>       # compare against a ref
@@ -228,7 +231,10 @@ def main():
 
     count, enc_label = make_counter(args.encoder)
     if args.sections:
-        print_sections(read_tree(args.head), count, args.sections)
+        pool = read_tree(args.head)
+        if args.head is None:  # dev files are inspectable, though never measured
+            pool["CLAUDE.md"] = (REPO / "CLAUDE.md").read_text(encoding="utf-8")
+        print_sections(pool, count, args.sections)
         return 0
     head = tokenize_tree(read_tree(args.head), count)
     base = tokenize_tree(read_tree(args.base), count) if args.base else None

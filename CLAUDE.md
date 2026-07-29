@@ -41,9 +41,9 @@ clause on beside the old one instead of rewriting the rule, and narrating histor
 that owns it. The reader needs the rule, not how it came to exist. Governs `memory.md` and every lesson
 the plugin writes into a reviewed repo too, not just `src/`.
 
-**Never duplicate content, across files OR inside one.** A rule has exactly 1 owner. `dup_scan.py`
-reports near-verbatim repeats only — a restatement in fresh words is the common case and still needs you
-to spot it. Accepted duplicates need their `sha` and a written reason in
+**Never duplicate content, across files OR inside one**, in `src/` and in this file. A rule has exactly
+1 owner. `dup_scan.py` reports near-verbatim repeats only — a restatement in fresh words is the common
+case and still needs you to spot it. An accepted duplicate needs its `sha` and a written reason in
 `tests/duplication_allowlist.json`.
 
 **NEVER trade core behaviour for tokens.** Losing a rule, a guard, a vendor entry or a severity level is
@@ -86,9 +86,14 @@ Baseline criteria live in `src/core/review-criteria.md`.
 ## Working loop
 
 After ANY edit under `src/`. `scripts/check.sh <base-ref>` runs all three checks — suite, duplication
-scan, context-cost report — and nothing is done until it passes. The suite covers ref integrity, vendor
-parity, single-source defaults, duplication, template axis names, reachability and the token ceilings;
-it does NOT prove a rule survived an edit, which is why step 5 exists.
+scan, context-cost report — and nothing is done until it passes.
+
+Coverage differs per check. The context-cost report measures `src/` alone, since that is all that
+ships. The duplication scan adds this file as `--scope dev`: never measured, yet every session working
+on the plugin pays for a duplicate in it. `README*.md` and `CONTRIBUTING.md` are human prose, exempt
+from both. The suite covers ref integrity, vendor parity, single-source defaults, duplication, template
+axis names, reachability and the token ceilings — but nothing in it proves a rule survived an edit,
+which is why step 5 exists.
 
 Structural cuts are the cheap ones. Prose compression is the weakest lever — worth roughly a third of
 what deleting a restatement yields in the same file — so work in this order.

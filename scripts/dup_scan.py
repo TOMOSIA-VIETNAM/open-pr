@@ -15,8 +15,8 @@ Findings are ranked by wasted tokens (block size × extra copies), which is the
 number that decides whether a block is worth chasing.
 
 Usage:
-    python3 scripts/dup_scan.py                    # both modes, unapproved only
-    python3 scripts/dup_scan.py --mode intra
+    python3 scripts/dup_scan.py                    # both modes, both scopes
+    python3 scripts/dup_scan.py --mode intra --scope dev
     python3 scripts/dup_scan.py --window 10 --all   # explore; include allowlisted
     python3 scripts/dup_scan.py --min-waste 40      # only blocks worth the edit
     python3 scripts/dup_scan.py --json out.json
@@ -40,13 +40,22 @@ ALLOWLIST = REPO / "tests" / "duplication_allowlist.json"
 # match is more often shared vocabulary than a shared rule.
 WINDOW = {"cross": 18, "intra": 12}
 
+# Scopes are scanned INDEPENDENTLY — a phrase shared between a shipped file and a
+# dev file is not a duplicated rule, they address different readers.
+#   src  the plugin itself; also what the token budget measures
+#   dev  read by an agent working ON the plugin: never shipped, never in the budget,
+#        but a duplicate still costs every session that loads it
+# README*.md and CONTRIBUTING.md are human prose and belong to neither.
+SCOPES = {"src": lambda: sorted(SRC.rglob("*.md")),
+          "dev": lambda: [REPO / "CLAUDE.md"]}
 
-def md_files():
-    return sorted(SRC.rglob("*.md"))
+
+def md_files(scope="src"):
+    return [p for p in SCOPES[scope]() if p.exists()]
 
 
 def rel(p):
-    return str(p.relative_to(SRC))
+    return str(p.relative_to(SRC)) if SRC in p.parents else p.name
 
 
 def strip_fences(body):
@@ -84,7 +93,7 @@ def _count_tokens():
         return lambda s: len(s.split())  # word count is close enough to rank by
 
 
-def scan(mode="both", window=None, include_approved=False):
+def scan(mode="both", window=None, include_approved=False, scope="src"):
     """Return findings sorted by wasted tokens, descending.
 
     A finding: {mode, sha, run, occurrences: [(file, line)], waste}. A repeat longer
@@ -94,7 +103,7 @@ def scan(mode="both", window=None, include_approved=False):
     count, allow, findings = _count_tokens(), approved(), []
     modes = ["cross", "intra"] if mode == "both" else [mode]
     per_file = {rel(p): words_with_lines(strip_fences(p.read_text(encoding="utf-8")))
-                for p in md_files()}
+                for p in md_files(scope)}
     per_file = {k: list(v) for k, v in per_file.items()}
 
     for m in modes:
@@ -136,13 +145,18 @@ def _key(prev, name, line):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", default="both", choices=["cross", "intra", "both"])
+    ap.add_argument("--scope", default="all", choices=["src", "dev", "all"],
+                    help="src = the shipped plugin, dev = CLAUDE.md (default: both, scanned apart)")
     ap.add_argument("--window", type=int, help="words per window (default 18 cross / 12 intra)")
     ap.add_argument("--min-waste", type=int, default=0, help="hide blocks below this token count")
     ap.add_argument("--all", action="store_true", help="include allowlisted blocks")
     ap.add_argument("--json", help="write raw findings here")
     args = ap.parse_args()
 
-    found = [f for f in scan(args.mode, args.window, args.all) if f["waste"] >= args.min_waste]
+    scopes = list(SCOPES) if args.scope == "all" else [args.scope]
+    found = [f for s in scopes for f in scan(args.mode, args.window, args.all, s)
+             if f["waste"] >= args.min_waste]
+    found.sort(key=lambda f: -f["waste"])
     if not found:
         print("no duplication found (near-verbatim only — a reworded restatement still needs a human)")
         return 0

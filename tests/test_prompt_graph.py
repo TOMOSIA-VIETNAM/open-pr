@@ -245,6 +245,13 @@ def test_no_unapproved_intra_file_duplication():
     assert not found, "unapproved repeat inside one file:\n" + _fmt(found)
 
 
+def test_no_unapproved_duplication_in_dev_docs():
+    """CLAUDE.md never ships and never enters the token budget, but every session
+    working on this plugin loads it, so a duplicate there is paid over and over."""
+    found = dup_scan.scan("both", scope="dev")
+    assert not found, "unapproved duplication in dev docs:\n" + _fmt(found)
+
+
 def _fmt(found):
     return "\n".join(
         f"  ~{f['waste']} tok  {f['occurrences'][0][0]}:{f['occurrences'][0][1]}"
