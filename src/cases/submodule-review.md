@@ -9,19 +9,18 @@ separately per "Presenting output".
 
 ## Step A — Identify the bumped submodule path
 
-In the Context "Diff" (already fetched, never refetch), find:
+In the Context "Diff" (already fetched, never refetch), find every bump body line — the only part of the
+hunk EVERY vendor's patch carries:
 
 ```
-diff --git a/<path> b/<path>
-index <old-sha>..<new-sha> 160000
---- a/<path>
-+++ b/<path>
-@@ -1 +1 @@
 -Subproject commit <old-sha>
 +Subproject commit <new-sha>
 ```
 
-`<path>` after `diff --git a/` = `<submodule-path>` (e.g. `vendor/mylib`).
+`<submodule-path>` (e.g. `vendor/mylib`) = path on the nearest `+++` header ABOVE that line, minus a
+leading `b/` when present. FORBIDDEN: keying off `diff --git`, `index <sha>..<sha> 160000`, or an `a/`
+prefix — vendors differ on whether the patch carries those lines at all, so a detector needing them
+finds no submodule on some vendors and silently skips this whole case.
 
 ## Step B — Get the submodule PR link
 
@@ -53,9 +52,9 @@ the session's cwd.
 
 ## Step D — Fetch the submodule PR's context
 
-Re-run `review.md`'s Context fetch table against the submodule PR, `V§` resolved via
-`<git_remote_type_sub>`, all against `<owner-submodule>/<repo-submodule>` + `<n-submodule>`. An empty
-"Old comments" is not an error.
+Re-run `review.md`'s Context fetch table against the submodule PR, in the same order and with the same
+`<max_patch_bytes>`, `V§` resolved via `<git_remote_type_sub>`, all against
+`<owner-submodule>/<repo-submodule>` + `<n-submodule>`. An empty "Old comments" is not an error.
 
 ## Step E — Fully review the submodule PR
 

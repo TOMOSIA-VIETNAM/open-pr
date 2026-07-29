@@ -36,8 +36,11 @@ whose guard actually matched; the last section applies only when both did.
 
 ## Large/dump-file guard
 
-Applies to each file whose "Diff size per file" entry exceeds `big_file_threshold_kb` KB or reads
-`UNKNOWN`. LIMITED peek (`Read` ~30-50 lines at the hunk start, never the whole thing) to tell
+Applies to each file in "Oversized paths" (Context) — every file whose "Diff size per file" entry exceeds
+`big_file_threshold_kb` KB or reads `UNKNOWN`. Its patch is deliberately absent from the Context "Diff",
+so reading it here, in bounded chunks, is the only way it is seen at all.
+
+LIMITED peek (`Read` ~30-50 lines at the hunk start, never the whole thing) to tell
 data/seed/dump/generated (repetitive structure, all literals, no control flow) from genuinely large real
 logic:
 

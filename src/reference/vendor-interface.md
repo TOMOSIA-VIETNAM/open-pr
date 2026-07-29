@@ -7,6 +7,10 @@ own terminology differs — "PR" means MR on GitLab, and a heading may describe 
 literally what its name suggests for that vendor. Anything vendor-wide (terminology, id encoding, auth)
 belongs in `fetch.md`, the group every run loads first.
 
+**The size filter goes INSIDE the command.** Whatever a command prints is in the agent's context for the
+rest of the run, so filtering afterwards saves nothing — an unbounded diff fetch costs more than every
+prompt file in the run combined.
+
 Reference doc for whoever adds a vendor. FORBIDDEN: `Read`ing it during a review/fix run — the group
 files are the run-time artifact.
 
@@ -15,10 +19,10 @@ files are the run-time artifact.
 | fetch | Fetch PR basic info | the caller's requested fields, under this plugin's common names (`number`, `title`, `body`, `author`, `baseRefName`, `headRefName`) |
 | fetch | Fetch PR head commit SHA | `<commit_id>` of the PR's head |
 | fetch | Fetch PR diff — file list | changed paths, 1 per line |
-| fetch | Fetch PR diff — full patch | the unified diff |
+| fetch | Fetch PR diff — patch, omitting oversized files | a unified diff of only the files whose patch is under the caller's `<max_patch_bytes>` |
 | fetch | Fetch PR commits headlines | 1 subject line per commit |
 | fetch | Fetch PR review comments (LINE-level findings) | line-anchored comments, with author + id + any reply linkage |
-| fetch | Fetch PR diff size per file | a size proxy per file, or `UNKNOWN` when the vendor withheld the patch |
+| fetch | Fetch PR diff size per file | a size proxy per file, or `UNKNOWN` when the vendor withheld or collapsed it. Never 0 for a file the vendor declined to diff |
 | fetch | Fetch CI checks | every check unfiltered, each with a pass/fail bucket + name + link; never exit non-zero when there is no CI |
 | fetch | Fetch PR reviews (FILE-level findings + review_id) | review bodies + their ids — or an explicit "no equivalent" when the vendor has no review object |
 | fetch | Fetch account running the command | the authenticated account's login |

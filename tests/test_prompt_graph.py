@@ -338,6 +338,36 @@ def test_every_file_is_reachable_from_a_command():
     assert not unreachable, f"unreachable files: {sorted(unreachable)}"
 
 
+def test_diff_fetch_is_size_gated_in_every_vendor():
+    """A patch that reaches the terminal is in context for the rest of the run, and the
+    Step 7 guard fires long after Context has already paid for it. So the omission has to
+    live inside the fetch command itself.
+
+    Measured on the e2e fixture: an ungated fetch pulled 30,517 tokens for one 86KB dump,
+    against 8,833 tokens for every prompt file a review loads. The data half of a run's
+    cost dwarfs the prompt half, and only this makes it bounded.
+    """
+    for v in VENDORS:
+        body = text(SRC / "vendors" / v / "fetch.md")
+        assert "<max_patch_bytes>" in body, f"{v}: the diff entry takes no size threshold"
+        entry = [p for p in re.split(r"\n(?=## )", body) if "<max_patch_bytes>" in p]
+        assert entry, v
+        cmd = " ".join(" ".join(entry[0].split()).split())
+        assert "select" in cmd, f"{v}: the threshold is named but nothing filters on it"
+
+
+def test_size_entry_never_reports_zero_for_a_withheld_patch():
+    """GitLab collapses a large diff and returns diff: "", whose length reads 0 — which
+    would place the biggest file in the PR under every threshold, so it is neither
+    reviewed nor listed as skipped. Whatever a vendor calls that state, the size entry
+    must map it to UNKNOWN."""
+    for v in VENDORS:
+        body = text(SRC / "vendors" / v / "fetch.md")
+        entry = [p for p in re.split(r"\n(?=## )", body) if p.startswith("## Fetch PR diff size")]
+        assert entry, f"{v} has no size entry"
+        assert "UNKNOWN" in entry[0], f"{v}: size entry has no UNKNOWN branch"
+
+
 # --------------------------------------------------------------------------- #
 # the shipped manifests
 # --------------------------------------------------------------------------- #

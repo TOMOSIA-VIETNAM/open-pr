@@ -17,6 +17,14 @@
       ],
       "sample": "glab api x post projects owner 2f repo merge requests pull number",
       "reason": "A shared URL prefix of two different endpoints (draft_notes and draft_notes/bulk_publish), not a rule stated twice. Shortening it would hide which endpoint each entry calls."
+    },
+    {
+      "sha": "22cb2cf3dfd7",
+      "files": [
+        "vendors/gitlab/fetch.md"
+      ],
+      "sample": "glab api projects owner 2f repo merge requests pull number changes jq",
+      "reason": "One endpoint deliberately serves two entries \u2014 the size list and the gated patch \u2014 so each carries the same URL with a different jq program. Collapsing them would leave one entry without a runnable command, which vendor_lint.py requires."
     }
   ]
 }

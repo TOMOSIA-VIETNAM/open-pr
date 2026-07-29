@@ -41,6 +41,7 @@ TIMEOUT = 30
 # Caller-supplied bits the entries deliberately leave open. NOT commands — only the
 # values a caller would pass, so this file can never drift into a second copy of them.
 FIELDS = "number,title,body,author,baseRefName,headRefName"
+MAX_PATCH_BYTES = "20480"   # the big_file_threshold_kb default, 20 KB
 
 # Entries that legitimately come back empty on a fresh fixture PR: nobody has commented,
 # nobody has reviewed, and the fixture repo has no CI.
@@ -171,7 +172,7 @@ def parse_url(url):
 def lint(vendor, url, env):
     _, owner, repo, num = parse_url(url)
     subs = {"<url>": url, "<owner>": owner, "<repo>": repo, "<pull_number>": num,
-            "<fields>": FIELDS}
+            "<fields>": FIELDS, "<max_patch_bytes>": MAX_PATCH_BYTES}
     env = {**env, "OWNER": owner, "REPO": repo, "PULL_NUMBER": num}
     print(f"\n=== {vendor}  {url}")
     fails = []

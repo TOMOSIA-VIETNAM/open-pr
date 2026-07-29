@@ -44,11 +44,19 @@ Then fetch:
 |---|---|
 | "Fetch PR basic info", fields `number,title,body,author,baseRefName,headRefName` | PR info |
 | "Fetch PR diff — file list" | Files |
-| "Fetch PR diff — full patch" | Diff |
+| "Fetch PR diff size per file" | Diff size per file |
+| "Fetch PR diff — patch, omitting oversized files", `<max_patch_bytes>` = `big_file_threshold_kb` × 1024 | Diff |
 | "Fetch PR commits headlines" | Commits |
 | "Fetch PR review comments (LINE-level findings)" | Old comments |
-| "Fetch PR diff size per file" | Diff size per file |
 | "Fetch CI checks" | CI checks |
+
+Fetch the size list BEFORE the patch, in that order. Any path it names that "Diff" then lacks is an
+omitted file → carry that list to Step 7 as **"Oversized paths"**. A whole patch that reaches the
+terminal stays in context for the rest of the run, so the omission MUST happen inside the vendor's own
+call; Step 7's guard fires far too late to help.
+
+`big_file_threshold_kb` (`core/repo-settings.md`) — this Context already reads
+`settings.json` for `<git_remote_type>`, so take it from that same read.
 
 "CI checks" MUST stay unfiltered — Step 7 and `setup/bootstrap.md` q6 each read the raw array.
 
@@ -118,8 +126,9 @@ Step 8/9 post at all. Empty (brand-new PR) → skip to Step 7.
 
 ## Step 7 — Review
 
-**Large-diff guard, before anything else here:** count("Files") > `many_files_threshold` || any "Diff
-size per file" entry > `big_file_threshold_kb` KB or `UNKNOWN` → `Read`
+**Large-diff guard, before anything else here:** count("Files") > `many_files_threshold` || "Oversized
+paths" (Context) non-empty || any "Diff size per file" entry > `big_file_threshold_kb` KB or `UNKNOWN` →
+`Read`
 `"${CLAUDE_PLUGIN_ROOT}"/cases/large-diff-guards.md`, follow it (it may STOP the command). Neither →
 proceed.
 
@@ -151,7 +160,9 @@ finding inside `comments[]`.
 - reading further at `<worktree>/<path>` is optional, but MUST use `Read`'s `offset`/`limit` around the
   changed region (hunk header `@@ -a,b +c,d @@` ± ~20-30 lines). FORBIDDEN: a bare `Read` of a file
   whose change is localized, i.e. not a new file or wholesale rewrite
-- the Context "Diff" is the sole source of what changed — never refetch it
+- the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
+  paths" file is absent from it BY DESIGN and is reached only through the guard above, which reads it
+  from `<worktree>/<path>` in bounded chunks
 - never read library source unless genuinely unsure
 - never pad the count with trivia. Clean PR → **LGTM 🌟**; no minimum N
 
@@ -209,8 +220,9 @@ Anything else — ≥1 FILE finding || ≥1 overview-exclusive item — → the 
 ### 🤖【AI REVIEW】Overview
 Open with EXACTLY "Thank you! 🙇🏻‍♂️" (no embellishment like "for submitting this PR"/"for the
 effort"), then state that the ENTIRE SET OF CHANGES WAS REVIEWED AS OF commit (link + phrasing
-above), then 1 sentence of reply instructions, addressing the reader as "you". Then 2-3 sentences of
-general assessment + the title/prefix note if any.
+above), then 1 sentence of reply instructions, addressing the reader as "you". Then the title/prefix
+note if any. Assessment prose is OPTIONAL: include it ONLY to carry a conclusion no finding below
+does. Nothing such ⇒ stop after the reply instructions.
 
 #### 🔴
 #### 🟠

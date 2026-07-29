@@ -28,9 +28,15 @@ be parsed) or `glab mr view <pull_number> -R "<owner>/<repo>"` (human-readable).
 `glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/changes" | jq -r
 '.changes[] | .old_path, .new_path'`
 
-## Fetch PR diff — full patch
+## Fetch PR diff — patch, omitting oversized files
 
-`glab mr diff <pull_number> -R "<owner>/<repo>"`
+`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/changes" | jq -r --argjson m
+<max_patch_bytes> '.changes[] | select(((.diff // "") | length) < $m and (.diff // "") != "") |
+"diff --git a/\(.new_path) b/\(.new_path)\n\(.diff)"'` — `<max_patch_bytes>` = the caller's own
+threshold in bytes. Emits a `diff --git` header per file, which plain `glab mr diff` output lacks.
+
+Same endpoint as "Fetch PR diff size per file", one round trip for both. GitLab collapses a large diff
+by itself, returning `diff: ""`; such a file is omitted here too and the size entry is what reports it.
 
 ## Fetch PR commits headlines
 
@@ -44,8 +50,14 @@ overview-level, not a LINE finding.
 
 ## Fetch PR diff size per file
 
-**No equivalent** — no byte-size field exists, so compute from the patch: take "Fetch PR diff — full patch" (reuse it if
-already fetched this run), split by file, use each hunk's text length as the proxy.
+`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/changes" | jq -r '.changes[] |
+if (.collapsed // false) or (.too_large // false) then "UNKNOWN(collapsed or too large — no patch
+returned) \(.new_path)" else "\((.diff // "") | length) \(.new_path)" end'`
+
+No byte-size field exists, so the patch text is the proxy — but a collapsed or too-large file comes back
+with `diff: ""`, which as a length reads 0 and would put the biggest file in the PR under every
+threshold. The flags MUST be checked first and reported as `UNKNOWN`, matching what GitHub returns when
+it withholds a patch.
 
 ## Fetch CI checks
 

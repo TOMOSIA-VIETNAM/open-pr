@@ -14,9 +14,14 @@ Substitute the caller's own `<owner>`/`<repo>`/`<pull_number>`/`<comment_id>`…
 
 `gh pr diff <url> -R "<owner>/<repo>" --name-only`
 
-## Fetch PR diff — full patch
+## Fetch PR diff — patch, omitting oversized files
 
-`gh pr diff <url> -R "<owner>/<repo>"`
+`gh api --paginate repos/<owner>/<repo>/pulls/<pull_number>/files --jq '.[] |
+select((.patch // "" | length) < <max_patch_bytes>) | "diff --git a/\(.filename)
+b/\(.filename)\n\(.patch)"'` — `<max_patch_bytes>` = the caller's own threshold in bytes.
+
+Same endpoint as "Fetch PR diff size per file", so the sizes and the patches come from one round trip;
+run the size entry first and keep its list, since it names what this entry omitted.
 
 ## Fetch PR commits headlines
 
