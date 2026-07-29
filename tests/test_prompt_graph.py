@@ -177,6 +177,21 @@ def test_config_defaults_have_one_source():
         assert found <= allowed, f"{literal} also appears in {found - allowed}"
 
 
+def test_glab_api_never_uses_the_gh_only_jq_flag():
+    """`gh api` accepts --jq; `glab api` does not — its own help tells you to pipe to
+    jq. The flag is easy to copy across while porting an entry, and it fails at the
+    FIRST fetch on the vendor half that gets exercised least."""
+    bad = []
+    for name, body in all_text().items():
+        # Only real command text counts: prose may name the flag to warn against it.
+        snippets = re.findall(r"`([^`]+)`", body) + re.findall(r"```[a-z]*\n(.*?)```", body, re.S)
+        for s in snippets:
+            flat = " ".join(s.split())
+            if "glab api" in flat and "--jq" in flat:
+                bad.append((name, flat[:90]))
+    assert not bad, f"glab api cannot take --jq: {bad}"
+
+
 def test_markers_are_byte_identical_everywhere():
     """The bot markers are the plugin's cross-run identity — a variant spelling
     makes past findings invisible to re-review and fix."""

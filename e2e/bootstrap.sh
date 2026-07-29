@@ -106,7 +106,11 @@ run_github() {
 
 run_gitlab() {
   local repo="${REPO_OVERRIDE:-$GITLAB_REPO}"
-  local lvl; lvl=$(glab api "projects/${repo//\//%2F}" --jq '.permissions.project_access.access_level // 0' 2>/dev/null || echo 0)
+  # `glab api` has no --jq (that is gh's flag) — pipe instead. A personal-namespace owner
+  # can report project_access null, hence taking the max across both access fields.
+  local lvl; lvl=$(glab api "projects/${repo//\//%2F}" 2>/dev/null \
+    | jq -r '[.permissions.project_access.access_level, .permissions.group_access.access_level, 0]
+             | map(select(. != null)) | max' 2>/dev/null || echo 0)
   [ "${lvl:-0}" -ge 30 ] \
     || { echo "gitlab: need Developer or above on $repo — fork it and pass --repo <your-fork>" >&2; return 1; }
   ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T "git@$GITLAB_HOST" 2>&1 | grep -qi welcome \
@@ -116,7 +120,7 @@ run_gitlab() {
   seed "$d"
   ( cd "$d" && glab mr create --title "e2e: planted defects (open-pr #$PR_NUM)" \
       --description "$(pr_body)" --target-branch main --source-branch "$BRANCH" --yes >/dev/null 2>&1 || true )
-  local iid; iid=$(glab api "projects/${repo//\//%2F}/merge_requests?source_branch=$BRANCH&state=opened" --jq '.[0].iid')
+  local iid; iid=$(glab api "projects/${repo//\//%2F}/merge_requests?source_branch=$BRANCH&state=opened" | jq -r '.[0].iid')
   local url="https://$GITLAB_HOST/$repo/-/merge_requests/$iid"
   echo "gitlab  → $url"
   echo "          /open-pr:review $url"
@@ -147,7 +151,7 @@ teardown_github() {
 
 teardown_gitlab() {
   local repo="${REPO_OVERRIDE:-$GITLAB_REPO}" p; p="${repo//\//%2F}"
-  local iid; iid=$(glab api "projects/$p/merge_requests?source_branch=$BRANCH&state=opened" --jq '.[0].iid // empty')
+  local iid; iid=$(glab api "projects/$p/merge_requests?source_branch=$BRANCH&state=opened" | jq -r '.[0].iid // empty')
   [ -n "$iid" ] || { echo "gitlab: no open fixture MR on $BRANCH"; return 0; }
   glab api -X PUT "projects/$p/merge_requests/$iid?state_event=close" >/dev/null
   glab api -X DELETE "projects/$p/repository/branches/${BRANCH//\//%2F}" >/dev/null 2>&1 || true

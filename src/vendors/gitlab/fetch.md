@@ -7,6 +7,9 @@ global id), `<owner>/<repo>` = the project's namespace/path, passed to `glab api
 `<owner>%2F<repo>` (a numeric project id also works, the encoded path avoids a lookup). Credentials
 come from whatever `glab auth login` configured.
 
+`glab api` has NO `--jq` flag (that one is `gh`'s) — pipe its JSON to `jq` instead, as below. Other
+`glab` subcommands such as `glab mr view` DO accept `--jq`.
+
 
 ## Fetch PR basic info
 
@@ -17,12 +20,12 @@ be parsed) or `glab mr view <pull_number> -R "<owner>/<repo>"` (human-readable).
 
 ## Fetch PR head commit SHA
 
-`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>" --jq '.diff_refs.head_sha'` →
+`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>" | jq -r '.diff_refs.head_sha'` →
 `<commit_id>`.
 
 ## Fetch PR diff — file list
 
-`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/changes" --jq
+`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/changes" | jq -r
 '.changes[] | .old_path, .new_path'`
 
 ## Fetch PR diff — full patch
@@ -31,7 +34,7 @@ be parsed) or `glab mr view <pull_number> -R "<owner>/<repo>"` (human-readable).
 
 ## Fetch PR commits headlines
 
-`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/commits" --jq '.[].title'`
+`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/commits" | jq -r '.[].title'`
 
 ## Fetch PR review comments (LINE-level findings)
 
@@ -59,7 +62,7 @@ not applicable; LINE-level detection is unaffected.
 
 ## Fetch account running the command
 
-`glab api user --jq .username` (or `glab auth status`).
+`glab api user | jq -r .username` (or `glab auth status`).
 
 ## Fetch review threads (id + isResolved + comment ids)
 
