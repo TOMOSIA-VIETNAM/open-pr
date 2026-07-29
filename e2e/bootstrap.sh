@@ -109,6 +109,9 @@ run_gitlab() {
   local lvl; lvl=$(glab api "projects/${repo//\//%2F}" --jq '.permissions.project_access.access_level // 0' 2>/dev/null || echo 0)
   [ "${lvl:-0}" -ge 30 ] \
     || { echo "gitlab: need Developer or above on $repo — fork it and pass --repo <your-fork>" >&2; return 1; }
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T "git@$GITLAB_HOST" 2>&1 | grep -qi welcome \
+    || { echo "gitlab: SSH to git@$GITLAB_HOST is not working — add a key at" >&2
+         echo "        https://$GITLAB_HOST/-/user_settings/ssh_keys (the PAT alone cannot push)" >&2; return 1; }
   local d; d=$(clone_to "git@$GITLAB_HOST:$repo.git")
   seed "$d"
   ( cd "$d" && glab mr create --title "e2e: planted defects (open-pr #$PR_NUM)" \

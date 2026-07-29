@@ -47,7 +47,7 @@ WINDOW = {"cross": 18, "intra": 12}
 #        but a duplicate still costs every session that loads it
 # README*.md and CONTRIBUTING.md are human prose and belong to neither.
 SCOPES = {"src": lambda: sorted(SRC.rglob("*.md")),
-          "dev": lambda: [REPO / "CLAUDE.md"]}
+          "dev": lambda: [REPO / "CLAUDE.md", *sorted((REPO / ".claude").rglob("*.md"))]}
 
 
 def md_files(scope="src"):
