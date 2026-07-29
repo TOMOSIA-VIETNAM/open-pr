@@ -70,6 +70,8 @@ acceptable; the agent misreading it is not.
 - Verbatim and untouched: command lines, code fences, payload shapes, markers, error text the agent
   must print.
 - Compression stops where ambiguity starts. Two readings possible ⇒ spend the tokens.
+- Notation the HARNESS claims is off limits, whatever it would save: `` !`x` `` in a command body
+  is auto-exec, so a `!` never touches a backtick — write the negation in words.
 
 Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/seeds/`.
 

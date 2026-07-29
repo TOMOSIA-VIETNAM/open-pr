@@ -104,7 +104,7 @@ Branch:
 - no file || no `.review` || `.review.bootstrapped` != `true` → `Read`
   `"${CLAUDE_PLUGIN_ROOT}"/setup/bootstrap.md`, then `setup/doctor.md`
 - `bootstrapped: true` && `doctor_due` → `setup/doctor.md` only, FORBIDDEN: re-asking bootstrap
-- `bootstrapped: true` && !`doctor_due` → skip both
+- `bootstrapped: true`, `doctor_due` false → skip both
 
 Setup stable ⇒ don't touch `notebooks/review/` outside Step 4 (new template), Step 6 (lesson), or a due
 doctor.

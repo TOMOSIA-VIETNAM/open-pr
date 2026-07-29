@@ -59,7 +59,7 @@ that command with THIS PR's validated values per the entry's own flag/scoping co
 across vendors (`reference/vendor-interface.md`) ⇒ a caller never names one. A command's Context lists
 the entries it fetches with a **label**; later Steps use that label and never re-fetch.
 
-Issued by the AGENT via the real `Bash` tool, never a `!`…`` auto-exec block (choosing the file needs
+Issued by the AGENT via the real `Bash` tool, never an auto-exec block (choosing the file needs
 reasoning). No `allowed-tools` backs them (deliberate).
 
 ## 4. Repo name

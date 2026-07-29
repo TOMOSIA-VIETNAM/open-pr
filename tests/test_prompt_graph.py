@@ -320,6 +320,24 @@ def test_no_refs_to_things_that_get_deleted():
     assert not bad, f"refs to ephemeral things: {bad}"
 
 
+def test_no_harness_auto_exec_syntax():
+    """`` !`cmd` `` in a slash-command body is executed by the harness before the model
+    ever sees the file. A `!` used as logical NOT next to a backticked field name reads
+    as exactly that, and the command dies on `command not found` at the step containing
+    it — which is how this reached a real PR review.
+
+    Negation gets spelled out instead. The saving from an operator is a few tokens; the
+    cost is the command not running at all.
+    """
+    bad = []
+    for name, body in all_text().items():
+        for m in re.finditer(r"!`", body):
+            line = body[:m.start()].count("\n") + 1
+            bad.append(f"{name}:{line}")
+    assert not bad, ("`!` immediately before a backtick is auto-exec syntax; write the negation "
+                     f"in words: {bad}")
+
+
 def test_frontmatter_only_in_commands():
     """Frontmatter is what makes a file a slash command; a stray one exposes a
     helper file as a user-visible command."""
