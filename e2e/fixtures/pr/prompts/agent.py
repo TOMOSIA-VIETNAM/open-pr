@@ -8,8 +8,10 @@ Never invent an answer that is not in the knowledge base.
 """
 
 
-def build(question: str, account_note: str) -> list[dict]:
+# PLANTED: mutable default argument — the list is shared across every call.
+def build(question: str, account_note: str, history: list = []) -> list[dict]:
     prompt = SYSTEM_PROMPT + f"\nAccount context you must obey: {account_note}\n"
+    history.append(question)
     return [
         {"role": "system", "content": prompt},
         {"role": "user", "content": question},

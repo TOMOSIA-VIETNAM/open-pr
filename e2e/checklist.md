@@ -12,6 +12,7 @@ Each planted defect and the path it exercises:
 | same file — `total_cents / 100.0` | a finding citing the repo's own README convention (money in cents) | doctor found `README.md`, memory referenced it |
 | `prompts/agent.py` — knowledge-base rule stated 3 ways | a finding about the repeat | `agent-instructions` axis 3, via the EMBEDDED overlay on a `.py` |
 | same file — `account_note` interpolated into the system prompt | a finding about untrusted data in the instruction section | `agent-instructions` axis 2 |
+| same file — `history: list = []` default | a finding about the mutable default argument | `templates/python.md` axis 1 — a `.py`-only criterion, so it is the proof the overlay applied BOTH templates and not just one |
 | `.claude/commands/deploy.md` — `rm -rf` with no confirmation | a finding, 🔴 | `agent-instructions` axis 2, base stack on `.md` |
 | same file — `see task DEV-4821` | a finding about the ephemeral reference | `agent-instructions` axis 4 |
 | `db/seeds_dump.sql` — ~40KB of generated inserts | listed under "Files skipped for detailed review", NOT reviewed line by line | `cases/large-diff-guards.md` |
@@ -20,7 +21,8 @@ Each planted defect and the path it exercises:
 Then check the mechanics:
 
 - [ ] exactly ONE review posted, not several
-- [ ] `.py` got BOTH `python` and `agent-instructions` criteria applied
+- [ ] `.py` got BOTH `python` and `agent-instructions` criteria applied — i.e. the mutable-default row
+      AND at least one prompt-quality row both produced findings on `prompts/agent.py`
 - [ ] every finding ends with `<!-- bot-finding -->`
 - [ ] severity is emoji only — no "Must fix" wording, no count of N
 - [ ] no heading printed with nothing under it
