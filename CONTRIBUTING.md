@@ -33,26 +33,34 @@ Only `src/` ships to users. Everything else is repo-side.
 - **Context cost may not grow.** Every scenario has a ceiling in `tests/budgets.json`.
 - **Files must be self-contained.** No pointers to task ids, plan phases or docs that get deleted.
 
-## Verify before opening a PR
+## Workflow
+
+Setup, once:
 
 ```
-pip install -r requirements-dev.txt   # once
-scripts/install_hooks.sh              # once — runs the checks on pre-push
-scripts/check.sh main
+pip install -r requirements-dev.txt
+scripts/install_hooks.sh              # the checks below, on pre-push
 ```
 
-Actions is disabled on this repository by the organisation, so the workflows in
-`.github/workflows/` do not run yet. The hook is what enforces the checks in the meantime.
+Then, per change:
 
-That runs the test suite, the duplication scan and the context-cost report. The tests check reference
-integrity, vendor parity, single-source config defaults, duplication across and inside files, and the
-token ceilings.
+| when | run | catches |
+|---|---|---|
+| every edit under `src/` | `scripts/check.sh <base-ref>` | broken refs, duplication, a rule with two owners, a token-budget regression |
+| touched `src/vendors/` | `scripts/vendor_lint.py --pr <n>` | a flag the CLI does not have, a moved endpoint, a jq path matching nothing |
+| before merging a substantial change | `/e2e-loop --pr <n>` in a FRESH session | the review itself behaving differently — nothing above can see that |
+| after the e2e round | `e2e/bootstrap.sh --pr <n> --teardown` | — |
 
-If a scenario got cheaper, lock it in with `python3 scripts/token_report.py --base main
---update-budgets`. If one got more expensive, say so in the PR and explain why — and never trade away
-a rule, a guard or a vendor entry to win tokens back.
+Only the first row is mandatory. `check.sh <base-ref> <pr>` folds the second in when a fixture is open.
 
-Two tools for when you are looking for something specific:
+Actions is disabled on this repository by the organisation, so `.github/workflows/` does not run yet;
+the pre-push hook is what enforces this meanwhile.
+
+**Reading the token report.** Cheaper ⇒ lock it in with `token_report.py --base <ref> --update-budgets`.
+More expensive ⇒ say so in the PR and why. Never trade away a rule, a guard or a vendor entry to win
+tokens back.
+
+When you need to aim rather than gate:
 
 ```
 python3 scripts/token_report.py --sections 'commands/*.md'    # where the tokens sit in a file
@@ -73,11 +81,10 @@ python3 scripts/dup_scan.py --window 10 --all --min-waste 20  # duplication, har
 
 ## End-to-end
 
-Unit tests check the prompt graph as text; they cannot tell you whether a real review still comes out
-right. `e2e/` holds a fixture with planted defects plus a checklist mapping each one to the code path it
-exercises. `e2e/bootstrap.sh --pr <n>` puts that fixture on the shared `open-pr-test` repos, records the fixture
-URL in your PR's description, and `--teardown` closes it afterwards. No write access to those repos?
-Fork one and pass `--repo <your-fork>` — see `e2e/README.md`.
+`e2e/` holds a fixture with planted defects and a checklist mapping each one to the code path it
+exercises, so a miss names the rule that regressed. `bootstrap.sh` puts it on the shared `open-pr-test`
+repos and records the fixture URL in your PR's description as the record of the run. No write access
+there? Fork one and pass `--repo <your-fork>` — see `e2e/README.md`.
 
 CI never runs it: it costs a real model call and posts to a real vendor.
 
