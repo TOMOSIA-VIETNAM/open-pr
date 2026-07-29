@@ -33,71 +33,96 @@ Only `src/` ships to users. Everything else is repo-side.
 - **Context cost may not grow.** Every scenario has a ceiling in `tests/budgets.json`.
 - **Files must be self-contained.** No pointers to task ids, plan phases or docs that get deleted.
 
-## Workflow
+## Setup, once
 
-Setup, once:
-
-```
+```bash
 pip install -r requirements-dev.txt
-scripts/install_hooks.sh              # the checks below, on pre-push
+scripts/install_hooks.sh
 ```
 
-Then, per change:
+Actions is disabled on this repo by the org — `.github/workflows/` does not run. The hook does.
 
-| when | run | catches |
-|---|---|---|
-| every edit under `src/` | `scripts/check.sh <base-ref>` | broken refs, duplication, a rule with two owners, a token-budget regression |
-| touched `src/vendors/` | `scripts/vendor_lint.py --pr <n>` | a flag the CLI does not have, a moved endpoint, a jq path matching nothing |
-| before merging a substantial change | `/e2e-loop --pr <n>` in a FRESH session | the review itself behaving differently — nothing above can see that |
-| after the e2e round | `e2e/bootstrap.sh --pr <n> --teardown` | — |
+## Every change under `src/`
 
-Only the first row is mandatory. `check.sh <base-ref> <pr>` folds the second in when a fixture is open.
-
-Actions is disabled on this repository by the organisation, so `.github/workflows/` does not run yet;
-the pre-push hook is what enforces this meanwhile.
-
-**Reading the token report.** Cheaper ⇒ lock it in with `token_report.py --base <ref> --update-budgets`.
-More expensive ⇒ say so in the PR and why. Never trade away a rule, a guard or a vendor entry to win
-tokens back.
-
-When you need to aim rather than gate:
-
-```
-python3 scripts/token_report.py --sections 'commands/*.md'    # where the tokens sit in a file
-python3 scripts/dup_scan.py --window 10 --all --min-waste 20  # duplication, harder than the gate
+```bash
+scripts/check.sh main
 ```
 
-## Common changes
+- cheaper → `python3 scripts/token_report.py --base main --update-budgets`
+- more expensive → state which scenario and why, in the PR
 
-- **New stack** — add `src/templates/<stack>.md` and a row in `src/core/stack-detection.md`. Every
-  bullet must name a concrete API, idiom or tool of that stack; generic criteria already live in
-  `src/core/review-criteria.md`.
-- **New vendor** — add `src/vendors/<name>/{fetch,worktree,post,thread}.md` with the same entry
-  headings the existing vendors use (`src/reference/vendor-interface.md` lists them). No caller
-  changes.
-- **New config field** — classify it in `src/reference/settings-schema.md`, add its read-time default
-  to `src/core/repo-settings.md`, and add an `llm-upgrades/vN.md` migration plus an index line so
-  existing repos catch up.
+## Touched `src/vendors/`
 
-## End-to-end
+```bash
+python3 scripts/vendor_lint.py                  # offline
+python3 scripts/vendor_lint.py --pr <n>         # needs an open fixture
+```
 
-`e2e/` holds a fixture with planted defects and a checklist mapping each one to the code path it
-exercises, so a miss names the rule that regressed. `bootstrap.sh` puts it on the shared `open-pr-test`
-repos and records the fixture URL in your PR's description as the record of the run. No write access
-there? Fork one and pass `--repo <your-fork>` — see `e2e/README.md`.
+## Before merging something substantial
 
-CI never runs it: it costs a real model call and posts to a real vendor.
+```bash
+e2e/bootstrap.sh --pr <n>                       # fixture PR/MR, link recorded on PR <n>
+```
 
-Touched a `src/vendors/` entry? `python3 scripts/vendor_lint.py` checks every flag in every entry
-against that subcommand's own `--help`. Offline and free, it runs in CI, and it covers the post/thread
-entries too. Add `--pr <n>` and it also executes the read-only Fetch entries against the open fixture —
-that half needs a token, so CI leaves it out.
+New session:
 
-Working with an agent? The `e2e-loop` skill drives that whole cycle — fixture, review, grading by a
-second independent agent, diagnosis back to the prompt file that owns the rule — instead of you running
-each step by hand.
+```
+/e2e-loop --pr <n>
+```
+
+By hand instead: `/open-pr:review <fixture url>`, then work through `e2e/checklist.md`.
+
+The `/open-pr:fix` half:
+
+```bash
+e2e/bootstrap.sh --pr <n> --checkout --clone-dir /tmp/fixture
+cd /tmp/fixture
+```
+
+then `/open-pr:fix <fixture url>`.
+
+Never re-run the seeding mode on a `--pr` whose review is posted — it force-pushes the branch.
+
+Round over:
+
+```bash
+e2e/bootstrap.sh --pr <n> --teardown
+```
+
+## Which path a round takes
+
+`notebooks/review/open-pr-test/` at this repo's root:
+
+- present → warm path (no bootstrap, no doctor). Default.
+- delete it first → first-run path. Do this when `src/setup/`, `src/core/repo-settings.md` or the schema changed.
+
+## Digging, not gating
+
+```bash
+python3 scripts/token_report.py --sections 'commands/*.md'
+python3 scripts/dup_scan.py --window 10 --all --min-waste 20
+```
+
+## Adding a stack
+
+1. `src/templates/<stack>.md` — every bullet names a concrete API, idiom or tool of that stack
+2. a row in `src/core/stack-detection.md`
+3. axis names 1/2/3/4/6 must match `src/core/review-criteria.md`
+
+## Adding a vendor
+
+1. `src/vendors/<name>/{fetch,worktree,post,thread}.md`
+2. same entry headings as the existing vendors — `src/reference/vendor-interface.md` lists them
+3. no caller changes
+
+## Adding a config field
+
+1. classify it in `src/reference/settings-schema.md`
+2. read-time default in `src/core/repo-settings.md`
+3. ask it in `src/setup/bootstrap.md`
+4. `llm-upgrades/vN.md` + a line in `llm-upgrades/index.md`
 
 ## Commits
 
-Conventional commits (`refactor(scope): …`). Once a PR has been reviewed, push follow-up work as new
-commits — no amend, no squash, no force-push over what a reviewer already read.
+Conventional commits (`refactor(scope): …`). PR already reviewed → new commits only, no amend, no
+squash, no force-push.
