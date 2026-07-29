@@ -77,6 +77,10 @@ Fork one and pass `--repo <your-fork>` — see `e2e/README.md`.
 
 CI never runs it: it costs a real model call and posts to a real vendor.
 
+Working with an agent? The `e2e-loop` skill drives that whole cycle — fixture, review, grading by a
+second independent agent, diagnosis back to the prompt file that owns the rule — instead of you running
+each step by hand.
+
 ## Commits
 
 Conventional commits (`refactor(scope): …`). Once a PR has been reviewed, push follow-up work as new
