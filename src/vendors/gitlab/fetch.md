@@ -44,14 +44,19 @@ overview-level, not a LINE finding.
 
 ## Fetch PR diff size per file
 
-No byte-size field exists → compute from the patch: take "Fetch PR diff — full patch" (reuse it if
+**No equivalent** — no byte-size field exists, so compute from the patch: take "Fetch PR diff — full patch" (reuse it if
 already fetched this run), split by file, use each hunk's text length as the proxy.
 
 ## Fetch CI checks
 
-`glab ci status --merge-request <pull_number> -R "<owner>/<repo>"` (pipeline level) or `glab api
-"projects/<owner>%2F<repo>/pipelines/<pipeline_id>/jobs"` (job level, `<pipeline_id>` = the MR's latest
-pipeline) — append `|| true` so a failing/pending job, or no CI at all, doesn't exit non-zero.
+`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>/pipelines"` — returns `[]` when the
+project has no CI, so it never needs `|| true`. Each entry gives `id`, `status`, `web_url`; map `status`
+to the caller's bucket (`failed`/`canceled` ⇒ fail). A finding that must name the failing job takes a
+second call for the latest pipeline: `glab api
+"projects/<owner>%2F<repo>/pipelines/<pipeline_id>/jobs"` → `name`, `status`, `web_url`.
+
+FORBIDDEN: `glab ci status` — it has no merge-request flag, and its `--live`/`--wait` modes block until
+the pipeline finishes, which would hang the run.
 
 ## Fetch PR reviews (FILE-level findings + review_id)
 

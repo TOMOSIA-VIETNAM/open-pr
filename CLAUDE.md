@@ -28,7 +28,7 @@ src/templates/    per-stack criteria, cp'd into the reviewed repo
 src/reference/    FORBIDDEN to Read at run time (schema + vendor contract, for humans)
 src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
-scripts/          check.sh · token_report.py · dup_scan.py · ci_token_comment.sh
+scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · ci_token_comment.sh
 tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
 e2e/              fixture + checklist for a real review run; never runs in CI
 .claude/skills/   dev-time skills — `e2e-loop` runs the fixture, grades it, fixes back
@@ -124,6 +124,7 @@ what deleting a restatement yields in the same file — so work in this order.
 | where the tokens sit inside a file | `token_report.py --sections 'commands/*.md'` |
 | new ceilings after a win | `token_report.py --base <ref> --update-budgets` |
 | duplication, harder than the gate | `dup_scan.py --window 10 --all --min-waste 20` |
+| do the vendor commands actually run | `vendor_lint.py --pr <n>` — needs an open e2e fixture |
 
 **Suspect the measurement before the content** when a number moves the wrong way. A role whose
 pre-refactor path went missing makes the base look cheaper than it was; counting a `cp`-ed seed as a

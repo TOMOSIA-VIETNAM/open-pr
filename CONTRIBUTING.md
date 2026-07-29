@@ -77,6 +77,11 @@ Fork one and pass `--repo <your-fork>` — see `e2e/README.md`.
 
 CI never runs it: it costs a real model call and posts to a real vendor.
 
+Touched a `src/vendors/` entry? `python3 scripts/vendor_lint.py --pr <n>` runs every documented Fetch
+command against the open fixture and asserts it exits 0 with output. It is read-only and free, and it
+catches the class the text suite cannot see: a flag the CLI does not have, a moved endpoint, a jq path
+matching nothing.
+
 Working with an agent? The `e2e-loop` skill drives that whole cycle — fixture, review, grading by a
 second independent agent, diagnosis back to the prompt file that owns the rule — instead of you running
 each step by hand.

@@ -27,7 +27,10 @@ failure mode this skill is most likely to hit.
 
 1. `scripts/check.sh <base-ref>` must be green. A red suite makes every later verdict unreadable.
 2. `e2e/bootstrap.sh --pr <n> [--vendor …]` if no fixture PR is open for this round.
-3. Note the fixture URL. Every later stage refers to it.
+3. `python3 scripts/vendor_lint.py --pr <n>` — every documented Fetch command must run. A broken
+   vendor command wastes a whole round: the review fails at fetch and every checklist row reads
+   `fail` for a reason that has nothing to do with the rules being tested. Seconds, and free.
+4. Note the fixture URL. Every later stage refers to it.
 
 ## Stage 1 — run the review (subagent, fresh)
 

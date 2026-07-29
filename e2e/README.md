@@ -16,6 +16,13 @@ e2e/bootstrap.sh --pr 20                   # fixture PR/MR on every vendor you a
 It prints the fixture URL and the exact `/open-pr:review` command, and records the URL in this
 project's PR #20 description under an `<!-- e2e-fixtures -->` block, so the PR carries its own evidence.
 
+```bash
+python3 scripts/vendor_lint.py --pr 20     # every documented Fetch command runs, read-only, free
+```
+
+Run that before spending a model call: a broken vendor command makes every checklist row fail for a
+reason unrelated to the rules under test.
+
 Then run `/open-pr:review <fixture url>` in a Claude Code session with the plugin installed, and work
 through `checklist.md`. It maps every planted defect to the code path it exercises, so a miss tells you
 WHICH rule regressed rather than just "the review looked worse".
