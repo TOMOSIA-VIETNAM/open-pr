@@ -59,6 +59,7 @@ ROLES = {
     "gl-post": ["vendors/gitlab/post.md", "vendors/gitlab.md"],
     "gl-thread": ["vendors/gitlab/thread.md", "vendors/gitlab.md"],
     "guardrails": ["core/guardrails.md"],
+    "locate-repo": ["core/locate-repo.md"],
     "upgrades-index": ["core/llm-upgrades-index.md"],
     "reconfigure": ["core/reconfigure.md"],
     "update-cmd": ["commands/update-plugin.md"],
@@ -80,51 +81,51 @@ ROLES = {
 # A "load set" = what a single run of one command Reads into context.
 SCENARIOS = {
     "review/new-repo-github": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "setup-bootstrap",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "setup-bootstrap",
         "setup-doctor", "memory-commit", "upgrades-index", "gh-fetch", "gh-worktree",
         "gh-post",
         "criteria", "always-rule", "setup-template", "tpl-rails",
     ],
     "review/known-repo-github-clean": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "criteria", "always-rule", "tpl-rails",
     ],
     "review/known-repo-gitlab-rereview": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-worktree",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-worktree",
         "gl-post", "gl-thread", "case-re-review", "marker-logic", "setup-doctor",
         "memory-commit",
         "criteria", "always-rule", "tpl-vue",
     ],
     "review/large-diff-multistack": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
         "gh-post", "case-large-diff", "case-pr-template", "criteria", "always-rule", "tpl-rails",
         "tpl-vue",
     ],
     "review/submodule-bump": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
         "gh-post", "case-submodule", "criteria", "always-rule", "tpl-nodejs",
     ],
     "review/agent-instructions-repo": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "criteria", "always-rule", "tpl-agent-instructions",
     ],
     "review/post-error-github": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "case-post-error", "criteria", "always-rule", "tpl-rails",
     ],
     "chat/reconfigure-review": [
-        "review-cmd", "guardrails", "pr-target", "repo-settings", "reconfigure",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "reconfigure",
         "memory-commit",
     ],
     "update-plugin": [
         "update-cmd", "upgrades-index", "reference-schema",
     ],
     "fix/known-repo-github": [
-        "fix-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
+        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
         "marker-logic", "criteria", "always-rule", "tpl-rails",
     ],
     "fix/first-run-gitlab": [
-        "fix-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-thread",
+        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-thread",
         "marker-logic", "criteria", "memory-commit",
     ],
 }

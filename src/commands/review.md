@@ -60,8 +60,9 @@ call; Step 7's guard fires far too late to help.
 
 "CI checks" MUST stay unfiltered — Step 7 and `setup/bootstrap.md` q6 each read the raw array.
 
-**Filesystem:** the session's actual pwd. FORBIDDEN: `cd`, self-discovering the git root (sole
-exception: Step 1's worktree subshell). Before writing under `notebooks/review/` → state pwd + `<repo>`
+**Filesystem:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` and follow it BEFORE Step 1 — the
+worktree and the memory folder both live under the directory it establishes, and Step 1's `git fetch
+origin` only resolves there. Before writing under `notebooks/review/` → state that directory + `<repo>`
 in chat.
 
 `core/pr-target.md` §5 gates entry into Step 1.
@@ -72,8 +73,8 @@ The PR's code on disk, main tree untouched — it never changes branch, so nothi
 
 1. `git worktree add "notebooks/review/<repo>/worktrees/review-pr<pull_number>-$RANDOM" --detach` —
    random name, never reused. Then `V§"Check out the PR head into a worktree"` to put the PR's code
-   there, DETACHED. Sole exception to the no-`cd` rule (subshell pinned to the worktree). Then
-   `Read`/`Grep` at `<worktree>/<path>`.
+   there, DETACHED — a subshell pinned to the worktree, so the working directory itself never moves.
+   Then `Read`/`Grep` at `<worktree>/<path>`.
 2. `git fetch origin "<baseRefName>"` — refs are shared across worktrees.
 3. `git -C "notebooks/review/<repo>/worktrees/<name>" submodule update --init --recursive` — ALWAYS,
    submodule-touching PR or not.

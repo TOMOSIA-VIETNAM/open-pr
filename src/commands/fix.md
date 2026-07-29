@@ -54,22 +54,8 @@ does not apply, while LINE-level handling continues normally.
 
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
-**1a. Locate the right project directory.** The remote at pwd already matches `<owner>/<repo>`
-(case-insensitive, both `https://<host>/<owner>/<repo>.git` and `git@<host>:<owner>/<repo>.git`, `<host>`
-= this PR's own URL host so self-hosted instances work) → use pwd, skip the search.
-
-No match → `find . -maxdepth 4 -type d -iname "$REPO" -not -path '*/node_modules/*' 2>/dev/null`
-(nested dirs included, e.g. a submodule inside another project). For EACH candidate,
-`git -C "<candidate>" remote -v 2>/dev/null`, cross-checked against `<owner>/<repo>` — a matching
-directory name alone is NOT enough:
-
-- exactly 1 match → `cd` into it (use for EVERY remaining git/Read/Edit/Write call this run), state which
-  directory in 1 short sentence
-- 0 || ≥2 matches → ask the dev to pick from the candidates or type a path. Unresolvable → STOP:
-  ```
-  ❌ Could not determine the repo directory for `<owner>/<repo>` of this PR. cd into the correct
-     repo's working directory and call this again.
-  ```
+**1a.** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md`, follow it. Everything below runs at the
+directory it establishes.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 fixing the branch yourself, touching any file, proceeding to Step 2.

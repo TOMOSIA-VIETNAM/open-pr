@@ -45,9 +45,8 @@ a submodule can live on another vendor. EVERY `V§` from here on resolves via `<
 never the main PR's value.
 
 `V§"Checkout a PR into an already-existing worktree subdirectory"` with `<submodule-path>` +
-`<n-submodule>` + `<owner-submodule>/<repo-submodule>` — FORBIDDEN: `git worktree add` again. Same
-no-`cd` exception as `review.md` Step 1: the subshell is pinned to that subdirectory and never moves
-the session's cwd.
+`<n-submodule>` + `<owner-submodule>/<repo-submodule>` — FORBIDDEN: `git worktree add` again. Subshell
+pinned to that subdirectory, as at `review.md` Step 1; the working directory never moves.
 
 ## Step D — Fetch the submodule PR's context
 

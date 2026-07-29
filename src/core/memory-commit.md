@@ -1,7 +1,7 @@
 # Commit into the review-memory repo
 
-Every write under `notebooks/review/` ends here. `notebooks/review/.git` = 1 nested repo covering
-every `<repo>/` beneath it, local only — FORBIDDEN: adding a remote, pushing.
+Every write under `notebooks/review/` ends here, inside the repo `core/locate-repo.md` established.
+`notebooks/review/.git` = 1 nested repo, local only — FORBIDDEN: adding a remote, pushing.
 
 1. `notebooks/review/.git` absent (try `Read` `notebooks/review/.git/HEAD`)? Caller is
    `setup/bootstrap.md` → `git init notebooks/review`. Any OTHER caller → skip committing entirely,

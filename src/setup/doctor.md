@@ -4,7 +4,7 @@ Goal: the project already documents its conventions somewhere → the review mus
 source, never guess or impose an unrelated external rule. Every run scans the ENTIRE repo, never
 scoped to the current PR's stack or feature.
 
-1. RECURSIVELY scan the whole tree at pwd — real projects scatter these across subfolders (e.g.
+1. RECURSIVELY scan the whole tree of the located repo — real projects scatter these across subfolders (e.g.
    `app/operation/AGENTS.md` as well as a root file). Targets: `README.md`, `CLAUDE.md`, `AGENTS.md`,
    `GEMINI.md` + similar agent-instruction `.md` variants, `docs/`, `wiki/`,
    `.cursorrules`/`.cursor/rules/`, `.github/copilot-instructions.md`. Absent → skip, not an error.

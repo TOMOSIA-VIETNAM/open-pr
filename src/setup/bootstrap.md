@@ -1,8 +1,8 @@
 # Bootstrap `notebooks/review/<repo>/`
 
-Everything below happens at the session's actual pwd — FORBIDDEN: `cd`, self-discovering a "git
-root", inferring `<repo>` from any directory's basename (`<repo>` = `core/pr-target.md` §4). `cp` for a
-verbatim file copy (never Read+Write through context), `mkdir -p` for directories.
+Everything below happens at the directory `core/locate-repo.md` established — FORBIDDEN: `cd` elsewhere,
+inferring `<repo>` from any directory's basename (`<repo>` = `core/pr-target.md` §4). `cp` for a verbatim
+file copy (never Read+Write through context), `mkdir -p` for directories.
 
 ## 1. Skeleton
 
