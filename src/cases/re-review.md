@@ -47,7 +47,7 @@ PR-template item)? any NEW skipped file?
 | new? | replied/resolved this run? | other old findings still open? | outcome |
 |---|---|---|---|
 | no | yes | yes | drop Step 8/9, post nothing further — the replies already delivered the value, and a top-level "all clear" would mislead while something else is open |
-| no | yes | no | still post Step 9, body = EXACTLY 1 line, **LGTM 🌟** — the only place stating the PR AS A WHOLE is clean at this exact commit, which someone skimming the top-level view sees without opening each thread |
+| no | yes | no | still post Step 9, body = the LGTM one-liner exactly as Step 8 shapes it — the only place stating the PR AS A WHOLE is clean at this commit, which someone skimming the top-level view sees without opening each thread |
 | no | no | yes | drop Step 8/9, post nothing further — nothing was fixed, so everything postable duplicates the review already standing |
 | no | no | no | continue Step 8/9 NORMALLY (nothing was open to handle) — FORBIDDEN: skipping merely because nothing is new, or the dev gets no confirmation for this update; land on the LGTM tier |
 | yes | — | — | continue Step 8/9, but any assessment prose covers ONLY what is new/changed this round, never restating a previous review |

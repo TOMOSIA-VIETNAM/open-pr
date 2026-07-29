@@ -320,6 +320,31 @@ def test_no_refs_to_things_that_get_deleted():
     assert not bad, f"refs to ephemeral things: {bad}"
 
 
+ENGLISH_IN_OUTPUT = [
+    (r"as of commit", 'the commit anchor is language-neutral: "(commit <link>)"'),
+    (r"Reviewed at commit", "same — no English connective in the anchor"),
+]
+
+
+def test_posted_output_hardcodes_no_english_connective():
+    """A review is posted in the repo's output language, so a phrase the rules pin in
+    English ships English into a Vietnamese or Japanese review. It reached a real PR as
+    `LGTM 🌟 (as of commit c5ba906)`.
+
+    Prose carries the meaning in the output language; the bare anchor stays
+    `(commit <link>)`, which needs no translating. Only text that ends up ON the PR is
+    covered — the rules describing it are written in English by design.
+    """
+    bad = []
+    for name in ("commands/review.md", "cases/re-review.md", "cases/submodule-review.md",
+                 "cases/pr-template-checklist.md", "cases/large-diff-guards.md"):
+        body = text(SRC / name)
+        for pattern, why in ENGLISH_IN_OUTPUT:
+            for m in re.finditer(pattern, body, re.I):
+                bad.append(f"{name}:{body[:m.start()].count(chr(10)) + 1} — {why}")
+    assert not bad, "English pinned into posted output:\n  " + "\n  ".join(bad)
+
+
 def test_no_harness_auto_exec_syntax():
     """`` !`cmd` `` in a slash-command body is executed by the harness before the model
     ever sees the file. A `!` used as logical NOT next to a backticked field name reads

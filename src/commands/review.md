@@ -202,14 +202,21 @@ repeating a `comments[]` finding or its Fix, already inline at its diff line; sa
 LINE. A closing summary ("No new issues found in this round of changes.") → **bold**, same tier as
 **LGTM 🌟**.
 
-Every body MUST read "as of commit […]", linked per `V§"Commit URL"` — bare "reviewed commit […]"
-misreads as that 1 commit alone, where the ENTIRE diff was reviewed at that point.
+Every body anchors itself to `<commit_id>`, linked per `V§"Commit URL"`, and MUST convey that the
+ENTIRE diff was reviewed at that point — never that one commit was. 2 forms, both language-neutral in
+the parenthetical:
+
+- **prose** (the full structure below) → say it in the OUTPUT LANGUAGE, so the reader gets a real
+  sentence rather than a translated fragment
+- **bare anchor** → `(commit <link>)`. Reads as "at this commit" in any language, so nothing needs
+  translating. FORBIDDEN: an English connective like "as of" inside it — that is what leaks English into
+  a non-English review.
 
 **Body shape** — the 2 reduced shapes:
 
 | FILE | LINE | overview-exclusive¹ | body |
 |---|---|---|---|
-| – | – | – | EXACTLY 1 line: **LGTM 🌟** (as of commit […]). No `### 🤖【AI REVIEW】Overview` heading, no thanks, no assessment — only a non-empty skipped-files list may follow it |
+| – | – | – | EXACTLY 1 line: **LGTM 🌟** (commit `<link>`). No `### 🤖【AI REVIEW】Overview` heading, no thanks, no assessment — only a non-empty skipped-files list may follow it |
 | – | ≥1 | – | the opening line ONLY. DROP every severity heading. A normal outcome ⇒ FORBIDDEN: filler like "good PR"/"reviewed thoroughly"; the LINE comments suffice |
 
 ¹ an Overview item from Step 7, or a non-empty skipped-files list.
@@ -219,8 +226,9 @@ Anything else — ≥1 FILE finding || ≥1 overview-exclusive item — → the 
 ```
 ### 🤖【AI REVIEW】Overview
 Open with EXACTLY "Thank you! 🙇🏻‍♂️" (no embellishment like "for submitting this PR"/"for the
-effort"), then state that the ENTIRE SET OF CHANGES WAS REVIEWED AS OF commit (link + phrasing
-above), then 1 sentence of reply instructions, addressing the reader as "you". Then the title/prefix
+effort"), then state IN THE OUTPUT LANGUAGE that the ENTIRE SET OF CHANGES WAS REVIEWED AT that commit
+(link per above), then 1 sentence of reply instructions, addressing the reader as "you". Then the
+title/prefix
 note if any. Assessment prose is OPTIONAL: include it ONLY to carry a conclusion no finding below
 does. Nothing such ⇒ stop after the reply instructions.
 
