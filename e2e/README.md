@@ -27,6 +27,16 @@ Then run `/open-pr:review <fixture url>` in a Claude Code session with the plugi
 through `checklist.md`. It maps every planted defect to the code path it exercises, so a miss tells you
 WHICH rule regressed rather than just "the review looked worse".
 
+For the `/open-pr:fix` half, get a working copy on the fixture branch — this writes nothing to the
+remote, so a review already posted keeps its commit anchors:
+
+```bash
+e2e/bootstrap.sh --pr 20 --checkout --clone-dir /tmp/fixture
+```
+
+FORBIDDEN meanwhile: re-running the seeding mode on a `--pr` whose review is already posted. It
+force-pushes the branch and strands the anchors that review points at.
+
 ```bash
 e2e/bootstrap.sh --pr 20 --teardown        # close the fixture PR/MR, delete its branch
 ```

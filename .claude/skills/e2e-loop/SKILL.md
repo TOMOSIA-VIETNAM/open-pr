@@ -47,6 +47,11 @@ stacks involved, or telling it what a good review looks like. Every one of those
 The plugin's own rule already requires a delegated run to read the command file verbatim, so this stage
 is the same path a real user's subagent takes.
 
+Covering `/open-pr:fix` in the same round: `e2e/bootstrap.sh --pr <n> --checkout --clone-dir <dir>`
+gives a working copy on the fixture branch without touching the remote, and carries this project's
+`notebooks/review/<repo>/` into it so the fix has a convention to follow. FORBIDDEN: re-running the
+seeding mode for that — it force-pushes the branch the posted review is anchored to.
+
 ## Stage 2 — grade it (a DIFFERENT subagent, fresh)
 
 Spawn a second subagent with `e2e/checklist.md`, the fixture URL, and read access to the posted review.

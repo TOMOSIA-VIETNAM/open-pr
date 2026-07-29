@@ -212,10 +212,10 @@ effort"), then state that the ENTIRE SET OF CHANGES WAS REVIEWED AS OF commit (l
 above), then 1 sentence of reply instructions, addressing the reader as "you". Then 2-3 sentences of
 general assessment + the title/prefix note if any.
 
-#### 🔴 MUST FIX
-#### 🟠 SHOULD FIX
-#### 🔵 SUGGESTION
-#### 📝 NOTE
+#### 🔴
+#### 🟠
+#### 🔵
+#### 📝
 
 #### Files skipped for detailed review
 - `<path>` — <short reason, e.g. "diff ~35KB, looks like seed/dump data">

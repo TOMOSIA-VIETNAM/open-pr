@@ -34,12 +34,37 @@ Re-review pass — re-run the same command without changing the PR:
 - [ ] no duplicate finding for anything already open
 - [ ] no second overview when the round found nothing new
 
-Fix pass — `/open-pr:fix <same url>`:
+Fix pass — needs a working copy of the fixture, on the fixture branch:
+
+```bash
+e2e/bootstrap.sh --pr <n> --checkout --clone-dir /tmp/fixture   # no writes to the remote
+cd /tmp/fixture                                                 # then /open-pr:fix <fixture url>
+```
+
+The checkout also copies this project's `notebooks/review/open-pr-test/` into the clone, so the run has
+the learned convention to fix against rather than falling back to ordinary judgment. Expect the
+fixture's own `.gitignore` to gain a `notebooks/review/` line, uncommitted — Step 8 commits only the
+files Step 7 edited, which is correct.
+
+Then, `/open-pr:fix <same url>`:
 
 - [ ] refuses to run while the current branch is not the PR's branch
 - [ ] 🔵/📝 findings are asked about, never decided alone
 - [ ] exactly 1 commit, containing only the files it edited
 - [ ] the reply on the PR lands only after a push, and ends with `<!-- bot-reply -->`
+
+## Which path a round exercises
+
+The fixture PR is per project PR; the plugin's own setup state is separate and lives at the pwd the
+REVIEW runs from — this project, in `notebooks/review/open-pr-test/`.
+
+| that directory | the round exercises | run it when |
+|---|---|---|
+| present | the warm path: review straight through, no bootstrap, no doctor | the common case — default |
+| deleted first | the first-run path: 8 bootstrap questions, doctor reading `README.md`, 3 templates copied | you changed `setup/`, `core/repo-settings.md`, or the schema |
+
+So a later round needs no re-setup: `bootstrap.sh --pr <n>` for a fresh fixture, then review. Only
+delete the memory directory when the first-run path is what you mean to test.
 
 Teardown: `e2e/bootstrap.sh --pr <n> --teardown` — closes the fixture PR/MR and deletes its branch. The
 fixture repo itself is never touched. The link stays in this project's PR description as the record that

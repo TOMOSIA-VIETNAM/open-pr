@@ -2,8 +2,14 @@
 # Put a fixture PR/MR full of planted defects on the e2e repo, so a real
 # /open-pr:review run can be checked against e2e/checklist.md.
 #
-#   e2e/bootstrap.sh --pr <project-pr-number> [--vendor github|gitlab|both] [--repo ns/name]
-#   e2e/bootstrap.sh --pr <project-pr-number> --teardown
+#   e2e/bootstrap.sh --pr <n> [--vendor github|gitlab|both] [--repo ns/name] [--clone-dir DIR]
+#   e2e/bootstrap.sh --pr <n> --checkout --clone-dir DIR     # working copy only, no writes
+#   e2e/bootstrap.sh --pr <n> --teardown
+#
+# --checkout exists for the /open-pr:fix flow, which must run from inside a clone of the
+# fixture repo standing on the fixture branch. It clones and stops: no commit, no push,
+# so a review already posted on that branch keeps its commit anchors. Re-running the
+# seeding mode instead would force-push the branch and strand those anchors.
 #
 # --pr ties the fixture to the PR of THIS project being tested: it names the branch
 # and, on GitHub, records the fixture link in that PR's description.
@@ -17,17 +23,21 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 . "$HERE/targets.env"
 
-VENDOR=""; REPO_OVERRIDE=""; PR_NUM=""; TEARDOWN=false
+VENDOR=""; REPO_OVERRIDE=""; PR_NUM=""; TEARDOWN=false; CLONE_DIR=""; CHECKOUT=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --pr) PR_NUM="$2"; shift 2 ;;
     --vendor) VENDOR="$2"; shift 2 ;;
     --repo) REPO_OVERRIDE="$2"; shift 2 ;;
+    --clone-dir) CLONE_DIR="$2"; shift 2 ;;
+    --checkout) CHECKOUT=true; shift ;;
     --teardown) TEARDOWN=true; shift ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
 [ -n "$PR_NUM" ] || { echo "--pr <project-pr-number> is required: it names the fixture branch" >&2; exit 2; }
+$CHECKOUT && [ -z "$CLONE_DIR" ] && { echo "--checkout needs --clone-dir DIR" >&2; exit 2; }
+$CHECKOUT && $TEARDOWN && { echo "--checkout and --teardown are exclusive" >&2; exit 2; }
 BRANCH="e2e/pr-$PR_NUM"
 case "$BRANCH" in e2e/*) : ;; *) echo "refusing branch '$BRANCH'" >&2; exit 1 ;; esac
 
@@ -84,13 +94,32 @@ seed() {  # $1 = clone dir
 }
 
 clone_to() {  # $1 = url -> echoes dir
-  local d; d=$(mktemp -d)
+  local d="${CLONE_DIR:-$(mktemp -d)}"
+  [ -e "$d/.git" ] && { git -C "$d" fetch -q origin; echo "$d"; return; }
+  mkdir -p "$d"
   git clone -q "$1" "$d" 2>/dev/null || { git init -q "$d"; git -C "$d" remote add origin "$1"; }
   echo "$d"
 }
 
+# The fix flow needs a working copy on the fixture branch, and needs the reviewed repo's
+# memory to be there if it is to fix in line with a learned convention — that memory sits
+# under the pwd the REVIEW ran from, which is this project, not the clone.
+checkout_only() {  # $1 = clone url, $2 = repo slug
+  local d; d=$(clone_to "$1")
+  git -C "$d" fetch -q origin "$BRANCH"
+  git -C "$d" checkout -q -B "$BRANCH" "origin/$BRANCH"
+  local mem="notebooks/review/${2##*/}"
+  if [ -d "$mem" ] && [ ! -d "$d/$mem" ]; then
+    mkdir -p "$d/notebooks/review" && cp -R "$mem" "$d/notebooks/review/"
+    echo "          copied $mem into the clone, so the fix run sees the learned convention"
+  fi
+  echo "working copy → $d  (on $BRANCH)"
+  echo "          cd $d   then   /open-pr:fix <fixture url>"
+}
+
 run_github() {
   local repo="${REPO_OVERRIDE:-$GITHUB_REPO}"
+  $CHECKOUT && { checkout_only "git@github.com:$repo.git" "$repo"; return; }
   [ "$(gh api "repos/$repo" --jq '.permissions.push // false')" = true ] \
     || { echo "github: no push access to $repo — fork it and pass --repo <your-fork>" >&2; return 1; }
   local d; d=$(clone_to "git@github.com:$repo.git")
@@ -106,6 +135,7 @@ run_github() {
 
 run_gitlab() {
   local repo="${REPO_OVERRIDE:-$GITLAB_REPO}"
+  $CHECKOUT && { checkout_only "git@$GITLAB_HOST:$repo.git" "$repo"; return; }
   # `glab api` has no --jq (that is gh's flag) — pipe instead. A personal-namespace owner
   # can report project_access null, hence taking the max across both access fields.
   local lvl; lvl=$(glab api "projects/${repo//\//%2F}" 2>/dev/null \
