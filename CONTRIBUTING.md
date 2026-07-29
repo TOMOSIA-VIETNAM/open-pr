@@ -37,8 +37,12 @@ Only `src/` ships to users. Everything else is repo-side.
 
 ```
 pip install -r requirements-dev.txt   # once
+scripts/install_hooks.sh              # once — runs the checks on pre-push
 scripts/check.sh main
 ```
+
+Actions is disabled on this repository by the organisation, so the workflows in
+`.github/workflows/` do not run yet. The hook is what enforces the checks in the meantime.
 
 That runs the test suite, the duplication scan and the context-cost report. The tests check reference
 integrity, vendor parity, single-source config defaults, duplication across and inside files, and the

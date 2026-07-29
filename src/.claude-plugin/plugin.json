@@ -1,8 +1,18 @@
 {
   "name": "open-pr",
-  "displayName": "GitHub PR Reviewer",
-  "description": "Review multi-stack GitHub Pull Requests (Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile) with memory that learns each repo's own conventions.",
-  "author": { "name": "Minh Tang Q." },
-  "keywords": ["code-review", "github", "pull-request", "gh-cli"],
+  "displayName": "PR/MR Reviewer with memory",
+  "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI.",
+  "author": {
+    "name": "Minh Tang Q."
+  },
+  "keywords": [
+    "code-review",
+    "github",
+    "gitlab",
+    "pull-request",
+    "merge-request",
+    "gh-cli",
+    "glab-cli"
+  ],
   "commands": "./commands/"
 }

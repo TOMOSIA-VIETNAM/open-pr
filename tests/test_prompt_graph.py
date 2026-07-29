@@ -339,6 +339,46 @@ def test_every_file_is_reachable_from_a_command():
 
 
 # --------------------------------------------------------------------------- #
+# the shipped manifests
+# --------------------------------------------------------------------------- #
+
+def _manifests():
+    plugin = json.loads((SRC / ".claude-plugin" / "plugin.json").read_text())
+    market = json.loads((REPO / ".claude-plugin" / "marketplace.json").read_text())
+    return plugin, market
+
+
+def test_manifests_are_valid_and_agree():
+    """These ship and are what a user sees before installing. Nothing else in the suite
+    reads them, so a broken path or a renamed plugin would surface only on someone's
+    failed install."""
+    plugin, market = _manifests()
+    for key in ("name", "description", "commands"):
+        assert plugin.get(key), f"plugin.json is missing {key}"
+    assert (SRC / plugin["commands"].lstrip("./")).is_dir(), plugin["commands"]
+
+    listed = [p for p in market["plugins"] if p["name"] == plugin["name"]]
+    assert listed, f"marketplace.json does not list {plugin['name']}"
+    src = (REPO / listed[0]["source"].lstrip("./")).resolve()
+    assert src == SRC, f"marketplace source points at {src}, not {SRC}"
+
+
+def test_manifest_descriptions_name_every_vendor():
+    """The descriptions said "GitHub" alone for as long as GitLab had been supported.
+    A vendor directory is the fact; the prose has to keep up with it."""
+    plugin, market = _manifests()
+    texts = {"plugin.json": plugin["description"] + plugin.get("displayName", "")}
+    for p in market["plugins"]:
+        texts[f"marketplace.json[{p['name']}]"] = p["description"]
+    missing = {}
+    for where, text in texts.items():
+        absent = [v for v in VENDORS if v not in text.lower()]
+        if absent:
+            missing[where] = absent
+    assert not missing, f"description does not mention every supported vendor: {missing}"
+
+
+# --------------------------------------------------------------------------- #
 # context-cost regression
 # --------------------------------------------------------------------------- #
 

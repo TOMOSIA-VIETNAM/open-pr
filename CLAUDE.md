@@ -28,7 +28,7 @@ src/templates/    per-stack criteria, cp'd into the reviewed repo
 src/reference/    FORBIDDEN to Read at run time (schema + vendor contract, for humans)
 src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
-scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · ci_token_comment.sh
+scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · install_hooks.sh
 tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
 e2e/              fixture + checklist for a real review run; never runs in CI
 .claude/skills/   dev-time skills — `e2e-loop` runs the fixture, grades it, fixes back
@@ -90,6 +90,11 @@ Baseline criteria live in `src/core/review-criteria.md`.
 
 After ANY edit under `src/`. `scripts/check.sh <base-ref>` runs all three checks — suite, duplication
 scan, context-cost report — and nothing is done until it passes.
+
+Everything shipped under `src/` has a CI check: the markdown by the suite, the vendor commands by the
+flag lint, the manifests by their own two tests. GitHub Actions is currently DISABLED on this repository
+by the organisation, so those run locally until an admin enables it — `scripts/install_hooks.sh` puts
+them on pre-push meanwhile.
 
 Coverage differs per check. The context-cost report measures `src/` alone, since that is all that
 ships. The duplication scan adds this file as `--scope dev`: never measured, yet every session working
