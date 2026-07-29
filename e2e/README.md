@@ -4,51 +4,59 @@ Unit tests check the prompt graph as text. They cannot tell you whether a real r
 still comes out right — that needs a real vendor, a real PR and a real agent run. This directory holds
 the fixture and the checklist for that.
 
-## Who can run it
+## The ritual
 
-**Anyone, with their own credentials.** There is no shared test repo and no shared secret, because a
-shared repo would need shared write access. Instead `bootstrap.sh` CREATES the fixture in whichever
-namespace your own `gh` / `glab` is logged into. Your PAT, your throwaway repo, your teardown.
-
-Practical consequences:
-
-- Authenticated for GitHub only? The GitLab half is skipped with a message. Nothing to configure.
-- Contributors do not need anything from the maintainer.
-- CI does not run this. It costs a real model run and posts to a real vendor, and a fork PR gets no
-  secrets. `.github/workflows/e2e.yml` exists for the maintainer to trigger by hand.
-
-## Prerequisites
-
-| vendor | CLI | scope needed |
-|---|---|---|
-| GitHub | `gh auth login` | `repo` — create a private repo, open a PR |
-| GitLab | `glab auth login` | `api` — same, plus MR creation |
-
-Plus the plugin installed in the Claude Code session you will run the review from.
-
-## Run
+One e2e run belongs to one PR of this project.
 
 ```bash
-e2e/bootstrap.sh                 # both vendors you are logged in for
-e2e/bootstrap.sh --vendor github
+pip install -r requirements-dev.txt        # once, for the unit suite
+e2e/bootstrap.sh --pr 20                   # fixture PR/MR on every vendor you are logged in for
 ```
 
-It prints the PR/MR URL and the exact command to paste. Then work through `checklist.md`, which maps
-every planted defect to the code path it exercises, so a miss tells you WHICH rule regressed.
+It prints the fixture URL and the exact `/open-pr:review` command, and records the URL in this
+project's PR #20 description under an `<!-- e2e-fixtures -->` block, so the PR carries its own evidence.
+
+Then run `/open-pr:review <fixture url>` in a Claude Code session with the plugin installed, and work
+through `checklist.md`. It maps every planted defect to the code path it exercises, so a miss tells you
+WHICH rule regressed rather than just "the review looked worse".
 
 ```bash
-e2e/bootstrap.sh --teardown      # delete the fixture repo when done
+e2e/bootstrap.sh --pr 20 --teardown        # close the fixture PR/MR, delete its branch
 ```
 
-`--recreate` replaces an existing fixture. The script refuses any repo name that does not contain
-`open-pr-test`, so it cannot delete something real by accident.
+Teardown never touches the repo itself — only the PR and the branch it created.
+
+## Targets and access
+
+`targets.env` names the fixture repos:
+
+| vendor | repo |
+|---|---|
+| GitHub | `tms-minhtang1/open-pr-test` |
+| GitLab | `minhtang1/open-pr-test` |
+
+Both are public, so anyone can read the resulting review. Pushing needs write access, which is the one
+thing a contributor may not have. Both paths work:
+
+- **Write access** → run the commands above as they are.
+- **No write access** → fork the fixture repo and pass `--repo <your-fork>`. The script checks the
+  permission up front and tells you which of the two applies, rather than failing at push time.
+
+Logged in for GitHub only? The GitLab half skips with a message — nothing to configure. To add GitLab:
+
+```bash
+glab auth login --hostname gitlab.com     # paste a PAT with the `api` scope
+```
+
+CI never runs e2e: it costs a real model call and posts to a real vendor, and a fork PR is given no
+secrets. `.github/workflows/e2e.yml` exists so the maintainer can drive the same fixture by hand.
 
 ## What the fixture plants
 
 9 defects across 5 files, each aimed at a different path: the Rails template, the embedded-prompt
-overlay on a `.py`, the agent-instructions template on a `.md`, the large-dump-file guard, and the
-PR-template checklist. `fixtures/base/` is the state of `main`; `fixtures/pr/` overwrites it on the
-branch, so the diff is what gets reviewed.
+overlay on a `.py`, agent-instructions on a `.md`, the large-dump-file guard, and the PR-template
+checklist. `fixtures/base/` is the state of `main`, `fixtures/pr/` overwrites it on the branch, and that
+difference is the diff under review. The 40KB dump is generated at bootstrap, not committed here.
 
 Being model output, a review is never byte-identical twice — assert on shape, which is what the
 checklist does.

@@ -41,4 +41,6 @@ Fix pass — `/open-pr:fix <same url>`:
 - [ ] exactly 1 commit, containing only the files it edited
 - [ ] the reply on the PR lands only after a push, and ends with `<!-- bot-reply -->`
 
-Teardown: `e2e/bootstrap.sh --teardown` (deletes the fixture repo).
+Teardown: `e2e/bootstrap.sh --pr <n> --teardown` — closes the fixture PR/MR and deletes its branch. The
+fixture repo itself is never touched. The link stays in this project's PR description as the record that
+the run happened.

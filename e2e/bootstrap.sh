@@ -1,62 +1,61 @@
 #!/usr/bin/env bash
-# Create the throwaway fixture repo the e2e run reviews, in YOUR OWN namespace.
+# Put a fixture PR/MR full of planted defects on the e2e repo, so a real
+# /open-pr:review run can be checked against e2e/checklist.md.
 #
-#   e2e/bootstrap.sh [--vendor github|gitlab|both] [--name open-pr-test]
-#   e2e/bootstrap.sh --teardown [--vendor …] [--name …]
+#   e2e/bootstrap.sh --pr <project-pr-number> [--vendor github|gitlab|both] [--repo ns/name]
+#   e2e/bootstrap.sh --pr <project-pr-number> --teardown
 #
-# Nothing is shared between contributors: the repo is created wherever your `gh` /
-# `glab` is logged in, so anyone can run this with their own PAT. Default vendor is
-# whichever CLI is actually authenticated.
+# --pr ties the fixture to the PR of THIS project being tested: it names the branch
+# and, on GitHub, records the fixture link in that PR's description.
 #
-# It creates a REAL private repo and a REAL PR in your account, and --teardown
-# deletes them. Read e2e/README.md before the first run.
+# Targets are pre-existing repos (e2e/targets.env) — this script never creates or
+# deletes a repo. Teardown closes the fixture PR/MR and deletes its branch, nothing
+# else. Needs push access to the target; without it, point --repo at your own fork.
 set -euo pipefail
 
-VENDOR=""
-NAME="open-pr-test"
-TEARDOWN=false
-RECREATE=false
-BRANCH="e2e/planted-defects"
-FIX="$(cd "$(dirname "$0")" && pwd)/fixtures"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+. "$HERE/targets.env"
 
+VENDOR=""; REPO_OVERRIDE=""; PR_NUM=""; TEARDOWN=false
 while [ $# -gt 0 ]; do
   case "$1" in
+    --pr) PR_NUM="$2"; shift 2 ;;
     --vendor) VENDOR="$2"; shift 2 ;;
-    --name) NAME="$2"; shift 2 ;;
+    --repo) REPO_OVERRIDE="$2"; shift 2 ;;
     --teardown) TEARDOWN=true; shift ;;
-    --recreate) RECREATE=true; shift ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
+[ -n "$PR_NUM" ] || { echo "--pr <project-pr-number> is required: it names the fixture branch" >&2; exit 2; }
+BRANCH="e2e/pr-$PR_NUM"
+case "$BRANCH" in e2e/*) : ;; *) echo "refusing branch '$BRANCH'" >&2; exit 1 ;; esac
 
 authed() { case "$1" in
-  github) gh auth status >/dev/null 2>&1 ;;
-  gitlab) glab auth status >/dev/null 2>&1 ;;
+  github) command -v gh >/dev/null && gh auth status >/dev/null 2>&1 ;;
+  gitlab) command -v glab >/dev/null && glab auth status >/dev/null 2>&1 ;;
 esac }
 
 if [ -z "$VENDOR" ]; then
   for v in github gitlab; do authed "$v" && VENDOR="${VENDOR:+$VENDOR }$v"; done
   [ -n "$VENDOR" ] || { echo "neither gh nor glab is logged in — see e2e/README.md" >&2; exit 1; }
-  echo "auto-detected vendor(s): $VENDOR"
-elif [ "$VENDOR" = both ]; then
-  VENDOR="github gitlab"
-fi
+elif [ "$VENDOR" = both ]; then VENDOR="github gitlab"; fi
 
-# A generated dump keeps a 40KB blob out of git history while still tripping the
-# large/dump-file guard in the review.
+# Generated, not committed: a 40KB blob belongs in the fixture branch, not in this
+# repo's history.
 gen_dump() {
   mkdir -p db
-  { echo "-- generated fixture, not real data";
+  { echo "-- generated fixture, not real data"
     for i in $(seq 1 900); do
       echo "INSERT INTO products (id, sku, name, price_cents) VALUES ($i, 'SKU-$i', 'Product $i', $((i * 100)));"
     done; } > db/seeds_dump.sql
 }
 
 pr_body() {
-  cat <<'EOF'
+  cat <<EOF
 ## What changed
 
-Recalculation helper, prompt tweak, deploy step.
+Recalculation helper, prompt tweak, deploy step. Fixture for open-pr PR #$PR_NUM.
 
 ## Checklist
 
@@ -66,63 +65,93 @@ Recalculation helper, prompt tweak, deploy step.
 EOF
 }
 
-seed_repo() {  # $1 = clone dir
+# main must carry the clean state, the branch the defective one — that difference IS
+# the diff under review.
+seed() {  # $1 = clone dir
   local d="$1"
   ( cd "$d"
-    cp -R "$FIX/base/." .
-    git add -A && git commit -qm "chore: fixture baseline"
-    git push -q origin HEAD
-    git checkout -qb "$BRANCH"
-    cp -R "$FIX/pr/." .
+    git rev-parse --verify HEAD >/dev/null 2>&1 || git checkout -q -b main
+    git checkout -q main 2>/dev/null || git checkout -q -b main
+    cp -R "$HERE/fixtures/base/." .
+    git add -A
+    git diff --cached --quiet || { git commit -qm "chore: fixture baseline"; git push -q origin main; }
+    git push -q origin main 2>/dev/null || true
+    git checkout -q -B "$BRANCH"
+    cp -R "$HERE/fixtures/pr/." .
     gen_dump
     git add -A && git commit -qm "feat: recalculation helper, prompt tweak, deploy step"
-    git push -q -u origin "$BRANCH" )
+    git push -qf origin "$BRANCH" )
+}
+
+clone_to() {  # $1 = url -> echoes dir
+  local d; d=$(mktemp -d)
+  git clone -q "$1" "$d" 2>/dev/null || { git init -q "$d"; git -C "$d" remote add origin "$1"; }
+  echo "$d"
 }
 
 run_github() {
-  local ns; ns=$(gh api user --jq .login)
-  if gh repo view "$ns/$NAME" >/dev/null 2>&1; then
-    $RECREATE || { echo "github: $ns/$NAME already exists — pass --recreate or --teardown" >&2; return 1; }
-    gh repo delete "$ns/$NAME" --yes
-  fi
-  local d; d=$(mktemp -d)
-  gh repo create "$ns/$NAME" --private --clone --description "open-pr e2e fixture (throwaway)" -- "$d" >/dev/null 2>&1 \
-    || { gh repo create "$ns/$NAME" --private --description "open-pr e2e fixture (throwaway)" >/dev/null
-         git clone -q "https://github.com/$ns/$NAME.git" "$d"; }
-  ( cd "$d"; git checkout -qb main 2>/dev/null || true )
-  seed_repo "$d"
-  local url; url=$(cd "$d" && gh pr create --title "e2e: planted defects" --body "$(pr_body)" --base main --head "$BRANCH" 2>/dev/null || true)
-  [ -n "$url" ] || url=$(gh pr list -R "$ns/$NAME" --head "$BRANCH" --json url --jq '.[0].url')
-  echo "github PR ready → $url"
-  echo "   /open-pr:review $url"
+  local repo="${REPO_OVERRIDE:-$GITHUB_REPO}"
+  [ "$(gh api "repos/$repo" --jq '.permissions.push // false')" = true ] \
+    || { echo "github: no push access to $repo — fork it and pass --repo <your-fork>" >&2; return 1; }
+  local d; d=$(clone_to "git@github.com:$repo.git")
+  seed "$d"
+  local url
+  url=$(gh pr create -R "$repo" --title "e2e: planted defects (open-pr #$PR_NUM)" \
+          --body "$(pr_body)" --base main --head "$BRANCH" 2>/dev/null) \
+    || url=$(gh pr list -R "$repo" --head "$BRANCH" --json url --jq '.[0].url')
+  echo "github  → $url"
+  echo "          /open-pr:review $url"
+  record_link "$url"
 }
 
 run_gitlab() {
-  local ns; ns=$(glab api user --jq .username)
-  local d; d=$(mktemp -d)
-  glab repo create "$NAME" --private --description "open-pr e2e fixture (throwaway)" >/dev/null 2>&1 || true
-  local host; host=$(glab config get host 2>/dev/null || echo gitlab.com)
-  git clone -q "https://$host/$ns/$NAME.git" "$d"
-  ( cd "$d"; git checkout -qb main 2>/dev/null || true )
-  seed_repo "$d"
-  ( cd "$d" && glab mr create --title "e2e: planted defects" --description "$(pr_body)" \
-      --target-branch main --source-branch "$BRANCH" --yes >/dev/null 2>&1 || true )
-  local iid; iid=$(glab api "projects/$ns%2F$NAME/merge_requests?source_branch=$BRANCH" --jq '.[0].iid')
-  echo "gitlab MR ready → https://$host/$ns/$NAME/-/merge_requests/$iid"
-  echo "   /open-pr:review https://$host/$ns/$NAME/-/merge_requests/$iid"
+  local repo="${REPO_OVERRIDE:-$GITLAB_REPO}"
+  local lvl; lvl=$(glab api "projects/${repo//\//%2F}" --jq '.permissions.project_access.access_level // 0' 2>/dev/null || echo 0)
+  [ "${lvl:-0}" -ge 30 ] \
+    || { echo "gitlab: need Developer or above on $repo — fork it and pass --repo <your-fork>" >&2; return 1; }
+  local d; d=$(clone_to "git@$GITLAB_HOST:$repo.git")
+  seed "$d"
+  ( cd "$d" && glab mr create --title "e2e: planted defects (open-pr #$PR_NUM)" \
+      --description "$(pr_body)" --target-branch main --source-branch "$BRANCH" --yes >/dev/null 2>&1 || true )
+  local iid; iid=$(glab api "projects/${repo//\//%2F}/merge_requests?source_branch=$BRANCH&state=opened" --jq '.[0].iid')
+  local url="https://$GITLAB_HOST/$repo/-/merge_requests/$iid"
+  echo "gitlab  → $url"
+  echo "          /open-pr:review $url"
+  record_link "$url"
 }
 
-teardown() {
-  case "$1" in
-    github) local ns; ns=$(gh api user --jq .login)
-      gh repo delete "$ns/$NAME" --yes && echo "deleted github $ns/$NAME" ;;
-    gitlab) local ns; ns=$(glab api user --jq .username)
-      glab repo delete "$ns/$NAME" --yes && echo "deleted gitlab $ns/$NAME" ;;
+# The project PR keeps the evidence: which fixture PRs its e2e run used. Upserted by
+# marker so re-running edits the same block.
+record_link() {
+  local link="$1" marker="<!-- e2e-fixtures -->"
+  local this; this=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || return 0
+  local body; body=$(gh pr view "$PR_NUM" -R "$this" --json body --jq .body 2>/dev/null) || return 0
+  case "$body" in *"$link"*) return 0 ;; esac
+  case "$body" in
+    *"$marker"*) body="${body%$'\n'}"$'\n'"- $link" ;;
+    # Single-quoted: a backtick inside double quotes would run as a command.
+    *) body="${body%$'\n'}"$'\n\n'"$marker"$'\n''**e2e fixture PRs verified against `e2e/checklist.md`:**'$'\n'"- $link" ;;
   esac
+  gh pr edit "$PR_NUM" -R "$this" --body "$body" >/dev/null && echo "          recorded on $this#$PR_NUM"
+}
+
+teardown_github() {
+  local repo="${REPO_OVERRIDE:-$GITHUB_REPO}"
+  gh pr close "$BRANCH" -R "$repo" --delete-branch --comment "e2e run finished" 2>/dev/null \
+    && echo "github: closed the fixture PR and deleted $BRANCH" \
+    || echo "github: no open fixture PR on $BRANCH"
+}
+
+teardown_gitlab() {
+  local repo="${REPO_OVERRIDE:-$GITLAB_REPO}" p; p="${repo//\//%2F}"
+  local iid; iid=$(glab api "projects/$p/merge_requests?source_branch=$BRANCH&state=opened" --jq '.[0].iid // empty')
+  [ -n "$iid" ] || { echo "gitlab: no open fixture MR on $BRANCH"; return 0; }
+  glab api -X PUT "projects/$p/merge_requests/$iid?state_event=close" >/dev/null
+  glab api -X DELETE "projects/$p/repository/branches/${BRANCH//\//%2F}" >/dev/null 2>&1 || true
+  echo "gitlab: closed MR !$iid and deleted $BRANCH"
 }
 
 for v in $VENDOR; do
   authed "$v" || { echo "$v: CLI not logged in, skipped"; continue; }
-  case "$NAME" in *open-pr-test*) : ;; *) echo "refusing to touch '$NAME' — the fixture name must contain open-pr-test" >&2; exit 1 ;; esac
-  if $TEARDOWN; then teardown "$v"; else "run_$v"; fi
+  if $TEARDOWN; then "teardown_$v"; else "run_$v" || true; fi
 done

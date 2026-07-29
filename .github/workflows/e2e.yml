@@ -7,13 +7,16 @@ name: e2e (manual)
 on:
   workflow_dispatch:
     inputs:
+      pr:
+        description: PR number of THIS project the fixture belongs to
+        required: true
       vendor:
         description: which vendor to build the fixture on
         type: choice
         options: [github, gitlab, both]
         default: github
       teardown:
-        description: delete the fixture instead of creating it
+        description: close the fixture PR instead of creating it
         type: boolean
         default: false
 
@@ -41,9 +44,9 @@ jobs:
       - name: Build or tear down the fixture
         run: |
           if [ "${{ inputs.teardown }}" = "true" ]; then
-            e2e/bootstrap.sh --vendor "${{ inputs.vendor }}" --teardown
+            e2e/bootstrap.sh --pr "${{ inputs.pr }}" --vendor "${{ inputs.vendor }}" --teardown
           else
-            e2e/bootstrap.sh --vendor "${{ inputs.vendor }}" --recreate
+            e2e/bootstrap.sh --pr "${{ inputs.pr }}" --vendor "${{ inputs.vendor }}"
           fi
 
       - name: Next step
