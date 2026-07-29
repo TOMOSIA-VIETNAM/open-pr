@@ -50,6 +50,7 @@ ROLES = {
     "setup-doctor": ["setup/doctor.md", "setup-flow.md"],
     "setup-template": ["setup/template.md", "setup-flow.md"],
     "setup-lesson": ["setup/lesson.md", "setup-flow.md"],
+    "setup-fix-bootstrap": ["setup/fix-bootstrap.md", "commands/fix.md"],
     "gh-fetch": ["vendors/github/fetch.md", "vendors/github.md"],
     "gh-worktree": ["vendors/github/worktree.md", "vendors/github.md"],
     "gh-post": ["vendors/github/post.md", "vendors/github.md"],
@@ -64,6 +65,7 @@ ROLES = {
     "reconfigure": ["core/reconfigure.md"],
     "update-cmd": ["commands/update-plugin.md"],
     "case-post-error": ["cases/post-review.md"],
+    "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
     # whichever file currently holds the "is this our own finding" logic
     "marker-logic": ["core/finding-markers.md", "cases/re-review.md"],
@@ -114,8 +116,8 @@ SCENARIOS = {
         "gh-worktree", "gh-post", "case-post-error", "criteria", "always-rule", "tpl-rails",
     ],
     "chat/reconfigure-review": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "reconfigure",
-        "memory-commit",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings",
+        "case-chat-requests", "reconfigure", "memory-commit",
     ],
     "update-plugin": [
         "update-cmd", "upgrades-index", "reference-schema",
@@ -126,7 +128,7 @@ SCENARIOS = {
     ],
     "fix/first-run-gitlab": [
         "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-thread",
-        "marker-logic", "criteria", "memory-commit",
+        "marker-logic", "criteria", "setup-fix-bootstrap", "memory-commit",
     ],
 }
 

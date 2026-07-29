@@ -74,28 +74,13 @@ fixing the branch yourself, touching any file, proceeding to Step 2.
       and call this again.
    ```
 
-## Step 2 — Bootstrap `.fix`
+## Step 2 — Settings
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/repo-settings.md`, then try `Read`ing
-`notebooks/review/<repo>/settings.json`. Resolve `chat_language` per that file.
+`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/repo-settings.md`, then `notebooks/review/<repo>/settings.json`.
+Resolve `chat_language` per that file.
 
-- **no file, || no `.fix` node** (first `/open-pr:fix` here) → ask the dev 2 questions in 1 batch, each
-  with its default pre-marked, WAIT for a complete answer:
-  1. `decline_needs_confirmation` (default **true**) — must a MUST/SHOULD FIX finding the agent itself
-     judges wrong get the dev's confirmation before being declined?
-  2. `auto_push` (default **false**) — `git push` automatically once fixed, or stop at local and wait
-     for the dev's order?
-
-  Write `.fix` with those values (no answer → the defaults). New file → `schema_version` per
-  `core/repo-settings.md` "Fresh file", `.fix` only. Existing file → `Edit` in place, adding `.fix`, leaving
-  `schema_version`/`.review`/`.shared` untouched.
-- **`.fix` exists** → use its values, do NOT ask again.
-
-A repo that never ran `/open-pr:review` still gets `settings.json` with just a `.fix` node. FORBIDDEN:
-creating `memory.md`/`ALWAYS_RULE.md`/`templates/` here — `review.md`'s business, and Step 4 skips itself
-when that directory is absent.
-
-After writing `settings.json`: `core/memory-commit.md`, then the `.gitignore` rule in `core/repo-settings.md`.
+- `.fix` present → use its values, do NOT ask again
+- absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle
 
