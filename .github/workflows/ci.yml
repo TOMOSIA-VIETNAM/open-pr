@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # token_report needs the base branch to diff against
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Prompt-graph invariants
+        run: python3 -m pytest tests/ -q
+
+      - name: Duplication scan
+        run: python3 scripts/dup_scan.py
+
+      - name: Context cost vs base
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 scripts/token_report.py --base "origin/${{ github.base_ref }}" | tee token-report.txt
+
+      - name: Report the cost on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # A fork PR gets a read-only token, so the comment step is skipped there and
+          # the job summary carries the numbers instead.
+          CAN_COMMENT: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: bash scripts/ci_token_comment.sh token-report.txt

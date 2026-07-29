@@ -1,0 +1,3 @@
+# Repo-side only. The plugin itself ships no dependency — it is markdown.
+pytest==9.0.3
+tiktoken==0.9.0

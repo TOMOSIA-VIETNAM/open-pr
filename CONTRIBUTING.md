@@ -36,6 +36,7 @@ Only `src/` ships to users. Everything else is repo-side.
 ## Verify before opening a PR
 
 ```
+pip install -r requirements-dev.txt   # once
 scripts/check.sh main
 ```
 
@@ -65,6 +66,15 @@ python3 scripts/dup_scan.py --window 10 --all --min-waste 20  # duplication, har
 - **New config field** — classify it in `src/reference/settings-schema.md`, add its read-time default
   to `src/core/repo-settings.md`, and add an `llm-upgrades/vN.md` migration plus an index line so
   existing repos catch up.
+
+## End-to-end
+
+Unit tests check the prompt graph as text; they cannot tell you whether a real review still comes out
+right. `e2e/` holds a fixture with planted defects plus a checklist mapping each one to the code path it
+exercises. `e2e/bootstrap.sh` creates the fixture in YOUR own GitHub/GitLab namespace, so you need no
+credential from the maintainer and nothing is shared — see `e2e/README.md`.
+
+CI never runs it: it costs a real model call and posts to a real vendor.
 
 ## Commits
 

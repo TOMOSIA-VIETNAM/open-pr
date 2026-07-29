@@ -28,8 +28,10 @@ src/templates/    per-stack criteria, cp'd into the reviewed repo
 src/reference/    FORBIDDEN to Read at run time (schema + vendor contract, for humans)
 src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
-scripts/          check.sh · token_report.py · dup_scan.py
+scripts/          check.sh · token_report.py · dup_scan.py · ci_token_comment.sh
 tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
+e2e/              fixture + checklist for a real review run; never runs in CI
+.github/workflows ci.yml on every PR · e2e.yml manual only
 backlogs/         historical, not an ops doc
 ```
 
