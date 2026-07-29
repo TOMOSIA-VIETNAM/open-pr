@@ -9,18 +9,17 @@ separately per "Presenting output".
 
 ## Step A — Identify the bumped submodule path
 
-In the Context "Diff" (already fetched, never refetch), find every bump body line — the only part of the
-hunk EVERY vendor's patch carries:
+In the Context "Diff" (already fetched, never refetch), find every file whose hunk body carries:
 
 ```
 -Subproject commit <old-sha>
 +Subproject commit <new-sha>
 ```
 
-`<submodule-path>` (e.g. `vendor/mylib`) = path on the nearest `+++` header ABOVE that line, minus a
-leading `b/` when present. FORBIDDEN: keying off `diff --git`, `index <sha>..<sha> 160000`, or an `a/`
-prefix — vendors differ on whether the patch carries those lines at all, so a detector needing them
-finds no submodule on some vendors and silently skips this whole case.
+`<submodule-path>` (e.g. `vendor/mylib`) = `<path>` after `diff --git a/` on that file's header, which
+`V§"Fetch PR diff — patch, omitting oversized files"` guarantees on every vendor. FORBIDDEN: keying off
+`index <sha>..<sha> 160000` or a `---`/`+++` header — GitLab's patch carries neither, so a detector
+needing them finds no submodule there and silently skips this whole case.
 
 ## Step B — Get the submodule PR link
 

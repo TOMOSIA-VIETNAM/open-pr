@@ -356,6 +356,44 @@ def test_diff_fetch_is_size_gated_in_every_vendor():
         assert "select" in cmd, f"{v}: the threshold is named but nothing filters on it"
 
 
+# An entry is bounded when its output cannot grow with the PR. Either the command filters
+# or projects, or its shape caps it: one value, one line per file, one line per commit.
+# Anything else has to say what bounds it, in the entry, so a reader can check the claim.
+BOUNDED_BY_SHAPE = {
+    "Fetch PR head commit SHA", "Fetch account running the command",
+    "Fetch PR diff — file list", "Fetch PR diff size per file",
+    "Fetch PR commits headlines",
+}
+# Entries that legitimately return everything, because the caller filters on content it
+# cannot predict. Each is a deliberate cost, so each is named here rather than assumed.
+UNBOUNDED_BY_DESIGN = {
+    "Fetch PR review comments (LINE-level findings)",  # every past finding must be matched
+    "Fetch review threads (id + isResolved + comment ids)",
+    "Fetch PR reviews (FILE-level findings + review_id)",
+    "Fetch CI checks",  # the caller filters bucket==fail itself, and bootstrap counts them
+}
+
+
+def test_every_fetch_entry_is_bounded_or_declared():
+    """The diff entry pulled 30,517 tokens on a 5-file fixture because nothing said a fetch
+    must bound its output. This makes that explicit for every entry, so the next unbounded
+    one is a deliberate, listed decision instead of an oversight."""
+    loose = []
+    for v in VENDORS:
+        body = text(SRC / "vendors" / v / "fetch.md")
+        for part in re.split(r"\n(?=## )", body)[1:]:
+            head = part.splitlines()[0][3:].strip()
+            if not head.startswith("Fetch"):
+                continue
+            if head in BOUNDED_BY_SHAPE or head in UNBOUNDED_BY_DESIGN:
+                continue
+            flat = " ".join(part.split())
+            if not any(k in flat for k in ("select", "| jq '{", "--json", "No equivalent")):
+                loose.append((v, head))
+    assert not loose, (
+        "fetch entry neither filters nor is listed as bounded/unbounded by design: " + str(loose))
+
+
 def test_size_entry_never_reports_zero_for_a_withheld_patch():
     """GitLab collapses a large diff and returns diff: "", whose length reads 0 — which
     would place the biggest file in the PR under every threshold, so it is neither

@@ -13,10 +13,14 @@ come from whatever `glab auth login` configured.
 
 ## Fetch PR basic info
 
-`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>"` (JSON, preferred when fields must
-be parsed) or `glab mr view <pull_number> -R "<owner>/<repo>"` (human-readable). Field mapping: `iid` →
-`pull_number`, `title` → `title`, `description` → `body`, `author.username` → `author`,
-`target_branch` → `baseRefName`, `source_branch` → `headRefName`.
+`glab api "projects/<owner>%2F<repo>/merge_requests/<pull_number>" | jq '{number: .iid, title,
+body: .description, author: .author.username, baseRefName: .target_branch, headRefName:
+.source_branch}'` — add or drop keys to match `<fields>`; the mapping from GitLab's own names is in
+that expression.
+
+The projection MUST stay in the call. This endpoint returns ~60 keys — assignees, labels, milestone,
+pipeline, merge status, every timestamp — and all of it lands in context otherwise, for 6 fields' worth
+of use.
 
 ## Fetch PR head commit SHA
 

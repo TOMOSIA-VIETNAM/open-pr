@@ -7,9 +7,10 @@ own terminology differs — "PR" means MR on GitLab, and a heading may describe 
 literally what its name suggests for that vendor. Anything vendor-wide (terminology, id encoding, auth)
 belongs in `fetch.md`, the group every run loads first.
 
-**The size filter goes INSIDE the command.** Whatever a command prints is in the agent's context for the
-rest of the run, so filtering afterwards saves nothing — an unbounded diff fetch costs more than every
-prompt file in the run combined.
+**Every filter and projection goes INSIDE the command.** Whatever a command prints is in the agent's
+context for the rest of the run, so trimming afterwards saves nothing. An entry MUST return the caller's
+requested fields and nothing else, and any entry whose output grows with the size of the PR MUST bound it
+— an unbounded diff fetch alone cost more than every prompt file in a run combined.
 
 Reference doc for whoever adds a vendor. FORBIDDEN: `Read`ing it during a review/fix run — the group
 files are the run-time artifact.
