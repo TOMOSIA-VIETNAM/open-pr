@@ -30,6 +30,26 @@ jobs:
       - name: Duplication scan
         run: python3 scripts/dup_scan.py
 
+      # Pinned, and the URL built the way GitLab actually publishes it: the assets are
+      # named linux_amd64 with the dots percent-encoded, not Linux_x86_64. Verified
+      # against the releases API rather than assumed.
+      - name: Install glab
+        env:
+          GLAB_VERSION: '1.110.0'
+        run: |
+          v="${GLAB_VERSION//./%2E}"
+          curl -sfL -o /tmp/glab.deb \
+            "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/$v/glab_${v}_linux_amd64%2Edeb"
+          sudo dpkg -i /tmp/glab.deb
+          glab --version
+
+      # Offline half of the vendor lint: every flag in every vendor entry must exist in
+      # that subcommand's own --help. No fixture, no token, no network to a vendor API,
+      # so it is safe on a fork PR. The live half needs an open fixture and a PAT, which
+      # is why it stays manual (see e2e/README.md).
+      - name: Vendor command flags
+        run: python3 scripts/vendor_lint.py
+
       - name: Context cost vs base
         if: github.event_name == 'pull_request'
         run: |

@@ -36,8 +36,10 @@ jobs:
         run: |
           if [ -n "$E2E_GITHUB_PAT" ]; then echo "$E2E_GITHUB_PAT" | gh auth login --with-token; fi
           if [ -n "$E2E_GITLAB_PAT" ]; then
-            curl -sL https://gitlab.com/gitlab-org/cli/-/releases/permalink/latest/downloads/glab_$(uname -s)_$(uname -m).tar.gz | tar xz -C /tmp
-            sudo install /tmp/bin/glab /usr/local/bin/glab
+            v="1%2E110%2E0"
+            curl -sfL -o /tmp/glab.deb \
+              "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/$v/glab_${v}_linux_amd64%2Edeb"
+            sudo dpkg -i /tmp/glab.deb
             glab auth login --token "$E2E_GITLAB_PAT" --hostname gitlab.com
           fi
 

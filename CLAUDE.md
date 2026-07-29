@@ -124,6 +124,7 @@ what deleting a restatement yields in the same file — so work in this order.
 | where the tokens sit inside a file | `token_report.py --sections 'commands/*.md'` |
 | new ceilings after a win | `token_report.py --base <ref> --update-budgets` |
 | duplication, harder than the gate | `dup_scan.py --window 10 --all --min-waste 20` |
+| do the vendor flags exist | `vendor_lint.py` — offline, also in CI |
 | do the vendor commands actually run | `vendor_lint.py --pr <n>` — needs an open e2e fixture |
 
 **Suspect the measurement before the content** when a number moves the wrong way. A role whose

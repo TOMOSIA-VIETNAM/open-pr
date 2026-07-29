@@ -10,12 +10,21 @@ This runs the commands as written — placeholders substituted, nothing rephrase
 asserts each exits 0 and, where emptiness would mean failure, returns something. Read
 only: no POST, no PATCH, nothing is created or published, so it is safe on any PR.
 
-Seconds and free, versus a full e2e round that costs a model call. Run it first.
+Two modes:
+
+    flags   offline. Every flag in every entry of EVERY group must appear in that
+            subcommand's own --help. No fixture, no credentials, no network — so this is
+            the half that belongs in CI. It also covers post/thread entries, which the
+            live mode must not run.
+    live    the read-only Fetch entries executed against an open fixture PR. Needs a
+            fixture and a token, so it stays manual and is preflight for an e2e round.
+
+Seconds and free either way, versus a full e2e round that costs a model call.
 
 Usage:
-    python3 scripts/vendor_lint.py --pr 20                 # both vendors, fixture of PR 20
+    python3 scripts/vendor_lint.py                         # flags only, offline
+    python3 scripts/vendor_lint.py --pr 20                 # flags + live, both vendors
     python3 scripts/vendor_lint.py --vendor gitlab --pr 20
-    python3 scripts/vendor_lint.py --vendor github --url <fixture PR url>
 """
 
 import argparse
@@ -71,6 +80,69 @@ def entries(vendor):
         cmds = [" ".join(s.split()) for s in re.findall(r"`([^`]+)`", part, re.S)]
         cmds = [c for c in cmds if c.split()[:1] and c.split()[0] in ("gh", "glab", "git")]
         yield head, (cmds[0] if cmds else None), part
+
+
+def all_entries(vendor):
+    """Every entry of every group, not just Fetch — a flag typo in `Post a review` is
+    the same defect and the live mode must never execute that one."""
+    for group in ("fetch", "worktree", "post", "thread"):
+        body = (REPO / "src" / "vendors" / vendor / f"{group}.md").read_text()
+        for part in re.split(r"\n(?=## )", body)[1:]:
+            head = part.splitlines()[0][3:].strip()
+            for span in re.findall(r"`([^`]+)`", part, re.S) + \
+                        re.findall(r"```(?:bash)?\n(.*?)```", part, re.S):
+                flat = " ".join(span.split())
+                if flat.split()[:1] and flat.split()[0] in ("gh", "glab"):
+                    yield group, head, flat
+
+
+def subcommand_and_flags(cmd):
+    """('gh api', {'--paginate', '--jq'}) — the leading words that name the subcommand,
+    and every flag handed to it. Stops at the first argument, so a path or a quoted
+    value is never mistaken for a subcommand."""
+    words, path, flags = cmd.split(), [], set()
+    for w in words:
+        if w.startswith("-"):
+            flags.add(w.split("=")[0])
+        elif not flags and (w.isalpha() or w in ("gh", "glab")):
+            path.append(w)
+        elif not flags:
+            break  # an argument: the subcommand path ends here
+    return " ".join(path), flags
+
+
+_HELP = {}
+
+
+def help_text(subcommand, env):
+    if subcommand not in _HELP:
+        rc, out, err = sh(f"{subcommand} --help", env)
+        _HELP[subcommand] = (out + "\n" + err) if rc == 0 or out or err else ""
+    return _HELP[subcommand]
+
+
+def lint_flags(vendor, env):
+    """A flag absent from its subcommand's help is the defect that hides best: the
+    entry reads fine, the suite is green, and it fails on first use."""
+    print(f"\n=== {vendor}: flags vs each subcommand's own --help")
+    fails, checked = [], 0
+    root = help_text("gh" if vendor == "github" else "glab", env)
+    for group, head, cmd in all_entries(vendor):
+        for segment in re.split(r"\|\||\||&&", cmd):
+            segment = segment.strip()
+            if not segment.split()[:1] or segment.split()[0] not in ("gh", "glab"):
+                continue
+            sub, flags = subcommand_and_flags(segment)
+            if not flags:
+                continue
+            text = help_text(sub, env) or root
+            unknown = sorted(f for f in flags if f not in text and f not in root)
+            checked += len(flags)
+            if unknown:
+                fails.append((f"{group}: {head}", f"{sub} has no {', '.join(unknown)}"))
+                print(f"  FAIL  {group}/{head}  →  {sub} {' '.join(unknown)}")
+    print(f"  {checked} flag use(s) checked, {len(fails)} unknown")
+    return fails
 
 
 def fixture_url(vendor, pr, env, cfg):
@@ -136,8 +208,6 @@ def main():
     ap.add_argument("--pr", help="project PR number whose fixture to lint against")
     ap.add_argument("--url", help="fixture PR/MR url, instead of deriving it from --pr")
     args = ap.parse_args()
-    if not (args.pr or args.url):
-        raise SystemExit("need --pr <n> or --url <fixture url>")
 
     # A wrapper that swallows unknown flags would hide exactly the defect this looks
     # for, so ask rtk to step aside.
@@ -153,25 +223,28 @@ def main():
         if subprocess.run(f"command -v {exe}", shell=True, capture_output=True).returncode:
             print(f"\n=== {v}: {exe} not installed, skipped")
             continue
-        url = args.url or fixture_url(v, args.pr, env, cfg)
-        if not url:
-            print(f"\n=== {v}: no open fixture on e2e/pr-{args.pr} — run e2e/bootstrap.sh first")
-            continue
         ran += 1
-        f = lint(v, url, env)
-        if f:
-            all_fails[v] = f
+        fails = lint_flags(v, env)
+        if args.pr or args.url:
+            url = args.url or fixture_url(v, args.pr, env, cfg)
+            if url:
+                fails += lint(v, url, env)
+            else:
+                print(f"=== {v}: no open fixture on e2e/pr-{args.pr} — live mode skipped")
+        if fails:
+            all_fails[v] = fails
 
     print()
     if not ran:
         raise SystemExit("nothing linted — no CLI available, or no fixture open")
     if not all_fails:
-        print(f"every documented Fetch entry runs, on {ran} vendor(s)")
+        scope = "flags, and every Fetch entry ran" if (args.pr or args.url) else "flags"
+        print(f"clean on {ran} vendor(s): {scope}")
         return 0
     for v, fs in all_fails.items():
         for head, why in fs:
             print(f"{v}: {head}\n    {why}")
-    print(f"\n{sum(len(f) for f in all_fails.values())} broken entr(ies) — fix src/vendors/<v>/fetch.md")
+    print(f"\n{sum(len(f) for f in all_fails.values())} broken entr(ies) — fix src/vendors/<v>/")
     return 1
 
 
