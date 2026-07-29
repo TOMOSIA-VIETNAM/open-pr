@@ -17,6 +17,7 @@
   `joinedload`/`selectinload` (SQLAlchemy) missing?
 - Large data handled memory-wastefully (should use a generator/iterator instead of loading
   everything into a list)?
+- An expensive pure call repeating without `functools.lru_cache` or an explicit cache?
 
 #### 4. Code quality
 
