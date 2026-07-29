@@ -7,8 +7,8 @@ global id), `<owner>/<repo>` = the project's namespace/path, passed to `glab api
 `<owner>%2F<repo>` (a numeric project id also works, the encoded path avoids a lookup). Credentials
 come from whatever `glab auth login` configured.
 
-`glab api` has NO `--jq` flag (that one is `gh`'s) — pipe its JSON to `jq` instead, as below. Other
-`glab` subcommands such as `glab mr view` DO accept `--jq`.
+`glab api` has NO `--jq` flag (that one is `gh`'s) — pipe its JSON to `jq` instead, as below.
+`glab mr view` does accept it, but ONLY together with `--output json`.
 
 
 ## Fetch PR basic info

@@ -188,8 +188,12 @@ def test_glab_api_never_uses_the_gh_only_jq_flag():
         for s in snippets:
             flat = " ".join(s.split())
             if "glab api" in flat and "--jq" in flat:
-                bad.append((name, flat[:90]))
-    assert not bad, f"glab api cannot take --jq: {bad}"
+                bad.append((name, "glab api + --jq", flat[:80]))
+            # Verified against glab 1.110: `mr view --jq` alone errors with
+            # "Using --jq requires --output=json".
+            if "glab mr view" in flat and "--jq" in flat and "--output json" not in flat:
+                bad.append((name, "mr view --jq without --output json", flat[:80]))
+    assert not bad, f"invalid glab flag combination: {bad}"
 
 
 def test_markers_are_byte_identical_everywhere():
