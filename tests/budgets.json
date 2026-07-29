@@ -5,12 +5,13 @@
     "review/known-repo-gitlab-rereview": 12398,
     "review/large-diff-multistack": 10766,
     "review/submodule-bump": 10659,
+    "review/agent-instructions-repo": 9651,
     "review/post-error-github": 9355,
     "chat/reconfigure-review": 6656,
     "update-plugin": 2218,
     "fix/known-repo-github": 8185,
     "fix/first-run-gitlab": 8496
   },
-  "mean": 8906,
+  "mean": 8974,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. Lower them when a change wins tokens back."
 }

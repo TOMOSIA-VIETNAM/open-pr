@@ -48,3 +48,21 @@ Prompt text is paid on every run that loads it, so tokens ARE this stack's perfo
 - Conditional content gated into its own file rather than crammed into the always-loaded one?
 - Embedded: the prompt text has 1 owner (a constant, a file) instead of being pasted at several call
   sites that will drift apart?
+
+## Proving a token claim
+
+"Verbose" is an opinion; "−310 tokens" is a fact. An LLM counts neither tokens nor characters
+reliably, so let a tool do it.
+
+Measure ONLY when the finding already stands on its own AND you have written the concrete replacement
+text. The number supports a finding; it never justifies one.
+
+1. `Write` the current block and your replacement to `<worktree>/.token-measure/{before,after}.txt` —
+   inside the worktree, never the reviewed repo's own tree.
+2. `wc -c` both (a plain `Bash` call, described here).
+3. Convert at ~4 chars/token and quote it inside the finding, e.g.
+   `1,240 → 890 chars (wc -c) ≈ 310 → 222 tok at ~4 chars/token, −~88 (−28%)`.
+
+FORBIDDEN: presenting it as exact — call it an estimate; a real tokenizer differs by language and
+syntax. FORBIDDEN: a per-run or per-month saving — how often that file loads is unknown to you.
+Delta under ~10% ⇒ drop the number, it reads as noise.

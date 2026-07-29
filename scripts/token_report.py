@@ -72,6 +72,7 @@ ROLES = {
     "tpl-rails": ["templates/rails.md"],
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
+    "tpl-agent-instructions": ["templates/agent-instructions.md"],
     # update-plugin is the one command allowed to consult the schema reference
     "reference-schema": ["reference/settings-schema.md"],
 }
@@ -102,6 +103,10 @@ SCENARIOS = {
     "review/submodule-bump": [
         "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
         "gh-post", "case-submodule", "criteria", "always-rule", "tpl-nodejs",
+    ],
+    "review/agent-instructions-repo": [
+        "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "gh-worktree", "gh-post", "criteria", "always-rule", "tpl-agent-instructions",
     ],
     "review/post-error-github": [
         "review-cmd", "guardrails", "pr-target", "repo-settings", "stack", "gh-fetch",
