@@ -1,10 +1,20 @@
-# /open-pr:review — Agent Review Pull Request Github
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ed636fe0-0abf-4d8b-ac8e-134ea39d0f5d" alt="Open PullRequest" width="200">
+</p>
 
-[![Latest Release](https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release)](https://github.com/TOMOSIA-VIETNAM/open-pr/releases)
-[![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
-[![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
+<h1 align="center">Open PullRequest</h1>
 
-[Tiếng Việt](./README.md) · [English](./README.en.md) · **日本語**
+<p align="center"><em>/open-pr:review — Agent Review Pull Request Github</em></p>
+
+<p align="center">
+  <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr" alt="License: MIT"></a>
+  <a href="https://claude.ai/code"><img src="https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3" alt="Claude Code Plugin"></a>
+</p>
+
+<p align="center">
+  <a href="./README.md">Tiếng Việt</a> · <a href="./README.en.md">English</a> · <strong>日本語</strong>
+</p>
 
 GitHub の Pull Request を**一貫した基準で**レビューする方法を Agent に教えるプラグイン — 使うほどあなたのプロジェクトを正しく理解します。
 
