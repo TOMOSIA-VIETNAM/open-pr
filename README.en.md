@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr)](./LICENSE)
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3)](https://claude.ai/code)
 
-[Tiếng Việt](./README.md) · **English** · [日本語](./README.ja.md)
+[Tiếng Việt](./README.md) · **English** · [日本語](./README.ja.md) · [简体中文](./README.zh.md)
 
 A plugin that teaches the Agent to review GitHub Pull Requests **consistently** — the more you use it, the better it understands your project.
 
