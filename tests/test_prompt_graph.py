@@ -372,14 +372,15 @@ def test_fix_suggestions_prefer_a_code_fence():
     fence is the default; prose is for fixes with no code form."""
     step7 = text(SRC / "commands" / "review.md")
     assert "shows the corrected CODE in a fence by default" in step7
-    assert "Prose-only is the exception" in step7
+    assert "FORBIDDEN: prose when the" in step7, "prose must be the exception, not a sibling option"
 
 
 def test_chat_does_not_repeat_the_posted_findings():
     """The finding text is on the PR. Restating it in chat doubles the output for a reader
     who already has the better copy."""
     review = text(SRC / "commands" / "review.md")
-    assert "FORBIDDEN: repeating any finding's description or its\nFix" in review, \
+    flat = " ".join(review.split())
+    assert "FORBIDDEN: repeating any finding's description or its Fix" in flat, \
         "Step 9 must forbid restating findings in chat"
 
 

@@ -61,11 +61,10 @@ call; Step 7's guard fires far too late to help.
 "CI checks" MUST stay unfiltered — Step 7 and `setup/bootstrap.md` q6 each read the raw array.
 
 **Filesystem:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` BEFORE Step 1 for `<repo_dir>`.
-FORBIDDEN: `cd` — the working directory stays where the user invoked the command, and EVERYTHING this
-command writes (`notebooks/review/<repo>/`, the worktree, `.gitignore`) is relative to it. Standing in a
-workspace and reviewing 3 repos leaves one `notebooks/review/` there holding all 3, which is the point.
-`<repo_dir>` is used ONLY to aim git at the reviewed repo: `git -C "<repo_dir>" …`. Before writing under
-`notebooks/review/` → state pwd + `<repo>` in chat.
+FORBIDDEN: `cd`. Everything this command writes — `notebooks/review/<repo>/`, the worktree, `.gitignore`
+— is relative to pwd, so one workspace holds one `notebooks/review/` for every repo reviewed from it.
+`<repo_dir>` ONLY aims git: `git -C "<repo_dir>" …`. Before writing under `notebooks/review/` → state
+pwd + `<repo>` in chat.
 
 `core/pr-target.md` §5 gates entry into Step 1.
 
@@ -74,10 +73,9 @@ workspace and reviewing 3 repos leaves one `notebooks/review/` there holding all
 The PR's code on disk, main tree untouched — it never changes branch, so nothing needs restoring.
 
 1. `git -C "<repo_dir>" worktree add "$PWD/notebooks/review/<repo>/worktrees/review-pr<pull_number>-$RANDOM"
-   --detach` — random name, never reused. `-C` aims at the reviewed repo, the ABSOLUTE path puts the
-   worktree under pwd, so a workspace run needs pwd to be no repo at all. Then
-   `V§"Check out the PR head into a worktree"` to put the PR's code there, DETACHED — a subshell pinned
-   to the worktree, so the working directory itself never moves. Then `Read`/`Grep` at `<worktree>/<path>`.
+   --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
+   `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
+   working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
 2. `git -C "<repo_dir>" fetch origin "<baseRefName>"` — refs are shared across that repo's worktrees.
 3. `git -C "notebooks/review/<repo>/worktrees/<name>" submodule update --init --recursive` — ALWAYS,
    submodule-touching PR or not.
@@ -186,14 +184,10 @@ unlike a Step 8 grouping heading, which names the severity too. Severity: 🔴 M
 🔵 SUGGESTION, and 📝 NOTE for out-of-scope or genuinely not worth fixing in this PR — minor but easy to
 fix now is 🔵, not 📝. Each finding carries its own emoji, whatever heading it ends up under.
 
-**Fix** shows the corrected CODE in a fence by default — the dev reads the intended logic instead of
-reconstructing it from a sentence. A LINE comment replacing that exact line ⇒ ` ```suggestion ` (the dev
-applies it in one click), anything else ⇒ a normal language fence. Inline code inside prose is NOT a
-substitute.
-
-Prose-only is the exception, for a fix with no code form: a missing test, a spec to reconfirm, a
-convention to agree on. FORBIDDEN: prose because writing the code is effort — if the fix is expressible
-as code, write the code.
+**Fix** shows the corrected CODE in a fence by default: a LINE comment replacing that exact line ⇒
+` ```suggestion `, anything else ⇒ a normal language fence. Inline code inside prose is NOT a substitute.
+Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm) — FORBIDDEN: prose when the
+code is writable.
 
 ≥2 independent points (common on LINE) → one `-` bullet each, never one multi-clause sentence.
 
@@ -285,10 +279,8 @@ behalf. That entry may also describe how to verify the post landed — follow it
 Post/publish error || that verify reports a mismatch → `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/cases/post-review.md`. Happy path → skip that file.
 
-**Then report in chat in ≤3 sentences:** where it landed (link), the per-severity counts, and whether it
-is published or still a draft awaiting the user. FORBIDDEN: repeating any finding's description or its
-Fix — that text is already on the PR, and saying it twice doubles the output for a reader who has the
-better copy. The chat tells the user WHAT happened and WHERE to look; the PR holds WHAT was found.
+**Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft.
+FORBIDDEN: repeating any finding's description or its Fix — the PR already carries that text.
 
 ## Step 10 — Asked for something outside the review flow
 
