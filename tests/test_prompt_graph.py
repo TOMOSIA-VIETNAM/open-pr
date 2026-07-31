@@ -553,6 +553,22 @@ def _manifests():
     return plugin, market
 
 
+def test_migration_index_matches_the_files_on_disk():
+    """`schema_version` is a checkpoint: update-plugin collects every N above it. A version
+    listed with no file makes that fetch 404 mid-migration; a file nobody lists never runs.
+    Numbering starts at 1 and has no gaps, so "highest listed N" is the current shape."""
+    up = REPO / "llm-upgrades"
+    listed = [int(m) for m in re.findall(r"^- v(\d+):", (up / "index.md").read_text(), re.M)]
+    on_disk = sorted(int(p.stem[1:]) for p in up.glob("v*.md"))
+    assert listed == sorted(listed), f"index is out of order: {listed}"
+    assert listed == list(range(1, len(listed) + 1)), f"versions must run 1..N with no gap: {listed}"
+    assert listed == on_disk, f"index lists {listed}, files on disk are {on_disk}"
+
+    schema = json.loads(re.search(r"```json\n(.*?)```", text(SRC / "reference/settings-schema.md"), re.S).group(1))
+    assert schema["schema_version"] == listed[-1], \
+        f"the schema example shows {schema['schema_version']}, highest migration is v{listed[-1]}"
+
+
 def test_manifests_are_valid_and_agree():
     """These ship and are what a user sees before installing. Nothing else in the suite
     reads them, so a broken path or a renamed plugin would surface only on someone's

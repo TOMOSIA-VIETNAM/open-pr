@@ -3,8 +3,8 @@ description: Fetch config migrations from TOMOSIA-VIETNAM/open-pr's llm-upgrades
 ---
 
 > **CRITICAL:** This command ONLY edits the CURRENT repo's own local config —
-> `notebooks/review/<repo>/settings.json` (current shape, `src/reference/settings-schema.md`), or the pre-v2
-> `notebooks/review/<repo>/meta.json` + `fix-meta.json` on a repo that never migrated (Step 1).
+> `notebooks/review/<repo>/settings.json` (current shape, `src/reference/settings-schema.md`), or the
+> pre-migration `notebooks/review/<repo>/meta.json` + `fix-meta.json` on a repo that never ran it (Step 1).
 > `<repo>` = the repo at the session's actual pwd, never a repo
 > named on a PR URL (this command takes no PR argument). NEVER touches any other repo's config,
 > never edits `${CLAUDE_PLUGIN_ROOT}`/the plugin's own files, never edits real project code.
@@ -67,6 +67,7 @@ set `schema_version` to the highest `N` just applied.
 
 ## Step 5 — Summarize in chat
 
-Tell the user, in prose, which version(s) were applied and what changed in plain terms (e.g. "merged
-`meta.json` + `fix-meta.json` into `settings.json`, schema_version 0 → 2") — do NOT dump the raw
-`vN.md` content or a raw JSON diff.
+Tell the user which migration(s) ran and what changed, in plain terms — e.g. "merged `meta.json` +
+`fix-meta.json` into `settings.json`; config migration checkpoint 0 → 1". Say **config migration
+checkpoint**, never "version": the plugin itself declares none, and a bare number reads as one. FORBIDDEN:
+dumping raw `vN.md` content or a JSON diff.

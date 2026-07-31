@@ -6,7 +6,7 @@ for `/open-pr:update-plugin`, for `llm-upgrades/*.md`, and for a human editing t
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 1,
   "shared": {
     "chat_language": "vi",
     "output_language": "en",
