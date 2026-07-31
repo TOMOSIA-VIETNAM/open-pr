@@ -326,6 +326,45 @@ ENGLISH_IN_OUTPUT = [
 ]
 
 
+def test_review_writes_at_the_invocation_directory():
+    """Standing in a workspace and reviewing three repos must leave ONE
+    notebooks/review/ there holding all three. A version of this that `cd`-ed into the
+    repo put the memory inside the repo instead, which is both a behaviour change and a
+    split from where a later fix looks.
+
+    So review.md may not `cd`, and its git calls against the reviewed repo must be aimed
+    with -C. locate-repo.md yields the directory and decides nothing, because fix.md needs
+    the opposite — it edits that repo's files and works from inside it.
+    """
+    atom = text(SRC / "core" / "locate-repo.md")
+    assert "`<repo_dir>`" in atom, "locate-repo.md must yield a named directory"
+    assert "cd` into" not in atom, "locate-repo.md decides for its callers; it must not"
+
+    review = text(SRC / "commands" / "review.md")
+    assert "FORBIDDEN: `cd`" in review, "review.md must forbid cd — it writes at pwd"
+    # the aimed forms must be the ones Step 1 issues; a bare form would run against pwd,
+    # which in a workspace is not a repo at all
+    for cmd in ('git -C "<repo_dir>" worktree add', 'git -C "<repo_dir>" fetch origin'):
+        assert cmd in review, f"review.md does not aim: {cmd}"
+    assert 'git worktree add "notebooks' not in review, "review.md still has an un-aimed worktree add"
+
+
+def test_fix_suggestions_prefer_a_code_fence():
+    """A finding whose Fix is prose makes the dev reconstruct the intended logic. The
+    fence is the default; prose is for fixes with no code form."""
+    step7 = text(SRC / "commands" / "review.md")
+    assert "shows the corrected CODE in a fence by default" in step7
+    assert "Prose-only is the exception" in step7
+
+
+def test_chat_does_not_repeat_the_posted_findings():
+    """The finding text is on the PR. Restating it in chat doubles the output for a reader
+    who already has the better copy."""
+    review = text(SRC / "commands" / "review.md")
+    assert "FORBIDDEN: repeating any finding's description or its\nFix" in review, \
+        "Step 9 must forbid restating findings in chat"
+
+
 def test_posted_output_hardcodes_no_english_connective():
     """A review is posted in the repo's output language, so a phrase the rules pin in
     English ships English into a Vietnamese or Japanese review. It reached a real PR as

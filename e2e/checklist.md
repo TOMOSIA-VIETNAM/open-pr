@@ -20,6 +20,14 @@ Each planted defect and the path it exercises:
 
 Then check the mechanics:
 
+- [ ] run it from a WORKSPACE (a parent dir, not a repo): `notebooks/review/open-pr-test/` appears in
+      that workspace, NOT inside the cloned repo, and the worktree lands under it too
+- [ ] every `Fix` that has a code form arrived as a fence — a LINE one as ` ```suggestion `; inline code
+      inside a sentence does not count
+- [ ] the chat message after posting is ≤3 sentences with the link and the counts, and repeats NO
+      finding text
+- [ ] with `output_language` non-English, the anchor reads `(commit <link>)` — no "as of"
+
 - [ ] exactly ONE review posted, not several
 - [ ] `.py` got BOTH `python` and `agent-instructions` criteria applied — i.e. the mutable-default row
       AND at least one prompt-quality row both produced findings on `prompts/agent.py`

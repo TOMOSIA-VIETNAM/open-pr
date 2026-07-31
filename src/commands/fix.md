@@ -54,8 +54,9 @@ does not apply, while LINE-level handling continues normally.
 
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
-**1a.** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md`, follow it. Everything below runs at the
-directory it establishes.
+**1a.** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` for `<repo_dir>`, then `cd` into it — this
+command EDITS that repo's files, so unlike `review.md` it works from inside. Everything below runs there,
+`notebooks/review/<repo>/` included.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 fixing the branch yourself, touching any file, proceeding to Step 2.
