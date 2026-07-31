@@ -123,9 +123,12 @@ what deleting a restatement yields in the same file — so work in this order.
 4. **Hunt what the scanner misses.** Read a section and ask which file OWNS that rule. Intra-file hides
    best — both copies read as native.
 5. **Prove nothing was lost.** Grep the invariants you touched — a `MUST`, a `FORBIDDEN:`, a marker, a
-   threshold, a vendor entry name — and confirm each still has exactly one home.
-6. **Lock in, then report.** Cheaper ⇒ `--update-budgets`. More expensive ⇒ **WARN the user
-   explicitly**: which scenario, by how much, and why. Never present an increase as neutral.
+   threshold, a vendor entry name — and confirm each still has exactly one home. A guard you ADD asserts
+   the rule — flatten whitespace, match the clause carrying it. Pinned to a line wrap it reddens on a
+   rewrap that changed nothing.
+6. **Run step 3 over what you just wrote, then lock in.** No edit is exempt; explaining a fix is where
+   prose creeps back. Cheaper ⇒ `--update-budgets`. More expensive ⇒ **WARN the user explicitly**: which
+   scenario, by how much, why. Never neutral, and only acceptable once step 3 has nothing left to cut.
 
 | want | run |
 |---|---|
