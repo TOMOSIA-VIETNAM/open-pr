@@ -26,6 +26,7 @@ Then check the mechanics:
       inside a sentence does not count
 - [ ] the chat message after posting is ≤3 sentences with the link and the counts, and repeats NO
       finding text
+- [ ] a lesson proposal arrives as a CHOICE with `(Recommended)` on one option, not a prose question
 - [ ] with `output_language` non-English, the anchor reads `(commit <link>)` — no "as of"
 
 - [ ] exactly ONE review posted, not several

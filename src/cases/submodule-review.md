@@ -32,9 +32,9 @@ the same union pattern as `core/pr-target.md` §1.
   `[submodule "…"]` section whose `path = <submodule-path>`, parse `<real-owner>/<real-repo>` (both
   `https://<host>/<owner>/<repo>.git` and `git@<host>:<owner>/<repo>.git` forms, any host).
   - matches → trust the link, Step C.
-  - MISMATCH → WARN in chat immediately: the submodule path, the real remote, the link found — then ask
-    whether to review it anyway. **Default is NOT to review** (no/unclear ⇒ no): skip this submodule,
-    and the main PR's review continues unblocked.
+  - MISMATCH → WARN immediately with the submodule path, the real remote and the link found, then a
+    CHOICE per `core/guardrails.md`: `Skip this submodule (Recommended)` vs review it anyway. Unclear
+    answer ⇒ skip; the main PR's review continues unblocked either way.
 - **No link** → ASK in chat, stating the bumped path so the dev can identify the PR. FORBIDDEN: guessing
   or silently skipping.
 

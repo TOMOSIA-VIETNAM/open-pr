@@ -326,6 +326,23 @@ ENGLISH_IN_OUTPUT = [
 ]
 
 
+def test_bounded_questions_go_through_the_choice_feature():
+    """A question with a fixed set of answers must reach the user as a choice with one
+    option marked `(Recommended)`. Prose phrasings like "WAIT for yes/no" invited exactly
+    the free-form version — a well-judged lesson proposal ending "Ghi hay bỏ?" instead of
+    two options the user could click.
+    """
+    assert "(Recommended)" in text(SRC / "core" / "guardrails.md"), \
+        "guardrails.md must state the marker the options carry"
+    bad = []
+    for name, body in all_text().items():
+        flat = " ".join(body.split())
+        for tell in ("yes/no", "Ghi hay bỏ"):
+            if tell in flat:
+                bad.append(f"{name} — {tell!r} reads as a prose question")
+    assert not bad, "bounded question asked in prose:\n  " + "\n  ".join(bad)
+
+
 def test_emoji_in_output_are_single_codepoint():
     """The overview opener was a 5-codepoint ZWJ sequence — bowing person, skin tone,
     ZWJ, male sign, variation selector — and it reached a PR as broken glyphs. A client

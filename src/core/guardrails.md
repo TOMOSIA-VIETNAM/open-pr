@@ -15,6 +15,6 @@ specific to what IT may touch; nothing below is repeated there.
   where drift starts once something commits/pushes/replies on a real PR.
 - **Choice-based questions use the built-in feature** (e.g. `AskUserQuestion`) when available, else
   plain chat — here and in any file a command leads to. It caps questions per call ⇒ SEQUENTIAL calls,
-  one finished before the next, never crammed. Every question carries a pre-marked recommendation, even
-  an unanticipated one: the defined default, or your judgment of the safer/more common choice; genuinely
-  tied options ⇒ leave it blank.
+  one finished before the next, never crammed. Every question carries a pre-marked recommendation — that
+  option's label ends `(Recommended)` — even an unanticipated one: the defined default, or your judgment
+  of the safer/more common choice; genuinely tied options ⇒ leave it blank.
