@@ -235,7 +235,7 @@ Anything else — ≥1 FILE finding || ≥1 overview-exclusive item — → the 
 
 ```
 ### 🤖【AI REVIEW】Overview
-Open with EXACTLY "Thank you! 🙇🏻‍♂️" (no embellishment like "for submitting this PR"/"for the
+Open with EXACTLY "Thank you! 🙏" (no embellishment like "for submitting this PR"/"for the
 effort"), then state IN THE OUTPUT LANGUAGE that the ENTIRE SET OF CHANGES WAS REVIEWED AT that commit
 (link per above), then 1 sentence of reply instructions, addressing the reader as "you". Then the
 title/prefix

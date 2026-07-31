@@ -66,7 +66,9 @@ acceptable; the agent misreading it is not.
   only when the reason IS the rule, e.g. a value being attacker-controlled.
 - Structure beats repetition: a branch set, field list or mapping becomes a table, never the same
   sentence shape restated per case.
-- Symbols and emoji only when they carry meaning (severity 🔴🟠🔵📝), never as decoration.
+- Symbols and emoji only when they carry meaning (severity 🔴🟠🔵📝), never as decoration. An emoji the
+  plugin PRINTS must be ONE codepoint — a ZWJ sequence or skin-tone modifier renders as its parts on
+  some clients.
 - Verbatim and untouched: command lines, code fences, payload shapes, markers, error text the agent
   must print.
 - Compression stops where ambiguity starts. Two readings possible ⇒ spend the tokens.

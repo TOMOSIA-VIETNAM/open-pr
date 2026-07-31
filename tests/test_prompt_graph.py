@@ -326,6 +326,24 @@ ENGLISH_IN_OUTPUT = [
 ]
 
 
+def test_emoji_in_output_are_single_codepoint():
+    """The overview opener was a 5-codepoint ZWJ sequence — bowing person, skin tone,
+    ZWJ, male sign, variation selector — and it reached a PR as broken glyphs. A client
+    or font missing any part of the sequence shows the parts.
+
+    Emoji the plugin PRINTS must be one codepoint, like the severity set. Skin-tone
+    modifiers and ZWJ joiners are the two that break, so both are refused.
+    """
+    bad = []
+    for name, body in all_text().items():
+        for i, line in enumerate(body.splitlines(), 1):
+            if "\u200d" in line:
+                bad.append(f"{name}:{i} — ZWJ joiner")
+            if any(0x1F3FB <= ord(c) <= 0x1F3FF for c in line):
+                bad.append(f"{name}:{i} — skin-tone modifier")
+    assert not bad, "emoji that render as parts on some clients:\n  " + "\n  ".join(bad)
+
+
 def test_review_writes_at_the_invocation_directory():
     """Standing in a workspace and reviewing three repos must leave ONE
     notebooks/review/ there holding all three. A version of this that `cd`-ed into the
