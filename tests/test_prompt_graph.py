@@ -93,11 +93,11 @@ def test_section_refs_resolve():
 
 
 def test_reference_dir_is_read_only_by_update_plugin():
-    """A review or fix run must never pay for the schema doc. update-plugin is the one
+    """A review or fix run must never pay for the schema doc. upgrade is the one
     command whose job IS the schema — it reads the installed build's expected checkpoint
     from there to refuse running when the plugin is older than the migrations."""
     for name, body in all_text().items():
-        if name == "commands/update-plugin.md":
+        if name == "commands/upgrade.md":
             continue
         assert "CLAUDE_PLUGIN_ROOT}/reference/" not in body.replace('}"', "}"), name
 
@@ -558,6 +558,18 @@ def _manifests():
     return plugin, market
 
 
+def test_upgrade_confirms_before_writing():
+    """An upgrade rewrites a repo's config, so the user answers first. Two options only —
+    a hedging third ("maybe later, show me more") leaves the command with no defined next
+    move. The ask must also come BEFORE the apply step, or consent arrives too late."""
+    up = text(SRC / "commands" / "upgrade.md")
+    assert "(Recommended)" in up, "the upgrade option must carry the recommendation marker"
+    assert "`Not now`" in up, "the decline option must exist and be named"
+    ask = up.index("## Step 4 — Summarise, then ask")
+    apply_ = up.index("## Step 5 — Apply")
+    assert ask < apply_, "the confirm step must precede the apply step"
+
+
 def test_migrations_are_fetched_without_a_vendor_cli():
     """The plugin's own repo is on GitHub whatever vendor the user's PRs are on, so a
     GitLab-only user has no `gh` to authenticate. Raw HTTP needs neither."""
@@ -573,16 +585,16 @@ def test_update_plugin_refuses_to_outrun_the_installed_build():
     """Migrations are fetched live, so this command can move a config to a shape the
     installed prompts do not understand. It must compare against the build's own expected
     checkpoint and stop, or a stale plugin silently misreads every later review."""
-    up = text(SRC / "commands" / "update-plugin.md")
+    up = text(SRC / "commands" / "upgrade.md")
     assert "CLAUDE_PLUGIN_ROOT}\"/reference/settings-schema.md" in up, \
-        "update-plugin must read the installed build's expected checkpoint"
+        "upgrade must read the installed build's expected checkpoint"
     flat = " ".join(up.split())
     assert "older than the index" in flat and "STOP before applying" in flat, \
-        "update-plugin must stop when the plugin is behind"
+        "upgrade must stop when the plugin is behind"
 
 
 def test_migration_index_matches_the_files_on_disk():
-    """`schema_version` is a checkpoint: update-plugin collects every N above it. A version
+    """`schema_version` is a checkpoint: upgrade collects every N above it. A version
     listed with no file makes that fetch 404 mid-migration; a file nobody lists never runs.
     Numbering starts at 1 and has no gaps, so "highest listed N" is the current shape."""
     up = REPO / "llm-upgrades"

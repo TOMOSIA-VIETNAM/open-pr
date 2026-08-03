@@ -32,7 +32,7 @@ Update later:
 ```
 
 Then `/reload-plugins` or start a new session. In a repo you set up with an older version, run
-`/open-pr:update-plugin` once to bring its local config up to date.
+`/open-pr:upgrade` once to bring its local config up to date.
 
 ## Use
 

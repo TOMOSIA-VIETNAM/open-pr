@@ -8,13 +8,13 @@ Read/written by `commands/review.md` + `commands/fix.md`. Full schema + field cl
 `review.md` ⇄ `.review`; `fix.md` ⇄ `.fix`; both ⇄ `.shared`. Neither ever writes the other's node.
 `.shared.git_remote_type` is written ONLY by `setup/bootstrap.md` or a confirmed mismatch
 (`core/pr-target.md` §2). `schema_version` is written ONLY by a fresh bootstrap or
-`/open-pr:update-plugin` — FORBIDDEN: either command reading or checking it.
+`/open-pr:upgrade` — FORBIDDEN: either command reading or checking it.
 
 ## Read AS-IS
 
 FORBIDDEN: diffing a node against fields this run "expects", `Edit`-ing to backfill a missing one. A
 field never asked at bootstrap simply isn't there → use its default AT READ TIME ONLY, write nothing.
-Upgrading the file is `/open-pr:update-plugin`'s sole job, never inline.
+Upgrading the file is `/open-pr:upgrade`'s sole job, never inline.
 
 | field | node | read-time default |
 |---|---|---|

@@ -8,10 +8,10 @@
     "review/agent-instructions-repo": 10474,
     "review/post-error-github": 10178,
     "chat/reconfigure-review": 7589,
-    "update-plugin": 2424,
+    "upgrade": 2598,
     "fix/known-repo-github": 8176,
     "fix/first-run-gitlab": 9140
   },
-  "mean": 9722,
+  "mean": 9738,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. Lower them when a change wins tokens back."
 }

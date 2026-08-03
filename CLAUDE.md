@@ -8,7 +8,7 @@ Claude Code plugin `open-pr`. 3 slash commands, GitHub + GitLab (no Bitbucket ye
   vendor's own CLI (`gh`/`glab`).
 - `/open-pr:fix <PR_URL>` — read the findings review left, fix the code, 1 commit, reply on the PR.
   Edits real code at pwd.
-- `/open-pr:update-plugin` — no PR. Migrate the CURRENT repo's local config to the latest
+- `/open-pr:upgrade` — no PR. Migrate the CURRENT repo's local config to the latest
   `schema_version`, fetching `llm-upgrades/` live from this plugin's GitHub repo.
 
 Everything is markdown + 1 JSON config. No build, no runtime. "Trying it" = install the plugin and
@@ -49,11 +49,14 @@ the plugin writes into a reviewed repo too, not just `src/`.
 case and still needs you to spot it. An accepted duplicate needs its `sha` and a written reason in
 `tests/duplication_allowlist.json`.
 
+**Push only the branch you were handed.** `main` is what UAT installs from — never push, merge or
+force-push to it, and never push a branch the user did not name. A PR is the only path in.
+
 **One release, one `schema_version`.** Bump only when an EXISTING repo's config needs transforming — a
 field with a read-time default needs no migration. On an unreleased branch, EDIT the pending
 `llm-upgrades/vN.md` rather than adding a second: the numbering is what a user upgrades through, not a
 log of how the branch was written. Config must never get ahead of the prompts that read it, which is why
-`/open-pr:update-plugin` refuses to run when the installed build is older than the index.
+`/open-pr:upgrade` refuses to run when the installed build is older than the index.
 
 **NEVER trade core behaviour for tokens.** Losing a rule, a guard, a vendor entry or a severity level is
 a failure even when the number improves. Only the user may decide such a trade, only when asked

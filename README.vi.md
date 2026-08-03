@@ -31,7 +31,7 @@ Cập nhật sau này:
 /plugin update open-pr@review-pr
 ```
 
-Rồi `/reload-plugins` hoặc mở session mới. Repo đã setup bằng bản cũ → chạy `/open-pr:update-plugin`
+Rồi `/reload-plugins` hoặc mở session mới. Repo đã setup bằng bản cũ → chạy `/open-pr:upgrade`
 một lần để cập nhật config local.
 
 ## Dùng

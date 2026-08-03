@@ -97,7 +97,7 @@ in full (Context read it only to resolve `<git_remote_type>`). Resolve `chat_lan
 
 - about to bootstrap → q1's pre-marked default, `setup/bootstrap.md` writes it
 - bootstrapped, field predates this schema → read-time fallback only. FORBIDDEN: writing it back
-  (`/open-pr:update-plugin` owns that backfill)
+  (`/open-pr:upgrade` owns that backfill)
 - `core/pr-target.md` §2's mismatch confirmed a DIFFERENT value → `Edit` `.shared.git_remote_type` here
 
 Branch:

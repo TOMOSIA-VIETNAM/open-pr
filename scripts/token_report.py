@@ -63,7 +63,7 @@ ROLES = {
     "locate-repo": ["core/locate-repo.md"],
     "upgrades-index": ["core/llm-upgrades-index.md"],
     "reconfigure": ["core/reconfigure.md"],
-    "update-cmd": ["commands/update-plugin.md"],
+    "update-cmd": ["commands/upgrade.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
@@ -76,7 +76,7 @@ ROLES = {
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
     "tpl-agent-instructions": ["templates/agent-instructions.md"],
-    # update-plugin is the one command allowed to consult the schema reference
+    # upgrade is the one command allowed to consult the schema reference
     "reference-schema": ["reference/settings-schema.md"],
 }
 
@@ -119,7 +119,7 @@ SCENARIOS = {
         "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings",
         "case-chat-requests", "reconfigure", "memory-commit",
     ],
-    "update-plugin": [
+    "upgrade": [
         "update-cmd", "upgrades-index", "reference-schema",
     ],
     "fix/known-repo-github": [
