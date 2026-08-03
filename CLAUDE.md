@@ -25,7 +25,7 @@ src/setup/        per-repo provisioning: bootstrap, doctor, template, lesson
 src/cases/        gated branches, read only when the caller's condition matched
 src/vendors/<v>/  fetch | worktree | post | thread — same entry names on every vendor
 src/templates/    per-stack criteria, cp'd into the reviewed repo
-src/reference/    FORBIDDEN to Read at run time (schema + vendor contract, for humans)
+src/reference/    schema + vendor contract; FORBIDDEN to Read during a review/fix run
 src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
 scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · install_hooks.sh
@@ -48,6 +48,12 @@ the plugin writes into a reviewed repo too, not just `src/`.
 1 owner. `dup_scan.py` reports near-verbatim repeats only — a restatement in fresh words is the common
 case and still needs you to spot it. An accepted duplicate needs its `sha` and a written reason in
 `tests/duplication_allowlist.json`.
+
+**One release, one `schema_version`.** Bump only when an EXISTING repo's config needs transforming — a
+field with a read-time default needs no migration. On an unreleased branch, EDIT the pending
+`llm-upgrades/vN.md` rather than adding a second: the numbering is what a user upgrades through, not a
+log of how the branch was written. Config must never get ahead of the prompts that read it, which is why
+`/open-pr:update-plugin` refuses to run when the installed build is older than the index.
 
 **NEVER trade core behaviour for tokens.** Losing a rule, a guard, a vendor entry or a severity level is
 a failure even when the number improves. Only the user may decide such a trade, only when asked

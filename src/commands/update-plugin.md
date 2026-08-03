@@ -45,13 +45,22 @@ it, and collect every `N` strictly greater than the checkpoint from Step 1.
 
 None found → tell the user the config is already current (state the checkpoint number), STOP.
 
+**The INSTALLED plugin must not be older than the index.** The migrations are fetched live, so this
+command can otherwise move a config to a shape the installed prompts do not understand — config ahead of
+code, and every later review misreads it. `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/reference/settings-schema.md` for the `schema_version` the installed build
+expects (field absent ⇒ `0`). Highest `N` in the index > that ⇒ STOP before applying anything:
+
+```
+❌ The plugin is older than the migrations available. Update it first, then run this again:
+   /plugin marketplace update review-pr
+   /plugin update open-pr@review-pr
+   then /reload-plugins
+```
+
 ## Step 3 — Fetch every matching `vN.md`, in one batch
 
-For EVERY `N` collected above, fetch `llm-upgrades/vN.md` the same way:
-
-```
-gh api --paginate repos/TOMOSIA-VIETNAM/open-pr/contents/llm-upgrades/vN.md --jq '.content' | base64 --decode
-```
+For EVERY `N` collected above, fetch `llm-upgrades/vN.md` from the same base URL.
 
 Issue every one of these calls together in the same batch — do NOT fetch one, wait, then fetch the
 next. A later version's migration can override an earlier one's; fetching sequentially and asking

@@ -92,8 +92,13 @@ def test_section_refs_resolve():
     assert not bad, f"unresolvable section refs: {bad}"
 
 
-def test_reference_dir_is_never_read_at_runtime():
+def test_reference_dir_is_read_only_by_update_plugin():
+    """A review or fix run must never pay for the schema doc. update-plugin is the one
+    command whose job IS the schema — it reads the installed build's expected checkpoint
+    from there to refuse running when the plugin is older than the migrations."""
     for name, body in all_text().items():
+        if name == "commands/update-plugin.md":
+            continue
         assert "CLAUDE_PLUGIN_ROOT}/reference/" not in body.replace('}"', "}"), name
 
 
@@ -551,6 +556,27 @@ def _manifests():
     plugin = json.loads((SRC / ".claude-plugin" / "plugin.json").read_text())
     market = json.loads((REPO / ".claude-plugin" / "marketplace.json").read_text())
     return plugin, market
+
+
+def test_migrations_are_fetched_without_a_vendor_cli():
+    """The plugin's own repo is on GitHub whatever vendor the user's PRs are on, so a
+    GitLab-only user has no `gh` to authenticate. Raw HTTP needs neither."""
+    atom = text(SRC / "core" / "llm-upgrades-index.md")
+    assert "raw.githubusercontent.com" in atom, "the migration fetch must not need a vendor CLI"
+    assert "gh api" not in atom, "gh api is unavailable to a GitLab-only user"
+    assert "curl -fsSL" in atom, "-f is what turns a 404 into a non-zero exit"
+
+
+def test_update_plugin_refuses_to_outrun_the_installed_build():
+    """Migrations are fetched live, so this command can move a config to a shape the
+    installed prompts do not understand. It must compare against the build's own expected
+    checkpoint and stop, or a stale plugin silently misreads every later review."""
+    up = text(SRC / "commands" / "update-plugin.md")
+    assert "CLAUDE_PLUGIN_ROOT}\"/reference/settings-schema.md" in up, \
+        "update-plugin must read the installed build's expected checkpoint"
+    flat = " ".join(up.split())
+    assert "older than the index" in flat and "STOP before applying" in flat, \
+        "update-plugin must stop when the plugin is behind"
 
 
 def test_migration_index_matches_the_files_on_disk():
