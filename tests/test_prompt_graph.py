@@ -563,8 +563,10 @@ def test_migrations_are_fetched_without_a_vendor_cli():
     GitLab-only user has no `gh` to authenticate. Raw HTTP needs neither."""
     atom = text(SRC / "core" / "llm-upgrades-index.md")
     assert "raw.githubusercontent.com" in atom, "the migration fetch must not need a vendor CLI"
-    assert "gh api" not in atom, "gh api is unavailable to a GitLab-only user"
     assert "curl -fsSL" in atom, "-f is what turns a 404 into a non-zero exit"
+    # command text only: the prose names `gh api` in order to rule it out
+    for snippet in re.findall(r"`([^`]+)`", atom) + re.findall(r"```\n(.*?)```", atom, re.S):
+        assert "gh api" not in snippet, f"gh api is unavailable to a GitLab-only user: {snippet[:60]}"
 
 
 def test_update_plugin_refuses_to_outrun_the_installed_build():
