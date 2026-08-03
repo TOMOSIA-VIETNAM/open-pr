@@ -2,13 +2,9 @@
 
 # Open PullRequest
 
-*/open-pr:review — agent review Pull/Merge Request theo convention của chính dự án bạn*
-
-
-
 [English](./README.md) · **Tiếng Việt** · [日本語](./README.ja.md)
 
-> Khi bạn nhận PullRequest câu hỏi đầu tiên hiện lên thường không phải "code này đúng chưa", mà là "dev có
+> Khi bạn nhận PR câu hỏi đầu tiên hiện lên thường không phải "code này đúng chưa", mà là "dev có
 > tự đọc lại lần nào trước khi gửi không".
 
 `open-pr` sinh ra cho đúng chỗ đó: một plugin Claude Code review PR theo quy ước sẵn có của repo, ghi
@@ -17,20 +13,13 @@ loại, cùng một cách để lại dấu vết trên PR.
 
 Hỗ trợ **GitHub** (`.../pull/<n>`) và **GitLab** (`.../-/merge_requests/<n>`, kể cả self-hosted).
 
-
-|                                    |                                     |
-| ---------------------------------- | ----------------------------------- |
-|                                    |                                     |
-| Overview — gom finding theo mức độ | Comment theo dòng, kèm code sửa sẵn |
-
-
 ## Vì sao không dùng một skill review chung?
 
 
 | Chuyện thường xảy ra                                | `open-pr`                                                                                        |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Không biết dev đã tự review chưa                    | Dev chạy `/open-pr:review` trên PR của mình, reviewer nhìn conversation là biết ngay             |
-| Reviewer vẫn phải đọc từng dòng từ đầu              | AI đi trước, để lại dấu vết công khai; người vẫn chốt cuối, nhưng khởi điểm đã đi được một quãng |
+| Tốn thời gian review các lỗi lặt vặt, lỗi nghiệp vụ cơ bản | AI review trước, để lại dấu vết công khai; Reviewer vẫn phải chốt cuối, nhưng khởi điểm đã được dọn sạch |
 | Góp ý ở mức luật chung, lệch convention dự án       | Đọc README/CLAUDE.md/AGENTS.md/docs/wiki của repo, và rule của team thắng mọi luật chung         |
 | Nhắc xong lần sau vẫn thế                           | Bạn nhắc trong chat → nó xin phép ghi vào memory của repo đó → lần sau tự áp                     |
 | Tài liệu outdate/xung đột không ai phát hiện        | Đến kỳ là đọc lại tài liệu quy ước, thấy lệch thì nêu ra                                         |
@@ -79,7 +68,30 @@ flowchart LR
 Quy ước chốt trong thread nó luôn hỏi bạn trước chứ không tự nhớ: rule nằm trong comment thì ai cũng
 viết được.
 
-## Cài
+`/open-pr:fix` đi ngược chiều: nó đọc chính những finding `review` để lại, rồi sửa code thật:
+
+```mermaid
+flowchart LR
+  A["/open-pr:fix URL"] --> B{"Đúng branch của PR?<br/>không đứng trên main/develop?"}
+  B -- không --> C["Dừng ngay<br/>chưa chạm file nào"]
+  B -- đúng --> D["Đọc finding review để lại<br/>bỏ thread đã resolve · đã xử lý · dev đã chốt"]
+  D --> E{Mức độ?}
+  E -- "🔴 🟠 · fix luôn" --> F["Sửa theo convention<br/>+ memory của repo"]
+  E -- "🔵 📝 · hoặc thấy finding không hợp lý" --> G["Gom mọi thắc mắc vào đúng 1 lượt hỏi<br/>chờ bạn chốt xong mới sửa"]
+  G --> F
+  F --> H["Đúng 1 commit<br/>chỉ add file vừa sửa · không amend, không force-push"]
+  H --> I{auto_push?}
+  I -- "false (mặc định)" --> J["Dừng ở local<br/>chờ bạn nói 'push'"]
+  I -- true --> K[Push]
+  J --> K
+  K --> L["Reply từng finding: đã fix, hoặc vì sao không fix<br/>không resolve thread — để bạn tự chốt"]
+```
+
+Khác `review` ở chỗ nó **không** dùng worktree, mà sửa thẳng vào thư mục bạn đang đứng. Nên trước khi
+chạm bất cứ file nào, nó soát lại chỗ bạn đứng — sai branch, đang trên `main`/`develop`, hay đang ở
+trong chính cái worktree mà `review` tạo ra (worktree đó detached, không có branch) đều dừng ngay.
+
+## Cài đặt
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
@@ -101,7 +113,7 @@ Cần thêm: [Claude Code](https://claude.ai/code), và [`gh`](https://cli.githu
 [`glab`](https://gitlab.com/gitlab-org/cli) (MR GitLab) đã login — review được post bằng chính account
 đó.
 
-## Command
+## Sử dụng
 
 
 | Command                 | Làm gì                                                                                                        | Lúc gõ bạn đứng ở đâu                                                              | Nó ghi gì                                             |
@@ -110,11 +122,6 @@ Cần thêm: [Claude Code](https://claude.ai/code), và [`gh`](https://cli.githu
 | `/open-pr:fix <URL>`    | Đọc finding từ lần review trước, sửa code, gom **1** commit, rồi reply từng comment. 🔵/📝 luôn hỏi bạn trước | **trong đúng repo đó, và đang ở đúng branch của PR**                               | code thật tại chỗ bạn đứng + reply trên PR            |
 | `/open-pr:upgrade`      | Nâng config local của repo lên schema mới nhất. Tóm tắt cái gì đổi rồi hỏi, chưa đồng ý thì không ghi gì      | trong workspace/repo đã setup                                                      | `notebooks/review/<repo>/settings.json`               |
 
-
-`fix` thì ngược lại đúng chỗ vừa nói: nó **không** dùng worktree, mà sửa thẳng vào thư mục bạn đang
-đứng. Nên trước khi chạm bất cứ file nào, nó soát lại chỗ bạn đứng — sai branch, đang trên
-`main`/`develop`, hay đang ở trong chính cái worktree mà `review` tạo ra (worktree đó detached, không có
-branch) đều dừng ngay. Mặc định commit xong là dừng ở local, chờ bạn nói "push" mới push và reply.
 
 Command chỉ chạy khi bạn tự gõ. hỗ trợ review nhiều PR liên quan trong 1 tính năng, chạy lần lượt, hỗ trợ cả submodule.
 
@@ -170,10 +177,6 @@ Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.
 | `review.big_file_threshold_kb`       | file diff to hơn ngưỡng này bị bỏ khỏi lần đọc đầu                                        | `20`                |
 | `fix.decline_needs_confirmation`     | hỏi bạn trước khi bỏ qua một finding                                                      | `true`              |
 | `fix.auto_push`                      | tự push sau khi commit                                                                    | `false`             |
-
-
-Không muốn sửa file thì nói thẳng trong chat cũng được: **reconfigure review**, **doctor again**, hoặc
-nêu một rule mới cần ghi nhớ.
 
 ---
 
