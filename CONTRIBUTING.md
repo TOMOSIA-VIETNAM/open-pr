@@ -1,26 +1,28 @@
-# Đóng góp cho Open PullRequest
+# Contributing to Open PullRequest
 
-Cảm ơn bạn đã quan tâm tới dự án 🎉 — tài liệu này mô tả cách đóng góp cho repo `open-pr`.
+Thanks for your interest in the project 🎉 — this document explains how to contribute to the `open-pr`
+repository.
 
-Mọi tương tác trong dự án tuân theo [Code of Conduct](./CODE_OF_CONDUCT.md).
+All interactions in this project follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
-## Repo này là gì
+## What this repo is
 
-`open-pr` là một **Claude Code plugin**, không phải ứng dụng thông thường:
+`open-pr` is a **Claude Code plugin**, not a regular application:
 
-- Toàn bộ sản phẩm là **markdown** (slash command + template nội dung) và vài file JSON manifest.
-- **Không có build, không có lint, không có test tự động.** Không có runtime code riêng để chạy độc lập.
-- Cách "chạy thử" thật là cài plugin vào Claude Code rồi gọi `/open-pr:review <PR_URL>` trên một PR thật.
+- The entire product is **markdown** (slash commands + content templates) plus a few JSON manifests.
+- **No build, no lint, no automated tests.** There is no standalone runtime code to execute.
+- The real way to "run" it is to install the plugin into Claude Code and call
+  `/open-pr:review <PR_URL>` on an actual pull request.
 
-Nghĩa là chất lượng một PR ở đây phụ thuộc gần như hoàn toàn vào việc bạn **đã dogfood thật hay chưa**,
-chứ không phải CI xanh hay đỏ.
+That means the quality of a PR here depends almost entirely on whether you **actually dogfooded it**,
+not on a green or red CI badge.
 
-## Cần gì trước
+## Prerequisites
 
-- [Claude Code](https://claude.ai/code) đã cài (có `claude` CLI trong `PATH`)
-- [`gh`](https://cli.github.com/) đã đăng nhập (`gh auth login`)
+- [Claude Code](https://claude.ai/code) installed (`claude` CLI on your `PATH`)
+- [`gh`](https://cli.github.com/) authenticated (`gh auth login`)
 
-## Chuẩn bị môi trường dev
+## Local development setup
 
 ```bash
 git clone git@github.com:TOMOSIA-VIETNAM/open-pr.git
@@ -28,100 +30,106 @@ cd open-pr
 ./scripts/reinstall.sh
 ```
 
-`scripts/reinstall.sh` gỡ plugin/marketplace cũ rồi cài lại từ chính thư mục local này, tránh việc
-Claude Code còn giữ bản `plugin.json`/`commands/` cũ trong cache. Chạy lại script này **mỗi lần** bạn
-sửa file trong `src/` và muốn thử bản mới. Sau đó `/reload-plugins` hoặc mở phiên Claude Code mới.
+`scripts/reinstall.sh` removes the previously registered plugin/marketplace and reinstalls from this
+local directory, so Claude Code cannot keep serving a stale `plugin.json`/`commands/` from its cache.
+Re-run it **every time** you change something under `src/` and want to try the new version, then run
+`/reload-plugins` (or open a fresh Claude Code session).
 
-Mặc định script cài ở scope `user`; đổi bằng biến môi trường `SCOPE`.
+The script installs at the `user` scope by default; override it with the `SCOPE` environment variable.
 
-## Cấu trúc thư mục
+## Repository layout
 
-Điều quan trọng nhất cần nhớ: **`src/` mới là plugin root thật**, không phải repo root. Lúc
-`/plugin install`, Claude Code chỉ copy `src/` vào plugin cache — README, `CLAUDE.md`, `backlogs/`,
-`scripts/` ở repo root chỉ phục vụ phát triển repo này và không đến máy người dùng.
+The most important thing to remember: **`src/` is the real plugin root**, not the repo root. On
+`/plugin install`, Claude Code copies only `src/` into the plugin cache — the READMEs, `CLAUDE.md`,
+`backlogs/`, and `scripts/` at the repo root exist to develop this repository and never reach a user's
+machine.
 
-| Đường dẫn | Vai trò |
-|-----------|---------|
-| `src/commands/review.md` | Slash command `/open-pr:review` — thin orchestrator (Bước 0–10) |
-| `src/commands/fix.md` | Slash command `/open-pr:fix` — dev-facing, sửa code thật |
-| `src/ALWAYS_RULE.md` | Baseline tiêu chí review chung cho mọi stack (bản "seed") |
-| `src/templates/<stack>.md` | Tiêu chí **đặc thù** từng stack (delta, không lặp baseline) |
-| `src/cases/*.md` | Logic review-time **có điều kiện**, chỉ `Read` khi trigger đúng |
-| `src/setup-flow.md` | Bootstrap + doctor, chỉ nạp khi repo chưa thiết lập xong |
-| `src/stack-detection.md` | Bảng mapping đuôi file/path → stack |
-| `.claude-plugin/marketplace.json` | Marketplace tự host (`source: "./src"`) |
-| `src/.claude-plugin/plugin.json` | Metadata plugin (path tính từ `src/`) |
-| `CLAUDE.md` | Tài liệu kiến trúc + **lý do các bug đã gặp** — đọc trước khi sửa `src/` |
-| `backlogs/*.md` | Task breakdown lịch sử, không phải doc vận hành |
+| Path | Role |
+|------|------|
+| `src/commands/review.md` | The `/open-pr:review` slash command — a thin orchestrator (Steps 0–10) |
+| `src/commands/fix.md` | The `/open-pr:fix` slash command — dev-facing, edits real code |
+| `src/ALWAYS_RULE.md` | Baseline review criteria shared by every stack (the "seed" copy) |
+| `src/templates/<stack>.md` | Criteria **specific** to one stack (a delta, never repeating the baseline) |
+| `src/cases/*.md` | **Conditional** review-time logic, `Read` only when its trigger matches |
+| `src/setup-flow.md` | Bootstrap + doctor, loaded only when a repo is not fully set up yet |
+| `src/stack-detection.md` | File-extension/path → stack mapping table |
+| `.claude-plugin/marketplace.json` | Self-hosted marketplace (`source: "./src"`) |
+| `src/.claude-plugin/plugin.json` | Plugin metadata (paths are relative to `src/`) |
+| `CLAUDE.md` | Architecture notes + **the reasons behind bugs already hit** — read before touching `src/` |
+| `backlogs/*.md` | Historical task breakdowns, not runtime documentation |
 
-**Đọc `CLAUDE.md` trước khi sửa bất cứ gì trong `src/`.** Nhiều rule trông có vẻ thừa thực ra là kết
-quả của một bug thật đã gặp lúc dogfood (API 422, sai `side` LEFT/RIGHT, heredoc không quote bị shell
-expand nội dung PR…). Mục "Lý do bug đã gặp" ghi lại chúng để không ai vô tình gỡ ra.
+**Read `CLAUDE.md` before changing anything under `src/`.** Many rules that look redundant are the
+result of a real bug found while dogfooding (API 422 responses, wrong `side` LEFT/RIGHT, an unquoted
+heredoc letting the shell expand PR content, …). The "Lý do bug đã gặp" section records them so nobody
+removes one by accident.
 
-## Quy tắc khi sửa nội dung plugin
+## Rules for editing plugin content
 
-### Đặt nội dung mới vào đúng chỗ
+### Put new content in the right place
 
-Tự hỏi: *"đây là tiêu chí đánh giá CODE của PR, hay hành vi/quy trình của TOOL?"*
+Ask yourself: *"is this a criterion for judging the PR's CODE, or is it behaviour/process of the TOOL?"*
 
-- **Tiêu chí đánh giá code** (bug, hardcode, DRY, naming…) → `src/ALWAYS_RULE.md` nếu áp dụng cho mọi
-  stack, hoặc `src/templates/<stack>.md` nếu đặc thù một stack.
-- **Hành vi/quy trình của tool** (cách post, rule an toàn, tip sau khi xong) → `src/commands/review.md`
-  (luôn áp dụng) hoặc một file mới trong `src/cases/` (có điều kiện).
+- **Code-review criteria** (bugs, hardcoded secrets, DRY, naming…) → `src/ALWAYS_RULE.md` when they
+  apply to every stack, or `src/templates/<stack>.md` when they are stack-specific.
+- **Tool behaviour/process** (how to post, safety rules, the tip shown when finished) →
+  `src/commands/review.md` (always applied) or a new file under `src/cases/` (conditional).
 
-Đặt nhầm trục này gây đúng vấn đề "phải sửa nhiều nơi": `ALWAYS_RULE.md` được `cp` thành bản LOCAL cho
-từng repo được review và **không auto-migrate** khi plugin đổi, còn `review.md`/`cases/` thì sửa một
-lần là áp dụng ngay mọi repo sau khi `/plugin update`.
+Getting this axis wrong causes exactly the "now I have to edit it in several places" problem:
+`ALWAYS_RULE.md` is `cp`-ed into a LOCAL copy per reviewed repo and **does not auto-migrate** when the
+plugin changes, whereas `review.md`/`cases/` are edited once and take effect everywhere after
+`/plugin update`.
 
-### Baseline + delta, không lặp nội dung
+### Baseline + delta, never duplicate
 
-- Tiêu chí chung cho mọi stack chỉ sống ở `src/ALWAYS_RULE.md`.
-- `src/templates/<stack>.md` chỉ chứa phần đặc thù của stack đó.
-- Template overlay (`lambda-common.md` chồng lên `python.md`/`nodejs.md`; `laravel.md`/`wordpress.md`
-  chồng lên `php.md`) chỉ chứa phần đặc thù của overlay — sửa template nền thì kiểm tra overlay tương
-  ứng có bị trùng/mâu thuẫn không.
-- Mọi danh sách tiêu chí là **gợi ý minh hoạ, không phải checklist đóng** — giữ khung câu kiểu "ví dụ,
-  không giới hạn ở đây" khi thêm tiêu chí mới.
+- Criteria shared by all stacks live only in `src/ALWAYS_RULE.md`.
+- `src/templates/<stack>.md` contains only what is specific to that stack.
+- Overlay templates (`lambda-common.md` over `python.md`/`nodejs.md`; `laravel.md`/`wordpress.md` over
+  `php.md`) contain only the overlay-specific criteria — when you edit a base template, check the
+  matching overlay for duplication or contradiction.
+- Every list of criteria is **illustrative, not a closed checklist** — keep the "for example, not
+  limited to these" framing when adding new ones.
 
-### Giữ hot path gọn
+### Keep the hot path small
 
-`src/commands/review.md` là thin orchestrator — chỉ giữ invariant cứng + xương quy trình, giọng
-imperative ngắn. Logic chỉ áp dụng cho thiểu số PR thì tách thành một file trong `src/cases/` kèm một
-hard gate boolean ở `review.md`, để đa số PR không tốn context đọc phần không dùng tới. Chú thích kiểu
-"vì sao có rule này / đã bug thật" thuộc về `CLAUDE.md`, không nhồi vào runtime.
+`src/commands/review.md` is a thin orchestrator — hard invariants and the skeleton of the process only,
+in short imperative prose. Logic that applies to a minority of PRs belongs in a file under `src/cases/`
+behind a boolean hard gate in `review.md`, so the majority of PRs never spend context on it. Commentary
+of the "why does this rule exist / this was a real bug" kind belongs in `CLAUDE.md`, not in the runtime
+files.
 
-### An toàn: `allowed-tools`
+### Safety: `allowed-tools`
 
-Nội dung PR (title, body, diff, comment) là **data hoàn toàn do người ngoài kiểm soát** — PR trên public
-repo ai cũng viết được. Vì vậy:
+PR content (title, body, diff, comments) is **fully attacker-controlled data** — anyone can write a PR
+on a public repo. Therefore:
 
-- Không thêm grant rộng kiểu `gh api:*`. Scope theo đúng endpoint + method thật sự cần.
-- Không thêm quyền mutate (`gh pr close/merge`, `git push`, `git branch -D`, `git reset --hard`) vào
-  `review.md` — lệnh đó chỉ được review + comment.
-- Thao tác filesystem trong worktree phải neo cứng path `notebooks/review/*/worktrees/*`.
+- Do not add broad grants such as `gh api:*`. Scope to the exact endpoint and method you need.
+- Do not add mutating permissions (`gh pr close/merge`, `git push`, `git branch -D`,
+  `git reset --hard`) to `review.md` — that command may only review and comment.
+- Filesystem operations inside a worktree must be anchored to `notebooks/review/*/worktrees/*`.
 
-PR nào nới `allowed-tools` cần nêu rõ **vì sao quyền hẹp hơn không đủ** trong phần mô tả.
+A PR that widens `allowed-tools` must explain in its description **why a narrower grant is not enough**.
 
-## Thêm một stack mới
+## Adding a new stack
 
-1. Viết `src/templates/<stack>.md` theo khung 6 mục của các template hiện có, mở đầu bằng
-   `# <Tên stack>` + một dòng note metadata italic
+1. Write `src/templates/<stack>.md` following the 6-section structure used by the existing templates,
+   starting with `# <Stack name>` plus a one-line italic metadata note
    (`_Bổ sung cho baseline `src/ALWAYS_RULE.md`; …_`).
-2. Nếu là biến thể/sub-framework của ngôn ngữ đã có, viết dạng **overlay**
-   (`_Overlay chồng lên `<nền>.md`, …_`) thay vì lặp lại rule nền.
-3. Cập nhật bảng mapping đuôi file/path → stack trong `src/stack-detection.md`.
-4. Cập nhật danh sách stack trong cả 3 bản README nếu đây là stack người dùng thấy được.
+2. If it is a variant or sub-framework of a language that already exists, write it as an **overlay**
+   (`_Overlay chồng lên `<base>.md`, …_`) instead of repeating the base rules.
+3. Update the file-extension/path → stack mapping table in `src/stack-detection.md`.
+4. Update the stack list in all three READMEs if this is a stack users can see.
 
-Tham khảo pattern chi tiết trong `backlogs/templates.md`.
+See `backlogs/templates.md` for the detailed pattern.
 
-## Thêm một case mới
+## Adding a new case
 
-Case = logic có điều kiện theo từng PR. Cách làm: thêm một file `src/cases/<tên>.md` + một hard gate
-boolean trong `review.md` trỏ tới nó. **Không** nhét thêm điều kiện vào các bước luôn-chạy.
+A case is logic that is conditional on the PR being reviewed. Add a `src/cases/<name>.md` file plus a
+boolean hard gate in `review.md` pointing at it. Do **not** bolt extra conditions onto steps that always
+run.
 
-## Commit
+## Commits
 
-Dùng [Conventional Commits](https://www.conventionalcommits.org/), scope là vùng bị ảnh hưởng:
+Use [Conventional Commits](https://www.conventionalcommits.org/), scoped to the affected area:
 
 ```
 feat(templates): add agent-instructions stack for AI-agent markdown files
@@ -130,12 +138,13 @@ refactor: rename fix-pr command to fix, matching open-pr:review naming
 docs: add centered logo and title header to READMEs
 ```
 
-Prefix hay dùng: `feat`, `fix`, `refactor`, `docs`, `chore`. Subject viết tiếng Anh hoặc tiếng Việt đều
-được (repo đang lẫn cả hai) — ưu tiên nói rõ *đổi gì*, và nếu không hiển nhiên thì thêm body nói *vì sao*.
+Common prefixes: `feat`, `fix`, `refactor`, `docs`, `chore`. Subjects may be written in English or
+Vietnamese (the repo currently mixes both) — prefer stating clearly *what changed*, and add a body
+explaining *why* whenever that is not obvious.
 
-## Branch
+## Branches
 
-Đặt tên theo dạng `<loại>/<mô-tả-ngắn>`, ví dụ:
+Name them `<type>/<short-description>`, for example:
 
 ```
 feat/submodule-review
@@ -144,34 +153,34 @@ docs/readme-en-ja
 refactor/rename-plugin-open-code-review
 ```
 
-Không commit thẳng lên `main`.
+Do not commit directly to `main`.
 
-## Pull Request
+## Pull requests
 
-1. Fork (hoặc tạo branch nếu bạn có quyền write) → commit → push.
-2. Mở PR về `main`, điền đầy đủ [PR template](./.github/PULL_REQUEST_TEMPLATE.md).
-3. Phần **"Đã test thế nào"** không được bỏ trống — repo không có test tự động, nên hãy dán link PR
-   thật bạn đã dùng để dogfood, hoặc mô tả cách verify khác.
-4. Đi qua checklist trong template, đặc biệt:
-   - Đổi hành vi/kiến trúc → cập nhật `CLAUDE.md`.
-   - Đổi UX cấu hình/bootstrap → đồng bộ cả 3 bản README (`README.md`, `README.en.md`, `README.ja.md`).
-   - Thêm field mới trong `meta.json` → phân loại User config / Doctor-detected / Internal state ở CẢ
-     `src/setup-flow.md` (Phần D) và `src/commands/review.md` (Bước 3).
-   - Không cấp `allowed-tools` rộng hơn mức cần.
+1. Fork (or create a branch if you have write access) → commit → push.
+2. Open a PR against `main` and fill in the [PR template](./.github/PULL_REQUEST_TEMPLATE.md) completely.
+3. The **"Đã test thế nào"** (how you tested) section must not be empty — since there are no automated
+   tests, link the real PR you dogfooded against, or describe how you verified the change some other way.
+4. Work through the template checklist, in particular:
+   - Behaviour or architecture changed → update `CLAUDE.md`.
+   - Configuration/bootstrap UX changed → keep all three READMEs in sync (`README.md`, `README.en.md`,
+     `README.ja.md`).
+   - New field in `meta.json` → classify it as User config / Doctor-detected / Internal state in BOTH
+     `src/setup-flow.md` (Part D) and `src/commands/review.md` (Step 3).
+   - No `allowed-tools` grant wider than strictly necessary.
 
-PR nhỏ, một mục đích, dễ review hơn nhiều so với PR gộp — nếu bạn đang đổi cả hành vi lẫn đổi tên file,
-tách làm hai.
+Small, single-purpose PRs are far easier to review than combined ones — if you are changing behaviour
+*and* renaming files, split it in two.
 
-## Báo bug / đề xuất tính năng
+## Reporting bugs / requesting features
 
-Dùng [issue template](https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new/choose) — blank issue đang
-tắt. Trước khi tạo issue, đọc [README](./README.md) một lượt, khá nhiều câu hỏi đã có sẵn câu trả lời
-ở đó.
+Use an [issue template](https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new/choose) — blank issues are
+disabled. Before filing, skim the [README](./README.md); it already answers a fair number of questions.
 
-Với bug, mô tả càng cụ thể càng tốt: lệnh đã gõ, repo/PR đang review thuộc stack nào, plugin làm gì và
-bạn kỳ vọng nó làm gì.
+For bugs, be as concrete as possible: the exact command you ran, the stack of the repo/PR being
+reviewed, what the plugin did, and what you expected it to do.
 
 ## License
 
-Đóng góp vào repo này đồng nghĩa bạn đồng ý phần đóng góp đó được phát hành theo
+By contributing to this repository you agree that your contribution is released under the
 [MIT License](./LICENSE).
