@@ -9,7 +9,7 @@
     "review/post-error-github": 10178,
     "chat/reconfigure-review": 7572,
     "upgrade": 2115,
-    "clean": 1216,
+    "clean": 1188,
     "fix/known-repo-github": 8176,
     "fix/first-run-gitlab": 9140
   },

@@ -42,9 +42,9 @@ LINES = [
 
 NOTE = (
     "One point per release tag; one line per command. A line is the MEAN token cost of that "
-    "command's scenarios in scripts/token_report.py — review over its 8 (7 review paths + the "
-    "reconfigure chat path), fix over its 2, upgrade over its 1 — counting every prompt file a "
-    "single run Reads into context. Encoder: cl100k_base via tiktoken, a proxy for Claude's own "
+    "command's scenarios in scripts/token_report.py — every scenario that command owns, review "
+    "including the reconfigure chat path — counting every prompt file a single run Reads into "
+    "context. Encoder: cl100k_base via tiktoken, a proxy for Claude's own "
     "tokenizer (within a few percent, not identical). null = the command did not exist at that "
     "tag, which is why a line can start later than the chart. Every point is measured once, at "
     "its release, and never recomputed: token_report.py's ROLES map keeps evolving, so rerunning "
@@ -97,8 +97,8 @@ def group_of(scenario):
     for line in LINES:
         if scenario == line["key"] or scenario.startswith(line["key"] + "/"):
             return line["key"]
-    if scenario.startswith(("review/", "chat/")):
-        return "review"
+    if scenario.startswith("chat/"):
+        return "review"     # the review command, reached without a PR
     raise SystemExit(f"{scenario}: no line owns this scenario — add it to LINES")
 
 
