@@ -13,104 +13,106 @@
 </p>
 
 <p align="center">
-  <strong>Tiếng Việt</strong> · <a href="./README.en.md">English</a> · <a href="./README.ja.md">日本語</a>
+  <a href="./README.vi.md">Tiếng Việt</a> · <strong>English</strong> · <a href="./README.ja.md">日本語</a>
 </p>
 
-> Khi bạn nhận PR câu hỏi đầu tiên hiện lên thường không phải "code này đúng chưa", mà là "dev có
-> tự đọc lại lần nào trước khi gửi không".
+> When a PR lands, the first question in your head usually isn't "is this code correct", it's "did the
+> dev read it back even once before sending it".
 
-`open-pr` sinh ra cho đúng chỗ đó: một plugin Claude Code review PR theo quy ước sẵn có của repo, ghi
-nhớ những gì bạn nhắc, và lần nào cũng đi qua cùng một quy trình — cùng một tone, cùng một cách phân
-loại, cùng một cách để lại dấu vết trên PR.
+`open-pr` exists for exactly that: a Claude Code plugin that reviews PRs against the conventions your
+repo already has, remembers what you tell it, and goes through the same procedure every run — same
+tone, same severity scale, same trail left on the PR.
 
-Hỗ trợ **GitHub** (`.../pull/<n>`) và **GitLab** (`.../-/merge_requests/<n>`, kể cả self-hosted).
+Works with **GitHub** (`.../pull/<n>`) and **GitLab** (`.../-/merge_requests/<n>`, self-hosted
+included).
 
-## Vì sao không dùng một skill review chung?
-
-
-| Chuyện thường xảy ra                                | `open-pr`                                                                                        |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Không biết dev đã tự review chưa                    | Dev chạy `/open-pr:review` trên PR của mình, reviewer nhìn conversation là biết ngay             |
-| Tốn thời gian review các lỗi lặt vặt, lỗi nghiệp vụ cơ bản | AI review trước, để lại dấu vết công khai; Reviewer vẫn phải chốt cuối, nhưng khởi điểm đã được dọn sạch |
-| Góp ý ở mức luật chung, lệch convention dự án       | Đọc README/CLAUDE.md/AGENTS.md/docs/wiki của repo, và rule của team thắng mọi luật chung         |
-| Nhắc xong lần sau vẫn thế                           | Bạn nhắc trong chat → nó xin phép ghi vào memory của repo đó → lần sau tự áp                     |
-| Tài liệu outdate/xung đột không ai phát hiện        | Đến kỳ là đọc lại tài liệu quy ước, thấy lệch thì nêu ra                                         |
-| Fix thì spam commit, amend, force-push, không reply | Mỗi lần chạy đúng 1 commit, không ghi đè lịch sử, và reply từng comment sau khi đã push          |
-| Tự prompt `gh cli` thì mỗi lần một kiểu             | Cùng một quy trình, cùng một tone, cùng một cách phân loại mức độ cho mọi lần                    |
+## Why not just a generic review skill?
 
 
-## Nó chạy thế nào
+| What usually happens                                          | `open-pr`                                                                                       |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| No way to tell whether the dev reviewed their own PR          | The dev runs `/open-pr:review` on their own PR; a reviewer sees it right in the conversation     |
+| Review time burned on small stuff and basic business slips    | AI reviews first and leaves a public trail; the reviewer still has the final word, but the starting point is already cleared |
+| Advice at the level of generic rules, off the project's conventions | Reads the repo's README/CLAUDE.md/AGENTS.md/docs/wiki, and team rules beat every generic one |
+| You say it once, next time it's the same again                 | You mention it in chat → it asks to write it into that repo's memory → next run applies it      |
+| Outdated or conflicting docs, nobody notices                   | Re-reads the convention docs on schedule and raises whatever no longer matches                 |
+| Fixes arrive as commit spam, amends, force-pushes, no replies   | Exactly 1 commit per run, no history rewriting, and a reply on every comment once pushed        |
+| Hand-rolled `gh cli` prompts come out different every time      | Same procedure, same tone, same severity scale, every run                                      |
+
+
+## How it runs
 
 ```mermaid
 flowchart LR
-  A[PR mới] --> B["/open-pr:review URL"]
-  B --> C{Repo setup chưa?}
-  C -- chưa --> D["Hỏi 1 lượt ngắn<br/>+ đọc quy ước repo"]
-  D --> E[Review trong worktree riêng]
-  C -- rồi --> E
-  E --> F["Post 1 review<br/>🔴 🟠 🔵 📝 · sạch → LGTM 🌟"]
-  F --> G["/open-pr:fix URL"] --> H["1 commit + reply từng finding"]
-  F --> I["Bạn nhắc trong chat"] --> J["Ghi vào memory của repo"]
-  J -. lần sau .-> B
+  A[New PR] --> B["/open-pr:review URL"]
+  B --> C{Repo set up?}
+  C -- not yet --> D["One short round of questions<br/>+ read the repo's conventions"]
+  D --> E[Review inside its own worktree]
+  C -- yes --> E
+  E --> F["Post 1 review<br/>🔴 🟠 🔵 📝 · clean → LGTM 🌟"]
+  F --> G["/open-pr:fix URL"] --> H["1 commit + a reply per finding"]
+  F --> I["You mention it in chat"] --> J["Written into the repo's memory"]
+  J -. next run .-> B
 ```
 
-`review` checkout code của PR ra một git worktree riêng, nên branch bạn đang làm không bị đụng tới —
-vừa review vừa code bình thường. Nó không chỉ nhìn những chỗ PR sửa mà ngắm cả logic liên quan, nên
-deadcode và bug nghiệp vụ nằm ngoài diff cũng không lọt. Những gì ngoài scope nhưng vẫn ảnh hưởng thì
-nó nêu thành lời khuyên để bạn cân, không tính là finding phải sửa.
+`review` checks the PR's code out into its own git worktree, so the branch you're on is never touched —
+review and keep coding at the same time. And it doesn't only look at what the PR changed: the logic
+around it is in scope too, so deadcode and business-logic bugs outside the diff don't slip past.
+Anything out of scope that still matters comes back as advice for you to weigh, not as a finding you
+must fix.
 
-Gõ lại `/open-pr:review` trên cùng PR sau khi dev đã fix hoặc đã phản hồi thì nó không review lại từ
-đầu, mà nối tiếp lần trước:
+Type `/open-pr:review` again on the same PR after the dev has fixed or replied and it doesn't review
+from scratch — it picks up where the last run left off:
 
 ```mermaid
 flowchart LR
-  A["/open-pr:review URL<br/>(lần 2 trở đi)"] --> B[Đọc lại từng thread<br/>finding cũ vs code hiện tại]
-  B --> C{Đã fix?}
-  C -- rồi --> D["Reply xác nhận đúng thread ấy<br/>· resolve nếu bạn đã bật"]
-  C -- chưa --> E["Để nguyên thread đang mở<br/>không nhắc lại, không tạo finding trùng"]
-  B --> F{Thread có chốt<br/>một quy ước?}
-  F -- có --> G["Hỏi bạn trước<br/>→ ghi vào memory của repo"]
-  A --> H[Review phần diff mới]
-  H --> I{Có gì mới?}
-  I -- có --> J["Post review mới,<br/>chỉ nói phần mới"]
-  I -- không, và sạch hết --> K[LGTM 🌟]
-  I -- không, còn finding mở --> L["Không post thêm gì<br/>review đang treo vẫn còn nguyên giá trị"]
+  A["/open-pr:review URL<br/>(2nd run onward)"] --> B[Re-read each thread<br/>old finding vs current code]
+  B --> C{Fixed?}
+  C -- yes --> D["Confirm on that exact thread<br/>· resolve if you enabled it"]
+  C -- not yet --> E["Leave the open thread alone<br/>no repeat, no duplicate finding"]
+  B --> F{Thread settled<br/>on a convention?}
+  F -- yes --> G["Asks you first<br/>→ writes it into the repo's memory"]
+  A --> H[Review the new diff]
+  H --> I{Anything new?}
+  I -- yes --> J["Post a new review,<br/>only about what's new"]
+  I -- no, and all clear --> K[LGTM 🌟]
+  I -- no, findings still open --> L["Post nothing further<br/>the standing review still holds"]
 ```
 
-Quy ước chốt trong thread nó luôn hỏi bạn trước chứ không tự nhớ: rule nằm trong comment thì ai cũng
-viết được.
+A convention settled inside a thread is always confirmed with you rather than remembered on its own:
+anyone can write a rule in a comment.
 
-`/open-pr:fix` đi ngược chiều: nó đọc chính những finding `review` để lại, rồi sửa code thật:
+`/open-pr:fix` runs the other way: it reads the very findings `review` left, then edits real code:
 
 ```mermaid
 flowchart LR
-  A["/open-pr:fix URL"] --> B{"Đúng branch của PR?<br/>không đứng trên main/develop?"}
-  B -- không --> C["Dừng ngay<br/>chưa chạm file nào"]
-  B -- đúng --> D["Đọc finding review để lại<br/>bỏ thread đã resolve · đã xử lý · dev đã chốt"]
-  D --> E{Mức độ?}
-  E -- "🔴 🟠 · fix luôn" --> F["Sửa theo convention<br/>+ memory của repo"]
-  E -- "🔵 📝 · hoặc thấy finding không hợp lý" --> G["Gom mọi thắc mắc vào đúng 1 lượt hỏi<br/>chờ bạn chốt xong mới sửa"]
+  A["/open-pr:fix URL"] --> B{"On the PR's branch?<br/>not on main/develop?"}
+  B -- no --> C["Stops right there<br/>no file touched yet"]
+  B -- yes --> D["Read the findings review left<br/>skip threads resolved · handled · settled by the dev"]
+  D --> E{Severity?}
+  E -- "🔴 🟠 · fix it" --> F["Fix per the repo's<br/>conventions + memory"]
+  E -- "🔵 📝 · or the finding looks wrong" --> G["Every open question in exactly 1 round<br/>nothing is edited until you decide"]
   G --> F
-  F --> H["Đúng 1 commit<br/>chỉ add file vừa sửa · không amend, không force-push"]
+  F --> H["Exactly 1 commit<br/>only the files it edited · no amend, no force-push"]
   H --> I{auto_push?}
-  I -- "false (mặc định)" --> J["Dừng ở local<br/>chờ bạn nói 'push'"]
+  I -- "false (default)" --> J["Stops at local<br/>waits for you to say 'push'"]
   I -- true --> K[Push]
   J --> K
-  K --> L["Reply từng finding: đã fix, hoặc vì sao không fix<br/>không resolve thread — để bạn tự chốt"]
+  K --> L["A reply per finding: fixed, or why not<br/>never resolves a thread — that stays yours"]
 ```
 
-Khác `review` ở chỗ nó **không** dùng worktree, mà sửa thẳng vào repo thật trên đĩa. Nên trước khi chạm
-bất cứ file nào, nó soát chỗ sắp sửa — sai branch, đang trên `main`/`develop`, hay đang ở trong chính
-cái worktree mà `review` tạo ra (worktree đó detached, không có branch) đều dừng ngay.
+Unlike `review` it uses **no** worktree: it edits the real repo on disk. So before touching any file it
+checks the place it's about to edit — wrong branch, on `main`/`develop`, or inside the very worktree
+`review` created (that one is detached, no branch) all stop it immediately.
 
-## Cài đặt
+## Install
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-Cập nhật:
+Update:
 
 ```bash
 /plugin marketplace update open-pr
@@ -119,110 +121,117 @@ Cập nhật:
 /open-pr:upgrade
 ```
 
-`/open-pr:upgrade` đối chiếu config local của repo với bản mới. Có gì cần đổi thì nó tóm tắt rồi hỏi —
-bạn đồng ý mới ghi; không có gì đổi thì nó nói config đang mới nhất rồi dừng.
+`/open-pr:upgrade` compares the repo's local config against the new build. Anything that needs
+changing is summarised and put to you first — nothing is written until you agree; nothing to change and
+it says the config is already current, then stops.
 
-Đang dùng bản trước 1.0.0? Marketplace đã đổi tên từ `review-pr` thành `open-pr`, nên phải cài lại một
-lần — `/plugin uninstall open-pr`, `/plugin marketplace remove review-pr`, rồi 2 lệnh cài ở trên.
+Coming from a pre-1.0.0 install? The marketplace was renamed from `review-pr` to `open-pr`, so it is
+re-added once — `/plugin uninstall open-pr`, `/plugin marketplace remove review-pr`, then the two install
+commands above.
 
-Cần thêm: [Claude Code](https://claude.ai/code), và [`gh`](https://cli.github.com/) (PR GitHub) hoặc
-[`glab`](https://gitlab.com/gitlab-org/cli) (MR GitLab) đã login — review được post bằng chính account
-đó.
+You also need: [Claude Code](https://claude.ai/code), plus [`gh`](https://cli.github.com/) (GitHub
+PRs) or [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab MRs) logged in — the review is posted
+through that account.
 
-## Sử dụng
-
-
-| Command                 | Làm gì                                                                                                        | Lúc gõ bạn đứng ở đâu                                                              | Nó ghi gì                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `/open-pr:review <URL>` | Review PR, post đúng **1** review: overview + comment line-by-line. Không sửa code, không close, không merge  | ở workspace chứa repo (nên vậy), hoặc trong chính repo — nó tự tìm theo `git remote`  | comment trên PR + memory ở `notebooks/review/<repo>/` |
-| `/open-pr:fix <URL>`    | Đọc finding từ lần review trước, sửa code, gom **1** commit, rồi reply từng comment. 🔵/📝 luôn hỏi bạn trước | trong repo đó, hoặc workspace chứa nó — nhưng **repo phải đang ở branch của PR**   | code thật trong repo đó + reply trên PR               |
-| `/open-pr:upgrade`      | Nâng config local của repo lên schema mới nhất. Tóm tắt cái gì đổi rồi hỏi, chưa đồng ý thì không ghi gì      | ở workspace hoặc repo đã setup — nhiều repo thì nó cho bạn chọn                       | `notebooks/review/<repo>/settings.json`               |
+## Usage
 
 
-Command chỉ chạy khi bạn tự gõ, và hỗ trợ cả submodule. Viết thêm gì sau URL thì phần đó chỉ áp cho
-lần chạy đó:
+| Command                 | What it does                                                                                                          | Where you stand when you type it                                                    | What it writes                                        |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `/open-pr:review <URL>` | Reviews the PR and posts exactly **1** review: overview + line-by-line comments. Never edits code, never closes, never merges | in the workspace holding the repo (preferred), or in the repo itself — it finds the repo by `git remote` | comments on the PR + memory in `notebooks/review/<repo>/` |
+| `/open-pr:fix <URL>`    | Reads the findings from the last review, fixes the code, wraps it in **1** commit, then replies per comment. 🔵/📝 always ask you first | in that repo, or in the workspace holding it — but **the repo must be on the PR's branch** | real code in that repo + replies on the PR   |
+| `/open-pr:upgrade`      | Brings the repo's local config up to the latest schema. Summarises what changes and asks; nothing is written until you agree | in a workspace or a repo already set up — with several repos it lets you pick | `notebooks/review/<repo>/settings.json`     |
+
+
+Commands run only when you type them, and submodules are covered. Extra words after the URL apply to
+that run only:
 
 ```bash
-/open-pr:review https://github.com/org/repo/pull/123 [Nội dung]
-/open-pr:fix    https://github.com/org/repo/pull/123 [Nội dung]
+/open-pr:review https://github.com/org/repo/pull/123 [instructions]
+/open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
 ```
 
-### Nên thiết lập ở workspace
+### Set it up in the workspace, not inside the repo
 
 ```
-✅ đứng ở workspace                          ❌ đứng trong repo
+✅ standing in the workspace                 ❌ standing inside the repo
 ─────────────────────────                    ─────────────────────────
-workspace/            ← gõ ở đây             repo-backend/         ← gõ ở đây
-├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory nằm TRONG dự án
-│   ├── repo-backend/  ngoài mọi repo        ├── .gitignore         +1 dòng — thay đổi thật
+workspace/            ← type here            repo-backend/         ← type here
+├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory sits INSIDE the project
+│   ├── repo-backend/  outside every repo    ├── .gitignore         +1 line — a real change
 │   └── repo-frontend/                       └── src/
-├── repo-backend/     ← sạch, 0 file lạ
-└── repo-frontend/    ← sạch, 0 file lạ      (repo-frontend? không thấy)
+├── repo-backend/     ← clean, 0 stray files
+└── repo-frontend/    ← clean, 0 stray files (repo-frontend? out of sight)
 ```
 
-`notebooks/review/` — memory + worktree — luôn sinh ra ngay tại chỗ bạn gõ command. Đứng trong repo thì
-nó nằm trong dự án; plugin có tự thêm 1 dòng vào `.gitignore` nên `git status` vẫn sạch, nhưng dòng đó
-là một thay đổi thật trong repo của bạn.
+`notebooks/review/` — memory + worktree — is always created right where you type the command. Inside
+the repo it lands in your project; the plugin does add one line to `.gitignore` so `git status` stays
+clean, but that line is a real change in your repo.
 
-Đứng ở workspace thì repo không hề bị chạm, và vì các repo nằm cạnh nhau nên nó review được PR chéo
-repo — nhiều PR của cùng một tính năng trong một lượt, chạy lần lượt chứ không song song. Đứng trong
-`repo-backend` thì `repo-frontend` là vô hình:
+From the workspace the repo is never touched, and because the repos sit side by side it can review
+across them — several PRs of one feature in a single run, one after another rather than in parallel.
+From inside `repo-backend`, `repo-frontend` is invisible:
 
 ```bash
 cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
 
-`/open-pr:fix` cũng gọi được từ workspace — nó tự tìm đúng repo rồi vào đó sửa, miễn repo ấy đang đứng
-ở branch của PR.
+`/open-pr:fix` works from the workspace too — it locates the right repo and edits inside it, as long as
+that repo is on the PR's branch.
 
 
-## Nó review những gì
+## What it reviews
 
 
-| #   | Tiêu chí             | Nhìn vào                                                                                                                                                        |
-| --- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Bug & logic**      | lỗi logic thấy được, edge case (rỗng/null/giới hạn), nhánh điều kiện và đường lỗi có được xử lý                                                                 |
-| 2   | **Security**         | secret hardcode, input không kiểm tra đi thẳng vào query/command/render, thiếu check quyền ở hành động nhạy cảm                                                 |
-| 3   | **Performance**      | gọi API/DB/tính toán lặp lại đáng cache hoặc batch, load cả tập dữ liệu lớn thay vì stream                                                                      |
-| 4   | **Chất lượng code**  | tên có theo convention dự án, code trùng, một unit làm quá nhiều việc, tàn dư chết (block comment-out, flag/import không dùng, TODO trỏ tới task đã xoá)        |
-| 5   | **Dễ bảo trì & đọc** | comment ở chỗ logic không hiển nhiên và nói đúng hiện tại (không kể lể quá khứ), test cover cả happy path lẫn error path, thiết kế còn chỗ cho thay đổi kế tiếp |
+| #   | Criterion                 | What it looks at                                                                                                                                          |
+| --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Bugs & logic**          | visible logic errors, edge cases (empty/null/limits), whether conditional branches and error paths are handled                                             |
+| 2   | **Security**              | hardcoded secrets, unvalidated input going straight into a query/command/render, missing permission checks on sensitive actions                            |
+| 3   | **Performance**           | repeated API/DB calls or computation worth caching or batching, loading a whole large dataset instead of streaming                                         |
+| 4   | **Code quality**          | naming against the project's convention, duplicated code, one unit doing too much, dead remains (commented-out blocks, unused flags/imports, a TODO pointing at a deleted task) |
+| 5   | **Maintainability & readability** | comments where the logic isn't obvious, stating what is true now (no recounting the past), tests covering both happy and error paths, a design that leaves room for the next change |
 
 
-**Tiêu chí 6** là phần đặc thù framework/language, do template của từng stack nắm: Rails, Vue, React,
-Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile, và cả file markdown viết làm
-instruction cho AI agent. Gặp stack lạ, nó viết template ngay tại chỗ.
+**A 6th criterion** is the framework/language-specific one, held by each stack's template: Rails, Vue,
+React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, Makefile, and markdown written as
+instructions for an AI agent. Meet an unknown stack and it writes the template on the spot.
 
-Thứ tự ưu tiên khi có xung đột: rule của team → memory đã học → template của stack → 5 tiêu chí trên.
-Rule của team luôn thắng.
+Priority when they conflict: team rules → learned memory → the stack's template → the 5 criteria
+above. Team rules always win.
 
-## Lần đầu với một repo
+## First run on a repo
 
-Plugin hỏi một loạt câu ngắn, chỉ 1 lần cho mỗi repo (ngôn ngữ post lên PR, post ngay hay để draft, có
-tự resolve thread đã fix không, bao lâu đọc lại tài liệu, ngưỡng PR/file quá lớn), rồi tự đi đọc những
-quy ước bạn đã có sẵn: README, CLAUDE.md, AGENTS.md, docs, wiki ...
+The plugin asks a short batch of questions, once per repo (language to post in, post immediately or
+keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large
+PR/file thresholds), then goes and reads the conventions you already have: README, CLAUDE.md,
+AGENTS.md, docs, wiki …
 
-Mọi thứ nó ghi nhớ được index như một mục lục trong `notebooks/review/<repo>/memory.md`: vừa tiết kiệm
-token vì không phải nạp chi tiết, vừa nắm được toàn cảnh những gì đã học. Chi tiết nằm rời từng file
-trong `notebooks/review/<repo>/memories/*.md`. Cả thư mục `notebooks/review/` do một git local độc lập
-quản lý — không remote, không push — nên bạn theo dõi được memory thay đổi qua từng lần review.
+Everything it remembers is indexed like a table of contents in `notebooks/review/<repo>/memory.md`:
+cheap in tokens because no detail has to be loaded, while still giving the whole picture of what has
+been learned. The details sit one file at a time under `notebooks/review/<repo>/memories/*.md`. The
+whole `notebooks/review/` directory is tracked by its own independent local git — no remote, never
+pushed — so you can follow how memory changed from one review to the next.
 
-Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định rỗng), còn lại nằm ở
-`settings.json`:
+Your team's own rules go into `ALWAYS_RULE.md` as plain prose (empty by default); everything else
+lives in `settings.json`:
 
 
-| Field                                | Nghĩa                                                                                     | Mặc định            |
-| ------------------------------------ | ----------------------------------------------------------------------------------------- | ------------------- |
-| `shared.chat_language`               | ngôn ngữ nói chuyện trong chat                                                            | tự nhận             |
-| `shared.output_language`             | ngôn ngữ post lên PR                                                                      | hỏi một lần rồi lưu |
-| `review.auto_submit_review`          | `true` = post luôn, `false` = để draft cho bạn xem lại                                    | `false`             |
-| `review.auto_resolve_fixed_findings` | tự resolve thread khi finding đã được sửa                                                 | `false`             |
-| `review.doctor_schedule`             | chu kỳ đọc lại tài liệu quy ước: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"`     |
-| `review.review_ci_status`            | có nhắc CI đang fail hay không (chỉ cảnh báo, không bắt sửa)                              | có CI ⇒ `true`      |
-| `review.many_files_threshold`        | PR nhiều hơn bấy nhiêu file thì cảnh báo quá lớn                                          | `30`                |
-| `review.big_file_threshold_kb`       | file diff to hơn ngưỡng này bị bỏ khỏi lần đọc đầu                                        | `20`                |
-| `fix.decline_needs_confirmation`     | hỏi bạn trước khi bỏ qua một finding                                                      | `true`              |
-| `fix.auto_push`                      | tự push sau khi commit                                                                    | `false`             |
+| Field                                | Meaning                                                                                | Default              |
+| ------------------------------------ | -------------------------------------------------------------------------------------- | -------------------- |
+| `shared.chat_language`               | language used in chat                                                                  | auto-detected        |
+| `shared.output_language`             | language posted on the PR                                                              | asked once, then kept |
+| `review.auto_submit_review`          | `true` = post straight away, `false` = keep a draft for you to look over               | `false`              |
+| `review.auto_resolve_fixed_findings` | resolve a thread once its finding is fixed                                             | `false`              |
+| `review.doctor_schedule`             | how often the convention docs are re-read: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
+| `review.review_ci_status`            | whether to mention failing CI (a warning only, never a demand to fix)                  | CI present ⇒ `true`  |
+| `review.many_files_threshold`        | more files than this in a PR ⇒ warn that it's too large                                | `30`                 |
+| `review.big_file_threshold_kb`       | a diffed file larger than this is left out of the first read                           | `20`                 |
+| `fix.decline_needs_confirmation`     | ask you before declining a finding                                                     | `true`               |
+| `fix.auto_push`                      | push automatically after committing                                                    | `false`              |
+
+
+Contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ---
 
