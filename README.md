@@ -4,7 +4,7 @@
 
 <h1 align="center">Open PullRequest</h1>
 
-<p align="center"><em>/open-pr:review — Agent Review Pull Request Github</em></p>
+<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab</em></p>
 
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
@@ -57,8 +57,9 @@ flowchart LR
 
 `review` checks the PR's code out into its own git worktree, so the branch you're on is never touched —
 review and keep coding at the same time. And it doesn't only look at what the PR changed: the logic
-around it is in scope too, so deadcode and business-logic bugs the PR never touched don't slip past.
-Findings that fall out of scope but still matter come back as advice for you to weigh.
+around it is in scope too, so deadcode and business-logic bugs outside the diff don't slip past.
+Anything out of scope that still matters comes back as advice for you to weigh, not as a finding you
+must fix.
 
 Type `/open-pr:review` again on the same PR after the dev has fixed or replied and it doesn't review
 from scratch — it picks up where the last run left off:
@@ -100,8 +101,8 @@ flowchart LR
   K --> L["A reply per finding: fixed, or why not<br/>never resolves a thread — that stays yours"]
 ```
 
-Unlike `review` it uses **no** worktree: it edits the directory you're standing in. So before touching
-any file it checks where you stand — wrong branch, on `main`/`develop`, or inside the very worktree
+Unlike `review` it uses **no** worktree: it edits the real repo on disk. So before touching any file it
+checks the place it's about to edit — wrong branch, on `main`/`develop`, or inside the very worktree
 `review` created (that one is detached, no branch) all stop it immediately.
 
 ## Install
@@ -120,7 +121,9 @@ Update:
 /open-pr:upgrade
 ```
 
-`/open-pr:upgrade` migrates the local config for you whenever a release changes the config structure.
+`/open-pr:upgrade` compares the repo's local config against the new build. Anything that needs
+changing is summarised and put to you first — nothing is written until you agree; nothing to change and
+it says the config is already current, then stops.
 
 You also need: [Claude Code](https://claude.ai/code), plus [`gh`](https://cli.github.com/) (GitHub
 PRs) or [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab MRs) logged in — the review is posted
@@ -131,19 +134,47 @@ through that account.
 
 | Command                 | What it does                                                                                                          | Where you stand when you type it                                                    | What it writes                                        |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `/open-pr:review <URL>` | Reviews the PR and posts exactly **1** review: overview + line-by-line comments. Never edits code, never closes, never merges | in the repo/workspace, or in a workspace containing it — it finds the repo by `git remote` | comments on the PR + memory in `notebooks/review/<repo>/` |
-| `/open-pr:fix <URL>`    | Reads the findings from the last review, fixes the code, wraps it in **1** commit, then replies per comment. 🔵/📝 always ask you first | **in that exact repo, on the PR's branch**                                     | real code where you stand + replies on the PR         |
-| `/open-pr:upgrade`      | Brings the repo's local config up to the latest schema. Summarises what changes and asks; nothing is written until you agree | in a repo/workspace already set up                                              | `notebooks/review/<repo>/settings.json`               |
+| `/open-pr:review <URL>` | Reviews the PR and posts exactly **1** review: overview + line-by-line comments. Never edits code, never closes, never merges | in the workspace holding the repo (preferred), or in the repo itself — it finds the repo by `git remote` | comments on the PR + memory in `notebooks/review/<repo>/` |
+| `/open-pr:fix <URL>`    | Reads the findings from the last review, fixes the code, wraps it in **1** commit, then replies per comment. 🔵/📝 always ask you first | in that repo, or in the workspace holding it — but **the repo must be on the PR's branch** | real code in that repo + replies on the PR   |
+| `/open-pr:upgrade`      | Brings the repo's local config up to the latest schema. Summarises what changes and asks; nothing is written until you agree | in a workspace or a repo already set up — with several repos it lets you pick | `notebooks/review/<repo>/settings.json`     |
 
 
-Commands run only when you type them. Several related PRs of one feature are supported, run one after
-another; submodules too.
+Commands run only when you type them, and submodules are covered. Extra words after the URL apply to
+that run only:
 
 ```bash
 /open-pr:review https://github.com/org/repo/pull/123 [instructions]
 /open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
+```
+
+### Set it up in the workspace, not inside the repo
+
+```
+✅ standing in the workspace                 ❌ standing inside the repo
+─────────────────────────                    ─────────────────────────
+workspace/            ← type here            repo-backend/         ← type here
+├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory sits INSIDE the project
+│   ├── repo-backend/  outside every repo    ├── .gitignore         +1 line — a real change
+│   └── repo-frontend/                       └── src/
+├── repo-backend/     ← clean, 0 stray files
+└── repo-frontend/    ← clean, 0 stray files (repo-frontend? out of sight)
+```
+
+`notebooks/review/` — memory + worktree — is always created right where you type the command. Inside
+the repo it lands in your project; the plugin does add one line to `.gitignore` so `git status` stays
+clean, but that line is a real change in your repo.
+
+From the workspace the repo is never touched, and because the repos sit side by side it can review
+across them — several PRs of one feature in a single run, one after another rather than in parallel.
+From inside `repo-backend`, `repo-frontend` is invisible:
+
+```bash
+cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
+
+`/open-pr:fix` works from the workspace too — it locates the right repo and edits inside it, as long as
+that repo is on the PR's branch.
 
 
 ## What it reviews
@@ -167,15 +198,16 @@ above. Team rules always win.
 
 ## First run on a repo
 
-The plugin asks one short round of questions (review language, post immediately or keep a draft, how
-often to re-read the docs, the too-large-PR threshold), then goes and reads the conventions you
-already have: README, CLAUDE.md, AGENTS.md, docs, wiki …
+The plugin asks a short batch of questions, once per repo (language to post in, post immediately or
+keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large
+PR/file thresholds), then goes and reads the conventions you already have: README, CLAUDE.md,
+AGENTS.md, docs, wiki …
 
-Everything it remembers is indexed like a table of contents in `notebooks/review/<repo>/memory.md` —
-cheap in tokens because nothing is held in full detail, while still giving the whole picture of what
-has been learned. The details sit one file at a time under
-`notebooks/review/<repo>/memories/*.md`. That `review` directory is tracked by its own independent
-local git, so the state of those notes stays visible.
+Everything it remembers is indexed like a table of contents in `notebooks/review/<repo>/memory.md`:
+cheap in tokens because no detail has to be loaded, while still giving the whole picture of what has
+been learned. The details sit one file at a time under `notebooks/review/<repo>/memories/*.md`. The
+whole `notebooks/review/` directory is tracked by its own independent local git — no remote, never
+pushed — so you can follow how memory changed from one review to the next.
 
 Your team's own rules go into `ALWAYS_RULE.md` as plain prose (empty by default); everything else
 lives in `settings.json`:
@@ -187,7 +219,7 @@ lives in `settings.json`:
 | `shared.output_language`             | language posted on the PR                                                              | asked once, then kept |
 | `review.auto_submit_review`          | `true` = post straight away, `false` = keep a draft for you to look over               | `false`              |
 | `review.auto_resolve_fixed_findings` | resolve a thread once its finding is fixed                                             | `false`              |
-| `review.doctor_schedule`             | how often the convention docs are re-read: `"7 days"` \| `"2 weeks"` \| `"1 months"` \| `"never"` | `"1 months"` |
+| `review.doctor_schedule`             | how often the convention docs are re-read: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status`            | whether to mention failing CI (a warning only, never a demand to fix)                  | CI present ⇒ `true`  |
 | `review.many_files_threshold`        | more files than this in a PR ⇒ warn that it's too large                                | `30`                 |
 | `review.big_file_threshold_kb`       | a diffed file larger than this is left out of the first read                           | `20`                 |

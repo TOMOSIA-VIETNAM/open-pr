@@ -4,7 +4,7 @@
 
 <h1 align="center">Open PullRequest</h1>
 
-<p align="center"><em>/open-pr:review — Agent Review Pull Request Github</em></p>
+<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab</em></p>
 
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
@@ -55,9 +55,9 @@ flowchart LR
 ```
 
 `review` checkout code của PR ra một git worktree riêng, nên branch bạn đang làm không bị đụng tới —
-vừa review vừa code bình thường. Nó không chỉ xem xét cho những chỗ PR đang fix mà còn ngắm cả những logic liên quan,
-tránh để lại deadcode và bug nghiệp vụ không có trong PR. Những nội dung review 'out-of-scope' nhưng có ảnh hưởng
-nó sẽ đưa ra lời khuyên để bạn chú ý đến.
+vừa review vừa code bình thường. Nó không chỉ nhìn những chỗ PR sửa mà ngắm cả logic liên quan, nên
+deadcode và bug nghiệp vụ nằm ngoài diff cũng không lọt. Những gì ngoài scope nhưng vẫn ảnh hưởng thì
+nó nêu thành lời khuyên để bạn cân, không tính là finding phải sửa.
 
 Gõ lại `/open-pr:review` trên cùng PR sau khi dev đã fix hoặc đã phản hồi thì nó không review lại từ
 đầu, mà nối tiếp lần trước:
@@ -99,9 +99,9 @@ flowchart LR
   K --> L["Reply từng finding: đã fix, hoặc vì sao không fix<br/>không resolve thread — để bạn tự chốt"]
 ```
 
-Khác `review` ở chỗ nó **không** dùng worktree, mà sửa thẳng vào thư mục bạn đang đứng. Nên trước khi
-chạm bất cứ file nào, nó soát lại chỗ bạn đứng — sai branch, đang trên `main`/`develop`, hay đang ở
-trong chính cái worktree mà `review` tạo ra (worktree đó detached, không có branch) đều dừng ngay.
+Khác `review` ở chỗ nó **không** dùng worktree, mà sửa thẳng vào repo thật trên đĩa. Nên trước khi chạm
+bất cứ file nào, nó soát chỗ sắp sửa — sai branch, đang trên `main`/`develop`, hay đang ở trong chính
+cái worktree mà `review` tạo ra (worktree đó detached, không có branch) đều dừng ngay.
 
 ## Cài đặt
 
@@ -119,7 +119,8 @@ Cập nhật:
 /open-pr:upgrade
 ```
 
-`/open-pr:upgrade` sẽ tự động upgrade config nếu như có thay đổi cấu trúc về config trong phiên bản được nâng cấp.
+`/open-pr:upgrade` đối chiếu config local của repo với bản mới. Có gì cần đổi thì nó tóm tắt rồi hỏi —
+bạn đồng ý mới ghi; không có gì đổi thì nó nói config đang mới nhất rồi dừng.
 
 Cần thêm: [Claude Code](https://claude.ai/code), và [`gh`](https://cli.github.com/) (PR GitHub) hoặc
 [`glab`](https://gitlab.com/gitlab-org/cli) (MR GitLab) đã login — review được post bằng chính account
@@ -130,9 +131,9 @@ Cần thêm: [Claude Code](https://claude.ai/code), và [`gh`](https://cli.githu
 
 | Command                 | Làm gì                                                                                                        | Lúc gõ bạn đứng ở đâu                                                              | Nó ghi gì                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `/open-pr:review <URL>` | Review PR, post đúng **1** review: overview + comment line-by-line. Không sửa code, không close, không merge  | trong workspace/repo, hoặc trong workspace chứa repo — nó tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
+| `/open-pr:review <URL>` | Review PR, post đúng **1** review: overview + comment line-by-line. Không sửa code, không close, không merge  | ở workspace chứa repo (nên vậy), hoặc trong chính repo — nó tự tìm theo `git remote`  | comment trên PR + memory ở `notebooks/review/<repo>/` |
 | `/open-pr:fix <URL>`    | Đọc finding từ lần review trước, sửa code, gom **1** commit, rồi reply từng comment. 🔵/📝 luôn hỏi bạn trước | trong repo đó, hoặc workspace chứa nó — nhưng **repo phải đang ở branch của PR**   | code thật trong repo đó + reply trên PR               |
-| `/open-pr:upgrade`      | Nâng config local của repo lên schema mới nhất. Tóm tắt cái gì đổi rồi hỏi, chưa đồng ý thì không ghi gì      | trong workspace/repo đã setup                                                      | `notebooks/review/<repo>/settings.json`               |
+| `/open-pr:upgrade`      | Nâng config local của repo lên schema mới nhất. Tóm tắt cái gì đổi rồi hỏi, chưa đồng ý thì không ghi gì      | ở workspace hoặc repo đã setup — nhiều repo thì nó cho bạn chọn                       | `notebooks/review/<repo>/settings.json`               |
 
 
 Command chỉ chạy khi bạn tự gõ, và hỗ trợ cả submodule. Viết thêm gì sau URL thì phần đó chỉ áp cho
@@ -194,13 +195,14 @@ Rule của team luôn thắng.
 
 ## Lần đầu với một repo
 
-Plugin hỏi một lượt ngắn (ngôn ngữ review, post ngay hay để draft, bao lâu đọc lại tài liệu, ngưỡng PR
-quá lớn), rồi tự đi đọc những quy ước bạn đã có sẵn: README, CLAUDE.md, AGENTS.md, docs, wiki ...
+Plugin hỏi một loạt câu ngắn, chỉ 1 lần cho mỗi repo (ngôn ngữ post lên PR, post ngay hay để draft, có
+tự resolve thread đã fix không, bao lâu đọc lại tài liệu, ngưỡng PR/file quá lớn), rồi tự đi đọc những
+quy ước bạn đã có sẵn: README, CLAUDE.md, AGENTS.md, docs, wiki ...
 
-Mọi thứ nó ghi nhớ sẽ được index như mục lục trong file `notebooks/review/repo/memory.md`
-điều này vừa giúp tiết kiệm token khi không phải nhớ quá chi tiết nhưng lại nắm được tổng quan các thứ đã từng được ghi nhớ.
-Với chi tiết của memory nó sẽ lưu theo từng file trong thư mục `notebooks/review/repo/memories/*.md`
-— Trong thư mục `review` sẽ được quản lý bởi một git local độc lập dùng để theo dõi trạng thái lưu trữ tài liệu.
+Mọi thứ nó ghi nhớ được index như một mục lục trong `notebooks/review/<repo>/memory.md`: vừa tiết kiệm
+token vì không phải nạp chi tiết, vừa nắm được toàn cảnh những gì đã học. Chi tiết nằm rời từng file
+trong `notebooks/review/<repo>/memories/*.md`. Cả thư mục `notebooks/review/` do một git local độc lập
+quản lý — không remote, không push — nên bạn theo dõi được memory thay đổi qua từng lần review.
 
 Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định rỗng), còn lại nằm ở
 `settings.json`:
@@ -212,7 +214,7 @@ Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.
 | `shared.output_language`             | ngôn ngữ post lên PR                                                                      | hỏi một lần rồi lưu |
 | `review.auto_submit_review`          | `true` = post luôn, `false` = để draft cho bạn xem lại                                    | `false`             |
 | `review.auto_resolve_fixed_findings` | tự resolve thread khi finding đã được sửa                                                 | `false`             |
-| `review.doctor_schedule`             | chu kỳ đọc lại tài liệu quy ước: `"7 days"` \| `"2 weeks"` \| `"1 months"` \| `"never"`   | `"1 months"`        |
+| `review.doctor_schedule`             | chu kỳ đọc lại tài liệu quy ước: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"`     |
 | `review.review_ci_status`            | có nhắc CI đang fail hay không (chỉ cảnh báo, không bắt sửa)                              | có CI ⇒ `true`      |
 | `review.many_files_threshold`        | PR nhiều hơn bấy nhiêu file thì cảnh báo quá lớn                                          | `30`                |
 | `review.big_file_threshold_kb`       | file diff to hơn ngưỡng này bị bỏ khỏi lần đọc đầu                                        | `20`                |

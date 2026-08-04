@@ -4,7 +4,7 @@
 
 <h1 align="center">Open PullRequest</h1>
 
-<p align="center"><em>/open-pr:review — Agent Review Pull Request Github</em></p>
+<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab</em></p>
 
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
@@ -56,8 +56,8 @@ flowchart LR
 
 `review` は PR のコードを専用の git worktree にチェックアウトするため、作業中のブランチには一切触れません
 — レビュー中もそのまま開発を続けられます。さらに PR が変更した箇所だけでなく、その周辺のロジックも視野に
-入れるので、PR に含まれていない deadcode や業務ロジックのバグも見逃しません。スコープ外だが影響のある指摘
-は、判断材料としてアドバイスの形で返ってきます。
+入れるので、diff の外にある deadcode や業務ロジックのバグも見逃しません。スコープ外だが影響のあるものは、
+必ず直すべき指摘ではなく判断材料としてのアドバイスで返します。
 
 開発者が修正または返信したあと、同じ PR でもう一度 `/open-pr:review` を実行しても、ゼロからやり直すのでは
 なく前回の続きから進みます:
@@ -99,9 +99,9 @@ flowchart LR
   K --> L["指摘ごとに返信: 修正した / しない理由<br/>スレッドは resolve しない"]
 ```
 
-`review` と違い worktree は **使わず**、あなたが今いるディレクトリを直接編集します。だからファイルに触れる
-前に立ち位置を確認します — ブランチ違い、`main`/`develop` 上、あるいは `review` が作った worktree の中
-（detached でブランチがない）なら、いずれもその場で停止します。
+`review` と違い worktree は **使わず**、ディスク上の実リポジトリを直接編集します。だからファイルに触れる
+前に、これから編集する場所を確認します — ブランチ違い、`main`/`develop` 上、あるいは `review` が作った
+worktree の中（detached でブランチがない）なら、いずれもその場で停止します。
 
 ## インストール
 
@@ -119,8 +119,8 @@ flowchart LR
 /open-pr:upgrade
 ```
 
-`/open-pr:upgrade` は、更新されたバージョンで config の構造が変わっている場合にローカル設定を自動で
-移行します。
+`/open-pr:upgrade` はリポジトリのローカル設定を新しいビルドと突き合わせます。変更が必要なら内容を要約して
+確認を取り、同意するまで何も書きません。変更がなければ「最新です」と伝えて終了します。
 
 必要なもの: [Claude Code](https://claude.ai/code)、および [`gh`](https://cli.github.com/)（GitHub の PR）
 または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab の MR）にログイン済み — レビューはそのアカウント
@@ -131,19 +131,47 @@ flowchart LR
 
 | コマンド                | 何をするか                                                                                                       | 実行時にどこにいるか                                                              | 何を書くか                                            |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `/open-pr:review <URL>` | PR をレビューし、レビューを **1** 件だけ投稿（概要＋行コメント）。コードは変更せず、close も merge もしない       | リポジトリ/ワークスペース内、またはそれを含むワークスペース内 — `git remote` で自動判別 | PR 上のコメント + `notebooks/review/<repo>/` の memory |
-| `/open-pr:fix <URL>`    | 前回のレビューの指摘を読み、コードを修正し、**1** コミットにまとめ、各コメントへ返信。🔵/📝 は必ず事前に確認     | **そのリポジトリ内で、かつ PR のブランチ上**                                      | 実行した場所の実コード + PR への返信                  |
-| `/open-pr:upgrade`      | リポジトリのローカル設定を最新スキーマへ更新。変更点を要約して確認し、同意するまで何も書かない                   | 設定済みのリポジトリ/ワークスペース内                                             | `notebooks/review/<repo>/settings.json`               |
+| `/open-pr:review <URL>` | PR をレビューし、レビューを **1** 件だけ投稿（概要＋行コメント）。コードは変更せず、close も merge もしない       | リポジトリを含むワークスペース内（推奨）、またはリポジトリ内 — `git remote` で自動判別 | PR 上のコメント + `notebooks/review/<repo>/` の memory |
+| `/open-pr:fix <URL>`    | 前回のレビューの指摘を読み、コードを修正し、**1** コミットにまとめ、各コメントへ返信。🔵/📝 は必ず事前に確認     | そのリポジトリ内、またはそれを含むワークスペース内 — ただし **リポジトリが PR のブランチ上にあること** | そのリポジトリの実コード + PR への返信 |
+| `/open-pr:upgrade`      | リポジトリのローカル設定を最新スキーマへ更新。変更点を要約して確認し、同意するまで何も書かない                   | 設定済みのワークスペースまたはリポジトリ内 — 複数あれば選択させる                  | `notebooks/review/<repo>/settings.json`               |
 
 
-コマンドは自分で入力したときだけ実行されます。1 つの機能にまたがる複数の関連 PR を順番に処理でき、
-submodule にも対応します。
+コマンドは自分で入力したときだけ実行され、submodule にも対応します。URL の後ろに書いた指示は、その実行に
+だけ適用されます:
 
 ```bash
 /open-pr:review https://github.com/org/repo/pull/123 [指示]
 /open-pr:fix    https://github.com/org/repo/pull/123 [指示]
+```
+
+### セットアップはワークスペースで、リポジトリの中ではなく
+
+```
+✅ ワークスペースにいる                      ❌ リポジトリの中にいる
+─────────────────────────                    ─────────────────────────
+workspace/            ← ここで入力           repo-backend/         ← ここで入力
+├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory がプロジェクト内に入る
+│   ├── repo-backend/  どのリポジトリの外    ├── .gitignore         +1 行 — 実際の変更
+│   └── repo-frontend/                       └── src/
+├── repo-backend/     ← 余計なファイル 0
+└── repo-frontend/    ← 余計なファイル 0     (repo-frontend? 見えない)
+```
+
+`notebooks/review/`（memory + worktree）は、コマンドを入力した場所にそのまま作られます。リポジトリの中で
+入力すればプロジェクト内に置かれます。プラグインが `.gitignore` に 1 行追加するので `git status` は汚れ
+ませんが、その 1 行はリポジトリへの実際の変更です。
+
+ワークスペースから実行すればリポジトリには一切触れません。さらにリポジトリが横に並んでいるため、リポジトリ
+をまたいだレビューができます — 1 つの機能に属する複数の PR を、並列ではなく順番に 1 回の実行で。
+`repo-backend` の中からは `repo-frontend` は見えません:
+
+```bash
+cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
+
+`/open-pr:fix` もワークスペースから実行できます。対象リポジトリを自分で見つけてその中で修正します
+（そのリポジトリが PR のブランチ上にあることが条件）。
 
 
 ## 何をレビューするか
@@ -167,13 +195,14 @@ React、Python、Node.js、Lambda、PHP、Laravel、WordPress、Shell、Makefile
 
 ## リポジトリでの初回実行
 
-短い質問を 1 回（レビュー言語、即投稿かドラフトか、ドキュメントを読み直す間隔、大きすぎる PR のしきい値）
-してから、すでにある規約を自分で読みに行きます: README、CLAUDE.md、AGENTS.md、docs、wiki など。
+リポジトリごとに 1 度だけ、短い質問をまとめて訊きます（PR に投稿する言語、即投稿かドラフトか、修正済み
+スレッドを自動 resolve するか、ドキュメントを読み直す間隔、大きすぎる PR/ファイルのしきい値）。その後、
+すでにある規約を自分で読みに行きます: README、CLAUDE.md、AGENTS.md、docs、wiki など。
 
-記憶した内容は `notebooks/review/<repo>/memory.md` に目次のようにインデックスされます。細部まで抱えない
-のでトークンを節約でき、それでも何を学んだかの全体像は把握できます。詳細は
-`notebooks/review/<repo>/memories/*.md` に 1 件ずつ保存されます。この `review` ディレクトリは独立した
-ローカル git で管理され、記録の状態を追えるようになっています。
+記憶した内容は `notebooks/review/<repo>/memory.md` に目次のようにインデックスされます。詳細を読み込まずに
+済むのでトークンを節約でき、それでも何を学んだかの全体像は把握できます。詳細は
+`notebooks/review/<repo>/memories/*.md` に 1 件ずつ保存されます。`notebooks/review/` 全体は独立した
+ローカル git で管理され（remote なし、push もしない）、レビューごとの memory の変化を追えます。
 
 チーム独自のルールは普通の文章で `ALWAYS_RULE.md` に書きます（初期状態は空）。それ以外は
 `settings.json` にあります:
@@ -185,7 +214,7 @@ React、Python、Node.js、Lambda、PHP、Laravel、WordPress、Shell、Makefile
 | `shared.output_language`             | PR に投稿する言語                                                                         | 初回に質問して保存   |
 | `review.auto_submit_review`          | `true` = すぐ投稿、`false` = ドラフトにして確認できるようにする                           | `false`              |
 | `review.auto_resolve_fixed_findings` | 指摘が修正されたらスレッドを自動 resolve                                                  | `false`              |
-| `review.doctor_schedule`             | 規約ドキュメントを読み直す間隔: `"7 days"` \| `"2 weeks"` \| `"1 months"` \| `"never"`     | `"1 months"`         |
+| `review.doctor_schedule`             | 規約ドキュメントを読み直す間隔: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"`       |
 | `review.review_ci_status`            | CI が失敗している場合に触れるか（警告のみ、修正は強制しない）                             | CI あり ⇒ `true`     |
 | `review.many_files_threshold`        | この数を超えるファイル数の PR は大きすぎると警告                                          | `30`                 |
 | `review.big_file_threshold_kb`       | diff がこのサイズを超えるファイルは最初の読み取りから除外                                 | `20`                 |
