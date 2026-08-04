@@ -122,6 +122,10 @@ worktree の中（detached でブランチがない）なら、いずれもそ�
 `/open-pr:upgrade` はリポジトリのローカル設定を新しいビルドと突き合わせます。変更が必要なら内容を要約して
 確認を取り、同意するまで何も書きません。変更がなければ「最新です」と伝えて終了します。
 
+1.0.0 より前から使っている場合、マーケットプレイス名が `review-pr` から `open-pr` に変わったため一度だけ
+入れ直してください — `/plugin uninstall open-pr`、`/plugin marketplace remove review-pr`、そのうえで上の
+インストール 2 行。
+
 必要なもの: [Claude Code](https://claude.ai/code)、および [`gh`](https://cli.github.com/)（GitHub の PR）
 または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab の MR）にログイン済み — レビューはそのアカウント
 で投稿されます。

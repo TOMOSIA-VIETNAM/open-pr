@@ -125,6 +125,10 @@ Update:
 changing is summarised and put to you first — nothing is written until you agree; nothing to change and
 it says the config is already current, then stops.
 
+Coming from a pre-1.0.0 install? The marketplace was renamed from `review-pr` to `open-pr`, so it is
+re-added once — `/plugin uninstall open-pr`, `/plugin marketplace remove review-pr`, then the two install
+commands above.
+
 You also need: [Claude Code](https://claude.ai/code), plus [`gh`](https://cli.github.com/) (GitHub
 PRs) or [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab MRs) logged in — the review is posted
 through that account.
