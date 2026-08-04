@@ -1,6 +1,20 @@
-# Open PullRequest
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ed636fe0-0abf-4d8b-ac8e-134ea39d0f5d" alt="Open PullRequest" width="200">
+</p>
 
-[Tiếng Việt](./README.vi.md) · [English](./README.md) · **日本語**
+<h1 align="center">Open PullRequest</h1>
+
+<p align="center"><em>/open-pr:review — Agent Review Pull Request Github</em></p>
+
+<p align="center">
+  <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr" alt="License: MIT"></a>
+  <a href="https://claude.ai/code"><img src="https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3" alt="Claude Code Plugin"></a>
+</p>
+
+<p align="center">
+  <a href="./README.vi.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <strong>日本語</strong>
+</p>
 
 > PR が届いたとき最初に浮かぶ問いは、たいてい「このコードは正しいか」ではなく「開発者は送る前に一度でも
 > 読み返したか」です。
