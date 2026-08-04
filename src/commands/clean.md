@@ -15,27 +15,24 @@ description: Remove the git worktrees review checked PR code out into. Each one 
 
 ## Step 1 — Find the worktrees
 
-A worktree is a full checkout of the reviewed repo — its files are real copies, sharing only the object
-database with the repo. That is what makes them worth removing, and why `review` never deletes one on
-its own: you may still be reading the code hours later.
-
 Same layout `/open-pr:upgrade` searches: `notebooks/review/` sits wherever `/open-pr:review` ran, from
 pwd or one level down. FORBIDDEN: `cd`.
 
 ```bash
-find . -maxdepth 5 -type d -path '*/notebooks/review/*/worktrees/*' -not -path '*/worktrees/*/*' 2>/dev/null
+find . -maxdepth 6 -type d -path '*/notebooks/review/*/worktrees/*' -not -path '*/worktrees/*/*' 2>/dev/null
 ```
 
 None → say there is nothing to clean, STOP.
 
-## Step 2 — Size them
+## Step 2 — Narrow, then size
+
+`ARGUMENTS` non-empty ⇒ keep only worktrees whose `<repo>` segment it names, case-insensitive; 0
+matched ⇒ STOP, listing the `<repo>`s found. Over what remains — never over what was just dropped,
+since each is a full checkout and `du` walks all of it:
 
 ```bash
 du -sh <each worktree>
 ```
-
-`ARGUMENTS` non-empty ⇒ keep only worktrees whose `<repo>` segment it names, case-insensitive; 0
-matched ⇒ STOP, listing the `<repo>`s found.
 
 ## Step 3 — Show what would go, then ask
 
@@ -54,7 +51,7 @@ Per worktree, in this order — a plain `rm -rf` leaves the reviewed repo regist
 longer exists:
 
 ```bash
-git -C "<worktree>" rev-parse --git-common-dir     # → <repo>/.git, the repo that owns it
+git -C "<worktree>" rev-parse --git-common-dir     # ABSOLUTE <repo>/.git; <repo> = that minus /.git
 git -C "<repo>" worktree remove --force "<worktree>"
 ```
 

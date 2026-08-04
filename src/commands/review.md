@@ -280,7 +280,7 @@ Post/publish error || that verify reports a mismatch → `Read`
 
 **Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, plus
 the worktree path and that `/open-pr:clean` removes it. FORBIDDEN: repeating a finding's description or
-its Fix — the PR carries that text; removing the worktree or asking to — that is the user's later call.
+its Fix — the PR carries that text. FORBIDDEN: removing the worktree or asking to — the user's later call.
 
 ## Step 10 — Asked for something outside the review flow
 

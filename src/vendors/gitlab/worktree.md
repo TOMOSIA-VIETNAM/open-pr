@@ -14,5 +14,5 @@ every MR, and this is detached by construction, so no follow-up detach is needed
 `(cd "<worktree>/<submodule-path>" && git fetch origin
 "refs/merge-requests/<n-submodule>/head:refs/remotes/origin/merge-requests/<n-submodule>" && git
 checkout --detach "refs/remotes/origin/merge-requests/<n-submodule>")` — reuses what `git submodule
-update --init --recursive` already put on disk; creates no worktree. FORBIDDEN here: `glab mr checkout
+update --init -- <path>` already put on disk; creates no worktree. FORBIDDEN here: `glab mr checkout
 --repo`, which checks out the WRONG repo's MR in this cross-repo case (glab issue #7972).

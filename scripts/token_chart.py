@@ -37,6 +37,7 @@ LINES = [
     {"key": "review", "label": "/open-pr:review", "colour": "#2f81f7", "cmd_role": "review-cmd"},
     {"key": "fix", "label": "/open-pr:fix", "colour": "#e3742f", "cmd_role": "fix-cmd"},
     {"key": "upgrade", "label": "/open-pr:upgrade", "colour": "#a371f7", "cmd_role": "upgrade-cmd"},
+    {"key": "clean", "label": "/open-pr:clean", "colour": "#3fb950", "cmd_role": "clean-cmd"},
 ]
 
 NOTE = (
@@ -90,9 +91,15 @@ def measure(tag, encoder):
 
 
 def group_of(scenario):
-    if scenario == "upgrade":
-        return "upgrade"
-    return "fix" if scenario.startswith("fix/") else "review"
+    """A scenario belongs to the command it exercises. Anything unrecognised would land in
+    `review` and silently move that line, so a command without its own LINES entry is an
+    error rather than a default."""
+    for line in LINES:
+        if scenario == line["key"] or scenario.startswith(line["key"] + "/"):
+            return line["key"]
+    if scenario.startswith(("review/", "chat/")):
+        return "review"
+    raise SystemExit(f"{scenario}: no line owns this scenario — add it to LINES")
 
 
 def version_key(tag):
@@ -110,7 +117,7 @@ def render(data):
     points = data["points"]
     if not points:
         raise SystemExit("no points yet — run --add <tag> first")
-    values = [v for p in points for v in (p[l["key"]] for l in LINES) if v is not None]
+    values = [v for p in points for v in (p.get(l["key"]) for l in LINES) if v is not None]
     ymax = y_ceiling(values)
     plot_w, plot_h = W - PAD_L - PAD_R, H - PAD_T - PAD_B
 
@@ -144,7 +151,7 @@ def render(data):
 
     # one polyline + dots per command, skipping the tags where it did not exist
     for line in LINES:
-        seq = [(x(i), y(p[line["key"]])) for i, p in enumerate(points) if p[line["key"]] is not None]
+        seq = [(x(i), y(p[line["key"]])) for i, p in enumerate(points) if p.get(line["key"]) is not None]
         if len(seq) > 1:
             pts = " ".join(f"{px:.1f},{py:.1f}" for px, py in seq)
             s.append(f'<polyline points="{pts}" fill="none" stroke="{line["colour"]}"'
@@ -152,11 +159,14 @@ def render(data):
         for px, py in seq:
             s.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3" fill="{line["colour"]}"/>')
 
-    # legend, and the value each line ends on
+    # legend, and the value each line ends on. A command with no released point yet gets no
+    # legend entry: the image is redrawn only when a release adds data, never when code changes.
     lx = PAD_L
     for line in LINES:
-        last = next((p[line["key"]] for p in reversed(points) if p[line["key"]] is not None), None)
-        text = f'{line["label"]} {last:,}' if last else line["label"]
+        last = next((p[line["key"]] for p in reversed(points) if p.get(line["key"]) is not None), None)
+        if last is None:
+            continue
+        text = f'{line["label"]} {last:,}'
         s.append(f'<circle cx="{lx + 4}" cy="{PAD_T - 20}" r="3.5" fill="{line["colour"]}"/>')
         s.append(f'<text x="{lx + 13}" y="{PAD_T - 16.5}" font-size="11" fill="{GREY}">{text}</text>')
         lx += 26 + 7.0 * len(text)

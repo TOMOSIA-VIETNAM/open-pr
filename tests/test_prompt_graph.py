@@ -677,10 +677,11 @@ def test_submodules_are_checked_out_only_when_bumped():
 
     sub = text(SRC / "cases" / "submodule-review.md")
     flat = " ".join(sub.split())
-    cmds = re.findall(r"submodule update[^`\n]*", flat)
+    cmds = list(re.finditer(r"submodule update[^`\n]*", flat))
     assert cmds, "the bumped path has to be checked out somewhere"
-    for c in cmds:
-        if "FORBIDDEN" in flat[flat.index(c) - 30:flat.index(c)]:
+    for m in cmds:
+        c = m.group(0)
+        if "FORBIDDEN" in flat[max(0, m.start() - 30):m.start()]:
             continue
         assert "--recursive" not in c, f"nested submodules are out of scope: {c}"
         assert "-- \"<submodule-path>\"" in c or "-- <path>" in c, \
@@ -733,6 +734,19 @@ def test_docs_exist_in_every_language_and_their_links_resolve():
     assert not dead, f"links that resolve to nothing: {dead}"
 
 
+def test_every_scenario_is_owned_by_a_chart_line():
+    """A scenario the chart does not recognise used to fall into `review`, so adding a command
+    moved a line that is supposed to describe review alone — and the release that recorded it
+    would have frozen the wrong number for good."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import token_chart  # noqa: E402
+    for name in SCENARIOS:
+        token_chart.group_of(name)          # raises if no line owns it
+    keys = {l["key"] for l in token_chart.LINES}
+    cmds = {p.stem for p in (SRC / "commands").glob("*.md")}
+    assert cmds <= keys, f"commands with no line on the chart: {cmds - keys}"
+
+
 def test_token_history_is_frozen_and_its_chart_matches():
     """The chart in the READMEs is the repo's own claim about its context cost, so it has
     to be checkable: every point a real tag, ordered, measured once, and an image that is
@@ -751,7 +765,7 @@ def test_token_history_is_frozen_and_its_chart_matches():
     for p in points:
         assert p["tag"] in tags, f"{p['tag']} is not a tag in this repo"
         for line in token_chart.LINES:
-            v = p[line["key"]]
+            v = p.get(line["key"])
             assert v is None or v > 0, f"{p['tag']}.{line['key']} = {v}: use null, never 0"
     keys = [token_chart.version_key(p["tag"]) for p in points]
     assert keys == sorted(keys), f"points are out of order: {[p['tag'] for p in points]}"
