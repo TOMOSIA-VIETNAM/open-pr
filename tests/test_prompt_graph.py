@@ -568,6 +568,22 @@ def test_upgrade_confirms_before_writing():
     assert ask < apply_, "the confirm step must precede the apply step"
 
 
+def test_upgrade_finds_its_targets_without_a_git_remote():
+    """The command takes no PR URL, and users call it from the workspace they review from —
+    a directory with no git remote of its own, whose one notebooks/review/ holds a directory
+    per repo. That listing is the target list; a named repo filters it."""
+    up = text(SRC / "commands" / "upgrade.md")
+    flat = " ".join(up.split())
+    assert "ls -d notebooks/review/*/" in flat, \
+        "the directories under notebooks/review/ are what name the candidate repos"
+    assert "deriving `<repo>` from a git remote" in flat, \
+        "a workspace has no remote to derive from — the ban must be stated"
+    assert up.rstrip().endswith("ARGUMENTS: $ARGUMENTS"), \
+        "a repo named on the command line must reach the prompt"
+    assert flat.index("`ARGUMENTS`") < flat.index("## Step 2"), \
+        "the selection step is what consumes the argument"
+
+
 def test_bootstrap_defers_to_upgrade_on_a_premigration_repo():
     """A repo configured before settings.json existed has only meta.json, which a review run
     reads as never-bootstrapped. Bootstrapping over it re-asks every answer the user already
