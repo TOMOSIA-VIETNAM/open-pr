@@ -225,11 +225,10 @@ React、Python、Node.js、Lambda、PHP、Laravel、WordPress、Shell、Makefile
 | `fix.decline_needs_confirmation`     | 指摘を見送る前にあなたへ確認する                                                          | `true`               |
 | `fix.auto_push`                      | コミット後に自動で push する                                                              | `false`              |
 
+## リリースごとのコンテキストコスト
+
+![1 回の実行が読み込むトークン数の平均を、コマンド別・リリース別に示したグラフ](./token-history.svg)
 
 ---
 
 Enjoy reviewing 🥰
-
-## リリースごとのコンテキストコスト
-
-![1 回の実行が読み込むトークン数の平均を、コマンド別・リリース別に示したグラフ](./token-history.svg)

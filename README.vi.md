@@ -224,10 +224,10 @@ Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.
 | `fix.decline_needs_confirmation`     | hỏi bạn trước khi bỏ qua một finding                                                      | `true`              |
 | `fix.auto_push`                      | tự push sau khi commit                                                                    | `false`             |
 
----
-
-Enjoy reviewing 🥰
-
 ## Chi phí context theo release
 
 ![Số token trung bình một lần chạy nạp vào, theo từng command, ở mỗi release](./token-history.svg)
+
+---
+
+Enjoy reviewing 🥰

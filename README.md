@@ -233,10 +233,10 @@ lives in `settings.json`:
 
 Contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
----
-
-Enjoy reviewing 🥰
-
 ## Context cost per release
 
 ![Mean tokens one run loads, per command, at each release](./token-history.svg)
+
+---
+
+Enjoy reviewing 🥰
