@@ -55,6 +55,16 @@ flowchart LR
 Full flow, re-review, and the check `fix` makes before it touches a file:
 [How it works](./docs/how-it-works.md).
 
+### What comes out
+
+One review, three parts that belong together: the overview, a comment on the exact line with the
+corrected code, and the reply `fix` leaves on that same thread once the change is pushed.
+
+<a href="./docs/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="An overview, a line comment carrying a suggested change, and the reply left after the fix was pushed"></a>
+
+Full size, and the same review in the language each repo picks:
+[What a review looks like](./docs/demo.md).
+
 ## Install
 
 ```bash
@@ -85,9 +95,6 @@ through that account.
 | `/open-pr:clean` | Removes the worktrees `review` checked PR code out into — each is a full checkout on disk. Lists them with their size and asks first; memory and settings are never touched |
 
 Where to stand, what each command writes, every setting: [Configuration](./docs/configuration.md).
-
-An overview, a comment on the exact line, and the reply left once the fix is pushed — one screenshot of
-a real review: [What a review looks like](./docs/demo.md).
 
 ## What it reviews
 
