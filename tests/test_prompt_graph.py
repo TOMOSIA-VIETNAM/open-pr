@@ -567,6 +567,12 @@ def test_upgrade_confirms_before_writing():
     apply_ = up.index("## Step 5 — Apply")
     assert ask < apply_, "the confirm step must precede the apply step"
 
+    # the bare form can span several repos: the one question must name each of them,
+    # and must stay one question — a repo picker on top of it is the hedge in disguise
+    step4 = " ".join(up[ask:apply_].split())
+    assert "NAMES every `<set>`" in step4, "the ask must enumerate what is in scope"
+    assert "FORBIDDEN: a SECOND question" in step4, "selection and consent are one question"
+
 
 def test_upgrade_finds_its_targets_without_a_git_remote():
     """The command takes no PR URL, and users call it from the workspace they review from —
