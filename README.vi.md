@@ -83,6 +83,9 @@ account đó.
 
 Đứng ở đâu, mỗi command ghi gì, mọi setting: [Cấu hình](./docs/vi/configuration.md).
 
+Overview, comment trên đúng dòng, và reply để lại sau khi fix đã push — một ảnh của review thật:
+[Một review trông như thế nào](./docs/vi/demo.md).
+
 ## Nó review những gì
 
 1. **Bug & logic**

@@ -86,6 +86,9 @@ through that account.
 
 Where to stand, what each command writes, every setting: [Configuration](./docs/configuration.md).
 
+An overview, a comment on the exact line, and the reply left once the fix is pushed — one screenshot of
+a real review: [What a review looks like](./docs/demo.md).
+
 ## What it reviews
 
 1. **Bugs & logic**

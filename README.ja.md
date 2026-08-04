@@ -82,6 +82,9 @@ GitLab の MR なら [`glab`](https://gitlab.com/gitlab-org/cli) にログイン
 
 どこに立つか、各コマンドが何を書くか、すべての設定: [設定](./docs/ja/configuration.md)。
 
+Overview、該当行へのコメント、push 後に残る返信 — 実際のレビューのスクリーンショット:
+[レビューの見え方](./docs/ja/demo.md)。
+
 ## 何をレビューするか
 
 1. **バグ & ロジック**
