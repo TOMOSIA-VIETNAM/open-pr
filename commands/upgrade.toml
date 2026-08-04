@@ -1,0 +1,10 @@
+description = "Bring every per-repo open-pr config below the current directory up to the schema this build expects."
+
+prompt = """
+Locate the plugin: `ls -d ~/.gemini/extensions/*/adapters/root.md 2>/dev/null | head -1`.
+No output → tell the user open-pr is not installed for Gemini CLI (see its docs/install.md) and STOP.
+Read that file → ROOT + this platform's tool names.
+Read ROOT/commands/upgrade.md and obey it VERBATIM, every step, in order. `{{args}}` is what that
+file's `Usage:` block expects.
+FORBIDDEN: summarizing, reordering or skipping a step; migrating from what this file says.
+"""

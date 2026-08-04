@@ -1,0 +1,4 @@
+{
+  "name": "open-pr",
+  "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI."
+}
