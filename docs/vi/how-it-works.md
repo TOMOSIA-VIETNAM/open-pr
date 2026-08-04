@@ -50,3 +50,17 @@ flowchart LR
 Khác `review` ở chỗ nó **không** dùng worktree, mà sửa thẳng vào repo thật trên đĩa. Nên trước khi chạm
 bất cứ file nào, nó soát chỗ sắp sửa — sai branch, đang trên `main`/`develop`, hay đang ở trong chính
 cái worktree mà `review` tạo ra (worktree đó detached, không có branch) đều dừng ngay.
+
+## Mỗi lần một run, và bạn thêm gì vào đó
+
+Command chỉ chạy khi bạn tự gõ, và hỗ trợ cả submodule. Viết thêm gì sau URL thì phần đó chỉ áp cho
+lần chạy đó:
+
+```bash
+/open-pr:review https://github.com/org/repo/pull/123 [Nội dung]
+/open-pr:fix    https://github.com/org/repo/pull/123 [Nội dung]
+```
+
+Lần đầu với một repo, plugin hỏi một loạt câu ngắn — ngôn ngữ post lên PR, post ngay hay để draft, có
+tự resolve thread đã fix không, bao lâu đọc lại tài liệu, ngưỡng PR và file quá lớn — rồi tự đọc
+những quy ước bạn đã có sẵn: README, CLAUDE.md, AGENTS.md, docs, wiki.

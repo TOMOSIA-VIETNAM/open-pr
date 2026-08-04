@@ -55,3 +55,11 @@ lives in `settings.json`:
 | `review.big_file_threshold_kb`       | a diffed file larger than this is left out of the first read                           | `20`                 |
 | `fix.decline_needs_confirmation`     | ask you before declining a finding                                                     | `true`               |
 | `fix.auto_push`                      | push automatically after committing                                                    | `false`              |
+
+## What each command writes
+
+| Command | Where you stand when you type it | What it writes |
+| ------- | -------------------------------- | -------------- |
+| `/open-pr:review` | in the workspace holding the repo (preferred), or in the repo itself — it finds the repo by `git remote` | comments on the PR + memory in `notebooks/review/<repo>/` |
+| `/open-pr:fix` | in that repo, or in the workspace holding it — but **the repo must be on the PR's branch** | real code in that repo + replies on the PR |
+| `/open-pr:upgrade` | in a workspace or a repo already set up — with several repos it lets you pick | `notebooks/review/<repo>/settings.json` |

@@ -54,3 +54,11 @@ cd ~/workspace
 | `review.big_file_threshold_kb`       | diff がこのサイズを超えるファイルは最初の読み取りから除外                                 | `20`                 |
 | `fix.decline_needs_confirmation`     | 指摘を見送る前にあなたへ確認する                                                          | `true`               |
 | `fix.auto_push`                      | コミット後に自動で push する                                                              | `false`              |
+
+## 各コマンドが何を書くか
+
+| コマンド | 実行時にどこにいるか | 何を書くか |
+| -------- | -------------------- | ---------- |
+| `/open-pr:review` | リポジトリを含むワークスペース内（推奨）、またはリポジトリ内 — `git remote` で自動判別 | PR 上のコメント + `notebooks/review/<repo>/` の memory |
+| `/open-pr:fix` | そのリポジトリ内、またはそれを含むワークスペース内 — ただし **リポジトリが PR のブランチ上にあること** | そのリポジトリの実コード + PR への返信 |
+| `/open-pr:upgrade` | 設定済みのワークスペースまたはリポジトリ内 — 複数あれば選択させる | `notebooks/review/<repo>/settings.json` |

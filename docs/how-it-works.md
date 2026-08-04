@@ -51,3 +51,18 @@ flowchart LR
 Unlike `review` it uses **no** worktree: it edits the real repo on disk. So before touching any file it
 checks the place it's about to edit — wrong branch, on `main`/`develop`, or inside the very worktree
 `review` created (that one is detached, no branch) all stop it immediately.
+
+## One run at a time, and what you add to it
+
+Commands run only when you type them, and submodules are covered. Extra words after the URL apply to
+that run only:
+
+```bash
+/open-pr:review https://github.com/org/repo/pull/123 [instructions]
+/open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
+```
+
+The first run in a repo asks a short batch of questions — the language to post in, post immediately
+or keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large
+PR and file thresholds — then reads the conventions already in the repo: README, CLAUDE.md,
+AGENTS.md, docs, wiki.

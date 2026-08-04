@@ -50,3 +50,17 @@ flowchart LR
 `review` と違い worktree は **使わず**、ディスク上の実リポジトリを直接編集します。だからファイルに触れる
 前に、これから編集する場所を確認します — ブランチ違い、`main`/`develop` 上、あるいは `review` が作った
 worktree の中（detached でブランチがない）なら、いずれもその場で停止します。
+
+## 1 回の実行と、そこに足せるもの
+
+コマンドは自分で入力したときだけ実行され、submodule にも対応します。URL の後ろに書いた指示は、その実行に
+だけ適用されます:
+
+```bash
+/open-pr:review https://github.com/org/repo/pull/123 [指示]
+/open-pr:fix    https://github.com/org/repo/pull/123 [指示]
+```
+
+リポジトリでの初回は短い質問をまとめて訊きます — PR に投稿する言語、即投稿かドラフトか、修正済みスレッドを
+自動 resolve するか、ドキュメントを読み直す間隔、大きすぎる PR とファイルのしきい値 — そのうえで、すでに
+ある規約を読みに行きます: README、CLAUDE.md、AGENTS.md、docs、wiki。
