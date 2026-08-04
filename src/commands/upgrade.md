@@ -1,6 +1,6 @@
 ---
 argument-hint: "[repo name...]"
-description: Migrate every local review/fix config at or below pwd to the latest schema_version, fetching migrations from TOMOSIA-VIETNAM/open-pr — no PR, no vendor CLI.
+description: Bring every per-repo config found below pwd up to the schema this build expects. Takes no PR.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated

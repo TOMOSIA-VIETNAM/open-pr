@@ -1,6 +1,6 @@
 ---
 argument-hint: <PR URL> [other PR URL...] [content]
-description: Review one or more PRs (GitHub or GitLab) across multiple stacks (sequentially), learn each repo's own conventions via memory, post results via the vendor's own CLI/API.
+description: Review PRs against the conventions learned from each repo — 1 post per PR, findings tagged by severity, code left untouched.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
