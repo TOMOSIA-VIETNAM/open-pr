@@ -12,6 +12,7 @@ Run: pytest tests/ -q     or     python3 tests/test_prompt_graph.py
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -664,6 +665,39 @@ def test_manifests_are_valid_and_agree():
     assert listed, f"marketplace.json does not list {plugin['name']}"
     src = (REPO / listed[0]["source"].lstrip("./")).resolve()
     assert src == SRC, f"marketplace source points at {src}, not {SRC}"
+
+
+def test_token_history_is_frozen_and_its_chart_matches():
+    """The chart in the READMEs is the repo's own claim about its context cost, so it has
+    to be checkable: every point a real tag, ordered, measured once, and an image that is
+    exactly what those numbers draw. A hand-edited SVG, or numbers changed without redrawing,
+    is a published figure nobody can reproduce."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import token_chart  # noqa: E402
+
+    data = json.loads((TESTS / "token-history.json").read_text())
+    points = data["points"]
+    assert points, "the history has no points"
+    assert data.get("_note"), "the note is what stops a rerun being read as a contradiction"
+
+    tags = subprocess.run(["git", "-C", str(REPO), "tag", "--list"],
+                          capture_output=True, text=True, check=True).stdout.split()
+    for p in points:
+        assert p["tag"] in tags, f"{p['tag']} is not a tag in this repo"
+        for line in token_chart.LINES:
+            v = p[line["key"]]
+            assert v is None or v > 0, f"{p['tag']}.{line['key']} = {v}: use null, never 0"
+    keys = [token_chart.version_key(p["tag"]) for p in points]
+    assert keys == sorted(keys), f"points are out of order: {[p['tag'] for p in points]}"
+    assert len(set(keys)) == len(keys), "a tag appears twice — a point is measured once"
+
+    before = token_chart.SVG.read_text()
+    token_chart.render(data)          # redraws from the stored numbers alone
+    after = token_chart.SVG.read_text()
+    if before != after:
+        token_chart.SVG.write_text(before)
+        raise AssertionError("token-history.svg is not what these numbers draw — "
+                             "run scripts/token_chart.py --render")
 
 
 def test_install_instructions_match_the_manifests():

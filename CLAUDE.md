@@ -50,7 +50,10 @@ case and still needs you to spot it. An accepted duplicate needs its `sha` and a
 `tests/duplication_allowlist.json`.
 
 **Push only the branch you were handed.** `main` is what UAT installs from — never push, merge or
-force-push to it, and never push a branch the user did not name. A PR is the only path in.
+force-push to it, and never push a branch the user did not name. A PR is the only path in, with ONE
+exception: `token_chart.py --commit` pushes `tests/token-history.json` + `token-history.svg` after a
+tag, and refuses when the diff holds anything else, when pwd is not `main`, or when `HEAD` ≠
+`origin/main`. Nothing else may push there, and never `--force`.
 
 **One release, one `schema_version`.** Bump only when an EXISTING repo's config needs transforming — a
 field with a read-time default needs no migration. On an unreleased branch, EDIT the pending

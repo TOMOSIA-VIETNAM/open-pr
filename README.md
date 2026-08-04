@@ -105,6 +105,10 @@ Unlike `review` it uses **no** worktree: it edits the real repo on disk. So befo
 checks the place it's about to edit — wrong branch, on `main`/`develop`, or inside the very worktree
 `review` created (that one is detached, no branch) all stop it immediately.
 
+## Context cost per release
+
+![Mean tokens one run loads, per command, at each release](./token-history.svg)
+
 ## Install
 
 ```bash

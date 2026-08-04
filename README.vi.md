@@ -103,6 +103,10 @@ Khác `review` ở chỗ nó **không** dùng worktree, mà sửa thẳng vào r
 bất cứ file nào, nó soát chỗ sắp sửa — sai branch, đang trên `main`/`develop`, hay đang ở trong chính
 cái worktree mà `review` tạo ra (worktree đó detached, không có branch) đều dừng ngay.
 
+## Chi phí context theo release
+
+![Số token trung bình một lần chạy nạp vào, theo từng command, ở mỗi release](./token-history.svg)
+
 ## Cài đặt
 
 ```bash
