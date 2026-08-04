@@ -71,16 +71,21 @@ no checkout to main), `gh release create` WITH `--prerelease`.
 
 ## Step 3 — Draft content + propose a version
 
-**Language:** write the entire release note content in **Vietnamese** — this repo is built mainly
-in Vietnamese (commits/code still stay in English as usual, only the release note text, which is
-read by the user, is Vietnamese).
+**Language: English**, the whole note.
 
-**Style — Problem → Solution, not a dry bullet list:** write each significant change as a
-**Problem:** (the concrete pain point users hit before this release) / **Solved by:** (how this
-release addresses it) pair — don't just paste the commit's first line. Group these pairs by topic
-(Security / Features / Breaking changes...), not by file/commit name. Read `git show <sha>` or
-`git log -p` for that commit if the first line of the message isn't clear enough about "what was
-the problem" — don't guess.
+**Style: the result, stated once.** 1 line per change, ≤2 for a big one. Sections in this order,
+skipping any that is empty: update instructions · `New` · `Improved` · `Breaking`. Lead each line
+with what the user now gets, and carry the number when there is one (`34.6% less context per run`,
+not `context optimised`). Whole note fits a 30-second scan.
+
+FORBIDDEN, every one of these being what makes a note unreadable:
+- the problem it used to have, when it broke, how it came to be built, which commit did it
+- a `Problem:` / `Solved by:` pair, or any sentence whose deletion loses nothing
+- pasting a commit subject as a bullet — a reader does not know the file it names
+- prose paragraphs between bullets
+
+`git show <sha>` / `git log -p` when a commit subject alone leaves the user-visible effect unclear;
+FORBIDDEN: guessing it.
 
 **Verify every number against the source that owns it now, never against an earlier release
 note:** the count of bootstrap questions, a default value, a field name, a token figure — `Read`
@@ -112,9 +117,10 @@ needs no migration and leave the command out.
 Changing the answers given at setup is a separate chat request ("reconfigure review", matched by
 intent) — mention it only when this release changed what setup asks.
 
-**Group commits** by conventional-commit prefix (`feat`/`fix`/`security`/`chore`/`docs`/
-`refactor`/`revert`...) as scaffolding, then rewrite each group in the Problem → Solution style
-above.
+Conventional-commit prefixes are scaffolding for reading the log, never the section names:
+`feat` → `New`, `fix`/`perf`/`refactor` with a user-visible effect → `Improved`, anything forcing a
+reinstall or a config migration → `Breaking`. `chore`/`docs`/`test` touching nothing a user sees ⇒
+leave out entirely; 30 commits can legitimately become 8 lines.
 
 Propose a new version from the nearest official tag. Semver, `1.0.0` shipped ⇒ MAJOR is in play:
 
