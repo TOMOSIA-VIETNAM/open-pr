@@ -1,29 +1,12 @@
 # llm-upgrades index
 
-Fetched LIVE by `/open-pr:upgrade` via `gh api repos/TOMOSIA-VIETNAM/open-pr/contents/llm-upgrades/*`
-— lives at the repo ROOT, sibling of `src/`, never packaged into `/plugin install`, never read by
-`review.md`/`fix.md` at review time. This is NOT a human-facing changelog (GitHub Releases, drafted
-by the dev-only `.claude/commands/release-now.md`, cover that) — this file exists solely so
-`/open-pr:upgrade` can diff a repo's local config `schema_version` against what's available
-upstream and fetch only the migrations that actually apply.
+Fetched LIVE by `/open-pr:upgrade` — mechanism + line grammar live in `src/core/llm-upgrades-index.md`.
+Repo ROOT, sibling of `src/`: never packaged into `/plugin install`, never read at review/fix time.
 
-## Format
-
-One line per config `schema_version` that requires a migration, inspired by OpenSpec's
-ADDED/MODIFIED/REMOVED/RENAMED delta convention (chosen because it matches exactly the shape
-`/open-pr:upgrade` needs to diff by version):
-
-```
-- vN: <ADDED|MODIFIED|REMOVED|RENAMED> <short one-line summary> — llm-upgrades/vN.md
-```
-
-`ADDED`/`MODIFIED`/`REMOVED`/`RENAMED` describe what happened to config fields in that version. Full
-migration steps live in the linked `llm-upgrades/vN.md`; this index only lists WHICH versions exist
-and WHAT KIND of change each is, so `/open-pr:upgrade` fetches only the files it actually needs.
-
-**A `schema_version` that needs no config migration gets NO entry here at all.** This file is the
-single source of truth for "does version N need a migration" — a version's absence from this list
-always means no action is needed for it, never an omission to double-check elsewhere.
+NOT a changelog — GitHub Releases cover humans. This file answers exactly one question: WHICH config
+`schema_version`s need a migration, so a repo's checkpoint can be diffed against it. A version needing
+no config migration gets NO entry — an absence is the answer, never an omission to check elsewhere.
+`ADDED`/`MODIFIED`/`REMOVED`/`RENAMED` = what happened to config FIELDS; the steps live in `vN.md`.
 
 ## Versions
 

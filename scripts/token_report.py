@@ -63,7 +63,7 @@ ROLES = {
     "locate-repo": ["core/locate-repo.md"],
     "upgrades-index": ["core/llm-upgrades-index.md"],
     "reconfigure": ["core/reconfigure.md"],
-    "update-cmd": ["commands/upgrade.md"],
+    "upgrade-cmd": ["commands/upgrade.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
@@ -76,8 +76,6 @@ ROLES = {
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
     "tpl-agent-instructions": ["templates/agent-instructions.md"],
-    # upgrade is the one command allowed to consult the schema reference
-    "reference-schema": ["reference/settings-schema.md"],
 }
 
 # A "load set" = what a single run of one command Reads into context.
@@ -120,7 +118,7 @@ SCENARIOS = {
         "case-chat-requests", "reconfigure", "memory-commit",
     ],
     "upgrade": [
-        "update-cmd", "upgrades-index", "reference-schema",
+        "upgrade-cmd", "upgrades-index", "guardrails",
     ],
     "fix/known-repo-github": [
         "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",

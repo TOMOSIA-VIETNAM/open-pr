@@ -47,7 +47,7 @@ language already used earlier this session → this project's Claude Code memory
 ## Fresh file → `schema_version`
 
 Never a literal written in any prompt file: `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/llm-upgrades-index.md` and take the highest `N` it lists.
+`"${CLAUDE_PLUGIN_ROOT}"/core/llm-upgrades-index.md` and take the checkpoint it states.
 File already exists → keep `schema_version` + every foreign node untouched, add only your own node.
 
 ## `.gitignore` at pwd

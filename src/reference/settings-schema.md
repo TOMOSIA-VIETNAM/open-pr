@@ -37,8 +37,9 @@ for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the fil
 ```
 
 `schema_version`: 1 checkpoint for the WHOLE file, not per node. Written by a fresh bootstrap
-(derived live, `core/repo-settings.md` "Fresh file") or by `/open-pr:upgrade` — nobody else, and no
-command ever reads it at review/fix time.
+(`core/repo-settings.md` "Fresh file") or by `/open-pr:upgrade` — nobody else, and no command ever
+reads it at review/fix time. The number itself is stated in `core/llm-upgrades-index.md`; the example
+above copies it.
 
 `_comments` (under `.review`): a note for a human editor, NOT run-time config — every key inside is
 ignored. Bootstrap always writes `doctor_schedule`; any later `Edit` of `.review` keeps the object.

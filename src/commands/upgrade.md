@@ -22,11 +22,10 @@ description: Fetch config migrations from TOMOSIA-VIETNAM/open-pr's llm-upgrades
 ## Step 1 — Read the current checkpoint
 
 Determine `<repo>`: `git remote -v` at pwd, parse the `origin` remote (or the first remote listed if
-there is no `origin`) in either `https://github.com/<owner>/<repo>.git` or
-`git@github.com:<owner>/<repo>.git` form → `<repo>` = the repo segment (same convention as
-`review.md`/`fix.md` — never inferred from pwd's directory name). No git repo / no remote at pwd →
-STOP: "Not inside a repo with a GitHub remote — cd into the project you want to update and call this
-again."
+there is no `origin`), HTTPS or SSH form, any host → `<repo>` = last path segment minus `.git` (same
+convention as `review.md`/`fix.md` — never inferred from pwd's directory name). No git repo / no remote
+at pwd → STOP: "Not inside a repo with a git remote — cd into the project you want to upgrade and call
+this again."
 
 Then read the checkpoint, in this order:
 
@@ -49,9 +48,8 @@ to double-check — the index alone answers this.
 
 **The INSTALLED plugin must not be older than the index.** The migrations are fetched live, so this
 command can otherwise move a config to a shape the installed prompts do not understand — config ahead of
-code, and every later review misreads it. `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/reference/settings-schema.md` for the `schema_version` the installed build
-expects (field absent ⇒ `0`). Highest `N` in the index > that ⇒ STOP before applying anything:
+code, and every later review misreads it. Highest `N` in the index > the checkpoint that same atom
+states ⇒ STOP before applying anything:
 
 ```
 ❌ The plugin is older than the migrations available. Update it first, then run this again:

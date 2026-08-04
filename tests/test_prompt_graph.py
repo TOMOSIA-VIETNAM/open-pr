@@ -92,13 +92,11 @@ def test_section_refs_resolve():
     assert not bad, f"unresolvable section refs: {bad}"
 
 
-def test_reference_dir_is_read_only_by_update_plugin():
-    """A review or fix run must never pay for the schema doc. upgrade is the one
-    command whose job IS the schema — it reads the installed build's expected checkpoint
-    from there to refuse running when the plugin is older than the migrations."""
+def test_reference_dir_is_never_read_at_run_time():
+    """The schema doc serves a human editor and a migration author. Every number a command
+    needs while running — including the build's own config checkpoint — lives in a small atom
+    instead, so no run pays for the whole schema to learn one field."""
     for name, body in all_text().items():
-        if name == "commands/upgrade.md":
-            continue
         assert "CLAUDE_PLUGIN_ROOT}/reference/" not in body.replace('}"', "}"), name
 
 
@@ -581,13 +579,13 @@ def test_migrations_are_fetched_without_a_vendor_cli():
         assert "gh api" not in snippet, f"gh api is unavailable to a GitLab-only user: {snippet[:60]}"
 
 
-def test_update_plugin_refuses_to_outrun_the_installed_build():
+def test_upgrade_refuses_to_outrun_the_installed_build():
     """Migrations are fetched live, so this command can move a config to a shape the
     installed prompts do not understand. It must compare against the build's own expected
     checkpoint and stop, or a stale plugin silently misreads every later review."""
     up = text(SRC / "commands" / "upgrade.md")
-    assert "CLAUDE_PLUGIN_ROOT}\"/reference/settings-schema.md" in up, \
-        "upgrade must read the installed build's expected checkpoint"
+    assert "core/llm-upgrades-index.md" in up, \
+        "upgrade must read the atom stating the installed build's checkpoint"
     flat = " ".join(up.split())
     assert "older than the index" in flat and "STOP before applying" in flat, \
         "upgrade must stop when the plugin is behind"
@@ -607,6 +605,12 @@ def test_migration_index_matches_the_files_on_disk():
     schema = json.loads(re.search(r"```json\n(.*?)```", text(SRC / "reference/settings-schema.md"), re.S).group(1))
     assert schema["schema_version"] == listed[-1], \
         f"the schema example shows {schema['schema_version']}, highest migration is v{listed[-1]}"
+
+    # a fresh bootstrap and upgrade's own guard both take the number from this atom
+    stated = re.search(r"`schema_version` = (\d+)", text(SRC / "core" / "llm-upgrades-index.md"))
+    assert stated, "the atom must state this build's config checkpoint"
+    assert int(stated.group(1)) == listed[-1], \
+        f"the build claims checkpoint {stated.group(1)}, highest migration is v{listed[-1]}"
 
 
 def test_manifests_are_valid_and_agree():

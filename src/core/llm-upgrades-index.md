@@ -1,5 +1,9 @@
 # The upstream migration index
 
+**This build's config checkpoint: `schema_version` = 1.** SOLE source of that number — a fresh
+bootstrap writes it, `/open-pr:upgrade` refuses any migration numbered above it. No network needed to
+read it.
+
 `llm-upgrades/index.md` lives in this plugin's own repo, never inside the installed plugin — fetch it
 live over raw HTTP:
 

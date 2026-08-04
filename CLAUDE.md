@@ -25,7 +25,7 @@ src/setup/        per-repo provisioning: bootstrap, doctor, template, lesson
 src/cases/        gated branches, read only when the caller's condition matched
 src/vendors/<v>/  fetch | worktree | post | thread — same entry names on every vendor
 src/templates/    per-stack criteria, cp'd into the reviewed repo
-src/reference/    schema + vendor contract; FORBIDDEN to Read during a review/fix run
+src/reference/    schema + vendor contract; FORBIDDEN to Read at run time
 src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
 scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · install_hooks.sh
