@@ -678,14 +678,14 @@ def test_install_instructions_match_the_manifests():
     files += sorted(REPO.glob("README*.md"))
     for f in files:
         body = text(f)
-        for m in re.finditer(r"/plugin (?:install|update) (\S+)", body):
+        for m in re.finditer(r"/plugin (?:install|update) ([\w@.-]+)", body):
             assert m.group(1) == pid, f"{f.name}: `{m.group(0)}` should name {pid}"
-        for m in re.finditer(r"/plugin uninstall (\S+)", body):
+        for m in re.finditer(r"/plugin uninstall ([\w@.-]+)", body):
             assert m.group(1) == plugin["name"], \
                 f"{f.name}: `{m.group(0)}` should name {plugin['name']}"
         # `marketplace remove` is exempt: it retires a registration under whatever name the
         # user installed it as, which is exactly the name this manifest no longer carries
-        for m in re.finditer(r"/plugin marketplace update (\S+)", body):
+        for m in re.finditer(r"/plugin marketplace update ([\w@.-]+)", body):
             assert m.group(1) == market["name"], \
                 f"{f.name}: `{m.group(0)}` should name {market['name']}"
 
