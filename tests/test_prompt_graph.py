@@ -570,14 +570,17 @@ def test_upgrade_confirms_before_writing():
 
 def test_upgrade_finds_its_targets_without_a_git_remote():
     """The command takes no PR URL, and users call it from the workspace they review from —
-    a directory with no git remote of its own, whose one notebooks/review/ holds a directory
-    per repo. That listing is the target list; a named repo filters it."""
+    a directory with no git remote of its own. Config sits under notebooks/review/ either
+    there or one level down inside each repo, so the search must span both depths. Bare form
+    takes every set found; a named repo filters them."""
     up = text(SRC / "commands" / "upgrade.md")
     flat = " ".join(up.split())
-    assert "ls -d notebooks/review/*/" in flat, \
-        "the directories under notebooks/review/ are what name the candidate repos"
+    assert "-path '*/notebooks/review'" in flat and "-maxdepth" in flat, \
+        "a depth-spanning search is what finds config in both layouts"
     assert "deriving `<repo>` from a git remote" in flat, \
         "a workspace has no remote to derive from — the ban must be stated"
+    assert "FORBIDDEN: asking which" in flat, \
+        "the bare form upgrades everything it found instead of asking"
     assert up.rstrip().endswith("ARGUMENTS: $ARGUMENTS"), \
         "a repo named on the command line must reach the prompt"
     assert flat.index("`ARGUMENTS`") < flat.index("## Step 2"), \
@@ -615,8 +618,9 @@ def test_upgrade_refuses_to_outrun_the_installed_build():
     assert "core/llm-upgrades-index.md" in up, \
         "upgrade must read the atom stating the installed build's checkpoint"
     flat = " ".join(up.split())
-    assert "older than the index" in flat and "STOP before applying" in flat, \
-        "upgrade must stop when the plugin is behind"
+    assert "The plugin is older than the migrations available" in flat, \
+        "the user must be told, in text, to update the plugin first"
+    assert "STOP before applying" in flat, "upgrade must stop when the plugin is behind"
 
 
 def test_migration_index_matches_the_files_on_disk():
