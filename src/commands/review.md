@@ -72,7 +72,7 @@ pwd + `<repo>` in chat.
 
 The PR's code on disk, main tree untouched — it never changes branch, so nothing needs restoring.
 
-1. `git -C "<repo_dir>" worktree add "$PWD/notebooks/review/<repo>/worktrees/review-pr<pull_number>-$RANDOM"
+1. `git -C "<repo_dir>" worktree add "$PWD/notebooks/review/<repo>/worktrees/pr<pull_number>-$RANDOM"
    --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
    `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
