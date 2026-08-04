@@ -399,9 +399,8 @@ def test_fix_suggestions_prefer_a_code_fence():
 def test_chat_does_not_repeat_the_posted_findings():
     """The finding text is on the PR. Restating it in chat doubles the output for a reader
     who already has the better copy."""
-    review = text(SRC / "commands" / "review.md")
-    flat = " ".join(review.split())
-    assert "FORBIDDEN: repeating any finding's description or its Fix" in flat, \
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    assert re.search(r"FORBIDDEN: repeating \w+ finding's description or its Fix", flat), \
         "Step 9 must forbid restating findings in chat"
 
 
@@ -665,6 +664,28 @@ def test_manifests_are_valid_and_agree():
     assert listed, f"marketplace.json does not list {plugin['name']}"
     src = (REPO / listed[0]["source"].lstrip("./")).resolve()
     assert src == SRC, f"marketplace source points at {src}, not {SRC}"
+
+
+def test_clean_deletes_worktrees_and_nothing_else():
+    """This is the only command whose job is `rm`, standing in a directory that also holds the
+    one thing here nobody can regenerate: what the repo taught it. A worktree comes back on the
+    next review; memory does not come back at all. So the ban is named file by file, and the
+    user answers before anything goes."""
+    c = text(SRC / "commands" / "clean.md")
+    flat = " ".join(c.split())
+    for keep in ("memory.md", "memories/", "ALWAYS_RULE.md", "settings.json", "templates/"):
+        assert keep in flat.split("## Step 1")[0], f"the CRITICAL block must rule out {keep}"
+    assert "notebooks/review/*/worktrees/" in flat, "the only deletable path must be named"
+    ask = c.index("## Step 3")
+    assert c.index("## Step 4 — Remove") > ask, "the ask must come before the removal"
+    assert "(Recommended)" in c and "`Keep them`" in c, "two options, one of them recommended"
+    assert "worktree prune" in flat, \
+        "a removed checkout leaves a registration behind in the reviewed repo"
+    # review.md points at it and must not do the deleting itself
+    r = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "/open-pr:clean" in r, "the run that creates a worktree must say what removes it"
+    assert "removing the worktree or asking to" in r, \
+        "review must leave the decision to the user, not prompt for it every run"
 
 
 def test_docs_exist_in_every_language_and_their_links_resolve():

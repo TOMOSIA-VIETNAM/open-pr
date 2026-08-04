@@ -79,6 +79,7 @@ account đó.
 | `/open-pr:review <URL>` | Review PR và post đúng **1** review: overview + comment line-by-line. Không sửa code, không close, không merge. Lần đầu trong một repo thì nó setup luôn |
 | `/open-pr:fix <URL>` | Đọc finding mà review để lại, sửa code, gom **1** commit, rồi reply từng comment. 🔵/📝 luôn hỏi bạn trước |
 | `/open-pr:upgrade` | Nâng config local của repo lên schema hiện tại. Tóm tắt cái gì đổi rồi hỏi; chưa đồng ý thì không ghi gì |
+| `/open-pr:clean` | Xoá các worktree mà `review` đã checkout code PR ra — mỗi cái là một bản checkout đầy đủ trên đĩa. Liệt kê kèm dung lượng rồi hỏi trước; memory và settings không bị chạm |
 
 Đứng ở đâu, mỗi command ghi gì, mọi setting: [Cấu hình](./docs/vi/configuration.md).
 

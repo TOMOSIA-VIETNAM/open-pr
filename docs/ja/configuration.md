@@ -62,3 +62,4 @@ cd ~/workspace
 | `/open-pr:review` | リポジトリを含むワークスペース内（推奨）、またはリポジトリ内 — `git remote` で自動判別 | PR 上のコメント + `notebooks/review/<repo>/` の memory |
 | `/open-pr:fix` | そのリポジトリ内、またはそれを含むワークスペース内 — ただし **リポジトリが PR のブランチ上にあること** | そのリポジトリの実コード + PR への返信 |
 | `/open-pr:upgrade` | 設定済みのワークスペースまたはリポジトリ内 — 複数あれば選択させる | `notebooks/review/<repo>/settings.json` |
+| `/open-pr:clean` | 掃除したい `notebooks/review/` より上のどこか | 何も書かない — `notebooks/review/*/worktrees/*` だけを削除 |

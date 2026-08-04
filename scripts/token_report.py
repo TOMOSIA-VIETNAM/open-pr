@@ -64,6 +64,7 @@ ROLES = {
     "upgrades-index": ["core/llm-upgrades-index.md"],
     "reconfigure": ["core/reconfigure.md"],
     "upgrade-cmd": ["commands/upgrade.md"],
+    "clean-cmd": ["commands/clean.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
@@ -119,6 +120,9 @@ SCENARIOS = {
     ],
     "upgrade": [
         "upgrade-cmd", "upgrades-index", "guardrails",
+    ],
+    "clean": [
+        "clean-cmd", "guardrails",
     ],
     "fix/known-repo-github": [
         "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",

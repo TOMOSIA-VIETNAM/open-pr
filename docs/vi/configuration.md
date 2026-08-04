@@ -62,3 +62,4 @@ Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.
 | `/open-pr:review` | ở workspace chứa repo (nên vậy), hoặc trong chính repo — nó tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
 | `/open-pr:fix` | trong repo đó, hoặc workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo đó + reply trên PR |
 | `/open-pr:upgrade` | ở workspace hoặc repo đã setup — nhiều repo thì nó cho bạn chọn | `notebooks/review/<repo>/settings.json` |
+| `/open-pr:clean` | ở bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xoá `notebooks/review/*/worktrees/*` |

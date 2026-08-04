@@ -63,3 +63,4 @@ lives in `settings.json`:
 | `/open-pr:review` | in the workspace holding the repo (preferred), or in the repo itself — it finds the repo by `git remote` | comments on the PR + memory in `notebooks/review/<repo>/` |
 | `/open-pr:fix` | in that repo, or in the workspace holding it — but **the repo must be on the PR's branch** | real code in that repo + replies on the PR |
 | `/open-pr:upgrade` | in a workspace or a repo already set up — with several repos it lets you pick | `notebooks/review/<repo>/settings.json` |
+| `/open-pr:clean` | anywhere above the `notebooks/review/` it should clean | nothing — it only deletes `notebooks/review/*/worktrees/*` |
