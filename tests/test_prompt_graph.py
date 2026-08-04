@@ -734,12 +734,15 @@ def test_docs_exist_in_every_language_and_their_links_resolve():
     assert not dead, f"links that resolve to nothing: {dead}"
 
 
-def test_scans_skip_a_checkout_parked_inside_the_tree(tmp_path):
+def test_scans_skip_a_checkout_parked_inside_the_tree():
     """An agent puts its isolated worktree under `.claude/worktrees/`. That is a full copy of
     this repo, so a scan reaching into it reports our own prose as duplicated against itself and
-    reddens the gate for a change nobody made. Real occurrence, not hypothetical."""
+    reddens the gate for a change nobody made. Real occurrence, not hypothetical. The probe has
+    to sit under REPO — `in_nested_checkout` judges by REPO — so it cleans up behind itself
+    rather than taking a tmp_path it cannot use."""
     nested = REPO / ".claude" / "worktrees" / "__guard_probe__"
     md = nested / "doc.md"
+    parent_existed = nested.parent.exists()
     try:
         nested.mkdir(parents=True, exist_ok=True)
         (nested / ".git").write_text("gitdir: /nowhere\n")     # what `git worktree add` leaves
@@ -749,7 +752,10 @@ def test_scans_skip_a_checkout_parked_inside_the_tree(tmp_path):
     finally:
         for f in (md, nested / ".git"):
             f.unlink(missing_ok=True)
-        nested.rmdir()
+        if nested.exists():
+            nested.rmdir()
+        if not parent_existed and nested.parent.exists():
+            nested.parent.rmdir()
 
 
 def test_every_scenario_is_owned_by_a_chart_line():
