@@ -71,6 +71,9 @@ flowchart LR
 GitLab の MR なら [`glab`](https://gitlab.com/gitlab-org/cli) にログイン済みであることが必要です —
 レビューはそのアカウントで投稿されます。
 
+Cursor・Codex・Gemini CLI・Antigravity でも、それぞれのプラグイン機構から同じレビューを実行できます
+（まだ実験的）: [インストール](./docs/install.md)。
+
 ## 使い方
 
 | コマンド | 何をするか |

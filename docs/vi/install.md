@@ -1,0 +1,138 @@
+# Cài đặt
+
+Claude Code là nền tảng plugin này được xây và test trên đó. Cursor, Codex, Gemini CLI và Antigravity
+chạy đúng cùng một review từ cùng những file đó — chỉ khác cái cửa để đi vào, và đó là nội dung trang
+này.
+
+Dù dùng nền tảng nào, bạn vẫn cần [`gh`](https://cli.github.com/) cho PR GitHub hoặc
+[`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã cài và đã login. Review được post bằng
+chính account đó.
+
+## Chọn cửa nào
+
+Mỗi nền tảng có hai cửa, và cả hai đều dùng cơ chế nạp do chính nền tảng đó công bố. Khác nhau ở chỗ
+file đến máy bạn bằng đường nào:
+
+- **Catalog** — dùng trình cài plugin/extension của nền tảng, trỏ vào repository này. Nó theo default
+  branch, nên cập nhật chỉ là một lệnh trong nền tảng đó.
+- **Local** — bạn clone repository này rồi chạy `scripts/install-local.sh`. Dùng khi đường catalog
+  đang khép với bạn: form submit còn chờ duyệt, hoặc account của bạn không có quyền import. Bản cài
+  đứng ở release bạn đã clone cho tới khi bạn pull.
+
+| Nền tảng | Catalog | Local | Trạng thái |
+| -------- | ------- | ----- | ---------- |
+| Claude Code | `/plugin marketplace add` + `/plugin install` | không cần | đã test |
+| Cursor | import repo này làm team marketplace (admin, plan Teams/Enterprise) | `scripts/install-local.sh` | chưa test |
+| Codex | `/plugin marketplace add` + `/plugin install` | `scripts/install-local.sh` | chưa test |
+| Gemini CLI | `gemini extensions install <URL repo>` | `scripts/install-local.sh` | chưa test |
+| Antigravity | `agy plugin install <path>` | `scripts/install-local.sh` | chưa test |
+
+`đã test` nghĩa là một review thật đã chạy trọn vẹn và được chấm theo `e2e/checklist.md`. `chưa test`
+nghĩa là file và manifest đã đúng chỗ, khớp với những gì nền tảng đó công bố, nhưng chưa ai chạy review
+thật qua nền tảng ấy — hãy coi là thử nghiệm và đọc lại review nó post trước khi tin. Nếu bạn có chạy,
+kết quả nào cũng đáng mở một issue.
+
+## Claude Code
+
+```bash
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
+/plugin install open-pr@open-pr
+```
+
+Cập nhật:
+
+```bash
+/plugin marketplace update open-pr
+/plugin update open-pr@open-pr
+/reload-plugins
+/open-pr:upgrade
+```
+
+Command vào máy có namespace: `/open-pr:review`, `/open-pr:fix`, `/open-pr:upgrade`, `/open-pr:clean`.
+
+## Cursor
+
+Catalog: trong dashboard Cursor, vào Settings → Plugins → Team Marketplaces → Import rồi dán URL của
+repository này. Cursor đọc `.cursor-plugin/marketplace.json` và từ đó theo default branch. Tạo team
+marketplace là hành động của admin trên plan Teams và Enterprise, nên với account cá nhân hãy dùng
+đường local bên dưới.
+
+Cách nào thì bốn command cũng hiện ra dưới dạng `/open-pr-review`, `/open-pr-fix`, `/open-pr-upgrade`,
+`/open-pr-clean`.
+
+## Codex
+
+```
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
+/plugin install open-pr
+/reload-plugins
+```
+
+Codex đọc catalog từ `.agents/plugins/marketplace.json` trong repository này. Việc publish lên plugin
+directory của OpenAI là một kênh riêng, tuỳ chọn, không bắt buộc để cài.
+
+Codex gọi skill tường minh bằng `$`: `$open-pr-review <PR URL>`.
+
+## Gemini CLI
+
+```bash
+gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr
+```
+
+Cập nhật:
+
+```bash
+gemini extensions update open-pr
+```
+
+Đây là nền tảng duy nhất cài trực tiếp từ một git repository, không cần catalog ở giữa. Nó nhận cả
+command (`/review`, `/fix`, `/upgrade`, `/clean`, có namespace theo extension) và cùng bốn skill đó.
+
+## Antigravity
+
+```bash
+git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
+agy plugin install ~/open-pr
+```
+
+Skill thành slash command trong TUI: `/open-pr-review` và ba cái còn lại.
+
+## Cài local
+
+Dành cho Cursor, Codex, Gemini CLI và Antigravity, khi đường catalog không mở với bạn:
+
+```bash
+git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
+~/open-pr/scripts/install-local.sh
+```
+
+Clone theo tag release chứ không phải default branch, để bạn nhận đúng một bản đã được cắt có chủ đích.
+Hãy đọc script trước khi chạy — nó nằm trong repository bạn vừa clone, chính vì lý do đó. Không có chỗ
+nào ở đây đổ một file tải về thẳng vào shell.
+
+Mặc định script cài vào `~/.agents/skills/`, nơi Cursor, Codex và Gemini CLI đều đọc, nên một lần chạy
+phục vụ ba nền tảng. Antigravity giữ thư mục riêng:
+
+```bash
+~/open-pr/scripts/install-local.sh --platform antigravity
+```
+
+Cờ khác: `--platform cursor` cho `~/.cursor/skills/`, `--target DIR` cho chỗ bất kỳ, `--copy` nếu nền
+tảng của bạn không đi theo symlink, `--uninstall` để xoá đúng những gì nó đã cài.
+
+Skill là symlink trỏ về bản clone, nên cập nhật mọi nền tảng cùng lúc chỉ là:
+
+```bash
+git -C ~/open-pr pull
+```
+
+Với `--copy` thì không có link, nên pull xong phải chạy lại script. Cách nào thì script cũng không bao
+giờ đụng file nó không tạo ra: nếu đã có gì nằm sẵn ở chỗ một skill sắp vào, nó dừng và nói cho bạn
+biết, và `--uninstall` cũng để nguyên file đó.
+
+## Thêm nền tảng không đổi gì trong repo của bạn
+
+`/open-pr:upgrade` (hoặc `$open-pr-upgrade`, `/open-pr-upgrade`) nói về config per-repo mà review ghi
+dưới `notebooks/review/`. Cài thêm nền tảng thứ hai không migrate, không di chuyển, không nhân bản gì
+trong đó: mọi nền tảng đọc cùng một config, và không có migration nào phải chạy. Xem
+[Cấu hình](./configuration.md) để biết config đó giữ những gì.

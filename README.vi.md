@@ -72,6 +72,9 @@ Cần thêm [Claude Code](https://claude.ai/code), và [`gh`](https://cli.github
 [`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã login — review được post bằng chính
 account đó.
 
+Cursor, Codex, Gemini CLI và Antigravity chạy cùng một review qua plugin system của chúng, còn ở mức
+thử nghiệm: [Cài đặt](./docs/install.md).
+
 ## Sử dụng
 
 | Command | Làm gì |

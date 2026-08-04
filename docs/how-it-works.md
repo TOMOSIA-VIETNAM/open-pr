@@ -66,3 +66,12 @@ The first run in a repo asks a short batch of questions — the language to post
 or keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large
 PR and file thresholds — then reads the conventions already in the repo: README, CLAUDE.md,
 AGENTS.md, docs, wiki.
+
+## Same review on other platforms
+
+The procedure the agent follows — every step above — lives in one place: the markdown under `src/`.
+Cursor, Codex, Gemini CLI and Antigravity each need their own kind of entry file to expose a slash
+command, so each gets a short shim that does two things: find where the plugin is installed, then hand
+over to the same command file Claude Code reads. No rule, threshold or severity is restated in a shim,
+which is why a change to how the review behaves is a one-file edit and never a five-platform edit.
+Installing on those platforms: [Install](./install.md).

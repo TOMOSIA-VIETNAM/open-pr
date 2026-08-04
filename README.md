@@ -75,6 +75,9 @@ You also need [Claude Code](https://claude.ai/code), plus [`gh`](https://cli.git
 PRs or [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab MRs, logged in — the review is posted
 through that account.
 
+Cursor, Codex, Gemini CLI and Antigravity run the same review through their own plugin systems, still
+experimental: [Install](./docs/install.md).
+
 ## Usage
 
 | Command | What it does |
