@@ -21,7 +21,7 @@ used for testing, or describe another way you verified this.
 ## Checklist
 
 - [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly
-- [ ] Config/bootstrap/setup UX change → synced all 3 README versions (`README.md`/`.en`/`.ja`)
+- [ ] Config/bootstrap/setup UX change → synced all 3 README versions (`README.md`/`.vi`/`.ja`)
 - [ ] Added a new field in `meta.json` → classified it as User config / Doctor-detected / Internal
   state in BOTH `src/setup-flow.md` (Part D) and `src/commands/review.md` (Step 3)
 - [ ] No new `allowed-tools` grant is broader than necessary (e.g. a blanket `gh api:*`) — the PR

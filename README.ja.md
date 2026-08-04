@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.md">Tiếng Việt</a> · <a href="./README.en.md">English</a> · <strong>日本語</strong>
+  <a href="./README.vi.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <strong>日本語</strong>
 </p>
 
 > PR が届いたとき最初に浮かぶ問いは、たいてい「このコードは正しいか」ではなく「開発者は送る前に一度でも
