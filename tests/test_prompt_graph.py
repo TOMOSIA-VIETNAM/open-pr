@@ -734,6 +734,24 @@ def test_docs_exist_in_every_language_and_their_links_resolve():
     assert not dead, f"links that resolve to nothing: {dead}"
 
 
+def test_scans_skip_a_checkout_parked_inside_the_tree(tmp_path):
+    """An agent puts its isolated worktree under `.claude/worktrees/`. That is a full copy of
+    this repo, so a scan reaching into it reports our own prose as duplicated against itself and
+    reddens the gate for a change nobody made. Real occurrence, not hypothetical."""
+    nested = REPO / ".claude" / "worktrees" / "__guard_probe__"
+    md = nested / "doc.md"
+    try:
+        nested.mkdir(parents=True, exist_ok=True)
+        (nested / ".git").write_text("gitdir: /nowhere\n")     # what `git worktree add` leaves
+        md.write_text("# probe\n\n" + "the same sentence repeated verbatim many times over. " * 30)
+        assert md not in dup_scan.md_files("dev"), \
+            "the dev scan must not read a checkout parked inside the tree"
+    finally:
+        for f in (md, nested / ".git"):
+            f.unlink(missing_ok=True)
+        nested.rmdir()
+
+
 def test_every_scenario_is_owned_by_a_chart_line():
     """A scenario the chart does not recognise used to fall into `review`, so adding a command
     moved a line that is supposed to describe review alone — and the release that recorded it
