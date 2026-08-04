@@ -21,6 +21,11 @@ Illustrative, not a closed checklist: a real problem outside the list is still w
 - Obvious bug or logic error?
 - Edge cases handled — empty/null/undefined, limits, empty collections?
 - Every conditional branch and error path accounted for?
+- New logic over stored rows — read/write path pre-exists (not added by this PR) && `baseRefName` = a
+  PERMANENT branch of the repo, whatever this one names them (its trunk, a release or environment line),
+  never one cut for a single change ⇒ first write PRESERVES what a row holds? old rows still read back?
+  Schema untouched is the dangerous case: a field dropped from a write allowlist arrives absent ⇒ NULL
+  over stored value. 🟠 max, evidence = 1 branch name; FORBIDDEN: claiming it is deployed.
 
 #### 2. Security
 
