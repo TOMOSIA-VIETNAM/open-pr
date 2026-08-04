@@ -53,21 +53,23 @@ claude plugin marketplace add "$SCRIPT_DIR"
 echo "→ Installing $PLUGIN_ID..."
 claude plugin install "$PLUGIN_ID" --scope "$SCOPE"
 
-echo "→ Dọn cache cũ (uninstall/update chỉ orphan, không xoá ngay — tự xoá sau 7 ngày theo mặc định
-   của Claude Code; ở đây xoá ngay, chỉ giữ đúng bản đang active)..."
+echo "→ Cleaning up old cache (uninstall/update only orphans it, doesn't delete right away — Claude
+   Code auto-deletes it after 7 days by default; here we delete it immediately, keeping only the
+   currently active version)..."
 CACHE_DIR="$HOME/.claude/plugins/cache/$MARKETPLACE_NAME/$PLUGIN_NAME"
 INSTALLED_JSON="$HOME/.claude/plugins/installed_plugins.json"
 ACTIVE_PATH=""
 if [ -f "$INSTALLED_JSON" ]; then
   if command -v jq >/dev/null 2>&1; then
-    # Chính xác: đúng key .plugins["$PLUGIN_ID"], đúng entry khớp scope đang cài (không giả định
-    # index [0] — 1 plugin có thể có nhiều entry theo scope khác nhau: user/project/local).
+    # Accurate: exact key .plugins["$PLUGIN_ID"], exact entry matching the installed scope (no
+    # assumption of index [0] — one plugin can have multiple entries across different scopes:
+    # user/project/local).
     ACTIVE_PATH="$(jq -r --arg id "$PLUGIN_ID" --arg scope "$SCOPE" \
       '(.plugins[$id] // [])[] | select(.scope == $scope) | .installPath' \
       "$INSTALLED_JSON" 2>/dev/null | head -1)"
   else
-    # Fallback không cần jq — giả định file pretty-print nhiều dòng (đúng hiện tại), có thể sai nếu
-    # file bị minify thành 1 dòng hoặc PLUGIN_ID xuất hiện nhiều nơi trong file.
+    # Fallback without jq — assumes the file is pretty-printed across multiple lines (true today),
+    # may be wrong if the file gets minified to one line or PLUGIN_ID appears in multiple places.
     ACTIVE_PATH="$(grep -A3 "\"$PLUGIN_ID\"" "$INSTALLED_JSON" | grep -m1 '"installPath"' | sed -E 's/.*"installPath":[[:space:]]*"([^"]+)".*/\1/')"
   fi
 fi
@@ -75,12 +77,12 @@ if [ -d "$CACHE_DIR" ] && [ -n "$ACTIVE_PATH" ]; then
   for d in "$CACHE_DIR"/*/; do
     d="${d%/}"
     if [ "$d" != "$ACTIVE_PATH" ]; then
-      echo "   xoá bản cũ: $d"
+      echo "   removing old version: $d"
       rm -rf "$d"
     fi
   done
 else
-  echo "   ⚠️  Không xác định được bản đang active — bỏ qua dọn cache (an toàn, không xoá gì)."
+  echo "   ⚠️  Could not determine the active version — skipping cache cleanup (safe, nothing deleted)."
 fi
 
 echo

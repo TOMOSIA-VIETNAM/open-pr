@@ -1,12 +1,14 @@
 {
-  "name": "review-pr",
-  "description": "Local marketplace for the open-pr plugin (multi-stack GitHub PR reviewer).",
-  "owner": { "name": "Minh Tang Q." },
+  "name": "open-pr",
+  "description": "Marketplace for the open-pr plugin: a GitHub/GitLab PR reviewer with per-repo memory.",
+  "owner": {
+    "name": "Minh Tang Q."
+  },
   "plugins": [
     {
       "name": "open-pr",
       "source": "./src",
-      "description": "Review GitHub Pull Requests across Rails, Vue, React, Python, Node.js, Lambda, PHP, Laravel, WordPress, Shell, and Makefile, learning per-repo convention over time."
+      "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI."
     }
   ]
 }

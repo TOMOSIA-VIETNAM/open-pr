@@ -1,46 +1,51 @@
-# Node.js (backend runtime — không cover JSX/component, xem `react.md`)
+# Node.js (backend runtime — does not cover JSX/components, see `react.md`)
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; chỉ liệt kê tiêu chí đặc thù stack, không lặp baseline._
+#### 1. Bugs & logic
 
-#### 1. Lỗi & Vấn đề logic
+- async/await handles errors fully — `try/catch` around `await`, unhandled promise rejection
+  avoided (a Promise not `await`-ed/`.catch()`-ed)?
+- Callback follows the error-first convention correctly (if callback style is still used)?
 
-- Async/await có xử lý lỗi đầy đủ không — có `try/catch` quanh `await`, có tránh unhandled promise rejection (Promise không được `await`/`.catch()`) không?
-- Callback có xử lý error-first convention đúng không (nếu còn dùng callback style)?
+#### 2. Security
 
-#### 2. Bảo mật
+- `dotenv`/a secret manager used instead of hardcoding secrets?
+- Client input validated before entering business logic (Joi/Zod/express-validator, or does manual
+  checking miss something)?
+- Injection risk (SQL/NoSQL/command injection) through unsanitized input?
 
-- Có dùng `dotenv`/secret manager thay vì hardcode secret không?
-- Input từ client có được validate trước khi vào business logic không (Joi/Zod/express-validator hay tự kiểm tra tay có thiếu sót không)?
-- Có nguy cơ injection (SQL/NoSQL/command injection) qua input không được sanitize không?
+#### 3. Performance
 
-#### 3. Hiệu suất
+- N+1 query via ORM (Sequelize/Prisma/TypeORM) — `include`/eager loading missing?
+- Heavy synchronous work (CPU-bound) blocks the event loop? Should offload to a worker
+  thread/queue?
 
-- Có vấn đề N+1 query nếu dùng ORM (Sequelize/Prisma/TypeORM) không — có thiếu `include`/eager loading không?
-- Có block event loop bởi tác vụ đồng bộ nặng (CPU-bound) không? Có nên đẩy ra worker thread/queue không?
+#### 4. Code quality
 
-#### 4. Chất lượng code
+Both `.js` and `.ts` are fully reviewed here; the split below marks which criteria are `.ts`-only.
 
-JavaScript và TypeScript là 2 ngôn ngữ nền ngang hàng cho Node.js backend trong dự án này (`.js`
-lẫn `.ts` đều được review đầy đủ) — nhóm tiêu chí bên dưới chia rõ phần áp dụng chung và phần chỉ
-áp dụng khi file là TypeScript.
+Applies to both `.js` and `.ts`:
 
-Áp dụng chung cho cả `.js` và `.ts`:
+- Module boundaries clear — avoiding circular dependencies, avoiding a "God file" gathering too
+  many responsibilities?
+- Error objects/custom error classes defined consistently (not throwing strings/objects
+  arbitrarily)?
 
-- Module boundary có rõ ràng không — tránh circular dependency, tránh "God file" gom quá nhiều trách nhiệm?
-- Error object/custom error class có được định nghĩa nhất quán không (không throw string/object tuỳ tiện)?
+Specific to `.ts` (TypeScript) files:
 
-Riêng khi file là `.ts` (TypeScript):
+- Types/interfaces for input, output, DTOs clearly defined, avoiding overuse of `any`?
+- Outer layer's type (request body, query params, API/DB response) validated/narrowed to the
+  actual runtime type before trusting the static type (avoiding trusting only the declared type
+  with no real validation at the boundary)?
+- Generic types used sensibly for reusable functions/classes?
 
-- Type/interface cho input, output, DTO có được định nghĩa rõ ràng không, tránh lạm dụng `any`?
-- Type của layer bên ngoài (request body, query param, response từ API/DB) có được validate/narrow đúng runtime type trước khi tin tưởng static type không (tránh chỉ tin type declare mà không có validate thật ở boundary)?
-- Generic type có được dùng hợp lý cho hàm/class tái sử dụng không?
+#### 5. Node.js specifics
 
-#### 5. Đặc thù Node.js
+- Structured logging used (Winston/Pino) instead of arbitrary `console.log` in production code?
+- Config/env managed centrally (a config module) instead of reading `process.env` scattered
+  throughout?
+- Middleware/handlers clearly separate responsibilities (routing, validation, business logic, data
+  access)?
 
-- Structured logging có được dùng không (Winston/Pino) thay vì `console.log` tuỳ tiện trong code production?
-- Cấu hình/env var có được quản lý tập trung (config module) thay vì đọc `process.env` rải rác không?
-- Middleware/handler có tách rõ trách nhiệm (routing, validation, business logic, data access) không?
+#### 6. Maintainability & readability
 
-#### 6. Khả năng bảo trì & Dễ đọc
-
-- Test có dùng Jest/Mocha không?
+- Tests use Jest/Mocha?

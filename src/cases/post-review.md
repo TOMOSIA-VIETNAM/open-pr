@@ -1,33 +1,28 @@
-# Post-review — lỗi POST hoặc verify lệch (Bước 9 `review.md`)
+# Post-review — post/publish error or verify mismatch
 
-Không phải slash command. `review.md` Bước 9 chỉ `Read` file này khi:
+Reached ONLY when the post/publish call errors, || the vendor's own verify step contradicts what
+`auto_submit_review` expected. The happy path never reads this file.
 
-- lệnh `POST .../pulls/{pull_number}/reviews` trả lỗi (vd 422), **hoặc**
-- verify `state` lệch kỳ vọng so với `auto_submit_review`.
+## The post/publish call errored
 
-Happy path (POST OK + state đúng) → không đọc file này.
+1. Read the error and cross-check the payload against `V§"Post-error notes"` for this vendor's known
+   failure modes.
+2. Fix the payload → retry EXACTLY ONCE.
+3. Still failing → STOP and report the real error. No other workaround; a permission-shaped error
+   (whatever that vendor calls it) is informational only and is never worked around.
+4. FORBIDDEN: creating or deleting a "test"/"isolate" review or note on the real PR to debug.
 
-## Khi POST lỗi
+FORBIDDEN: any shortcut posting outside `V§"Post a review"` — that vendor's "Post-error notes" entry
+names the exact commands never to substitute for it.
 
-1. Đọc thông báo lỗi; đối chiếu schema Bước 9 (`comments[]` thiếu `line`? `line`/`side` sai nửa
-   diff?).
-2. Sửa payload → gọi lại **đúng 1 lần**.
-3. Vẫn lỗi → DỪNG, báo lỗi thật cho user. Không thử thêm cách khác.
-4. CẤM tạo/xoá review hoặc comment thử ("test", "isolate") trên PR thật để debug.
-5. Lỗi vì `gh auth` chính là tác giả PR (GitHub hạn chế tự review) → chỉ báo user, không workaround.
+## The verify step mismatched
 
-Không dùng `gh pr review --comment` hay POST lẻ `/pulls/{n}/comments` — chỉ
-`POST .../pulls/{n}/reviews`.
+Re-run `V§"Verify a posted review's state"`; that entry's own caveats apply here too (a race against
+someone else's concurrent review, or a vendor with no state field at all).
 
-## Khi verify lệch
+- `auto_submit_review: true` && still unpublished although the publish call was already sent → retry
+  `V§"Publish the pending review"` once.
+- `auto_submit_review: false` && it reports anything other than unpublished → report the actual result.
+  FORBIDDEN: auto APPROVE/REQUEST_CHANGES, or posting another review.
 
-Sau `gh api .../reviews/<review_id> --jq '{id, state}'` (`<review_id>` lấy từ response POST ở Bước 9
-— hoặc từ lần retry gọi lại ở mục trên nếu POST đầu lỗi. CẤM đổi qua `.../reviews --jq '.[-1] | ...'`
-để "lấy review mới nhất" — nếu có review khác submit đúng lúc này, `.[-1]` trỏ NHẦM review của họ):
-
-- `auto_submit_review: true` mà vẫn `PENDING` dù đã gửi `event` → submit:
-  `gh api -X POST repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/events -f event="COMMENT"`.
-- `auto_submit_review: false` mà `state` không phải `PENDING` → báo user kết quả thật; không tự
-  APPROVE/REQUEST_CHANGES hay post thêm review.
-
-Không thêm bước verify khác (không re-fetch diff, không liệt kê lại comment, không tạo review test).
+FORBIDDEN: any other verification — re-fetching the diff, re-listing comments, creating a test review.

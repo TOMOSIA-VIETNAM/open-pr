@@ -1,81 +1,66 @@
-# Large diff guards — nhiều file / file to-dump (Bước 7 `review.md`)
+# Large diff guards
 
-Không phải slash command (nằm ngoài `commands/`). `review.md` Bước 7 `Read` file này khi PR đang
-review khớp ÍT NHẤT 1 trong 2 điều kiện độc lập dưới đây — không khớp điều kiện nào thì không đọc
-file này, Bước 7 diễn ra bình thường, không gì trong file này áp dụng:
+`review.md` Step 7 arrives here with ≥1 of its 2 independent guards matched. Apply ONLY the section
+whose guard actually matched; the last section applies only when both did.
 
-- **Guard số lượng file**: đếm số file trong "Files" (Ngữ cảnh, `--name-only`, mỗi dòng 1 file) >
-  `many_files_threshold` (Bước 3 `review.md`, default `30`).
-- **Guard file to/dump**: ít nhất 1 file có "Size diff theo file" (Ngữ cảnh) >
-  `big_file_threshold_kb` KB (Bước 3, default `20`), hoặc `UNKNOWN` (GitHub bỏ patch vì quá lớn).
+## File-count guard
 
-2 guard độc lập, PR có thể chỉ khớp 1 trong 2 (vd 5 file nhưng 1 file cực to → chỉ guard file
-to/dump áp dụng, bỏ qua hẳn phần "Guard số lượng file" dưới) — chỉ phần "Tương tác 2 guard" cuối
-file mới cần CẢ 2 khớp cùng lúc.
-
-## Guard số lượng file
-
-- `ARGUMENTS`/chat lúc gọi lệnh ĐÃ chỉ định chiến lược (vd "review nông", "review sâu chọn lọc",
-  "dừng") → dùng luôn, KHÔNG hỏi lại.
-- CHƯA chỉ định → DỪNG, hỏi user ngay trong chat, đưa đúng 3 lựa chọn, CHỜ reply, KHÔNG tự chọn mặc
-  định:
+- `ARGUMENTS`/chat already named a strategy ("shallow review", "selective deep review", "stop") → use
+  it, do NOT ask again.
+- Otherwise MUST STOP and ask, exactly these 3 choices, WAIT — FORBIDDEN: picking a default yourself:
   ```
-  PR này đổi <N> file (> <ngưỡng>) — review sâu hết dễ tốn effort lớn/dễ sót. Chọn 1 chiến lược:
-  (a) Review nông toàn bộ — lướt hết mọi file, giảm độ sâu, chỉ bắt lỗi rõ ràng ngay trên diff.
-  (b) Review sâu có chọn lọc — sâu ở file logic thật, lướt nhẹ file config/generated/test.
-  (c) Dừng — nêu lý do, đề nghị dev tách PR nhỏ hơn, không review.
+  This PR changes <N> files (> <threshold>) — a full deep review risks heavy effort/missed items.
+  Pick a strategy:
+  (a) Shallow review of everything — skim every file, reduced depth, only catch clear issues
+      directly visible in the diff.
+  (b) Selective deep review — go deep on files with real logic, skim config/generated/test files
+      lightly.
+  (c) Stop — state the reason, suggest the dev split the PR smaller, do not review.
   ```
-- Chọn **(a)**: toàn bộ Bước 7 (`review.md`) vẫn áp dụng cho MỌI file, nhưng bỏ mục "Đọc thêm
-  tại `<worktree>/<path>` khi cần" — chỉ dựa vào diff Ngữ cảnh, không tự ý đọc thêm context ngoài
-  diff. Xem "Tương tác 2 guard" dưới nếu PR CŨNG khớp guard file to/dump.
-- Chọn **(b)**: dùng kết quả Bước 2 `review.md` (stack detect) phân loại — file LOGIC thật (code
-  nghiệp vụ theo stack) review ĐẦY ĐỦ theo mọi rule Bước 7 bình thường; file config/lock/generated/
-  test (phán đoán ngữ cảnh — ví dụ minh họa, không checklist đóng) → gộp finding nhẹ/lướt, không mổ
-  dòng-by-dòng.
-- Chọn **(c)**: KHÔNG chạy Bước 7 (phần review thật) → Bước 9 `review.md`. Chat-only: nêu số file
-  + ngưỡng, đề nghị dev tách PR, DỪNG lệnh hẳn — không post gì lên GitHub (giống early-exit ở Bước 0
-  `review.md`).
+- **(a)** → every Step 7 rule still applies to EVERY file, minus the optional "read more at
+  `<worktree>/<path>`" — rely on the Context "Diff" alone.
+- **(b)** → classify by Step 2's stack detection: files with real LOGIC get the FULL Step 7 treatment;
+  config/lock/generated/test files (contextual judgment, illustrative not exhaustive) collapse into 1
+  light skimmed finding, never dissected line by line.
+- **(c)** → FORBIDDEN: running the review at all. Chat only: file count + threshold + suggest splitting
+  the PR, then STOP the command entirely, posting nothing.
 
-**Checklist chống quên file** (chỉ khi chọn (a)/(b) ở trên — KHÔNG áp dụng cho (c) vì không review
-gì):
+**Anti-forgotten-file checklist** — only under (a)/(b), N/A to (c):
 
-1. Ngay khi chọn (a)/(b): `Write` `<worktree>/.review-checklist.md` — mỗi file trong "Files" (Ngữ
-   cảnh) 1 dòng `- [ ] <path>`. File này CHỈ là sổ tay nội bộ — không bao giờ xuất hiện trong PR
-   body hay output chat.
-2. Review xong 1 file (có finding hay không cũng tính là "xong") → `Edit` đúng dòng đó thành
-   `- [x] <path>`.
-3. **BẮT BUỘC, không bỏ qua** — TRƯỚC KHI viết Bước 8 `review.md`: `Read` lại
-   `.review-checklist.md` VÀ `.review-skipped.md` (nếu có). Dòng nào còn `[ ]` trong checklist VÀ
-   KHÔNG có mặt trong `.review-skipped.md` → đây là file bị QUÊN thật (không phải chủ động skip) —
-   quay lại review NGAY file đó trước khi tổng hợp, tuyệt đối không để lộ ra ngoài dưới dạng thiếu
-   sót âm thầm.
+1. `Write` `<worktree>/.review-checklist.md`, one `- [ ] <path>` line per file in "Files". INTERNAL
+   bookkeeping — never appears in the PR body or in chat.
+2. A file's review done (finding or not, both count) → `Edit` its line to `- [x] <path>`.
+3. **MANDATORY** before writing Step 8: `Read` back `.review-checklist.md` AND `.review-skipped.md`.
+   Any line still `[ ]` && absent from `.review-skipped.md` = genuinely FORGOTTEN, not a deliberate
+   skip → review it IMMEDIATELY before compiling the summary. FORBIDDEN: letting it pass silently.
 
-## Guard file to/dump
+## Large/dump-file guard
 
-Với MỖI file khớp điều kiện "Guard file to/dump" ở đầu file này: peek CÓ GIỚI HẠN (`Read`
-offset/limit ~30-50 dòng đầu hunk, không đọc hết) để phán đoán data/seed/dump/generated (lặp cấu
-trúc, toàn literal, không control flow) hay logic thật tình cờ đổi nhiều:
+Applies to each file in "Oversized paths" (Context) — every file whose "Diff size per file" entry exceeds
+`big_file_threshold_kb` KB or reads `UNKNOWN`. Its patch is deliberately absent from the Context "Diff",
+so reading it here, in bounded chunks, is the only way it is seen at all.
 
-- **Data/dump/generated** → KHÔNG review chi tiết dòng-by-dòng, KHÔNG paste lại nội dung dump vào
-  finding; đúng 1 finding cấp FILE (thường 📝 NOTE hoặc 🔵 SUGGESTION) nêu "diff lớn — có vẻ
-  seed/dump data, xác nhận đúng ý chưa". Ghi lại `<path>` + lý do vào `<worktree>/.review-skipped.md`
-  (1 dòng `- <path> — <lý do>` mỗi entry, `Write` nếu file chưa có/`Edit` append nếu đã có) — LUÔN
-  ghi vào file này, không chỉ trong context (đây là anchor thật, không phải nhớ tạm) — dùng để liệt
-  kê ở Bước 8 `review.md` và đối chiếu ở checklist chống quên trên.
-- **Logic thật (chỉ tình cờ to)** → review bình thường, đọc tiếp theo từng đoạn (offset/limit như
-  trên), không `Read` trọn patch 1 lần.
+LIMITED peek (`Read` ~30-50 lines at the hunk start, never the whole thing) to tell
+data/seed/dump/generated (repetitive structure, all literals, no control flow) from genuinely large real
+logic:
 
-## Tương tác 2 guard — chọn (a) VÀ CŨNG khớp guard file to/dump
+- **Data/dump/generated** → FORBIDDEN: line-by-line review, or pasting dump content into the finding.
+  Exactly 1 FILE-level finding, usually 📝 NOTE or 🔵 SUGGESTION: "large diff — looks like seed/dump
+  data, please confirm this is intentional". Record `- <path> — <reason>` into
+  `<worktree>/.review-skipped.md` (`Write` if new, `Edit` to append) — ALWAYS to the file, not just in
+  context: Step 8 lists it and the checklist above cross-checks it.
+- **Real logic, only incidentally large** → review normally, chunk by chunk with `offset`/`limit`.
+  FORBIDDEN: `Read`ing the whole patch at once.
 
-Chỉ áp dụng khi PR khớp CẢ 2 điều kiện ở đầu file này VÀ user vừa chọn chiến lược (a) ở "Guard số
-lượng file". Liệt kê ĐÚNG các file khớp "Guard file to/dump" ngay sau khi user chọn (a) — gộp thành
-1 câu hỏi DUY NHẤT (không hỏi riêng từng file), hỏi user muốn peek để phân loại data/dump-vs-logic-
-thật hay bỏ qua luôn:
+## Both guards matched && the user chose (a)
 
-- User đồng ý (tất cả hoặc chỉ định file cụ thể) → peek CÓ GIỚI HẠN đúng quy tắc "Guard file to/dump"
-  trên, CHỈ cho các file đó; phần còn lại của PR vẫn theo (a) bình thường.
-- User từ chối/không trả lời rõ → không đọc, ghi vào `.review-skipped.md` (xem checklist trên) lý do
-  "chiến lược (a) + size lớn, user chọn không review — tự xem".
-- File QUÁ lớn để peek an toàn dù user đồng ý (vd size vượt xa ngưỡng, hoặc `UNKNOWN` mà thực tế cực
-  lớn) → agent có thể TỪ CHỐI peek, khuyên user nên bỏ qua để tránh vỡ context, ghi vào
-  `.review-skipped.md` tương tự.
+List EXACTLY the files matching the large/dump guard right after (a) is chosen, combined into ONE
+question (never per file): peek to classify, or skip outright?
+
+- **agrees** (all files or specific ones) → limited peek per the section above, for those files only;
+  the rest of the PR stays on (a).
+- **declines/unclear** → don't read them; record into `.review-skipped.md`, reason "strategy (a) +
+  large size, user chose not to review — check it yourself".
+- **too large to peek safely even with agreement** (far beyond the threshold, or an `UNKNOWN` that
+  turns out huge) → the agent MAY decline the peek, advise skipping to avoid blowing context, and
+  record it the same way.

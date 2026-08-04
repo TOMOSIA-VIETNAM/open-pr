@@ -1,35 +1,45 @@
 # Laravel (overlay)
 
-_Overlay chồng lên `php.md`, áp dụng đồng thời. Chỉ liệt kê tiêu chí đặc thù Laravel._
+_Overlay on top of `php.md`, applied together. Laravel-specific criteria only._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic
 
-- Migration có an toàn không — có định nghĩa method `down()` rollback đúng, đối xứng với `up()` không?
-- Route model binding có được dùng thay vì query tay (`Model::find($id)`) lặp lại trong controller không?
+- Migrations safe — a proper `down()` rollback defined, symmetric with `up()`?
+- Route model binding used instead of manual queries (`Model::find($id)`) repeated in the
+  controller?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Mass assignment có được cấu hình an toàn không — `$fillable`/`$guarded` trên Model có khai trúng field, tránh cho phép gán field nhạy cảm (`is_admin`, `role`...) qua request không?
-- Middleware/policy có được dùng cho authorization không, tránh check quyền tay (if-else) rải rác trong controller?
-- Blade template có escape đúng không — `{{ }}` (tự động escape) được dùng mặc định, `{!! !!}` (không escape) chỉ dùng khi chắc chắn dữ liệu an toàn (không phải input user)?
+- Mass assignment configured safely — Model's `$fillable`/`$guarded` declare exactly the right
+  fields, avoiding assignment of sensitive fields (`is_admin`, `role`...) through a request?
+- Middleware/policies used for authorization, avoiding manual permission checks (if-else) scattered
+  through the controller?
+- Blade templates escaped correctly — `{{ }}` (auto-escaping) used by default, `{!! !!}` (no
+  escaping) only when the data is certainly safe (not user input)?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Eloquent có bị N+1 query không — quan hệ (relationship) truy cập trong loop có thiếu `with()`/`load()` eager loading không?
-- Query có tận dụng query builder/scope hợp lý thay vì load hết rồi filter bằng PHP (collection) không?
+- Eloquent N+1 queries — relationships accessed in a loop missing `with()`/`load()` eager loading?
+- Query builder/scopes used properly instead of loading everything and filtering in PHP (a
+  collection)?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Form Request (class `FormRequest` riêng) có được dùng để validate input thay vì validate tay trong controller không?
-- Logic nghiệp vụ có được tách khỏi controller (Service/Action class) thay vì để controller phình to không?
+- Laravel naming convention followed (singular Model, plural Controller, methods named per REST
+  resource)?
+- Form Request (a dedicated `FormRequest` class) used to validate input instead of manual
+  validation in the controller?
+- Business logic separated from the controller (a Service/Action class) instead of letting the
+  controller balloon?
 
-#### 5. Đặc thù Laravel
+#### 5. Laravel specifics
 
-- Queue/job có xử lý lỗi đúng không — retry policy, `failed()` method, failed job có được log/theo dõi không?
-- Event/Listener, Observer có được dùng hợp lý cho side-effect (thay vì nhét vào Controller/Model) không?
-- Config/env có được truy cập qua `config()` (đã cache) thay vì `env()` trực tiếp ngoài file config không?
+- Queues/jobs handle errors correctly — retry policy, a `failed()` method, failed jobs
+  logged/monitored?
+- Events/Listeners and Observers used appropriately for side effects (instead of stuffed into the
+  Controller/Model)?
+- Config/env accessed via `config()` (cacheable) instead of `env()` directly outside a config file?
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-- Naming convention của Laravel (Model số ít, Controller số nhiều, method theo REST resource) có được tuân theo không?
-- Test có phân biệt đúng Feature test (qua HTTP) và Unit test (logic thuần) không?
+- Tests correctly distinguish Feature tests (via HTTP) from Unit tests (pure logic)?

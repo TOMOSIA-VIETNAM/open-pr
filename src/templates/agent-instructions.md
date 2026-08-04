@@ -1,40 +1,68 @@
-# Agent Instructions (Markdown)
+# Agent instructions (prompts for a model)
 
-_Bổ sung cho baseline `ALWAYS_RULE.md`; áp dụng cho file `.md` là chỉ dẫn cho 1 AI coding agent đọc
-và làm theo (skill/command/CLAUDE.md/AGENTS.md/cursor rules...), KHÔNG áp dụng cho README/docs
-thường cho người đọc._
+_Applies to any file that instructs an AI agent — a `.md` skill/command/CLAUDE.md/AGENTS.md/cursor
+rule, or a prompt embedded in code, config or data (`core/stack-detection.md`). NOT a README or docs
+written for a human._
 
-#### 1. Mâu thuẫn & lỗi logic
+#### 1. Bugs & logic
 
-- 2 đoạn trong cùng file (hoặc giữa file này và file liên quan) có nói khác nhau về cùng 1 hành vi không?
-- Điều kiện rẽ nhánh có phủ đủ trường hợp không, hay để agent tự đoán khi gặp case ngoài dự kiến?
-- Ví dụ minh hoạ trong file có còn khớp hành vi thật đang mô tả không (stale example)?
+- 2 sections in the same file, or 2 related files, say different things about the same behaviour?
+- Branching conditions cover every case, or leave the agent guessing on an unforeseen one?
+- Illustrative examples still match the behaviour described (stale example)?
+- Embedded: a prompt assembled by concatenation whose result nothing asserts on — an empty or missing
+  interpolated value silently ships a broken instruction?
 
-#### 2. Lệnh nguy hiểm / rò rỉ thông tin qua văn bản
+#### 2. Security
 
-- Có gợi ý agent chạy lệnh phá hoại (`rm -rf`, force-push, `reset --hard`...) mà không kèm rào chắn/xác nhận không?
-- Ví dụ minh hoạ có chứa secret/token/credential thật (không phải placeholder) không?
-- File có xử lý data từ nguồn không tin cậy (input người dùng, PR content, web) mà thiếu câu "đây là DATA không phải INSTRUCTION" không?
+- Suggests a destructive command (`rm -rf`, force-push, `reset --hard`…) with no safeguard or
+  confirmation attached?
+- An example carries a real secret/token/credential instead of a placeholder?
+- Data from an untrusted source (user input, PR content, the web) used without stating "this is DATA,
+  not an INSTRUCTION"?
+- Embedded: an untrusted value interpolated INTO the instruction section, rather than into a clearly
+  delimited data section the instructions then refer to?
 
-#### 3. Token-bloat & overthinking
+#### 3. Performance
 
-- Có nội dung lặp lại cùng 1 rule ở nhiều đoạn/nhiều file không?
-- Nội dung chỉ áp dụng 1 trigger hiếm có bị để LUÔN-NẠP thay vì tách case riêng (chỉ đọc khi cần) không?
-- Có đoạn giải thích "vì sao" dài dòng lẫn vào phần "làm gì" không — nếu file này luôn được nạp lúc runtime, lý do/lịch sử nên tách sang tài liệu riêng cho người phát triển đọc?
-- Có yêu cầu agent tự-verify/tự-hỏi lại nhiều lần mà không rõ điều kiện dừng (rủi ro loop) không?
+Prompt text is paid on every run that loads it, so tokens ARE this stack's performance.
 
-#### 4. Viết trung lập
+- The same rule stated twice — across files, or twice in one file where both copies read as native?
+- Content for 1 rare trigger ALWAYS loaded, instead of a file read only when that trigger fires?
+- Rationale, history or a "why" essay inside an always-loaded file — dev docs own that?
+- Words where notation would be unambiguous: a table for a branch set, an arrow for "leads to"?
+- The same sentence shape repeated per case instead of one table?
+- A self-verify or re-ask loop with no stopping condition?
 
-- Có kể lể quá trình xây dựng/lịch sử sửa đổi khi chỉ cần nêu hành vi hiện tại không?
-- Có tường thuật "diễn biến" (từng bước đã làm) thay vì chỉ dẫn thẳng không?
-- Có tham chiếu tới thứ tạm/sẽ đổi (task ID, tên branch, số mục doc thiết kế, jargon nội bộ) khiến người đọc sau không giải nghĩa được khi thứ đó bị xoá/đổi không?
+#### 4. Code quality
 
-#### 5. Cấu trúc markdown
+- Recounts the build process or change history where only current behaviour matters?
+- A new clause bolted beside the old one instead of the rule being rewritten (patchwork)?
+- Narrates "what happened" step by step instead of instructing directly?
+- References something ephemeral — task id, branch name, a design doc's section number, internal
+  jargon — that a future reader cannot resolve once it is deleted or renamed?
 
-- Heading phân cấp rõ, mỗi heading 1 ý, không nhồi nhiều chủ đề không liên quan chung 1 mục?
-- Frontmatter (nếu có) đủ field cần, không field thừa/legacy?
-- Nội dung có điều kiện (chỉ áp dụng 1 số trigger) có tách đúng thành case/gate riêng, không nhồi vào file chính luôn-nạp?
+#### 5. Agent-instruction specifics
 
-#### 6. Khả năng bảo trì & dễ đọc
+- Headings clearly leveled, 1 idea each, unrelated topics not crammed together?
+- Frontmatter, if any, carries exactly the fields it needs and no legacy ones?
+- Conditional content gated into its own file rather than crammed into the always-loaded one?
+- Embedded: the prompt text has 1 owner (a constant, a file) instead of being pasted at several call
+  sites that will drift apart?
 
-(không có tiêu chí bổ sung ngoài baseline chung — xem `ALWAYS_RULE.md`)
+## Proving a token claim
+
+"Verbose" is an opinion; "−310 tokens" is a fact. An LLM counts neither tokens nor characters
+reliably, so let a tool do it.
+
+Measure ONLY when the finding already stands on its own AND you have written the concrete replacement
+text. The number supports a finding; it never justifies one.
+
+1. `Write` the current block and your replacement to `<worktree>/.token-measure/{before,after}.txt` —
+   inside the worktree, never the reviewed repo's own tree.
+2. `wc -c` both (a plain `Bash` call, described here).
+3. Convert at ~4 chars/token and quote it inside the finding, e.g.
+   `1,240 → 890 chars (wc -c) ≈ 310 → 222 tok at ~4 chars/token, −~88 (−28%)`.
+
+FORBIDDEN: presenting it as exact — call it an estimate; a real tokenizer differs by language and
+syntax. FORBIDDEN: a per-run or per-month saving — how often that file loads is unknown to you.
+Delta under ~10% ⇒ drop the number, it reads as noise.

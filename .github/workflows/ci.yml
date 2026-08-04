@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # token_report needs the base branch to diff against
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Prompt-graph invariants
+        run: python3 -m pytest tests/ -q
+
+      - name: Duplication scan
+        run: python3 scripts/dup_scan.py
+
+      # Pinned, and the URL built the way GitLab actually publishes it: the assets are
+      # named linux_amd64 with the dots percent-encoded, not Linux_x86_64. Verified
+      # against the releases API rather than assumed.
+      - name: Install glab
+        env:
+          GLAB_VERSION: '1.110.0'
+        run: |
+          v="${GLAB_VERSION//./%2E}"
+          curl -sfL -o /tmp/glab.deb \
+            "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/$v/glab_${v}_linux_amd64%2Edeb"
+          sudo dpkg -i /tmp/glab.deb
+          glab --version
+
+      # Offline half of the vendor lint: every flag in every vendor entry must exist in
+      # that subcommand's own --help. No fixture, no token, no network to a vendor API,
+      # so it is safe on a fork PR. The live half needs an open fixture and a PAT, which
+      # is why it stays manual (see e2e/README.md).
+      - name: Vendor command flags
+        run: python3 scripts/vendor_lint.py
+
+      - name: Context cost vs base
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 scripts/token_report.py --base "origin/${{ github.base_ref }}" | tee token-report.txt
+
+      - name: Report the cost on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # A fork PR gets a read-only token, so the comment step is skipped there and
+          # the job summary carries the numbers instead.
+          CAN_COMMENT: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: bash scripts/ci_token_comment.sh token-report.txt

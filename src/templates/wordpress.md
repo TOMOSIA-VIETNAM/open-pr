@@ -1,38 +1,45 @@
 # WordPress (overlay)
 
-_Overlay chồng lên `php.md`, áp dụng đồng thời. Chỉ liệt kê tiêu chí đặc thù WordPress._
+_Overlay on top of `php.md`, applied together. WordPress-specific criteria only._
 
-#### 1. Lỗi & Vấn đề logic
+#### 1. Bugs & logic
 
-- Hooks/filters có dùng đúng cách không — `add_action`/`add_filter` có khai đúng priority, tránh side-effect ẩn (chạy nhầm thứ tự, chạy nhiều lần) khi hook được trigger không?
-- Cấu trúc plugin/theme có hardcode path tuyệt đối không, hay dùng `plugin_dir_path(__FILE__)`/`get_template_directory()` để path luôn đúng dù cài ở đâu?
+- Hooks/filters used correctly — `add_action`/`add_filter` declare the correct priority, avoiding
+  hidden side effects (wrong order, running multiple times) when the hook fires?
+- Plugin/theme structure hardcodes absolute paths, or uses
+  `plugin_dir_path(__FILE__)`/`get_template_directory()` so paths stay correct regardless of
+  install location?
 
-#### 2. Bảo mật
+#### 2. Security
 
-- Nonce verification có được kiểm tra cho form/AJAX request không (`wp_verify_nonce`, `check_admin_referer`)?
-- Input có được sanitize trước khi lưu DB không (`sanitize_text_field`, `sanitize_email`, `sanitize_textarea_field`...)?
-- Output có được escape trước khi render không (`esc_html`, `esc_attr`, `esc_url`...)?
-- Capability check (`current_user_can`) có được kiểm tra trước hành động nhạy cảm (xóa/sửa dữ liệu, đổi setting) không?
-- Query DB có dùng `$wpdb->prepare` thay vì nội suy chuỗi trực tiếp vào SQL không?
+- Nonce verification checked for forms/AJAX requests (`wp_verify_nonce`, `check_admin_referer`)?
+- Input sanitized before being saved to the DB (`sanitize_text_field`, `sanitize_email`,
+  `sanitize_textarea_field`...)?
+- Output escaped before being rendered (`esc_html`, `esc_attr`, `esc_url`...)?
+- Capability check (`current_user_can`) performed before a sensitive action (deleting/editing
+  data, changing a setting)?
+- DB queries use `$wpdb->prepare` instead of interpolating strings directly into SQL?
 
-#### 3. Hiệu suất
+#### 3. Performance
 
-- Có gọi `WP_Query`/`get_posts` lặp lại không cần thiết trong loop không?
-- Có tận dụng Transients API/object cache cho dữ liệu tính toán tốn kém, ít thay đổi không?
-- Query meta có tránh `meta_query` không cần thiết gây chậm không?
+- `WP_Query`/`get_posts` called repeatedly and unnecessarily inside a loop?
+- Transients API/object cache leveraged for expensive-to-compute, rarely-changing data?
+- Meta querying avoids an unnecessary `meta_query` that causes slowness?
 
-#### 4. Chất lượng code
+#### 4. Code quality
 
-- Hook callback có đặt tên rõ ràng, tránh anonymous function khó unhook khi cần không?
+- Hook callbacks named clearly, avoiding anonymous functions hard to unhook when needed?
+- Coding standard follows the WordPress Coding Standards (WPCS)?
 
-#### 5. Đặc thù WordPress
+#### 5. WordPress specifics
 
-- Enqueue script/style có đúng cách không — dùng `wp_enqueue_script`/`wp_enqueue_style` với dependency khai báo đúng, tránh echo `<script>`/`<link>` trực tiếp ra HTML?
-- Custom post type/taxonomy đăng ký có đầy đủ tham số cần thiết (labels, capability, rewrite) không?
-- Có tránh xung đột namespace/global function/hook tên với plugin/theme khác không (dùng prefix riêng)?
+- Scripts/styles enqueued correctly — `wp_enqueue_script`/`wp_enqueue_style` with dependencies
+  declared correctly, avoiding echoing `<script>`/`<link>` directly into HTML?
+- Registered custom post type/taxonomy has all necessary parameters (labels, capability, rewrite)?
+- Avoids namespace/global function/hook name conflicts with other plugins/themes (own prefix)?
 
-#### 6. Khả năng bảo trì & Dễ đọc
+#### 6. Maintainability & readability
 
-- Thứ tự phụ thuộc giữa các hook (ai chạy trước/sau, priority nào) có được ghi chú rõ không?
-- Coding standard có tuân theo WordPress Coding Standards (WPCS) không?
-- Thiết kế có tương thích khi WordPress core/plugin khác cập nhật không (tránh phụ thuộc hành vi nội bộ không được document)?
+- Dependency order between hooks (what runs before/after, which priority) clearly noted?
+- Design resilient to WordPress core/other plugin updates (avoiding reliance on undocumented
+  internal behavior)?

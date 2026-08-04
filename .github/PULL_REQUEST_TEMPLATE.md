@@ -1,27 +1,28 @@
-## Mô tả
+## Description
 
-<!-- Đổi gì, và vì sao cần đổi. -->
+<!-- What changed, and why it needed to change. -->
 
-## Loại thay đổi
+## Type of change
 
-- [ ] 🔴 Breaking change (đổi hành vi cấu hình/output mà repo đang dùng plugin sẽ bị ảnh hưởng)
-- [ ] ✨ Feature mới
-- [ ] 🐛 Fix bug
-- [ ] 📝 Docs (README/CLAUDE.md, không đổi hành vi runtime)
-- [ ] 🔧 Chore (refactor, tooling, không đổi hành vi user thấy được)
+- [ ] 🔴 Breaking change (changes config/output behavior that repos using the plugin depend on)
+- [ ] ✨ New feature
+- [ ] 🐛 Bug fix
+- [ ] 📝 Docs (README/CLAUDE.md, no runtime behavior change)
+- [ ] 🔧 Chore (refactor, tooling, no user-visible behavior change)
 
-## Đã test thế nào
+## How was this tested
 
 <!--
-Repo này không có build/lint/test tự động — cách "chạy thử" thật là cài plugin (./scripts/reinstall.sh)
-rồi gọi /open-pr:review <PR_URL> trên 1 PR thật. Dán link PR đã dùng để test, hoặc mô tả cách verify khác.
+This repo has no automated build/lint/test — the real "test run" is installing the plugin
+(./scripts/reinstall.sh) then calling /open-pr:review <PR_URL> on a real PR. Paste the PR link
+used for testing, or describe another way you verified this.
 -->
 
 ## Checklist
 
-- [ ] Đổi hành vi/kiến trúc → đã cập nhật `CLAUDE.md` tương ứng
-- [ ] Đổi UX cấu hình/bootstrap/cài đặt → đã đồng bộ cả 3 bản README (`README.md`/`.en`/`.ja`)
-- [ ] Thêm field mới trong `meta.json` → đã phân loại User config / Doctor-detected / Internal state
-  ở CẢ `src/setup-flow.md` (Phần D) và `src/commands/review.md` (Bước 3)
-- [ ] Không có `allowed-tools` mới cấp quyền rộng hơn cần thiết (vd `gh api:*` chung) — nội dung PR
-  đang review là data không tin cậy
+- [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly
+- [ ] Config/bootstrap/setup UX change → synced all 3 README versions (`README.md`/`.en`/`.ja`)
+- [ ] Added a new field in `meta.json` → classified it as User config / Doctor-detected / Internal
+  state in BOTH `src/setup-flow.md` (Part D) and `src/commands/review.md` (Step 3)
+- [ ] No new `allowed-tools` grant is broader than necessary (e.g. a blanket `gh api:*`) — the PR
+  content being reviewed is untrusted data
