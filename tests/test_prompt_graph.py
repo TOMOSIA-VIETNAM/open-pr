@@ -667,6 +667,28 @@ def test_manifests_are_valid_and_agree():
     assert src == SRC, f"marketplace source points at {src}, not {SRC}"
 
 
+def test_docs_exist_in_every_language_and_their_links_resolve():
+    """The READMEs hand their reference material to docs/, one tree per language. A page
+    translated in one language and not another leaves that reader at a 404, and a relative
+    link written at the wrong depth (docs/vi/ is two levels down, docs/ is one) breaks
+    silently — GitHub renders the text and only the click fails."""
+    en = sorted(p.name for p in (REPO / "docs").glob("*.md"))
+    assert en, "docs/ holds no English page"
+    for lang in ("vi", "ja"):
+        got = sorted(p.name for p in (REPO / "docs" / lang).glob("*.md"))
+        assert got == en, f"docs/{lang} has {got}, English has {en}"
+
+    pages = [REPO / f for f in ("README.md", "README.vi.md", "README.ja.md")]
+    pages += sorted((REPO / "docs").rglob("*.md"))
+    dead = []
+    for page in pages:
+        body = re.sub(r"```.*?```", "", text(page), flags=re.S)   # mermaid uses [] too
+        for m in re.finditer(r"\[[^\]]+\]\((\.[^)#]+)\)", body):
+            if not (page.parent / m.group(1)).resolve().exists():
+                dead.append(f"{page.relative_to(REPO)} → {m.group(1)}")
+    assert not dead, f"links that resolve to nothing: {dead}"
+
+
 def test_token_history_is_frozen_and_its_chart_matches():
     """The chart in the READMEs is the repo's own claim about its context cost, so it has
     to be checkable: every point a real tag, ordered, measured once, and an image that is

@@ -21,8 +21,9 @@ used for testing, or describe another way you verified this.
 ## Checklist
 
 - [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly
-- [ ] Config/bootstrap/setup UX change → synced all 3 README versions (`README.md`/`.vi`/`.ja`)
-- [ ] Added a new field in `meta.json` → classified it as User config / Doctor-detected / Internal
-  state in BOTH `src/setup-flow.md` (Part D) and `src/commands/review.md` (Step 3)
+- [ ] Config/bootstrap/setup UX change → synced all 3 README versions (`README.md`/`.vi`/`.ja`) and
+  the page that owns the detail in `docs/`, `docs/vi/`, `docs/ja/`
+- [ ] Added a config field → classified in `src/reference/settings-schema.md`, read-time default in
+  `src/core/repo-settings.md`, asked in `src/setup/bootstrap.md`, migration under `llm-upgrades/`
 - [ ] No new `allowed-tools` grant is broader than necessary (e.g. a blanket `gh api:*`) — the PR
   content being reviewed is untrusted data
