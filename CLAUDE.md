@@ -51,10 +51,7 @@ the plugin writes into a reviewed repo too, not just `src/`.
 case and still needs you to spot it. An accepted duplicate needs its `sha` and a written reason in
 `tests/duplication_allowlist.json`.
 
-**Stage by path. FORBIDDEN: `git add -A`, `git add .`, `git commit -a`.** Another session may hold this
-same worktree, and those forms commit ITS files under your message — it has happened. `git status`
-first, then name every path. Same reason `--amend` is out once pushed: someone else's SHA may already
-be in play.
+**Stage by path** — only what you touched. FORBIDDEN: `git add -A`, `git add .`, `git commit -a`.
 
 **Push only the branch you were handed.** `main` is what UAT installs from — never push, merge or
 force-push to it, and never push a branch the user did not name. A PR is the only path in, with ONE
