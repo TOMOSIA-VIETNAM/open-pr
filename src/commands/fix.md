@@ -1,6 +1,6 @@
 ---
 argument-hint: <PR URL> [content]
-description: Fix code per findings left by /open-pr:review on a PR (GitHub or GitLab) — decides to fix/decline by severity, edits code to match the project's convention, commits/pushes in a controlled way, and replies on the PR (dev-facing, edits real code, no worktree involved).
+description: Act on the findings a review left on a PR — takes or declines each by severity, edits code at pwd to match the project, 1 commit, replies once pushed.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
