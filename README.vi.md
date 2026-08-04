@@ -119,17 +119,46 @@ Cần thêm: [Claude Code](https://claude.ai/code), và [`gh`](https://cli.githu
 | Command                 | Làm gì                                                                                                        | Lúc gõ bạn đứng ở đâu                                                              | Nó ghi gì                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `/open-pr:review <URL>` | Review PR, post đúng **1** review: overview + comment line-by-line. Không sửa code, không close, không merge  | trong workspace/repo, hoặc trong workspace chứa repo — nó tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
-| `/open-pr:fix <URL>`    | Đọc finding từ lần review trước, sửa code, gom **1** commit, rồi reply từng comment. 🔵/📝 luôn hỏi bạn trước | **trong đúng repo đó, và đang ở đúng branch của PR**                               | code thật tại chỗ bạn đứng + reply trên PR            |
+| `/open-pr:fix <URL>`    | Đọc finding từ lần review trước, sửa code, gom **1** commit, rồi reply từng comment. 🔵/📝 luôn hỏi bạn trước | trong repo đó, hoặc workspace chứa nó — nhưng **repo phải đang ở branch của PR**   | code thật trong repo đó + reply trên PR               |
 | `/open-pr:upgrade`      | Nâng config local của repo lên schema mới nhất. Tóm tắt cái gì đổi rồi hỏi, chưa đồng ý thì không ghi gì      | trong workspace/repo đã setup                                                      | `notebooks/review/<repo>/settings.json`               |
 
 
-Command chỉ chạy khi bạn tự gõ. hỗ trợ review nhiều PR liên quan trong 1 tính năng, chạy lần lượt, hỗ trợ cả submodule.
+Command chỉ chạy khi bạn tự gõ, và hỗ trợ cả submodule. Viết thêm gì sau URL thì phần đó chỉ áp cho
+lần chạy đó:
 
 ```bash
 /open-pr:review https://github.com/org/repo/pull/123 [Nội dung]
 /open-pr:fix    https://github.com/org/repo/pull/123 [Nội dung]
+```
+
+### Nên gõ ở workspace, đừng gõ trong repo
+
+```
+✅ đứng ở workspace                          ❌ đứng trong repo
+─────────────────────────                    ─────────────────────────
+workspace/            ← gõ ở đây             repo-backend/         ← gõ ở đây
+├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory nằm TRONG dự án
+│   ├── repo-backend/  ngoài mọi repo        ├── .gitignore         +1 dòng — thay đổi thật
+│   └── repo-frontend/                       └── src/
+├── repo-backend/     ← sạch, 0 file lạ
+└── repo-frontend/    ← sạch, 0 file lạ      (repo-frontend? không thấy)
+```
+
+`notebooks/review/` — memory + worktree — luôn sinh ra ngay tại chỗ bạn gõ command. Đứng trong repo thì
+nó nằm trong dự án; plugin có tự thêm 1 dòng vào `.gitignore` nên `git status` vẫn sạch, nhưng dòng đó
+là một thay đổi thật trong repo của bạn.
+
+Đứng ở workspace thì repo không hề bị chạm, và vì các repo nằm cạnh nhau nên nó review được PR chéo
+repo — nhiều PR của cùng một tính năng trong một lượt, chạy lần lượt chứ không song song. Đứng trong
+`repo-backend` thì `repo-frontend` là vô hình:
+
+```bash
+cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
+
+`/open-pr:fix` cũng gọi được từ workspace — nó tự tìm đúng repo rồi vào đó sửa, miễn repo ấy đang đứng
+ở branch của PR.
 
 
 ## Nó review những gì
