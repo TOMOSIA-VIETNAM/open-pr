@@ -103,10 +103,6 @@ flowchart LR
 前に、これから編集する場所を確認します — ブランチ違い、`main`/`develop` 上、あるいは `review` が作った
 worktree の中（detached でブランチがない）なら、いずれもその場で停止します。
 
-## リリースごとのコンテキストコスト
-
-![1 回の実行が読み込むトークン数の平均を、コマンド別・リリース別に示したグラフ](./token-history.svg)
-
 ## インストール
 
 ```bash
@@ -233,3 +229,7 @@ React、Python、Node.js、Lambda、PHP、Laravel、WordPress、Shell、Makefile
 ---
 
 Enjoy reviewing 🥰
+
+## リリースごとのコンテキストコスト
+
+![1 回の実行が読み込むトークン数の平均を、コマンド別・リリース別に示したグラフ](./token-history.svg)
