@@ -227,3 +227,7 @@ Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.
 ---
 
 Enjoy reviewing 🥰
+
+## Chi phí context theo release
+
+![Số token trung bình một lần chạy nạp vào, theo từng command, ở mỗi release](./token-history.svg)

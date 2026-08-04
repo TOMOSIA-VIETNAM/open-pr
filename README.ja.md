@@ -229,3 +229,7 @@ React、Python、Node.js、Lambda、PHP、Laravel、WordPress、Shell、Makefile
 ---
 
 Enjoy reviewing 🥰
+
+## リリースごとのコンテキストコスト
+
+![1 回の実行が読み込むトークン数の平均を、コマンド別・リリース別に示したグラフ](./token-history.svg)

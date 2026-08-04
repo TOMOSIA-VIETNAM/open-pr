@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git branch --show-current), Bash(git checkout main), Bash(git fetch origin:*), Bash(git pull --ff-only origin main), Bash(git tag:*), Bash(git push origin v*:*), Bash(git log:*), Bash(gh repo view:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh api repos/*/pulls/*/commits:*), Bash(gh release create:*), Bash(gh release view:*), AskUserQuestion, Read, Write
+allowed-tools: Bash(git branch --show-current), Bash(git checkout main), Bash(git fetch origin:*), Bash(git pull --ff-only origin main), Bash(git tag:*), Bash(git push origin v*:*), Bash(python3 scripts/token_chart.py:*), Bash(git log:*), Bash(gh repo view:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh api repos/*/pulls/*/commits:*), Bash(gh release create:*), Bash(gh release view:*), AskUserQuestion, Read, Write
 description: Create a git tag + GitHub Release for open-pr — an official release if standing on main, an RC if standing on a branch with an open PR (a dev tool specific to this repo, not shipped in the plugin).
 ---
 
@@ -162,5 +162,20 @@ gh release create <version> -R <owner>/<repo> --title "<version> - <short summar
 RC (Step 2B) → add `--prerelease` to `gh release create`.
 
 Print the release link back to the user.
+
+## Step 6 — Record the point on the context-cost chart
+
+Official release only; an RC gets no point (its SHA moves when the PR merges).
+
+```
+git checkout main && git pull --ff-only origin main
+python3 scripts/token_chart.py --add <version> --commit
+```
+
+Measures that tag, appends one row to `tests/token-history.json`, redraws
+`token-history.svg`, and pushes both to `main` — the sole push to `main` this repo permits, guarded
+inside the script. It refuses a tag already recorded: a point is measured once, at its release, and
+never remeasured. FORBIDDEN: editing an existing row, or hand-editing the SVG — the suite redraws it
+from the numbers and compares.
 
 ARGUMENTS: $ARGUMENTS

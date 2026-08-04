@@ -36,7 +36,7 @@ SRC = "src"
 # measured; a role resolving to nothing costs 0. Two roles landing on the same
 # file count it ONCE — that is exactly what a whole-file `Read` costs.
 ROLES = {
-    "review-cmd": ["commands/review.md"],
+    "review-cmd": ["commands/review.md", "commands/review-pr.md"],
     "fix-cmd": ["commands/fix.md"],
     # second candidate = the pre-refactor location, so a base ref still resolves
     "stack": ["core/stack-detection.md", "stack-detection.md"],
