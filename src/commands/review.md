@@ -70,18 +70,17 @@ pwd + `<repo>` in chat.
 
 ## Step 1 — Ephemeral worktree
 
-The PR's code on disk, main tree untouched — it never changes branch, so nothing needs restoring.
+PR code on disk, main tree untouched — no branch change, nothing to restore.
 
 1. `git -C "<repo_dir>" worktree add "$PWD/notebooks/review/<repo>/worktrees/pr<pull_number>-$RANDOM"
    --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
    `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
 2. `git -C "<repo_dir>" fetch origin "<baseRefName>"` — refs are shared across that repo's worktrees.
-3. `git -C "notebooks/review/<repo>/worktrees/<name>" submodule update --init --recursive` — ALWAYS,
-   submodule-touching PR or not.
-4. Try `Read`ing `<worktree>/.gitmodules` — checked directly every run, never cached, so a
+3. Try `Read`ing `<worktree>/.gitmodules` — checked directly every run, never cached, so a
    not-yet-doctored repo still detects a bump on its first PR. Exists && "Diff" contains `Subproject
    commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
+   FORBIDDEN: `submodule update` here — each is a full checkout, and that file inits bumped paths only.
 
 ## Step 2 — Detect stack
 
@@ -258,13 +257,13 @@ while writing this Step, don't rely on context) → ALWAYS last in the overview 
 non-empty, even under LGTM, so the user knows what to check personally. Missing/empty → drop the
 heading, never write "none".
 
-## Step 9 — Post (1 composite operation for the main PR)
+## Step 9 — Post (1 composite op, main PR)
 
 Payload: `<commit_id>` from Step 8 (never re-fetched here, never Context's `headRefOid`), `comments[]`
 (LINE entries: `path` + `line` + `side` + `body`), and the Step 8 overview (FILE findings + assessment).
 
-`V§"Post a review"` — COMPOSITE, its step count and mechanism are the vendor's own; follow it EXACTLY.
-FORBIDDEN: forcing one vendor through another's shape, e.g. inventing a review id for a vendor that has
+`V§"Post a review"` — COMPOSITE, step count and mechanism are the vendor's own; follow EXACTLY.
+FORBIDDEN: forcing one vendor through another's shape, e.g. inventing a review id for a vendor with
 none. Invariants on every vendor:
 
 - exactly 1 review / 1 batch of notes for the main PR, never split. A submodule post is a separate
@@ -279,14 +278,15 @@ behalf. That entry may also describe how to verify the post landed — follow it
 Post/publish error || that verify reports a mismatch → `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/cases/post-review.md`. Happy path → skip that file.
 
-**Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft.
-FORBIDDEN: repeating any finding's description or its Fix — the PR already carries that text.
+**Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, plus
+the worktree path and that `/open-pr:clean` removes it. FORBIDDEN: repeating a finding's description or
+its Fix — the PR carries that text. FORBIDDEN: removing the worktree or asking to — the user's later call.
 
 ## Step 10 — Asked for something outside the review flow
 
-User asks about memory, a re-scan, or the config — during this run or in a later chat with no PR →
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/chat-requests.md`. Nothing asked → skip; the scheduled doctor is
-Step 3's job.
+User asks about memory, a re-scan, or the config — this run or a later PR-less chat → `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/cases/chat-requests.md`. Nothing asked → skip; the scheduled doctor is Step
+3's job.
 
 ---
 

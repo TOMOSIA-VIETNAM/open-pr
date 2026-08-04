@@ -2,7 +2,7 @@
 
 ## Mission
 
-Claude Code plugin `open-pr`. 3 slash commands, GitHub + GitLab (no Bitbucket yet):
+Claude Code plugin `open-pr`. 4 slash commands, GitHub + GitLab (no Bitbucket yet):
 
 - `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review via the
   vendor's own CLI (`gh`/`glab`).
@@ -10,6 +10,8 @@ Claude Code plugin `open-pr`. 3 slash commands, GitHub + GitLab (no Bitbucket ye
   Edits real code at pwd.
 - `/open-pr:upgrade` — no PR. Migrate the CURRENT repo's local config to the latest
   `schema_version`, fetching `llm-upgrades/` live from this plugin's GitHub repo.
+- `/open-pr:clean` — no PR. Remove the worktrees review checked code out into, after confirming.
+  Never touches memory or config.
 
 Everything is markdown + 1 JSON config. No build, no runtime. "Trying it" = install the plugin and
 call it against a real PR.
@@ -48,6 +50,8 @@ the plugin writes into a reviewed repo too, not just `src/`.
 1 owner. `dup_scan.py` reports near-verbatim repeats only — a restatement in fresh words is the common
 case and still needs you to spot it. An accepted duplicate needs its `sha` and a written reason in
 `tests/duplication_allowlist.json`.
+
+**Stage by path** — only what you touched. FORBIDDEN: `git add -A`, `git add .`, `git commit -a`.
 
 **Push only the branch you were handed.** `main` is what UAT installs from — never push, merge or
 force-push to it, and never push a branch the user did not name. A PR is the only path in, with ONE

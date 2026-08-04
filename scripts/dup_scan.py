@@ -50,8 +50,20 @@ SCOPES = {"src": lambda: sorted(SRC.rglob("*.md")),
           "dev": lambda: [REPO / "CLAUDE.md", *sorted((REPO / ".claude").rglob("*.md"))]}
 
 
+def in_nested_checkout(p):
+    """A git worktree or clone parked inside the tree — `.claude/worktrees/<name>` is where
+    an agent puts one. Its files are a copy of this repo, so scanning them reports this
+    repo's own prose as duplicated against itself."""
+    for parent in p.parents:
+        if parent == REPO:
+            return False
+        if (parent / ".git").exists():
+            return True
+    return False
+
+
 def md_files(scope="src"):
-    return [p for p in SCOPES[scope]() if p.exists()]
+    return [p for p in SCOPES[scope]() if p.exists() and not in_nested_checkout(p)]
 
 
 def rel(p):

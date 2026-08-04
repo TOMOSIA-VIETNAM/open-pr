@@ -11,5 +11,5 @@ the user cleaning up.
 ## Checkout a PR into an already-existing worktree subdirectory
 
 `(cd "<worktree>/<submodule-path>" && gh pr checkout <n-submodule> -R
-"<owner-submodule>/<repo-submodule>")` — reuses what `git submodule update --init --recursive` already
+"<owner-submodule>/<repo-submodule>")` — reuses what `git submodule update --init -- <path>` already
 put on disk; creates no worktree.

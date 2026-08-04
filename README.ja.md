@@ -51,6 +51,16 @@ flowchart LR
 
 全体のフロー、再レビュー、そして `fix` がファイルに触れる前に行う確認: [動きかた](./docs/ja/how-it-works.md)。
 
+### 出てくるもの
+
+1 件のレビューに 3 つの要素が揃います。Overview、修正後のコードを添えた該当行へのコメント、そして push
+後に `fix` が同じスレッドへ残す返信です。
+
+<a href="./docs/ja/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、push 後に残された返信"></a>
+
+フルサイズと、各リポジトリが選んだ言語での同じレビュー:
+[レビューの見え方](./docs/ja/demo.md)。
+
 ## インストール
 
 ```bash
@@ -78,6 +88,7 @@ GitLab の MR なら [`glab`](https://gitlab.com/gitlab-org/cli) にログイン
 | `/open-pr:review <URL>` | PR をレビューし、レビューを **1** 件だけ投稿（概要＋行コメント）。コードは変更せず、close も merge もしない。リポジトリでの初回はセットアップも行う |
 | `/open-pr:fix <URL>` | review が残した指摘を読み、コードを修正して **1** コミットにまとめ、各コメントへ返信。🔵/📝 は必ず事前に確認 |
 | `/open-pr:upgrade` | リポジトリのローカル設定を現在のスキーマへ更新。変更点を要約して確認し、同意するまで何も書かない |
+| `/open-pr:clean` | `review` が PR のコードをチェックアウトした worktree を削除 — 1 つずつが完全なチェックアウトでディスクを使う。サイズ付きで一覧し先に確認する。memory と設定には触れない |
 
 どこに立つか、各コマンドが何を書くか、すべての設定: [設定](./docs/ja/configuration.md)。
 

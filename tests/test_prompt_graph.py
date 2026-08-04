@@ -399,9 +399,8 @@ def test_fix_suggestions_prefer_a_code_fence():
 def test_chat_does_not_repeat_the_posted_findings():
     """The finding text is on the PR. Restating it in chat doubles the output for a reader
     who already has the better copy."""
-    review = text(SRC / "commands" / "review.md")
-    flat = " ".join(review.split())
-    assert "FORBIDDEN: repeating any finding's description or its Fix" in flat, \
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    assert re.search(r"FORBIDDEN: repeating \w+ finding's description or its Fix", flat), \
         "Step 9 must forbid restating findings in chat"
 
 
@@ -667,6 +666,52 @@ def test_manifests_are_valid_and_agree():
     assert src == SRC, f"marketplace source points at {src}, not {SRC}"
 
 
+def test_submodules_are_checked_out_only_when_bumped():
+    """Every submodule is a full checkout on disk. Initialising all of them on every review
+    multiplies the worktree's cost by the ones the PR never touched, and a bare or recursive
+    `--init` does exactly that — so the only `submodule update` lives where the bumped paths
+    are known, and names one."""
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "submodule update" not in review.replace("FORBIDDEN: `submodule update` here", ""), \
+        "review.md must not check out submodules — it does not yet know which are bumped"
+
+    sub = text(SRC / "cases" / "submodule-review.md")
+    flat = " ".join(sub.split())
+    cmds = list(re.finditer(r"submodule update[^`\n]*", flat))
+    assert cmds, "the bumped path has to be checked out somewhere"
+    for m in cmds:
+        c = m.group(0)
+        if "FORBIDDEN" in flat[max(0, m.start() - 30):m.start()]:
+            continue
+        assert "--recursive" not in c, f"nested submodules are out of scope: {c}"
+        assert "-- \"<submodule-path>\"" in c or "-- <path>" in c, \
+            f"a bare --init checks out every submodule: {c}"
+    assert "never gets a `notebooks/` of its own" in flat, \
+        "the worktree sits beside the project repo; a submodule holds no memory directory"
+
+
+def test_clean_deletes_worktrees_and_nothing_else():
+    """This is the only command whose job is `rm`, standing in a directory that also holds the
+    one thing here nobody can regenerate: what the repo taught it. A worktree comes back on the
+    next review; memory does not come back at all. So the ban is named file by file, and the
+    user answers before anything goes."""
+    c = text(SRC / "commands" / "clean.md")
+    flat = " ".join(c.split())
+    for keep in ("memory.md", "memories/", "ALWAYS_RULE.md", "settings.json", "templates/"):
+        assert keep in flat.split("## Step 1")[0], f"the CRITICAL block must rule out {keep}"
+    assert "notebooks/review/*/worktrees/" in flat, "the only deletable path must be named"
+    ask = c.index("## Step 3")
+    assert c.index("## Step 4 — Remove") > ask, "the ask must come before the removal"
+    assert "(Recommended)" in c and "`Keep them`" in c, "two options, one of them recommended"
+    assert "worktree prune" in flat, \
+        "a removed checkout leaves a registration behind in the reviewed repo"
+    # review.md points at it and must not do the deleting itself
+    r = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "/open-pr:clean" in r, "the run that creates a worktree must say what removes it"
+    assert "removing the worktree or asking to" in r, \
+        "review must leave the decision to the user, not prompt for it every run"
+
+
 def test_docs_exist_in_every_language_and_their_links_resolve():
     """The READMEs hand their reference material to docs/, one tree per language. A page
     translated in one language and not another leaves that reader at a 404, and a relative
@@ -689,6 +734,43 @@ def test_docs_exist_in_every_language_and_their_links_resolve():
     assert not dead, f"links that resolve to nothing: {dead}"
 
 
+def test_scans_skip_a_checkout_parked_inside_the_tree():
+    """An agent puts its isolated worktree under `.claude/worktrees/`. That is a full copy of
+    this repo, so a scan reaching into it reports our own prose as duplicated against itself and
+    reddens the gate for a change nobody made. Real occurrence, not hypothetical. The probe has
+    to sit under REPO — `in_nested_checkout` judges by REPO — so it cleans up behind itself
+    rather than taking a tmp_path it cannot use."""
+    nested = REPO / ".claude" / "worktrees" / "__guard_probe__"
+    md = nested / "doc.md"
+    parent_existed = nested.parent.exists()
+    try:
+        nested.mkdir(parents=True, exist_ok=True)
+        (nested / ".git").write_text("gitdir: /nowhere\n")     # what `git worktree add` leaves
+        md.write_text("# probe\n\n" + "the same sentence repeated verbatim many times over. " * 30)
+        assert md not in dup_scan.md_files("dev"), \
+            "the dev scan must not read a checkout parked inside the tree"
+    finally:
+        for f in (md, nested / ".git"):
+            f.unlink(missing_ok=True)
+        if nested.exists():
+            nested.rmdir()
+        if not parent_existed and nested.parent.exists():
+            nested.parent.rmdir()
+
+
+def test_every_scenario_is_owned_by_a_chart_line():
+    """A scenario the chart does not recognise used to fall into `review`, so adding a command
+    moved a line that is supposed to describe review alone — and the release that recorded it
+    would have frozen the wrong number for good."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import token_chart  # noqa: E402
+    for name in SCENARIOS:
+        token_chart.group_of(name)          # raises if no line owns it
+    keys = {l["key"] for l in token_chart.LINES}
+    cmds = {p.stem for p in (SRC / "commands").glob("*.md")}
+    assert cmds <= keys, f"commands with no line on the chart: {cmds - keys}"
+
+
 def test_token_history_is_frozen_and_its_chart_matches():
     """The chart in the READMEs is the repo's own claim about its context cost, so it has
     to be checkable: every point a real tag, ordered, measured once, and an image that is
@@ -707,7 +789,7 @@ def test_token_history_is_frozen_and_its_chart_matches():
     for p in points:
         assert p["tag"] in tags, f"{p['tag']} is not a tag in this repo"
         for line in token_chart.LINES:
-            v = p[line["key"]]
+            v = p.get(line["key"])
             assert v is None or v > 0, f"{p['tag']}.{line['key']} = {v}: use null, never 0"
     keys = [token_chart.version_key(p["tag"]) for p in points]
     assert keys == sorted(keys), f"points are out of order: {[p['tag'] for p in points]}"

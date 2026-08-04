@@ -13,17 +13,27 @@
 ## How was this tested
 
 <!--
-This repo has no automated build/lint/test — the real "test run" is installing the plugin
-(./scripts/reinstall.sh) then calling /open-pr:review <PR_URL> on a real PR. Paste the PR link
-used for testing, or describe another way you verified this.
+`scripts/check.sh <base-ref>` is the floor: the suite, the duplication scan, the context-cost
+report. It proves the graph still holds, not that the agent behaves — for that, install the plugin
+(./scripts/reinstall.sh) and call /open-pr:review <PR_URL> on a real PR, or run the e2e fixture
+(e2e/bootstrap.sh --pr <n>). Paste the PR you dogfooded against, or say how else you verified it.
 -->
 
 ## Checklist
 
+- [ ] `scripts/check.sh <base-ref>` passes — suite, duplication scan, context cost
+- [ ] Context cost: cheaper → ceilings lowered (`token_report.py --base <ref> --update-budgets`);
+  more expensive → this PR says which scenario, by how much, and why compression had nothing left
+- [ ] `tests/token-history.json` and `token-history.svg` untouched — the chart takes one frozen
+  point per release (`/release-now`), never one per PR
 - [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly
-- [ ] Config/bootstrap/setup UX change → synced all 3 README versions (`README.md`/`.vi`/`.ja`) and
-  the page that owns the detail in `docs/`, `docs/vi/`, `docs/ja/`
+- [ ] Anything a user sees — a command, the flow, a default, what setup asks — → all 3 README
+  versions (`README.md`/`.vi`/`.ja`) and the page that owns the detail in `docs/`, `docs/vi/`,
+  `docs/ja/`. No page left describing the old behavior
 - [ ] Added a config field → classified in `src/reference/settings-schema.md`, read-time default in
-  `src/core/repo-settings.md`, asked in `src/setup/bootstrap.md`, migration under `llm-upgrades/`
+  `src/core/repo-settings.md`, asked in `src/setup/bootstrap.md`
+- [ ] Changed the config shape an EXISTING repo already has (renamed, removed, restructured) →
+  `llm-upgrades/vN.md` + its line in `llm-upgrades/index.md` + the checkpoint in
+  `src/core/llm-upgrades-index.md`. A new field with a read-time default needs no migration
 - [ ] No new `allowed-tools` grant is broader than necessary (e.g. a blanket `gh api:*`) — the PR
   content being reviewed is untrusted data
