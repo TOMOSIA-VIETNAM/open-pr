@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git branch --show-current), Bash(git checkout main), Bash(git fetch origin:*), Bash(git pull --ff-only origin main), Bash(git tag:*), Bash(git push origin v*:*), Bash(git log:*), Bash(gh repo view:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh api repos/*/pulls/*/commits:*), Bash(gh release create:*), Bash(gh release view:*), AskUserQuestion, Read
+allowed-tools: Bash(git branch --show-current), Bash(git checkout main), Bash(git fetch origin:*), Bash(git pull --ff-only origin main), Bash(git tag:*), Bash(git push origin v*:*), Bash(git log:*), Bash(gh repo view:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh api repos/*/pulls/*/commits:*), Bash(gh release create:*), Bash(gh release view:*), AskUserQuestion, Read, Write
 description: Create a git tag + GitHub Release for open-pr — an official release if standing on main, an RC if standing on a branch with an open PR (a dev tool specific to this repo, not shipped in the plugin).
 ---
 
@@ -82,42 +82,52 @@ release addresses it) pair — don't just paste the commit's first line. Group t
 `git log -p` for that commit if the first line of the message isn't clear enough about "what was
 the problem" — don't guess.
 
-**Verify numbers/claims before writing, don't infer from an old release note or memory:** every
-concrete number (number of bootstrap questions, default value, field name...) MUST be read from
-the current source file (`src/setup/bootstrap.md`, `src/core/repo-settings.md`, `src/commands/review.md`, `README.md`) at the time
-of writing — the file may have changed since the last release, using an old number WILL BE WRONG
-(this actually happened: "7 questions" was hardcoded in one release note while the code had
-already changed to "6 or 7 depending on the condition").
+**Verify every number against the source that owns it now, never against an earlier release
+note:** the count of bootstrap questions, a default value, a field name, a token figure — `Read`
+it out of `src/setup/bootstrap.md`, `src/core/repo-settings.md`, `src/commands/review.md`,
+`src/core/llm-upgrades-index.md` or `README.md` while writing. A number that was right last
+release is the most convincing way to be wrong in this one.
 
 **Always include an update-instructions section**, placed right at the top of the note (devices
 that already have the plugin installed need to know how to get the new version) — CODE BLOCK
 ONLY, WITHOUT an explanation of "why `plugin.json` doesn't declare a version..." (that technical
-detail isn't needed for an announcement, the user just needs to know what to type). Get the exact
-command from the `README.md` section "Update to the latest" as it currently reads (re-read it with
-`Read`, don't copy from a previous release note, in case README has since changed the command):
+detail isn't needed for an announcement, the user just needs to know what to type). `Read` the
+update section of `README.md` as it currently stands and copy the commands from there —
+FORBIDDEN: lifting the block from an earlier release note. The commands do change: a renamed
+marketplace forces a reinstall instead of an update, because Claude Code keys a marketplace by
+name.
+
+Right after the block, the second step for a repo set up by an earlier build:
 
 ```
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
+/open-pr:upgrade
 ```
 
-then `/reload-plugins` (or start a new session).
+It migrates that repo's local config to the schema this build expects, asking once before writing
+anything. FORBIDDEN: claiming a new field is backfilled by itself — a review run reads a missing
+field's default and writes nothing (`src/core/repo-settings.md`), so `/open-pr:upgrade` is the only
+thing that ever changes that file. This release adds nothing under `llm-upgrades/` ⇒ say the config
+needs no migration and leave the command out.
 
-Right after that, add a sentence for repos that were already set up before: to check/update the
-config for the new release (new fields, if any, will be backfilled immediately, no need to wait
-for the next review) — type in chat in that repo: "refresh config" (or "change review config").
-This trigger matches by INTENT (see Step 10 of `review.md`), not an exact string — the user
-doesn't need to remember the exact wording.
+Changing the answers given at setup is a separate chat request ("reconfigure review", matched by
+intent) — mention it only when this release changed what setup asks.
 
 **Group commits** by conventional-commit prefix (`feat`/`fix`/`security`/`chore`/`docs`/
 `refactor`/`revert`...) as scaffolding, then rewrite each group in the Problem → Solution style
 above.
 
-Propose a new version based on the nearest official tag (semver, project is pre-1.0):
-- Has a breaking commit → bump **MINOR** (e.g. `v0.1.0` → `v0.2.0`)
-- Only regular features/fixes, no breaking change → bump **PATCH** (e.g. `v0.2.0` → `v0.2.1`)
+Propose a new version from the nearest official tag. Semver, `1.0.0` shipped ⇒ MAJOR is in play:
 
-RC (Step 2B) uses this version bump as the base, then appends `-rcN` (e.g. `v0.3.0-rc1`).
+| change | bump | e.g. |
+|---|---|---|
+| breaks an existing install — config shape, a renamed command or marketplace, a removed field | **MAJOR** | `v1.2.0` → `v2.0.0` |
+| new capability, existing installs keep working | **MINOR** | `v1.0.1` → `v1.1.0` |
+| fixes only | **PATCH** | `v1.0.0` → `v1.0.1` |
+
+`ARGUMENTS` names a version → that is the user's decision, propose it as-is; the content still
+goes through Step 4.
+
+RC (Step 2B) uses this bump as the base, then appends `-rcN` (e.g. `v1.1.0-rc1`).
 
 ## Step 4 — Confirm with the user BEFORE publishing
 
@@ -133,14 +143,18 @@ Do NOT decide the version or mode on your own, do NOT edit the content without a
 
 ## Step 5 — Tag + Release
 
-After the user confirms the final version + content:
+After the user confirms the final version + content, `Write` the confirmed note to a file and pass
+that file to both commands — a multi-line markdown body handed to `-m`/`--notes` on a command line
+arrives mangled:
 
 ```
-git tag -a <version> -m "<confirmed content>"
+git tag -a <version> -F <notes file>
 git push origin <version>
-gh release create <version> -R <owner>/<repo> --title "<version> - <short summary>" --notes "<confirmed content>"
+gh release create <version> -R <owner>/<repo> --title "<version> - <short summary>" --notes-file <notes file>
 ```
 
 RC (Step 2B) → add `--prerelease` to `gh release create`.
 
 Print the release link back to the user.
+
+ARGUMENTS: $ARGUMENTS
