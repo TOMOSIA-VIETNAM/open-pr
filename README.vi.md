@@ -223,4 +223,4 @@ Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.
 
 ---
 
-Happy Coding 🌟
+Enjoy reviewing!
