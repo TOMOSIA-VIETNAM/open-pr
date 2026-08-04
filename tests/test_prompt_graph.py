@@ -568,6 +568,18 @@ def test_upgrade_confirms_before_writing():
     assert ask < apply_, "the confirm step must precede the apply step"
 
 
+def test_bootstrap_defers_to_upgrade_on_a_premigration_repo():
+    """A repo configured before settings.json existed has only meta.json, which a review run
+    reads as never-bootstrapped. Bootstrapping over it re-asks every answer the user already
+    gave, so the check must fire before the first question."""
+    flat = " ".join(text(SRC / "setup" / "bootstrap.md").split())
+    assert "meta.json" in flat, "bootstrap must recognise a pre-migration repo"
+    assert flat.index("meta.json") < flat.index("## 1."), \
+        "the check must precede the skeleton and the questions"
+    assert "/open-pr:upgrade" in flat[:flat.index("## 1.")], \
+        "bootstrap must hand that repo to /open-pr:upgrade"
+
+
 def test_migrations_are_fetched_without_a_vendor_cli():
     """The plugin's own repo is on GitHub whatever vendor the user's PRs are on, so a
     GitLab-only user has no `gh` to authenticate. Raw HTTP needs neither."""

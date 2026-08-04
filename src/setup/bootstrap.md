@@ -4,6 +4,11 @@ Everything below happens at the directory `core/locate-repo.md` established — 
 inferring `<repo>` from any directory's basename (`<repo>` = `core/pr-target.md` §4). `cp` for a verbatim
 file copy (never Read+Write through context), `mkdir -p` for directories.
 
+## 0. Pre-migration?
+
+`notebooks/review/<repo>/meta.json` exists ⇒ an older build configured this repo. STOP, write nothing:
+user runs `/open-pr:upgrade` once, then re-invokes. Bootstrapping over it re-asks settled answers.
+
 ## 1. Skeleton
 
 - `cp "${CLAUDE_PLUGIN_ROOT}/seeds/memory.md" "notebooks/review/<repo>/memory.md"` — an empty index
