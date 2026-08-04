@@ -758,6 +758,22 @@ def test_scans_skip_a_checkout_parked_inside_the_tree():
             nested.parent.rmdir()
 
 
+def test_the_chart_push_guard_reads_a_trimmed_status_line():
+    """An unstaged file's porcelain status starts with a space, and the helper that runs git
+    trims the whole output — so the first line arrives one character short. Slicing a fixed
+    offset then cut into the path and the guard rejected the exact two files it exists to
+    allow, which is the only push to main this repo permits."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import token_chart  # noqa: E402
+    want = ["tests/token-history.json", "token-history.svg"]
+    trimmed = "M tests/token-history.json\n M token-history.svg"
+    intact = " M tests/token-history.json\n M token-history.svg"
+    for status in (trimmed, intact):
+        assert token_chart.porcelain_paths(status) == want, f"misread: {status!r}"
+    assert token_chart.porcelain_paths("?? docs/a b.md") == ["docs/a b.md"], \
+        "a path with a space in it must survive"
+
+
 def test_every_scenario_is_owned_by_a_chart_line():
     """A scenario the chart does not recognise used to fall into `review`, so adding a command
     moved a line that is supposed to describe review alone — and the release that recorded it

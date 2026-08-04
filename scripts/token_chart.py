@@ -177,10 +177,17 @@ def render(data):
     SVG.write_text("\n".join(s) + "\n", encoding="utf-8")
 
 
+def porcelain_paths(status):
+    """Paths out of `git status --porcelain`, by splitting off the XY code rather than
+    slicing a fixed offset: a leading unstaged status is a space, and any caller that
+    trimmed the output has already eaten it, which a fixed offset then pays for by
+    cutting the first character of a real path."""
+    return sorted(line.split(maxsplit=1)[1] for line in status.splitlines() if line.strip())
+
+
 def commit_and_push(tag):
     """The ONE push to main this repo allows, and only ever these two files."""
-    changed = [p for p in sh("git", "status", "--porcelain").splitlines()]
-    paths = sorted(c[3:].strip() for c in changed)
+    paths = porcelain_paths(sh("git", "status", "--porcelain"))
     allowed = ["tests/token-history.json", "token-history.svg"]
     if not paths:
         print("nothing to commit — the chart already holds this tag")
