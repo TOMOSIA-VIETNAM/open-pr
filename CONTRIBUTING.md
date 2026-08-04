@@ -5,7 +5,7 @@ an agent reads in order. So the conventions below are about **what a file is all
 **how much context a run costs**.
 
 `CLAUDE.md` holds the full rule set (it is what the agent itself follows). This page is the short
-version for a human.
+version for a human. Every interaction here follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Where things go
 
@@ -126,3 +126,27 @@ python3 scripts/dup_scan.py --window 10 --all --min-waste 20
 
 Conventional commits (`refactor(scope): …`). PR already reviewed → new commits only, no amend, no
 squash, no force-push.
+
+## Branches
+
+`<type>/<short-description>` — `feat/submodule-review`, `fix/detach-head-after-checkout`,
+`docs/readme-en-ja`. Never commit straight to `main`: it is what installs from the marketplace.
+
+## Pull requests
+
+1. Branch (or fork) → commit → push → PR against `main`, [template](./.github/PULL_REQUEST_TEMPLATE.md)
+   filled in completely.
+2. "How you tested" may not be empty. `scripts/check.sh` passing is the floor, not the proof — link the
+   fixture PR you dogfooded against, or say how else you verified it.
+3. Behaviour or architecture changed → update `CLAUDE.md`. Bootstrap UX or config changed → all three
+   READMEs. New config field → the 4 steps above.
+4. One purpose per PR. Changing behaviour *and* renaming files → two PRs; the review is far easier.
+
+## Reporting bugs, requesting features
+
+An [issue template](https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new/choose) — blank issues are
+off. For a bug: the exact command, the reviewed repo's stack, what the plugin did, what you expected.
+
+## License
+
+Contributing here releases your contribution under the [MIT License](./LICENSE).
