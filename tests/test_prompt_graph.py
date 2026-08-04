@@ -656,6 +656,25 @@ def test_manifests_are_valid_and_agree():
     assert src == SRC, f"marketplace source points at {src}, not {SRC}"
 
 
+def test_install_instructions_match_the_manifests():
+    """Every line a user is told to type carries an id built from the two manifests —
+    `<plugin>@<marketplace>` to install, the marketplace name alone to update it. Rename
+    either manifest and these strings become a failed install nobody notices until someone
+    types one. The plugin's own stale-build message is the worst case: it is printed to
+    somebody already stuck."""
+    plugin, market = _manifests()
+    pid = f"{plugin['name']}@{market['name']}"
+    files = [SRC / "commands" / "upgrade.md", REPO / ".claude" / "commands" / "release-now.md"]
+    files += sorted(REPO.glob("README*.md"))
+    for f in files:
+        body = text(f)
+        for m in re.finditer(r"/plugin (?:install|update|uninstall) (\S+)", body):
+            assert m.group(1) == pid, f"{f.name}: `{m.group(0)}` should name {pid}"
+        for m in re.finditer(r"/plugin marketplace (?:update|remove) (\S+)", body):
+            assert m.group(1) == market["name"], \
+                f"{f.name}: `{m.group(0)}` should name {market['name']}"
+
+
 def test_manifest_descriptions_name_every_vendor():
     """The descriptions said "GitHub" alone for as long as GitLab had been supported.
     A vendor directory is the fact; the prose has to keep up with it."""

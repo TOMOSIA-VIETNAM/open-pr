@@ -58,8 +58,8 @@ states ⇒ STOP before applying anything:
 
 ```
 ❌ The plugin is older than the migrations available. Update it first, then run this again:
-   /plugin marketplace update review-pr
-   /plugin update open-pr@review-pr
+   /plugin marketplace update open-pr
+   /plugin update open-pr@open-pr
    then /reload-plugins
 ```
 

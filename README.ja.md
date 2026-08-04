@@ -107,14 +107,14 @@ worktree の中（detached でブランチがない）なら、いずれもそ�
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
-/plugin install open-pr@review-pr
+/plugin install open-pr@open-pr
 ```
 
 更新:
 
 ```bash
-/plugin marketplace update review-pr
-/plugin update open-pr@review-pr
+/plugin marketplace update open-pr
+/plugin update open-pr@open-pr
 /reload-plugins
 /open-pr:upgrade
 ```

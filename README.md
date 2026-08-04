@@ -109,14 +109,14 @@ checks the place it's about to edit — wrong branch, on `main`/`develop`, or in
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
-/plugin install open-pr@review-pr
+/plugin install open-pr@open-pr
 ```
 
 Update:
 
 ```bash
-/plugin marketplace update review-pr
-/plugin update open-pr@review-pr
+/plugin marketplace update open-pr
+/plugin update open-pr@open-pr
 /reload-plugins
 /open-pr:upgrade
 ```

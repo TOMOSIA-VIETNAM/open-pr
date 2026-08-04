@@ -1,5 +1,5 @@
 {
-  "name": "review-pr",
+  "name": "open-pr",
   "description": "Marketplace for the open-pr plugin: a GitHub/GitLab PR reviewer with per-repo memory.",
   "owner": {
     "name": "Minh Tang Q."

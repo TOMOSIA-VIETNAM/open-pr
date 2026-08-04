@@ -97,8 +97,8 @@ command from the `README.md` section "Update to the latest" as it currently read
 `Read`, don't copy from a previous release note, in case README has since changed the command):
 
 ```
-/plugin marketplace update review-pr
-/plugin update open-pr@review-pr
+/plugin marketplace update open-pr
+/plugin update open-pr@open-pr
 ```
 
 then `/reload-plugins` (or start a new session).
