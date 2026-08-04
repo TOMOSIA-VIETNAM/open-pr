@@ -77,11 +77,10 @@ PR code on disk, main tree untouched — no branch change, nothing to restore.
    `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
 2. `git -C "<repo_dir>" fetch origin "<baseRefName>"` — refs are shared across that repo's worktrees.
-3. `git -C "notebooks/review/<repo>/worktrees/<name>" submodule update --init --recursive` — ALWAYS,
-   submodule-touching PR or not.
-4. Try `Read`ing `<worktree>/.gitmodules` — checked directly every run, never cached, so a
+3. Try `Read`ing `<worktree>/.gitmodules` — checked directly every run, never cached, so a
    not-yet-doctored repo still detects a bump on its first PR. Exists && "Diff" contains `Subproject
    commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
+   FORBIDDEN: `submodule update` here — each is a full checkout, and that file inits bumped paths only.
 
 ## Step 2 — Detect stack
 

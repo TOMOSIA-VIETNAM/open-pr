@@ -666,6 +666,29 @@ def test_manifests_are_valid_and_agree():
     assert src == SRC, f"marketplace source points at {src}, not {SRC}"
 
 
+def test_submodules_are_checked_out_only_when_bumped():
+    """Every submodule is a full checkout on disk. Initialising all of them on every review
+    multiplies the worktree's cost by the ones the PR never touched, and a bare or recursive
+    `--init` does exactly that — so the only `submodule update` lives where the bumped paths
+    are known, and names one."""
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "submodule update" not in review.replace("FORBIDDEN: `submodule update` here", ""), \
+        "review.md must not check out submodules — it does not yet know which are bumped"
+
+    sub = text(SRC / "cases" / "submodule-review.md")
+    flat = " ".join(sub.split())
+    cmds = re.findall(r"submodule update[^`\n]*", flat)
+    assert cmds, "the bumped path has to be checked out somewhere"
+    for c in cmds:
+        if "FORBIDDEN" in flat[flat.index(c) - 30:flat.index(c)]:
+            continue
+        assert "--recursive" not in c, f"nested submodules are out of scope: {c}"
+        assert "-- \"<submodule-path>\"" in c or "-- <path>" in c, \
+            f"a bare --init checks out every submodule: {c}"
+    assert "never gets a `notebooks/` of its own" in flat, \
+        "the worktree sits beside the project repo; a submodule holds no memory directory"
+
+
 def test_clean_deletes_worktrees_and_nothing_else():
     """This is the only command whose job is `rm`, standing in a directory that also holds the
     one thing here nobody can regenerate: what the repo taught it. A worktree comes back on the

@@ -1,8 +1,11 @@
 # Submodule review — review the submodule PR when a bump is detected
 
-`review.md` Step 1 arrives here having already created the worktree and run `git submodule update
---init --recursive` on it, so EVERY submodule directory — even ones this PR doesn't touch — is already
-at `<worktree>/<submodule-path>/`. This file creates NO second worktree; it reuses that directory.
+`review.md` Step 1 arrives with the worktree created and NO submodule initialised — each is a full
+checkout on disk, so Step A inits only the bumped paths, at `<worktree>/<submodule-path>/`.
+
+FORBIDDEN: a second `git worktree add`; writing inside a submodule beyond its own checkout — the
+worktree sits beside the project repo, under the invocation directory's `notebooks/review/`, and a
+submodule never gets a `notebooks/` of its own.
 
 Several submodule bumps in the SAME main PR → repeat A→F for EACH path, presenting each result
 separately per "Presenting output".
@@ -20,6 +23,10 @@ In the Context "Diff" (already fetched, never refetch), find every file whose hu
 `V§"Fetch PR diff — patch, omitting oversized files"` guarantees on every vendor. FORBIDDEN: keying off
 `index <sha>..<sha> 160000` or a `---`/`+++` header — GitLab's patch carries neither, so a detector
 needing them finds no submodule there and silently skips this whole case.
+
+Then init THAT path only: `git -C "<worktree>" submodule update --init -- "<submodule-path>"`.
+FORBIDDEN: `--recursive` (nested is out of scope, see "Known limitations"), or dropping `-- <path>` — a
+bare `--init` checks out every submodule the repo has.
 
 ## Step B — Get the submodule PR link
 
@@ -40,9 +47,8 @@ the same union pattern as `core/pr-target.md` §1.
 
 ## Step C — Check out the submodule PR's code
 
-`<git_remote_type_sub>` = the vendor guess from Step B's link — it MAY differ from the main PR's, since
-a submodule can live on another vendor. EVERY `V§` from here on resolves via `<git_remote_type_sub>`,
-never the main PR's value.
+`<git_remote_type_sub>` = the vendor guess from Step B's link; a submodule can live on another vendor.
+EVERY `V§` from here resolves via it, never the main PR's value.
 
 `V§"Checkout a PR into an already-existing worktree subdirectory"` with `<submodule-path>` +
 `<n-submodule>` + `<owner-submodule>/<repo-submodule>` — FORBIDDEN: `git worktree add` again. Subshell
@@ -50,9 +56,9 @@ pinned to that subdirectory, as at `review.md` Step 1; the working directory nev
 
 ## Step D — Fetch the submodule PR's context
 
-Re-run `review.md`'s Context fetch table against the submodule PR, in the same order and with the same
-`<max_patch_bytes>`, `V§` resolved via `<git_remote_type_sub>`, all against
-`<owner-submodule>/<repo-submodule>` + `<n-submodule>`. An empty "Old comments" is not an error.
+Re-run `review.md`'s Context fetch table against the submodule PR — same order, same
+`<max_patch_bytes>`, `V§` via `<git_remote_type_sub>`, against `<owner-submodule>/<repo-submodule>` +
+`<n-submodule>`. Empty "Old comments" is not an error.
 
 ## Step E — Fully review the submodule PR
 
