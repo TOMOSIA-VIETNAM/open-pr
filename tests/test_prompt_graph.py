@@ -327,7 +327,7 @@ def test_no_refs_to_things_that_get_deleted():
 ENGLISH_IN_OUTPUT = [
     (r"as of commit", 'the commit anchor is language-neutral: "(commit <link>)"'),
     (r"Reviewed at commit", "same — no English connective in the anchor"),
-    (r"Thank you", "the overview's thanks follows the output language, so no English string is pinned"),
+    (r"Thank you", "a thanks pinned in English ships English into a non-English review"),
 ]
 
 

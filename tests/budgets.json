@@ -14,5 +14,5 @@
     "fix/first-run-gitlab": 9140
   },
   "mean": 9738,
-  "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. Lower them when a change wins tokens back."
+  "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy). --update-budgets rewrites EVERY ceiling to measured +2%, RAISING any that were tightened by hand — lower by hand when a change wins tokens back."
 }
