@@ -228,12 +228,11 @@ Anything else — ≥1 FILE finding || ≥1 overview-exclusive item — → the 
 
 ```
 ### 🤖【AI REVIEW】Overview
-Open with EXACTLY "Thank you! 🙏" (no embellishment like "for submitting this PR"/"for the
-effort"), then state IN THE OUTPUT LANGUAGE that the ENTIRE SET OF CHANGES WAS REVIEWED AT that commit
-(link per above), then 1 sentence of reply instructions, addressing the reader as "you". Then the
-title/prefix
-note if any. Assessment prose is OPTIONAL: include it ONLY to carry a conclusion no finding below
-does. Nothing such ⇒ stop after the reply instructions.
+Open with a bare thanks + 🙏, ITSELF IN THE OUTPUT LANGUAGE like all prose here (no embellishment like
+"for submitting this PR"/"for the effort"), then state that the ENTIRE SET OF CHANGES WAS REVIEWED AT
+that commit (link per above), then 1 sentence of reply instructions, addressing the reader as "you",
+then the title/prefix note if any. Assessment prose is OPTIONAL: include it ONLY to carry a conclusion
+no finding below does. Nothing such ⇒ stop after the reply instructions.
 
 #### 🔴 MUST FIX
 #### 🟠 SHOULD FIX
