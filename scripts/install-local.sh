@@ -20,14 +20,18 @@ STAMP=".open-pr-local-install"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy] [--uninstall]
+Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
+                                [--update | --uninstall]
 
-  --platform NAME  shared      skills  ~/.agents/skills                   Codex, Gemini CLI  (default)
-                   cursor      plugin  ~/.cursor/plugins/local/open-pr
-                   antigravity skills  ~/.gemini/antigravity-cli/skills
+  --platform NAME  shared          skills  ~/.agents/skills                   Codex, Gemini CLI
+                   cursor          plugin  ~/.cursor/plugins/local/open-pr
+                   antigravity     skills  ~/.gemini/antigravity-cli/skills   the agy CLI
+                   antigravity-ide skills  ~/.gemini/config/skills            the IDE
+                   Omit it and the script asks.
   --target DIR     install somewhere else; keeps the --platform layout, wins over its path
   --copy           copy instead of linking (needed if your platform will not follow symlinks);
                    afterwards a `git pull` requires re-running this script
+  --update         git pull in this clone, then reinstall with the same options
   --uninstall      remove only what this script installed, then exit
 
 Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean.
@@ -40,7 +44,7 @@ EOF
 platform_kind() {
   case "$1" in
     cursor) printf 'plugin\n' ;;
-    shared|antigravity) printf 'skills\n' ;;
+    shared|antigravity|antigravity-ide) printf 'skills\n' ;;
     *) printf 'install-local.sh: unknown platform %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 }
@@ -50,10 +54,11 @@ platform_dir() {
     shared) printf '%s\n' "$HOME/.agents/skills" ;;
     cursor) printf '%s\n' "$HOME/.cursor/plugins/local/open-pr" ;;
     antigravity) printf '%s\n' "$HOME/.gemini/antigravity-cli/skills" ;;
+    antigravity-ide) printf '%s\n' "$HOME/.gemini/config/skills" ;;
   esac
 }
 
-PLATFORM=shared
+PLATFORM=
 TARGET=
 MODE=link
 ACTION=install
@@ -64,15 +69,44 @@ while [ $# -gt 0 ]; do
     --target) [ $# -ge 2 ] || { usage >&2; exit 2; }; TARGET="$2"; shift 2 ;;
     --copy) MODE=copy; shift ;;
     --uninstall) ACTION=uninstall; shift ;;
+    --update) ACTION=update; shift ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'install-local.sh: unexpected argument %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
+# No platform given: ask, rather than guess on the user's behalf which agent they run.
+if [ -z "$PLATFORM" ]; then
+  if [ -t 0 ]; then
+    say 'Which platform?\n'
+    say '  1) Codex or Gemini CLI   skills in ~/.agents/skills\n'
+    say '  2) Cursor                the plugin in ~/.cursor/plugins/local\n'
+    say '  3) Antigravity CLI       skills in ~/.gemini/antigravity-cli/skills\n'
+    say '  4) Antigravity IDE       skills in ~/.gemini/config/skills\n'
+    printf 'Enter 1-4: '
+    read -r choice || { printf '\ninstall-local.sh: no answer, nothing was written\n' >&2; exit 2; }
+    case "$choice" in
+      1) PLATFORM=shared ;;
+      2) PLATFORM=cursor ;;
+      3) PLATFORM=antigravity ;;
+      4) PLATFORM=antigravity-ide ;;
+      *) printf 'install-local.sh: not one of 1-4\n' >&2; exit 2 ;;
+    esac
+  else
+    PLATFORM=shared
+  fi
+fi
+
 KIND="$(platform_kind "$PLATFORM")"
 [ -n "$TARGET" ] || TARGET="$(platform_dir "$PLATFORM")"
 WHERE="--platform $PLATFORM"
 [ "$TARGET" = "$(platform_dir "$PLATFORM")" ] || WHERE="--platform $PLATFORM --target $TARGET"
+
+if [ "$ACTION" = update ]; then
+  say 'updating %s\n' "$REPO"
+  git -C "$REPO" pull --ff-only
+  ACTION=install
+fi
 
 SKILLS=()
 for dir in "$REPO"/skills/open-pr-*; do

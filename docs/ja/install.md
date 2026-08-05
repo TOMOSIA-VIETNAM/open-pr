@@ -25,7 +25,7 @@ CLI・Antigravity も、同じファイルから同じレビューを実行し�
 | Cursor | このリポジトリを team marketplace として import（admin・Teams/Enterprise） | `scripts/install-local.sh` | 未テスト |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | 未テスト |
 | Gemini CLI | `gemini extensions install <リポジトリ URL>` | `scripts/install-local.sh` | 未テスト |
-| Antigravity | `agy plugin install <path>` | `scripts/install-local.sh` | 未テスト |
+| Antigravity | `agy plugin install <path>`（CLI のみ） | `scripts/install-local.sh` | 未テスト |
 
 `テスト済み` は、実際のレビューを通し `e2e/checklist.md` で採点したことを意味します。`未テスト` は、
 ファイルとマニフェストは所定の位置にあり、そのプラットフォームが公開している仕様に沿ってはいるものの、
@@ -106,12 +106,23 @@ gemini extensions update open-pr
 
 ## Antigravity
 
+CLI と IDE ではスキルを読む場所が違うため、使っているほうで経路が決まります。
+
+CLI（`agy`）— プラグインとして入れます:
+
 ```bash
 git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
 agy plugin install ~/open-pr
 ```
 
-スキルは TUI のスラッシュコマンドになります: `/open-pr-review` と残りの 3 つ。
+IDE — プラグインインストーラがないので、ローカル経路を使います。IDE がグローバルに読む
+`~/.gemini/config/skills` に書き込みます:
+
+```bash
+~/open-pr/scripts/install-local.sh --platform antigravity-ide
+```
+
+どちらでもスキルはスラッシュコマンドになります: `/open-pr-review` と残りの 3 つ。
 
 ## ローカルインストール
 
@@ -130,12 +141,17 @@ git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
 1 回の実行で 2 つを賄えます。残る 2 つには専用の置き場があります:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor        # プラグイン全体を Cursor のローカルプラグイン用ディレクトリへ
-~/open-pr/scripts/install-local.sh --platform antigravity   # スキルを ~/.gemini/antigravity-cli/skills へ
+~/open-pr/scripts/install-local.sh --platform cursor            # プラグイン全体を Cursor のローカルプラグイン用ディレクトリへ
+~/open-pr/scripts/install-local.sh --platform antigravity       # スキルを ~/.gemini/antigravity-cli/skills へ
+~/open-pr/scripts/install-local.sh --platform antigravity-ide   # スキルを ~/.gemini/config/skills へ
 ```
 
-その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らないプラットフォーム向けの `--copy`、
-設置したものだけを消す `--uninstall`。
+`--platform` を省くと対話で訊きます。その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らない
+プラットフォーム向けの `--copy`、clone を pull してから入れ直す `--update`、設置したものだけを消す
+`--uninstall`。
+
+対応は macOS と Linux のみです: symlink を作るため、Windows では開発者モードか管理者権限のシェルが
+必要になります。
 
 置かれるのは clone へのシンボリックリンクなので、全プラットフォームをまとめて更新するのはこれだけです:
 

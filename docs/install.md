@@ -25,7 +25,7 @@ in how the files get to your machine:
 | Cursor | import this repo as a team marketplace (admin, Teams/Enterprise) | `scripts/install-local.sh` | untested |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | untested |
 | Gemini CLI | `gemini extensions install <repo URL>` | `scripts/install-local.sh` | untested |
-| Antigravity | `agy plugin install <path>` | `scripts/install-local.sh` | untested |
+| Antigravity | `agy plugin install <path>` (CLI only) | `scripts/install-local.sh` | untested |
 
 `tested` means a real review ran end to end and was graded against `e2e/checklist.md`. `untested`
 means the files and manifests are in place and match what the platform documents, but nobody has run
@@ -106,12 +106,23 @@ the same four skills.
 
 ## Antigravity
 
+The CLI and the IDE read skills from different places, so which one you use decides the route.
+
+CLI (`agy`) — install the plugin:
+
 ```bash
 git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
 agy plugin install ~/open-pr
 ```
 
-Skills become slash commands in the TUI: `/open-pr-review` and the other three.
+IDE — it has no plugin installer, so use the local route, which writes to the directory the IDE reads
+globally (`~/.gemini/config/skills`):
+
+```bash
+~/open-pr/scripts/install-local.sh --platform antigravity-ide
+```
+
+Either way skills become slash commands: `/open-pr-review` and the other three.
 
 ## Local install
 
@@ -130,12 +141,16 @@ By default it installs the four skills into `~/.agents/skills/`, which Codex and
 so one run covers both. The other two platforms have a place of their own:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor        # the whole plugin, in Cursor's local plugin dir
-~/open-pr/scripts/install-local.sh --platform antigravity   # skills, in ~/.gemini/antigravity-cli/skills
+~/open-pr/scripts/install-local.sh --platform cursor            # the whole plugin, in Cursor's local plugin dir
+~/open-pr/scripts/install-local.sh --platform antigravity       # skills, in ~/.gemini/antigravity-cli/skills
+~/open-pr/scripts/install-local.sh --platform antigravity-ide   # skills, in ~/.gemini/config/skills
 ```
 
-Other flags: `--target DIR` to install anywhere else, `--copy` if your platform will not follow
-symlinks, `--uninstall` to remove what it installed.
+Leave `--platform` out and it asks. Other flags: `--target DIR` to install anywhere else, `--copy` if
+your platform will not follow symlinks, `--update` to pull this clone and reinstall in one step,
+`--uninstall` to remove what it installed.
+
+macOS and Linux only: it makes symlinks, which on Windows need developer mode or an elevated shell.
 
 What lands is a symlink back into the clone, so updating every platform at once is:
 
