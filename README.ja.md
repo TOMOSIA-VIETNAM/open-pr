@@ -81,7 +81,7 @@ flowchart LR
 GitLab の MR なら [`glab`](https://gitlab.com/gitlab-org/cli) にログイン済みであることが必要です —
 レビューはそのアカウントで投稿されます。
 
-Cursor・Codex・Gemini CLI・Antigravity では、1 コマンドで同じレビューが入ります（これらではまだ実験的）:
+1 コマンドでどこにでも入ります。Claude Code も含みます（ほかのプラットフォームはまだ実験的）:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash

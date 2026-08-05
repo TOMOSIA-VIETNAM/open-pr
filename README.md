@@ -85,8 +85,7 @@ You also need [Claude Code](https://claude.ai/code), plus [`gh`](https://cli.git
 PRs or [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab MRs, logged in — the review is posted
 through that account.
 
-On Cursor, Codex, Gemini CLI or Antigravity, one command installs the same review — still
-experimental on those:
+One command installs it anywhere, Claude Code included — still experimental on the others:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash

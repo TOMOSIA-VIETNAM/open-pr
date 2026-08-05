@@ -23,7 +23,8 @@ usage() {
 Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
                                 [--update | --uninstall]
 
-  --platform NAME  shared          skills  ~/.agents/skills                   Codex, Gemini CLI
+  --platform NAME  claude          marketplace  Claude Code, via its own `claude plugin` CLI
+                   shared          skills  ~/.agents/skills                   Codex, Gemini CLI
                    cursor          plugin  ~/.cursor/plugins/local/open-pr    the Cursor IDE
                    cursor-cli      skills  ~/.cursor/skills                   cursor-agent
                    antigravity     skills  ~/.gemini/antigravity-cli/skills   the agy CLI
@@ -34,7 +35,8 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
                    afterwards a `git pull` requires re-running this script
   --update         git pull in this clone, then reinstall with the same options
   --uninstall      remove only what this script installed, then exit
-  --all            with --uninstall: sweep every platform above, not just one
+  --all            with --uninstall: sweep every file-based platform above. Claude Code keeps its
+                   own plugin state, so remove it with --platform claude --uninstall
 
 Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean.
 Never overwrites a file this script did not create.
@@ -45,6 +47,7 @@ EOF
 # directory the platform already reserves for locally installed plugins.
 platform_kind() {
   case "$1" in
+    claude) printf 'marketplace\n' ;;
     cursor) printf 'plugin\n' ;;
     shared|cursor-cli|antigravity|antigravity-ide) printf 'skills\n' ;;
     *) printf 'install-local.sh: unknown platform %s\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -52,9 +55,11 @@ platform_kind() {
 }
 
 ALL_PLATFORMS='shared cursor cursor-cli antigravity antigravity-ide'
+MARKETPLACE='TOMOSIA-VIETNAM/open-pr'
 
 platform_dir() {
   case "$1" in
+    claude) printf '%s\n' "$HOME/.claude/plugins" ;;
     shared) printf '%s\n' "$HOME/.agents/skills" ;;
     cursor) printf '%s\n' "$HOME/.cursor/plugins/local/open-pr" ;;
     cursor-cli) printf '%s\n' "$HOME/.cursor/skills" ;;
@@ -95,20 +100,22 @@ if [ -t 0 ]; then ask_on=/dev/stdin; elif [ -r /dev/tty ]; then ask_on=/dev/tty;
 if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
   if [ -n "$ask_on" ]; then
     say 'Which platform?\n'
-    say '  1) Codex or Gemini CLI   skills in ~/.agents/skills\n'
-    say '  2) Cursor IDE            the plugin in ~/.cursor/plugins/local\n'
-    say '  3) cursor-agent (CLI)    skills in ~/.cursor/skills\n'
-    say '  4) Antigravity CLI       skills in ~/.gemini/antigravity-cli/skills\n'
-    say '  5) Antigravity IDE       skills in ~/.gemini/config/skills\n'
-    printf 'Enter 1-5: '
+    say '  1) Claude Code           its own marketplace, via the claude CLI\n'
+    say '  2) Codex or Gemini CLI   skills in ~/.agents/skills\n'
+    say '  3) Cursor IDE            the plugin in ~/.cursor/plugins/local\n'
+    say '  4) cursor-agent (CLI)    skills in ~/.cursor/skills\n'
+    say '  5) Antigravity CLI       skills in ~/.gemini/antigravity-cli/skills\n'
+    say '  6) Antigravity IDE       skills in ~/.gemini/config/skills\n'
+    printf 'Enter 1-6: '
     read -r choice <"$ask_on" || { printf '\ninstall-local.sh: no answer, nothing was written\n' >&2; exit 2; }
     case "$choice" in
-      1) PLATFORM=shared ;;
-      2) PLATFORM=cursor ;;
-      3) PLATFORM=cursor-cli ;;
-      4) PLATFORM=antigravity ;;
-      5) PLATFORM=antigravity-ide ;;
-      *) printf 'install-local.sh: not one of 1-5\n' >&2; exit 2 ;;
+      1) PLATFORM=claude ;;
+      2) PLATFORM=shared ;;
+      3) PLATFORM=cursor ;;
+      4) PLATFORM=cursor-cli ;;
+      5) PLATFORM=antigravity ;;
+      6) PLATFORM=antigravity-ide ;;
+      *) printf 'install-local.sh: not one of 1-6\n' >&2; exit 2 ;;
     esac
   else
     PLATFORM=shared
@@ -157,6 +164,24 @@ installed_by_us() {
   [ -f "$path/$STAMP" ] && return 0
   [ -f "$path/SKILL.md" ] && grep -qF -- "$MARKER" "$path/SKILL.md"
 }
+
+if [ "$KIND" = marketplace ]; then
+  command -v claude >/dev/null || {
+    printf 'install-local.sh: the claude CLI is not on PATH — see https://claude.ai/code\n' >&2; exit 1; }
+  if [ "$ACTION" = uninstall ]; then
+    claude plugin uninstall "open-pr@open-pr"
+    say '\nRemoved open-pr from Claude Code. The marketplace entry stays; drop it with:\n'
+    say '  claude plugin marketplace remove open-pr\n'
+  else
+    claude plugin marketplace add "$MARKETPLACE"
+    claude plugin install "open-pr@open-pr"
+    say '\nInstalled into Claude Code. Commands: /open-pr:review /open-pr:fix /open-pr:upgrade /open-pr:clean\n'
+    say 'Also needed: gh (GitHub) or glab (GitLab), logged in — reviews post as that account.\n'
+    say 'Update:    claude plugin update open-pr@open-pr\n'
+    say 'Uninstall: %s --uninstall --platform claude\n' "$0"
+  fi
+  exit 0
+fi
 
 if [ "$ACTION" = uninstall ]; then
   targets="$PLATFORM"

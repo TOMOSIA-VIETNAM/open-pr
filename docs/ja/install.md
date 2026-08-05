@@ -10,7 +10,7 @@ CLI・Antigravity も、同じファイルから同じレビューを実行し�
 
 ## 1 コマンド
 
-独自のマーケットプレイスを持つ Claude Code 以外は、これだけです:
+Claude Code を含む、すべてのプラットフォーム:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
@@ -42,7 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 | プラットフォーム | カタログ | ローカル | 状態 |
 | ---------------- | -------- | -------- | ---- |
-| Claude Code | `/plugin marketplace add` + `/plugin install` | 不要 | テスト済み |
+| Claude Code | `claude plugin marketplace add` + `claude plugin install`、またはスラッシュ 2 つ | `--platform claude` | テスト済み |
 | Cursor IDE | このリポジトリを team marketplace として import（admin・Teams/Enterprise） | `scripts/install-local.sh --platform cursor` | 未テスト |
 | Cursor CLI（`cursor-agent`） | — | `scripts/install-local.sh --platform cursor-cli` | 未テスト |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | 未テスト |
@@ -56,16 +56,24 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 ## Claude Code
 
+セッションを開かず、シェルから:
+
+```bash
+claude plugin marketplace add TOMOSIA-VIETNAM/open-pr
+claude plugin install open-pr@open-pr
+```
+
+セッション内からなら:
+
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-更新:
+更新（どちらの経路でも）:
 
 ```bash
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
+claude plugin update open-pr@open-pr    # または /plugin update open-pr@open-pr
 /reload-plugins
 /open-pr:upgrade
 ```

@@ -10,7 +10,7 @@ chính account đó.
 
 ## Một lệnh
 
-Cho mọi nền tảng trừ Claude Code, vốn có marketplace riêng:
+Cho mọi nền tảng, kể cả Claude Code:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
@@ -42,7 +42,7 @@ file đến máy bạn bằng đường nào:
 
 | Nền tảng | Catalog | Local | Trạng thái |
 | -------- | ------- | ----- | ---------- |
-| Claude Code | `/plugin marketplace add` + `/plugin install` | không cần | đã test |
+| Claude Code | `claude plugin marketplace add` + `claude plugin install`, hoặc cặp slash | `--platform claude` | đã test |
 | Cursor IDE | import repo này làm team marketplace (admin, plan Teams/Enterprise) | `scripts/install-local.sh --platform cursor` | chưa test |
 | Cursor CLI (`cursor-agent`) | — | `scripts/install-local.sh --platform cursor-cli` | chưa test |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | chưa test |
@@ -56,16 +56,24 @@ kết quả nào cũng đáng mở một issue.
 
 ## Claude Code
 
+Từ shell, không cần mở session:
+
+```bash
+claude plugin marketplace add TOMOSIA-VIETNAM/open-pr
+claude plugin install open-pr@open-pr
+```
+
+Hoặc từ trong session:
+
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-Cập nhật:
+Cập nhật, đường nào cũng được:
 
 ```bash
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
+claude plugin update open-pr@open-pr    # hoặc /plugin update open-pr@open-pr
 /reload-plugins
 /open-pr:upgrade
 ```

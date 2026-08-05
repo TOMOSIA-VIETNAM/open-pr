@@ -2,7 +2,6 @@
   "name": "open-pr",
   "displayName": "PR/MR Reviewer with memory",
   "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI.",
-  "version": "1.0.0",
   "author": {
     "name": "Minh Tang Q."
   },

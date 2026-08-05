@@ -1011,21 +1011,23 @@ def test_adapter_maps_every_tool_the_prompts_name():
     assert not missing, f"tools src/ names but adapters/root.md does not map: {missing}"
 
 
-def test_manifests_agree_on_name_and_version():
-    """Every platform installs the same plugin. A version that moves in one manifest and not
-    the others is a release that lies to somebody."""
-    names, versions = set(), set()
+def test_manifests_agree_on_name_and_declare_one_version():
+    """Every platform installs the same plugin, and the git tag is what says which release that is.
+    Only Gemini CLI requires a version field, so it is the only manifest allowed to carry one — a
+    second copy is a second thing to bump, and the one nobody bumps is the one that lies."""
+    names, versioned = set(), []
     for m in MANIFESTS:
         path = REPO / m
         assert path.exists(), f"missing manifest: {m}"
         data = json.loads(path.read_text(encoding="utf-8"))
         names.add(data["name"])
         if "version" in data:
-            versions.add(data["version"])
+            versioned.append(m)
     claude = json.loads((SRC / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     names.add(claude["name"])
     assert names == {"open-pr"}, f"manifests disagree on the plugin name: {names}"
-    assert len(versions) == 1, f"manifests disagree on version: {versions}"
+    assert versioned == ["gemini-extension.json"], \
+        f"a version belongs in gemini-extension.json alone, found in: {versioned}"
 
 
 def test_local_installer_covers_every_shim():

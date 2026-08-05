@@ -82,8 +82,7 @@ Cần thêm [Claude Code](https://claude.ai/code), và [`gh`](https://cli.github
 [`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã login — review được post bằng chính
 account đó.
 
-Trên Cursor, Codex, Gemini CLI hay Antigravity, một lệnh là cài xong cùng review đó — vẫn ở mức thử
-nghiệm với các nền tảng này:
+Một lệnh cài được ở mọi nơi, kể cả Claude Code — với các nền tảng khác thì vẫn là thử nghiệm:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash

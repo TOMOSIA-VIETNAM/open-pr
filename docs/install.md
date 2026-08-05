@@ -10,7 +10,7 @@ posted through that account.
 
 ## One command
 
-Everything except Claude Code, which has its own marketplace:
+Every platform, Claude Code included:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
@@ -42,7 +42,7 @@ in how the files get to your machine:
 
 | Platform | Catalog | Local | Status |
 | -------- | ------- | ----- | ------ |
-| Claude Code | `/plugin marketplace add` + `/plugin install` | not needed | tested |
+| Claude Code | `claude plugin marketplace add` + `claude plugin install`, or the slash pair | `--platform claude` | tested |
 | Cursor IDE | import this repo as a team marketplace (admin, Teams/Enterprise) | `scripts/install-local.sh --platform cursor` | untested |
 | Cursor CLI (`cursor-agent`) | — | `scripts/install-local.sh --platform cursor-cli` | untested |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | untested |
@@ -56,16 +56,24 @@ trusting it. If you do run one, the result is worth an issue either way.
 
 ## Claude Code
 
+From a shell, without opening a session:
+
+```bash
+claude plugin marketplace add TOMOSIA-VIETNAM/open-pr
+claude plugin install open-pr@open-pr
+```
+
+Or from inside a session:
+
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-Update:
+Update, either way:
 
 ```bash
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
+claude plugin update open-pr@open-pr    # or /plugin update open-pr@open-pr
 /reload-plugins
 /open-pr:upgrade
 ```
