@@ -13,7 +13,7 @@ Only `src/` ships to users. Everything else is repo-side.
 
 | Directory | Holds | Loaded |
 |---|---|---|
-| `src/commands/` | the 3 slash commands | always (one per run) |
+| `src/commands/` | the 4 slash commands | always (one per run) |
 | `src/core/` | procedure shared by any run | always |
 | `src/setup/` | per-repo provisioning (bootstrap, doctor, template, lesson) | first run / on schedule |
 | `src/cases/` | branches behind a condition | only when that condition matched |

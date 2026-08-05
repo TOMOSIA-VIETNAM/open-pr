@@ -52,6 +52,16 @@ flowchart LR
 Flow đầy đủ, cơ chế re-review và guard `fix` chạy trước khi sửa file:
 [Nó chạy thế nào](./docs/vi/how-it-works.md).
 
+### Kết quả trông thế nào
+
+Một review, ba phần gắn với nhau: overview, comment trên đúng dòng kèm code đã sửa, và reply mà `fix`
+để lại trên chính thread đó sau khi push.
+
+<a href="./docs/vi/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, comment trên dòng kèm suggested change, và reply để lại sau khi fix đã push"></a>
+
+Ảnh full và cùng review đó bằng ngôn ngữ mà mỗi repo tự chọn:
+[Một review trông như thế nào](./docs/vi/demo.md).
+
 ## Cài đặt
 
 ```bash

@@ -51,6 +51,16 @@ flowchart LR
 
 全体のフロー、再レビュー、そして `fix` がファイルに触れる前に行う確認: [動きかた](./docs/ja/how-it-works.md)。
 
+### 出てくるもの
+
+1 件のレビューに 3 つの要素が揃います。Overview、修正後のコードを添えた該当行へのコメント、そして push
+後に `fix` が同じスレッドへ残す返信です。
+
+<a href="./docs/ja/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、push 後に残された返信"></a>
+
+フルサイズと、各リポジトリが選んだ言語での同じレビュー:
+[レビューの見え方](./docs/ja/demo.md)。
+
 ## インストール
 
 ```bash
