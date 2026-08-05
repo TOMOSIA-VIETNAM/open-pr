@@ -326,7 +326,8 @@ def test_no_refs_to_things_that_get_deleted():
 
 ENGLISH_IN_OUTPUT = [
     (r"as of commit", 'the commit anchor is language-neutral: "(commit <link>)"'),
-    (r"Reviewed at commit", "same — no English connective in the anchor"),
+    (r"Reviewed at commit", "the anchor takes no English connective either"),
+    (r"Thank you", "a thanks pinned in English ships English into a non-English review"),
 ]
 
 
@@ -414,8 +415,9 @@ def test_posted_output_hardcodes_no_english_connective():
     covered — the rules describing it are written in English by design.
     """
     bad = []
-    for name in ("commands/review.md", "cases/re-review.md", "cases/submodule-review.md",
-                 "cases/pr-template-checklist.md", "cases/large-diff-guards.md"):
+    for name in ("commands/review.md", "commands/fix.md", "cases/re-review.md",
+                 "cases/submodule-review.md", "cases/pr-template-checklist.md",
+                 "cases/large-diff-guards.md"):
         body = text(SRC / name)
         for pattern, why in ENGLISH_IN_OUTPUT:
             for m in re.finditer(pattern, body, re.I):
