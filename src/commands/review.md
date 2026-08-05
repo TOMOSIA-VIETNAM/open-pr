@@ -209,8 +209,7 @@ Every body anchors itself to `<commit_id>`, linked per `V§"Commit URL"`, and MU
 ENTIRE diff was reviewed at that point — never that one commit was. 2 forms, both language-neutral in
 the parenthetical:
 
-- **prose** (the full structure below) → say it in the OUTPUT LANGUAGE, so the reader gets a real
-  sentence rather than a translated fragment
+- **prose** (the full structure below) → a real sentence, not a translated fragment
 - **bare anchor** → `(commit <link>)`. Reads as "at this commit" in any language, so nothing needs
   translating. FORBIDDEN: an English connective like "as of" inside it — that is what leaks English into
   a non-English review.
