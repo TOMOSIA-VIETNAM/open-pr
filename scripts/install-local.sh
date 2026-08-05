@@ -24,7 +24,8 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
                                 [--update | --uninstall]
 
   --platform NAME  shared          skills  ~/.agents/skills                   Codex, Gemini CLI
-                   cursor          plugin  ~/.cursor/plugins/local/open-pr
+                   cursor          plugin  ~/.cursor/plugins/local/open-pr    the Cursor IDE
+                   cursor-cli      skills  ~/.cursor/skills                   cursor-agent
                    antigravity     skills  ~/.gemini/antigravity-cli/skills   the agy CLI
                    antigravity-ide skills  ~/.gemini/config/skills            the IDE
                    Omit it and the script asks.
@@ -33,6 +34,7 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
                    afterwards a `git pull` requires re-running this script
   --update         git pull in this clone, then reinstall with the same options
   --uninstall      remove only what this script installed, then exit
+  --all            with --uninstall: sweep every platform above, not just one
 
 Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean.
 Never overwrites a file this script did not create.
@@ -44,21 +46,25 @@ EOF
 platform_kind() {
   case "$1" in
     cursor) printf 'plugin\n' ;;
-    shared|antigravity|antigravity-ide) printf 'skills\n' ;;
+    shared|cursor-cli|antigravity|antigravity-ide) printf 'skills\n' ;;
     *) printf 'install-local.sh: unknown platform %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 }
+
+ALL_PLATFORMS='shared cursor cursor-cli antigravity antigravity-ide'
 
 platform_dir() {
   case "$1" in
     shared) printf '%s\n' "$HOME/.agents/skills" ;;
     cursor) printf '%s\n' "$HOME/.cursor/plugins/local/open-pr" ;;
+    cursor-cli) printf '%s\n' "$HOME/.cursor/skills" ;;
     antigravity) printf '%s\n' "$HOME/.gemini/antigravity-cli/skills" ;;
     antigravity-ide) printf '%s\n' "$HOME/.gemini/config/skills" ;;
   esac
 }
 
 PLATFORM=
+SWEEP=no
 TARGET=
 MODE=link
 ACTION=install
@@ -69,38 +75,48 @@ while [ $# -gt 0 ]; do
     --target) [ $# -ge 2 ] || { usage >&2; exit 2; }; TARGET="$2"; shift 2 ;;
     --copy) MODE=copy; shift ;;
     --uninstall) ACTION=uninstall; shift ;;
+    --all) SWEEP=yes; shift ;;
     --update) ACTION=update; shift ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'install-local.sh: unexpected argument %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
+if [ "$SWEEP" = yes ]; then
+  [ "$ACTION" = uninstall ] || { printf 'install-local.sh: --all only applies to --uninstall\n' >&2; exit 2; }
+  [ -z "$TARGET" ] || { printf 'install-local.sh: --all and --target are mutually exclusive\n' >&2; exit 2; }
+fi
+
 # No platform given: ask, rather than guess on the user's behalf which agent they run.
-if [ -z "$PLATFORM" ]; then
+if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
   if [ -t 0 ]; then
     say 'Which platform?\n'
     say '  1) Codex or Gemini CLI   skills in ~/.agents/skills\n'
-    say '  2) Cursor                the plugin in ~/.cursor/plugins/local\n'
-    say '  3) Antigravity CLI       skills in ~/.gemini/antigravity-cli/skills\n'
-    say '  4) Antigravity IDE       skills in ~/.gemini/config/skills\n'
-    printf 'Enter 1-4: '
+    say '  2) Cursor IDE            the plugin in ~/.cursor/plugins/local\n'
+    say '  3) cursor-agent (CLI)    skills in ~/.cursor/skills\n'
+    say '  4) Antigravity CLI       skills in ~/.gemini/antigravity-cli/skills\n'
+    say '  5) Antigravity IDE       skills in ~/.gemini/config/skills\n'
+    printf 'Enter 1-5: '
     read -r choice || { printf '\ninstall-local.sh: no answer, nothing was written\n' >&2; exit 2; }
     case "$choice" in
       1) PLATFORM=shared ;;
       2) PLATFORM=cursor ;;
-      3) PLATFORM=antigravity ;;
-      4) PLATFORM=antigravity-ide ;;
-      *) printf 'install-local.sh: not one of 1-4\n' >&2; exit 2 ;;
+      3) PLATFORM=cursor-cli ;;
+      4) PLATFORM=antigravity ;;
+      5) PLATFORM=antigravity-ide ;;
+      *) printf 'install-local.sh: not one of 1-5\n' >&2; exit 2 ;;
     esac
   else
     PLATFORM=shared
   fi
 fi
 
-KIND="$(platform_kind "$PLATFORM")"
-[ -n "$TARGET" ] || TARGET="$(platform_dir "$PLATFORM")"
-WHERE="--platform $PLATFORM"
-[ "$TARGET" = "$(platform_dir "$PLATFORM")" ] || WHERE="--platform $PLATFORM --target $TARGET"
+if [ "$SWEEP" = no ]; then
+  KIND="$(platform_kind "$PLATFORM")"
+  [ -n "$TARGET" ] || TARGET="$(platform_dir "$PLATFORM")"
+  WHERE="--platform $PLATFORM"
+  [ "$TARGET" = "$(platform_dir "$PLATFORM")" ] || WHERE="--platform $PLATFORM --target $TARGET"
+fi
 
 if [ "$ACTION" = update ]; then
   say 'updating %s\n' "$REPO"
@@ -115,13 +131,15 @@ for dir in "$REPO"/skills/open-pr-*; do
 done
 [ ${#SKILLS[@]} -gt 0 ] || { printf 'install-local.sh: no skills found under %s/skills\n' "$REPO" >&2; exit 1; }
 
-# What gets written: one path per skill, or the single plugin directory.
-paths=()
-if [ "$KIND" = skills ]; then
-  for name in "${SKILLS[@]}"; do paths+=("$TARGET/$name"); done
-else
-  paths+=("$TARGET")
-fi
+# What gets written for a platform: one path per skill, or the single plugin directory.
+paths_for() {
+  local kind="$1" target="$2" name
+  if [ "$kind" = skills ]; then
+    for name in "${SKILLS[@]}"; do printf '%s\n' "$target/$name"; done
+  else
+    printf '%s\n' "$target"
+  fi
+}
 
 # Ours = a symlink into this clone, or a copy carrying the marker line / stamp file. Anything else
 # belongs to the user and is never touched.
@@ -135,27 +153,38 @@ installed_by_us() {
 }
 
 if [ "$ACTION" = uninstall ]; then
+  targets="$PLATFORM"
+  [ "$SWEEP" = no ] || targets="$ALL_PLATFORMS"
   removed=0
-  for path in "${paths[@]}"; do
-    [ -e "$path" ] || [ -L "$path" ] || continue
-    if installed_by_us "$path"; then
-      say 'removing %s\n' "$path"
-      rm -rf -- "$path"
-      removed=$((removed + 1))
-    else
-      say 'kept     %s — not installed by this script\n' "$path"
-    fi
+  for name in $targets; do
+    dir="$TARGET"
+    [ "$SWEEP" = no ] || dir="$(platform_dir "$name")"
+    while IFS= read -r path; do
+      [ -e "$path" ] || [ -L "$path" ] || continue
+      if installed_by_us "$path"; then
+        say 'removing %s\n' "$path"
+        rm -rf -- "$path"
+        removed=$((removed + 1))
+      else
+        say 'kept     %s — not installed by this script\n' "$path"
+      fi
+    done <<EOF
+$(paths_for "$(platform_kind "$name")" "$dir")
+EOF
   done
-  say '\n%d removed from %s\n' "$removed" "$TARGET"
+  [ "$SWEEP" = no ] && say '\n%d removed from %s\n' "$removed" "$TARGET" \
+                    || say '\n%d removed across every platform\n' "$removed"
   exit 0
 fi
 
-for path in "${paths[@]}"; do
+while IFS= read -r path; do
   if { [ -e "$path" ] || [ -L "$path" ]; } && ! installed_by_us "$path"; then
     printf 'install-local.sh: %s already exists and was not installed by this script — remove it yourself, nothing was written\n' "$path" >&2
     exit 1
   fi
-done
+done <<EOF
+$(paths_for "$KIND" "$TARGET")
+EOF
 
 if [ "$KIND" = skills ]; then
   mkdir -p -- "$TARGET"

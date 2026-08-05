@@ -22,7 +22,8 @@ in how the files get to your machine:
 | Platform | Catalog | Local | Status |
 | -------- | ------- | ----- | ------ |
 | Claude Code | `/plugin marketplace add` + `/plugin install` | not needed | tested |
-| Cursor | import this repo as a team marketplace (admin, Teams/Enterprise) | `scripts/install-local.sh` | untested |
+| Cursor IDE | import this repo as a team marketplace (admin, Teams/Enterprise) | `scripts/install-local.sh --platform cursor` | untested |
+| Cursor CLI (`cursor-agent`) | — | `scripts/install-local.sh --platform cursor-cli` | untested |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | untested |
 | Gemini CLI | `gemini extensions install <repo URL>` | `scripts/install-local.sh` | untested |
 | Antigravity | `agy plugin install <path>` (CLI only) | `scripts/install-local.sh` | untested |
@@ -51,6 +52,15 @@ Update:
 Commands arrive namespaced: `/open-pr:review`, `/open-pr:fix`, `/open-pr:upgrade`, `/open-pr:clean`.
 
 ## Cursor
+
+The IDE and the CLI do not load the same things. Skills bundled inside a plugin are reported not to
+reach `cursor-agent`, only the IDE, so the CLI needs the skills installed on their own:
+
+```bash
+~/open-pr/scripts/install-local.sh --platform cursor-cli   # skills in ~/.cursor/skills
+```
+
+For the IDE:
 
 Catalog: in the Cursor dashboard, go to Settings → Plugins → Team Marketplaces → Import and paste this
 repository's URL. Cursor reads `.cursor-plugin/marketplace.json` and tracks the default branch from
@@ -142,13 +152,15 @@ so one run covers both. The other two platforms have a place of their own:
 
 ```bash
 ~/open-pr/scripts/install-local.sh --platform cursor            # the whole plugin, in Cursor's local plugin dir
+~/open-pr/scripts/install-local.sh --platform cursor-cli        # skills, in ~/.cursor/skills
 ~/open-pr/scripts/install-local.sh --platform antigravity       # skills, in ~/.gemini/antigravity-cli/skills
 ~/open-pr/scripts/install-local.sh --platform antigravity-ide   # skills, in ~/.gemini/config/skills
 ```
 
 Leave `--platform` out and it asks. Other flags: `--target DIR` to install anywhere else, `--copy` if
 your platform will not follow symlinks, `--update` to pull this clone and reinstall in one step,
-`--uninstall` to remove what it installed.
+`--uninstall` to remove what it installed — add `--all` to that and it sweeps every platform above,
+so installing in four places still takes one command to undo.
 
 macOS and Linux only: it makes symlinks, which on Windows need developer mode or an elevated shell.
 

@@ -22,7 +22,8 @@ file đến máy bạn bằng đường nào:
 | Nền tảng | Catalog | Local | Trạng thái |
 | -------- | ------- | ----- | ---------- |
 | Claude Code | `/plugin marketplace add` + `/plugin install` | không cần | đã test |
-| Cursor | import repo này làm team marketplace (admin, plan Teams/Enterprise) | `scripts/install-local.sh` | chưa test |
+| Cursor IDE | import repo này làm team marketplace (admin, plan Teams/Enterprise) | `scripts/install-local.sh --platform cursor` | chưa test |
+| Cursor CLI (`cursor-agent`) | — | `scripts/install-local.sh --platform cursor-cli` | chưa test |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | chưa test |
 | Gemini CLI | `gemini extensions install <URL repo>` | `scripts/install-local.sh` | chưa test |
 | Antigravity | `agy plugin install <path>` (chỉ CLI) | `scripts/install-local.sh` | chưa test |
@@ -51,6 +52,15 @@ Cập nhật:
 Command vào máy có namespace: `/open-pr:review`, `/open-pr:fix`, `/open-pr:upgrade`, `/open-pr:clean`.
 
 ## Cursor
+
+IDE và CLI không nạp cùng một thứ. Skill nằm bên trong plugin được báo cáo là không tới được
+`cursor-agent`, chỉ IDE thấy, nên bản CLI cần cài skill riêng:
+
+```bash
+~/open-pr/scripts/install-local.sh --platform cursor-cli   # skill vào ~/.cursor/skills
+```
+
+Với IDE:
 
 Catalog: trong dashboard Cursor, vào Settings → Plugins → Team Marketplaces → Import rồi dán URL của
 repository này. Cursor đọc `.cursor-plugin/marketplace.json` và từ đó theo default branch. Tạo team
@@ -140,13 +150,15 @@ chạy phục vụ cả hai. Hai nền tảng còn lại có chỗ riêng:
 
 ```bash
 ~/open-pr/scripts/install-local.sh --platform cursor            # nguyên plugin, vào thư mục local plugin của Cursor
+~/open-pr/scripts/install-local.sh --platform cursor-cli        # skill, vào ~/.cursor/skills
 ~/open-pr/scripts/install-local.sh --platform antigravity       # skill, vào ~/.gemini/antigravity-cli/skills
 ~/open-pr/scripts/install-local.sh --platform antigravity-ide   # skill, vào ~/.gemini/config/skills
 ```
 
 Bỏ `--platform` thì script tự hỏi. Cờ khác: `--target DIR` cài vào chỗ bất kỳ, `--copy` nếu nền tảng
 của bạn không đi theo symlink, `--update` để pull bản clone rồi cài lại trong một bước, `--uninstall`
-để xoá đúng những gì nó đã cài.
+để xoá đúng những gì nó đã cài — thêm `--all` thì nó quét mọi nền tảng ở trên, cài 4 chỗ vẫn gỡ bằng
+một lệnh.
 
 Chỉ chạy trên macOS và Linux: script tạo symlink, mà trên Windows symlink cần developer mode hoặc
 shell chạy quyền cao.

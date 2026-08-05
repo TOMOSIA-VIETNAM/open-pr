@@ -22,7 +22,8 @@ CLI・Antigravity も、同じファイルから同じレビューを実行し�
 | プラットフォーム | カタログ | ローカル | 状態 |
 | ---------------- | -------- | -------- | ---- |
 | Claude Code | `/plugin marketplace add` + `/plugin install` | 不要 | テスト済み |
-| Cursor | このリポジトリを team marketplace として import（admin・Teams/Enterprise） | `scripts/install-local.sh` | 未テスト |
+| Cursor IDE | このリポジトリを team marketplace として import（admin・Teams/Enterprise） | `scripts/install-local.sh --platform cursor` | 未テスト |
+| Cursor CLI（`cursor-agent`） | — | `scripts/install-local.sh --platform cursor-cli` | 未テスト |
 | Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | 未テスト |
 | Gemini CLI | `gemini extensions install <リポジトリ URL>` | `scripts/install-local.sh` | 未テスト |
 | Antigravity | `agy plugin install <path>`（CLI のみ） | `scripts/install-local.sh` | 未テスト |
@@ -52,6 +53,15 @@ CLI・Antigravity も、同じファイルから同じレビューを実行し�
 `/open-pr:clean`。
 
 ## Cursor
+
+IDE と CLI が読み込むものは同じではありません。プラグインに同梱されたスキルは `cursor-agent` に届かず
+IDE だけが認識する、と報告されています。CLI ではスキルを単体で入れてください:
+
+```bash
+~/open-pr/scripts/install-local.sh --platform cursor-cli   # スキルを ~/.cursor/skills へ
+```
+
+IDE の場合:
 
 カタログ: Cursor のダッシュボードで Settings → Plugins → Team Marketplaces → Import を開き、この
 リポジトリの URL を貼ります。Cursor は `.cursor-plugin/marketplace.json` を読み、以後は既定ブランチを
@@ -142,13 +152,15 @@ git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
 
 ```bash
 ~/open-pr/scripts/install-local.sh --platform cursor            # プラグイン全体を Cursor のローカルプラグイン用ディレクトリへ
+~/open-pr/scripts/install-local.sh --platform cursor-cli        # スキルを ~/.cursor/skills へ
 ~/open-pr/scripts/install-local.sh --platform antigravity       # スキルを ~/.gemini/antigravity-cli/skills へ
 ~/open-pr/scripts/install-local.sh --platform antigravity-ide   # スキルを ~/.gemini/config/skills へ
 ```
 
 `--platform` を省くと対話で訊きます。その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らない
 プラットフォーム向けの `--copy`、clone を pull してから入れ直す `--update`、設置したものだけを消す
-`--uninstall`。
+`--uninstall`。`--uninstall --all` なら上記すべてのプラットフォームを一掃するので、4 か所に入れても
+アンインストールは 1 コマンドで済みます。
 
 対応は macOS と Linux のみです: symlink を作るため、Windows では開発者モードか管理者権限のシェルが
 必要になります。
