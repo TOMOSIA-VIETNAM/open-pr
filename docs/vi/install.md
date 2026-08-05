@@ -8,6 +8,27 @@ Dù dùng nền tảng nào, bạn vẫn cần [`gh`](https://cli.github.com/) c
 [`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã cài và đã login. Review được post bằng
 chính account đó.
 
+## Một lệnh
+
+Cho mọi nền tảng trừ Claude Code, vốn có marketplace riêng:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
+```
+
+Nó hỏi bạn đang dùng nền tảng nào, hoặc nhận sẵn:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform cursor
+```
+
+Script đó không tự làm gì: nó đặt một bản clone vào `~/.open-pr` ở tag release mới nhất rồi giao lại
+cho `~/.open-pr/scripts/install-local.sh` — đó mới là code cài thật. Cài xong bạn đọc lại nó ở đó,
+đúng thứ vừa chạy, và `--uninstall --all` gỡ sạch.
+
+Không muốn chạy script tải từ mạng? Cách hai bước bên dưới cho ra đúng kết quả đó, chỉ thêm bước đọc
+ở giữa; phần còn lại của trang này nói mỗi nền tảng nhận được gì.
+
 ## Chọn cửa nào
 
 Mỗi nền tảng có hai cửa, và cả hai đều dùng cơ chế nạp do chính nền tảng đó công bố. Khác nhau ở chỗ
@@ -57,7 +78,7 @@ IDE và CLI không nạp cùng một thứ. Skill nằm bên trong plugin đư�
 `cursor-agent`, chỉ IDE thấy, nên bản CLI cần cài skill riêng:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor-cli   # skill vào ~/.cursor/skills
+~/.open-pr/scripts/install-local.sh --platform cursor-cli   # skill vào ~/.cursor/skills
 ```
 
 Với IDE:
@@ -119,15 +140,15 @@ CLI và IDE đọc skill ở hai chỗ khác nhau, nên bạn dùng bản nào t
 CLI (`agy`) — cài dạng plugin:
 
 ```bash
-git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
-agy plugin install ~/open-pr
+git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
+agy plugin install ~/.open-pr
 ```
 
 IDE — không có trình cài plugin, nên dùng đường local, script ghi vào đúng thư mục IDE đọc ở mức
 global (`~/.gemini/config/skills`):
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform antigravity-ide
+~/.open-pr/scripts/install-local.sh --platform antigravity-ide
 ```
 
 Cách nào thì skill cũng thành slash command: `/open-pr-review` và ba cái còn lại.
@@ -137,22 +158,20 @@ Cách nào thì skill cũng thành slash command: `/open-pr-review` và ba cái 
 Dành cho Cursor, Codex, Gemini CLI và Antigravity, khi đường catalog không mở với bạn:
 
 ```bash
-git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
-~/open-pr/scripts/install-local.sh
+git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
+~/.open-pr/scripts/install-local.sh
 ```
 
-Clone theo tag release chứ không phải default branch, để bạn nhận đúng một bản đã được cắt có chủ đích.
-Hãy đọc script trước khi chạy — nó nằm trong repository bạn vừa clone, chính vì lý do đó. Không có chỗ
-nào ở đây đổ một file tải về thẳng vào shell.
+Kết quả y hệt one-liner, chỉ khác là script nằm trước mặt bạn trước khi nó chạy.
 
 Mặc định script cài bốn skill vào `~/.agents/skills/`, nơi Codex và Gemini CLI đều đọc, nên một lần
 chạy phục vụ cả hai. Hai nền tảng còn lại có chỗ riêng:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor            # nguyên plugin, vào thư mục local plugin của Cursor
-~/open-pr/scripts/install-local.sh --platform cursor-cli        # skill, vào ~/.cursor/skills
-~/open-pr/scripts/install-local.sh --platform antigravity       # skill, vào ~/.gemini/antigravity-cli/skills
-~/open-pr/scripts/install-local.sh --platform antigravity-ide   # skill, vào ~/.gemini/config/skills
+~/.open-pr/scripts/install-local.sh --platform cursor            # nguyên plugin, vào thư mục local plugin của Cursor
+~/.open-pr/scripts/install-local.sh --platform cursor-cli        # skill, vào ~/.cursor/skills
+~/.open-pr/scripts/install-local.sh --platform antigravity       # skill, vào ~/.gemini/antigravity-cli/skills
+~/.open-pr/scripts/install-local.sh --platform antigravity-ide   # skill, vào ~/.gemini/config/skills
 ```
 
 Bỏ `--platform` thì script tự hỏi. Cờ khác: `--target DIR` cài vào chỗ bất kỳ, `--copy` nếu nền tảng
@@ -166,7 +185,7 @@ shell chạy quyền cao.
 Thứ được đặt vào là symlink trỏ về bản clone, nên cập nhật mọi nền tảng cùng lúc chỉ là:
 
 ```bash
-git -C ~/open-pr pull
+git -C ~/.open-pr pull
 ```
 
 Với `--copy` thì không có link, nên pull xong phải chạy lại script. Cách nào thì script cũng không bao

@@ -8,6 +8,27 @@ Whatever the platform, you also need [`gh`](https://cli.github.com/) for GitHub 
 [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab MRs, installed and logged in. The review is
 posted through that account.
 
+## One command
+
+Everything except Claude Code, which has its own marketplace:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
+```
+
+It asks which platform you are on, or takes it up front:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform cursor
+```
+
+That script does nothing itself: it puts a clone in `~/.open-pr` at the latest release tag and hands
+over to `~/.open-pr/scripts/install-local.sh`, which is the code that installs. Read it there
+afterwards — it is what ran, and `--uninstall --all` undoes it.
+
+Prefer not to run a script off the internet? The two-step below is the same thing with the reading
+in the middle, and the rest of this page is what each platform ends up with.
+
 ## Which door
 
 Every platform offers two, and both use a loading mechanism the platform itself documents. They differ
@@ -57,7 +78,7 @@ The IDE and the CLI do not load the same things. Skills bundled inside a plugin 
 reach `cursor-agent`, only the IDE, so the CLI needs the skills installed on their own:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor-cli   # skills in ~/.cursor/skills
+~/.open-pr/scripts/install-local.sh --platform cursor-cli   # skills in ~/.cursor/skills
 ```
 
 For the IDE:
@@ -121,15 +142,15 @@ The CLI and the IDE read skills from different places, so which one you use deci
 CLI (`agy`) — install the plugin:
 
 ```bash
-git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
-agy plugin install ~/open-pr
+git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
+agy plugin install ~/.open-pr
 ```
 
 IDE — it has no plugin installer, so use the local route, which writes to the directory the IDE reads
 globally (`~/.gemini/config/skills`):
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform antigravity-ide
+~/.open-pr/scripts/install-local.sh --platform antigravity-ide
 ```
 
 Either way skills become slash commands: `/open-pr-review` and the other three.
@@ -139,22 +160,20 @@ Either way skills become slash commands: `/open-pr-review` and the other three.
 For Cursor, Codex, Gemini CLI and Antigravity, when the catalog route is not available to you:
 
 ```bash
-git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
-~/open-pr/scripts/install-local.sh
+git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
+~/.open-pr/scripts/install-local.sh
 ```
 
-Clone a release tag rather than the default branch, so you get a version that was cut deliberately.
-Read the script before you run it — it is in the repository you just cloned, for exactly that reason.
-Nothing here pipes a download into a shell.
+Same result as the one-liner, with the script in front of you before it runs.
 
 By default it installs the four skills into `~/.agents/skills/`, which Codex and Gemini CLI both read,
 so one run covers both. The other two platforms have a place of their own:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor            # the whole plugin, in Cursor's local plugin dir
-~/open-pr/scripts/install-local.sh --platform cursor-cli        # skills, in ~/.cursor/skills
-~/open-pr/scripts/install-local.sh --platform antigravity       # skills, in ~/.gemini/antigravity-cli/skills
-~/open-pr/scripts/install-local.sh --platform antigravity-ide   # skills, in ~/.gemini/config/skills
+~/.open-pr/scripts/install-local.sh --platform cursor            # the whole plugin, in Cursor's local plugin dir
+~/.open-pr/scripts/install-local.sh --platform cursor-cli        # skills, in ~/.cursor/skills
+~/.open-pr/scripts/install-local.sh --platform antigravity       # skills, in ~/.gemini/antigravity-cli/skills
+~/.open-pr/scripts/install-local.sh --platform antigravity-ide   # skills, in ~/.gemini/config/skills
 ```
 
 Leave `--platform` out and it asks. Other flags: `--target DIR` to install anywhere else, `--copy` if
@@ -167,7 +186,7 @@ macOS and Linux only: it makes symlinks, which on Windows need developer mode or
 What lands is a symlink back into the clone, so updating every platform at once is:
 
 ```bash
-git -C ~/open-pr pull
+git -C ~/.open-pr pull
 ```
 
 With `--copy` there are no links, so a pull needs the script run again. Either way the script never

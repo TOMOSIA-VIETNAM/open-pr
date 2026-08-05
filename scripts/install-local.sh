@@ -87,9 +87,13 @@ if [ "$SWEEP" = yes ]; then
   [ -z "$TARGET" ] || { printf 'install-local.sh: --all and --target are mutually exclusive\n' >&2; exit 2; }
 fi
 
-# No platform given: ask, rather than guess on the user's behalf which agent they run.
+# No platform given: ask, rather than guess on the user's behalf which agent they run. Piped into a
+# shell (`curl ... | bash`) stdin is the pipe, so the question goes to the terminal directly.
+ask_on=
+if [ -t 0 ]; then ask_on=/dev/stdin; elif [ -r /dev/tty ]; then ask_on=/dev/tty; fi
+
 if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
-  if [ -t 0 ]; then
+  if [ -n "$ask_on" ]; then
     say 'Which platform?\n'
     say '  1) Codex or Gemini CLI   skills in ~/.agents/skills\n'
     say '  2) Cursor IDE            the plugin in ~/.cursor/plugins/local\n'
@@ -97,7 +101,7 @@ if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
     say '  4) Antigravity CLI       skills in ~/.gemini/antigravity-cli/skills\n'
     say '  5) Antigravity IDE       skills in ~/.gemini/config/skills\n'
     printf 'Enter 1-5: '
-    read -r choice || { printf '\ninstall-local.sh: no answer, nothing was written\n' >&2; exit 2; }
+    read -r choice <"$ask_on" || { printf '\ninstall-local.sh: no answer, nothing was written\n' >&2; exit 2; }
     case "$choice" in
       1) PLATFORM=shared ;;
       2) PLATFORM=cursor ;;
@@ -108,6 +112,8 @@ if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
     esac
   else
     PLATFORM=shared
+    say 'No terminal to ask on — installing the skills for Codex and Gemini CLI.\n'
+    say 'Other platforms: --platform cursor | cursor-cli | antigravity | antigravity-ide\n\n'
   fi
 fi
 

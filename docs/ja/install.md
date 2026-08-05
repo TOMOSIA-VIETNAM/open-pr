@@ -8,6 +8,27 @@ CLI・Antigravity も、同じファイルから同じレビューを実行し�
 [`glab`](https://gitlab.com/gitlab-org/cli) が必要です（インストール済み・ログイン済み）。レビューは
 そのアカウントで投稿されます。
 
+## 1 コマンド
+
+独自のマーケットプレイスを持つ Claude Code 以外は、これだけです:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
+```
+
+どのプラットフォームか対話で訊きます。先に渡すこともできます:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform cursor
+```
+
+このスクリプト自体は何もしません: 最新のリリースタグで `~/.open-pr` に clone を置き、実際に設置する
+`~/.open-pr/scripts/install-local.sh` に処理を渡すだけです。実行後そこで読めます — それが動いたコード
+であり、`--uninstall --all` で元に戻せます。
+
+ネットワーク越しのスクリプトを実行したくない場合は、下の 2 手が同じ内容で、間に「読む」が入るだけです。
+このページの残りは、各プラットフォームで最終的に何が入るかの説明です。
+
 ## どちらの入口を使うか
 
 どのプラットフォームにも入口が 2 つあり、どちらもそのプラットフォーム自身が公開している読み込みの仕組み
@@ -58,7 +79,7 @@ IDE と CLI が読み込むものは同じではありません。プラグイ�
 IDE だけが認識する、と報告されています。CLI ではスキルを単体で入れてください:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor-cli   # スキルを ~/.cursor/skills へ
+~/.open-pr/scripts/install-local.sh --platform cursor-cli   # スキルを ~/.cursor/skills へ
 ```
 
 IDE の場合:
@@ -121,15 +142,15 @@ CLI と IDE ではスキルを読む場所が違うため、使っているほ�
 CLI（`agy`）— プラグインとして入れます:
 
 ```bash
-git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
-agy plugin install ~/open-pr
+git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
+agy plugin install ~/.open-pr
 ```
 
 IDE — プラグインインストーラがないので、ローカル経路を使います。IDE がグローバルに読む
 `~/.gemini/config/skills` に書き込みます:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform antigravity-ide
+~/.open-pr/scripts/install-local.sh --platform antigravity-ide
 ```
 
 どちらでもスキルはスラッシュコマンドになります: `/open-pr-review` と残りの 3 つ。
@@ -139,22 +160,20 @@ IDE — プラグインインストーラがないので、ローカル経路を
 Cursor・Codex・Gemini CLI・Antigravity で、カタログ経路が使えないとき:
 
 ```bash
-git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
-~/open-pr/scripts/install-local.sh
+git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
+~/.open-pr/scripts/install-local.sh
 ```
 
-既定ブランチではなくリリースタグを clone してください。意図して切られたバージョンが手に入ります。実行
-する前にスクリプトを読んでください — まさにそのために、clone したリポジトリの中に置いてあります。ここ
-にはダウンロードをシェルに流し込む手順は 1 つもありません。
+1 コマンドの場合と結果は同じで、実行前にスクリプトを自分の目で読める点だけが違います。
 
 既定では 4 つのスキルを `~/.agents/skills/` に入れます。Codex と Gemini CLI の両方が読む場所なので、
 1 回の実行で 2 つを賄えます。残る 2 つには専用の置き場があります:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform cursor            # プラグイン全体を Cursor のローカルプラグイン用ディレクトリへ
-~/open-pr/scripts/install-local.sh --platform cursor-cli        # スキルを ~/.cursor/skills へ
-~/open-pr/scripts/install-local.sh --platform antigravity       # スキルを ~/.gemini/antigravity-cli/skills へ
-~/open-pr/scripts/install-local.sh --platform antigravity-ide   # スキルを ~/.gemini/config/skills へ
+~/.open-pr/scripts/install-local.sh --platform cursor            # プラグイン全体を Cursor のローカルプラグイン用ディレクトリへ
+~/.open-pr/scripts/install-local.sh --platform cursor-cli        # スキルを ~/.cursor/skills へ
+~/.open-pr/scripts/install-local.sh --platform antigravity       # スキルを ~/.gemini/antigravity-cli/skills へ
+~/.open-pr/scripts/install-local.sh --platform antigravity-ide   # スキルを ~/.gemini/config/skills へ
 ```
 
 `--platform` を省くと対話で訊きます。その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らない
@@ -168,7 +187,7 @@ git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
 置かれるのは clone へのシンボリックリンクなので、全プラットフォームをまとめて更新するのはこれだけです:
 
 ```bash
-git -C ~/open-pr pull
+git -C ~/.open-pr pull
 ```
 
 `--copy` ではリンクがないため、pull のあとにスクリプトを再実行します。どちらの場合も、スクリプトは

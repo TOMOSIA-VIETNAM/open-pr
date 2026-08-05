@@ -82,8 +82,14 @@ Cần thêm [Claude Code](https://claude.ai/code), và [`gh`](https://cli.github
 [`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã login — review được post bằng chính
 account đó.
 
-Cursor, Codex, Gemini CLI và Antigravity chạy cùng một review qua plugin system của chúng, còn ở mức
-thử nghiệm: [Cài đặt](./docs/install.md).
+Trên Cursor, Codex, Gemini CLI hay Antigravity, một lệnh là cài xong cùng review đó — vẫn ở mức thử
+nghiệm với các nền tảng này:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
+```
+
+Nó ghi những gì, và trình cài riêng của từng nền tảng: [Cài đặt](./docs/install.md).
 
 ## Sử dụng
 

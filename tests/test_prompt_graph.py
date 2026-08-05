@@ -1036,6 +1036,20 @@ def test_local_installer_covers_every_shim():
     assert not missing, f"install-local.sh never mentions: {missing}"
 
 
+def test_bootstrap_owns_no_platform_knowledge():
+    """install.sh is the one-command entry: it fetches a clone and hands over. Every platform path
+    stays in install-local.sh, or the two drift and the one-liner installs somewhere stale.
+
+    Ending on `main "$@"` matters for a script served over the network: a download cut short then
+    defines a function and does nothing, instead of running half an install."""
+    body = (REPO / "install.sh").read_text(encoding="utf-8")
+    assert "scripts/install-local.sh" in body, "the bootstrap must delegate, not install"
+    leaked = [d for d in (".cursor/skills", ".agents/skills", ".cursor/plugins",
+                          "antigravity-cli", ".gemini/config/skills") if d in body]
+    assert not leaked, f"platform paths duplicated into install.sh: {leaked}"
+    assert body.rstrip().endswith('main "$@"'), "a truncated download must not execute anything"
+
+
 def test_adapter_layer_stays_out_of_the_claude_budget():
     """Claude Code installs src/ alone, so this layer must cost its runs nothing. A shim that
     migrated under src/ would be paid for by every review on every platform."""

@@ -33,6 +33,7 @@ llm-upgrades/     config migrations, fetched live, never packaged
 adapters/root.md  ROOT + tool-name map; SOLE file naming a non-Claude platform
 skills/           1 shim/command for Cursor · Codex · Gemini CLI · Antigravity
 commands/*.toml   same 4 shims in Gemini CLI's own entry format
+install.sh        one-command entry for non-Claude platforms: clone → install-local.sh
 scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · install_hooks.sh
                   install-local.sh (skills onto a platform whose catalog is closed)
 tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
