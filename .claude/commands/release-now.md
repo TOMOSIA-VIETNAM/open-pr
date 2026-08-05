@@ -178,4 +178,36 @@ inside the script. It refuses a tag already recorded: a point is measured once, 
 never remeasured. FORBIDDEN: editing an existing row, or hand-editing the SVG — the suite redraws it
 from the numbers and compares.
 
+## Step 7 — Announcement caption
+
+Official release only; an RC is not announced. Printed in chat once the release exists, whether or not
+Step 6 pushed — it belongs to the user, to paste into a channel. FORBIDDEN: posting it anywhere, or
+writing it into the tag or the Release.
+
+The release note is the record; this is the pitch. It answers "why update today" in the time someone
+spends scrolling past it.
+
+Language = the one the user is talking in; a language named in `ARGUMENTS` wins.
+
+Shape, in this order, nothing else:
+
+```
+<version> 🚀
+<hook: one sentence>
+- <main change>
+- <main change>
+<the update block Step 3 built>
+<release URL>
+```
+
+- **Hook** — the result someone gets by updating, carrying its number when there is one. FORBIDDEN:
+  restating the version's name, "we are excited", or a sentence whose content is that a release
+  happened.
+- **2-4 bullets, main changes only.** The note lists everything; a caption does not. A line that would
+  not make someone update gets cut, however much work it took.
+- **Update block** — identical to the note's, `/open-pr:upgrade` included on the same condition Step 3
+  applies. FORBIDDEN: a caption that ends without it.
+- FORBIDDEN: emoji beyond the 🚀 on the version line, a bullet per commit, and any claim not already
+  true in the note.
+
 ARGUMENTS: $ARGUMENTS
