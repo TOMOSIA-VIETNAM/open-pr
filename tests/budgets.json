@@ -13,6 +13,6 @@
     "fix/known-repo-github": 8176,
     "fix/first-run-gitlab": 9140
   },
-  "mean": 9738,
+  "mean": 9730,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy). --update-budgets rewrites EVERY ceiling to measured +2%, RAISING any that were tightened by hand — lower by hand when a change wins tokens back."
 }
