@@ -23,7 +23,7 @@ CLI・Antigravity も、同じファイルから同じレビューを実行し�
 | ---------------- | -------- | -------- | ---- |
 | Claude Code | `/plugin marketplace add` + `/plugin install` | 不要 | テスト済み |
 | Cursor | このリポジトリを team marketplace として import（admin・Teams/Enterprise） | `scripts/install-local.sh` | 未テスト |
-| Codex | `/plugin marketplace add` + `/plugin install` | `scripts/install-local.sh` | 未テスト |
+| Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | 未テスト |
 | Gemini CLI | `gemini extensions install <リポジトリ URL>` | `scripts/install-local.sh` | 未テスト |
 | Antigravity | `agy plugin install <path>` | `scripts/install-local.sh` | 未テスト |
 
@@ -58,10 +58,25 @@ CLI・Antigravity も、同じファイルから同じレビューを実行し�
 追います。team marketplace の作成は Teams・Enterprise プランの admin 操作なので、個人アカウントでは
 下のローカル経路を使ってください。
 
+ローカル: `scripts/install-local.sh --platform cursor` はプラグイン全体を
+`~/.cursor/plugins/local/open-pr` に置きます。Cursor がまさにこの用途に確保しているディレクトリなので、
+他のプラグインと同じようにトグル付きで一覧に出ます。実行後はウィンドウを再読み込みしてください
+（`Developer: Reload Window`）。
+
 どちらの経路でも、4 つのコマンドは `/open-pr-review`、`/open-pr-fix`、`/open-pr-upgrade`、
 `/open-pr-clean` として現れます。
 
 ## Codex
+
+シェルから:
+
+```bash
+codex plugin marketplace add TOMOSIA-VIETNAM/open-pr
+codex
+```
+
+そのあと Codex 内で `/plugins` を開き、インストールして有効化します。すでにセッション中なら、同じ 2 手を
+スラッシュコマンドでも行えます:
 
 ```
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
@@ -111,25 +126,27 @@ git clone --branch v1.0.0 https://github.com/TOMOSIA-VIETNAM/open-pr ~/open-pr
 する前にスクリプトを読んでください — まさにそのために、clone したリポジトリの中に置いてあります。ここ
 にはダウンロードをシェルに流し込む手順は 1 つもありません。
 
-既定の設置先は `~/.agents/skills/` で、Cursor・Codex・Gemini CLI がいずれも読む場所なので、1 回の実行
-で 3 つを賄えます。Antigravity は独自のディレクトリを使います:
+既定では 4 つのスキルを `~/.agents/skills/` に入れます。Codex と Gemini CLI の両方が読む場所なので、
+1 回の実行で 2 つを賄えます。残る 2 つには専用の置き場があります:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform antigravity
+~/open-pr/scripts/install-local.sh --platform cursor        # プラグイン全体を Cursor のローカルプラグイン用ディレクトリへ
+~/open-pr/scripts/install-local.sh --platform antigravity   # スキルを ~/.gemini/antigravity-cli/skills へ
 ```
 
-その他のフラグ: `~/.cursor/skills/` へ入れる `--platform cursor`、任意の場所を指す `--target DIR`、
-symlink を辿らないプラットフォーム向けの `--copy`、設置したものだけを消す `--uninstall`。
+その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らないプラットフォーム向けの `--copy`、
+設置したものだけを消す `--uninstall`。
 
-スキルは clone へのシンボリックリンクなので、全プラットフォームをまとめて更新するのはこれだけです:
+置かれるのは clone へのシンボリックリンクなので、全プラットフォームをまとめて更新するのはこれだけです:
 
 ```bash
 git -C ~/open-pr pull
 ```
 
 `--copy` ではリンクがないため、pull のあとにスクリプトを再実行します。どちらの場合も、スクリプトは
-自分が作っていないファイルには触りません: スキルの置き場所に既に何かあれば、そこで止めて知らせます。
-`--uninstall` もそのファイルは残します。
+自分が作っていないファイルには触りません: スキルやプラグインの置き場所に既に何かあれば、そこで止めて
+知らせます。`--uninstall` もそのファイルは残します。プラグイン全体の `--copy` は追跡済みファイルだけを
+持っていきます — `.git` も未追跡ファイルも含みません。
 
 ## プラットフォームを増やしても、リポジトリ側は何も変わりません
 

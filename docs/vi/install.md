@@ -23,7 +23,7 @@ file đến máy bạn bằng đường nào:
 | -------- | ------- | ----- | ---------- |
 | Claude Code | `/plugin marketplace add` + `/plugin install` | không cần | đã test |
 | Cursor | import repo này làm team marketplace (admin, plan Teams/Enterprise) | `scripts/install-local.sh` | chưa test |
-| Codex | `/plugin marketplace add` + `/plugin install` | `scripts/install-local.sh` | chưa test |
+| Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | chưa test |
 | Gemini CLI | `gemini extensions install <URL repo>` | `scripts/install-local.sh` | chưa test |
 | Antigravity | `agy plugin install <path>` | `scripts/install-local.sh` | chưa test |
 
@@ -57,10 +57,24 @@ repository này. Cursor đọc `.cursor-plugin/marketplace.json` và từ đó t
 marketplace là hành động của admin trên plan Teams và Enterprise, nên với account cá nhân hãy dùng
 đường local bên dưới.
 
+Local: `scripts/install-local.sh --platform cursor` đặt nguyên plugin vào
+`~/.cursor/plugins/local/open-pr`, đúng thư mục Cursor dành riêng cho việc này, nên nó hiện trong danh
+sách plugin kèm nút bật/tắt như mọi plugin khác. Xong thì reload cửa sổ (`Developer: Reload Window`).
+
 Cách nào thì bốn command cũng hiện ra dưới dạng `/open-pr-review`, `/open-pr-fix`, `/open-pr-upgrade`,
 `/open-pr-clean`.
 
 ## Codex
+
+Từ shell:
+
+```bash
+codex plugin marketplace add TOMOSIA-VIETNAM/open-pr
+codex
+```
+
+Rồi gõ `/plugins` trong Codex để cài và bật. Nếu đang ở trong session sẵn thì có dạng slash tương
+đương:
 
 ```
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
@@ -110,25 +124,27 @@ Clone theo tag release chứ không phải default branch, để bạn nhận đ
 Hãy đọc script trước khi chạy — nó nằm trong repository bạn vừa clone, chính vì lý do đó. Không có chỗ
 nào ở đây đổ một file tải về thẳng vào shell.
 
-Mặc định script cài vào `~/.agents/skills/`, nơi Cursor, Codex và Gemini CLI đều đọc, nên một lần chạy
-phục vụ ba nền tảng. Antigravity giữ thư mục riêng:
+Mặc định script cài bốn skill vào `~/.agents/skills/`, nơi Codex và Gemini CLI đều đọc, nên một lần
+chạy phục vụ cả hai. Hai nền tảng còn lại có chỗ riêng:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform antigravity
+~/open-pr/scripts/install-local.sh --platform cursor        # nguyên plugin, vào thư mục local plugin của Cursor
+~/open-pr/scripts/install-local.sh --platform antigravity   # skill, vào ~/.gemini/antigravity-cli/skills
 ```
 
-Cờ khác: `--platform cursor` cho `~/.cursor/skills/`, `--target DIR` cho chỗ bất kỳ, `--copy` nếu nền
-tảng của bạn không đi theo symlink, `--uninstall` để xoá đúng những gì nó đã cài.
+Cờ khác: `--target DIR` cài vào chỗ bất kỳ, `--copy` nếu nền tảng của bạn không đi theo symlink,
+`--uninstall` để xoá đúng những gì nó đã cài.
 
-Skill là symlink trỏ về bản clone, nên cập nhật mọi nền tảng cùng lúc chỉ là:
+Thứ được đặt vào là symlink trỏ về bản clone, nên cập nhật mọi nền tảng cùng lúc chỉ là:
 
 ```bash
 git -C ~/open-pr pull
 ```
 
 Với `--copy` thì không có link, nên pull xong phải chạy lại script. Cách nào thì script cũng không bao
-giờ đụng file nó không tạo ra: nếu đã có gì nằm sẵn ở chỗ một skill sắp vào, nó dừng và nói cho bạn
-biết, và `--uninstall` cũng để nguyên file đó.
+giờ đụng file nó không tạo ra: nếu đã có gì nằm sẵn ở chỗ một skill hoặc plugin sắp vào, nó dừng và
+nói cho bạn biết, và `--uninstall` cũng để nguyên file đó. Bản `--copy` của nguyên plugin chỉ mang
+file đã tracked — không có `.git`, không có file untracked.
 
 ## Thêm nền tảng không đổi gì trong repo của bạn
 

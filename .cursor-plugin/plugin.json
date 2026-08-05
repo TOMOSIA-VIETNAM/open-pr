@@ -5,5 +5,19 @@
   "version": "1.0.0",
   "author": {
     "name": "Minh Tang Q."
-  }
+  },
+  "homepage": "https://github.com/TOMOSIA-VIETNAM/open-pr",
+  "repository": "https://github.com/TOMOSIA-VIETNAM/open-pr",
+  "license": "MIT",
+  "category": "developer-tools",
+  "keywords": [
+    "code-review",
+    "github",
+    "gitlab",
+    "pull-request",
+    "merge-request",
+    "gh-cli",
+    "glab-cli"
+  ],
+  "skills": "./skills/"
 }

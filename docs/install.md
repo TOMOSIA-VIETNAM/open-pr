@@ -23,7 +23,7 @@ in how the files get to your machine:
 | -------- | ------- | ----- | ------ |
 | Claude Code | `/plugin marketplace add` + `/plugin install` | not needed | tested |
 | Cursor | import this repo as a team marketplace (admin, Teams/Enterprise) | `scripts/install-local.sh` | untested |
-| Codex | `/plugin marketplace add` + `/plugin install` | `scripts/install-local.sh` | untested |
+| Codex | `codex plugin marketplace add` + `/plugins` | `scripts/install-local.sh` | untested |
 | Gemini CLI | `gemini extensions install <repo URL>` | `scripts/install-local.sh` | untested |
 | Antigravity | `agy plugin install <path>` | `scripts/install-local.sh` | untested |
 
@@ -57,10 +57,25 @@ repository's URL. Cursor reads `.cursor-plugin/marketplace.json` and tracks the 
 then on. Creating a team marketplace is an admin action on Teams and Enterprise plans, so on a
 personal account use the local route below.
 
+Local: `scripts/install-local.sh --platform cursor` puts the whole plugin under
+`~/.cursor/plugins/local/open-pr`, the directory Cursor reserves for exactly this, so it appears in
+the plugin list with a toggle like any other. Reload the window afterwards
+(`Developer: Reload Window`).
+
 Either way the four commands show up as `/open-pr-review`, `/open-pr-fix`, `/open-pr-upgrade`,
 `/open-pr-clean`.
 
 ## Codex
+
+From the shell:
+
+```bash
+codex plugin marketplace add TOMOSIA-VIETNAM/open-pr
+codex
+```
+
+Then `/plugins` inside Codex to install and enable it. The same two steps exist as slash commands if
+you are already in a session:
 
 ```
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
@@ -111,25 +126,27 @@ Clone a release tag rather than the default branch, so you get a version that wa
 Read the script before you run it — it is in the repository you just cloned, for exactly that reason.
 Nothing here pipes a download into a shell.
 
-By default it installs into `~/.agents/skills/`, which Cursor, Codex and Gemini CLI all read, so one
-run covers three platforms. Antigravity keeps its own directory:
+By default it installs the four skills into `~/.agents/skills/`, which Codex and Gemini CLI both read,
+so one run covers both. The other two platforms have a place of their own:
 
 ```bash
-~/open-pr/scripts/install-local.sh --platform antigravity
+~/open-pr/scripts/install-local.sh --platform cursor        # the whole plugin, in Cursor's local plugin dir
+~/open-pr/scripts/install-local.sh --platform antigravity   # skills, in ~/.gemini/antigravity-cli/skills
 ```
 
-Other flags: `--platform cursor` for `~/.cursor/skills/`, `--target DIR` for anywhere else, `--copy`
-if your platform will not follow symlinks, `--uninstall` to remove what it installed.
+Other flags: `--target DIR` to install anywhere else, `--copy` if your platform will not follow
+symlinks, `--uninstall` to remove what it installed.
 
-The skills are symlinks back into the clone, so updating every platform at once is:
+What lands is a symlink back into the clone, so updating every platform at once is:
 
 ```bash
 git -C ~/open-pr pull
 ```
 
 With `--copy` there are no links, so a pull needs the script run again. Either way the script never
-touches a file it did not create: if something is already sitting where a skill would go, it stops and
-tells you, and `--uninstall` leaves that file alone too.
+touches a file it did not create: if something is already sitting where a skill or the plugin would
+go, it stops and tells you, and `--uninstall` leaves that file alone too. A `--copy` install of the
+whole plugin carries tracked files only — no `.git`, nothing untracked.
 
 ## Adding a platform changes nothing about your repos
 

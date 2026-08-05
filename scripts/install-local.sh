@@ -1,39 +1,55 @@
 #!/usr/bin/env bash
-# Install open-pr's skills into an agent platform that reads them straight off disk — Cursor, Codex,
-# Gemini CLI, Antigravity. Use this when the platform's catalog is not an option (submission pending,
-# or importing a marketplace is gated by plan/role). Claude Code does not need this script: it
-# installs open-pr as a plugin from its own marketplace.
+# Install open-pr into an agent platform that reads it straight off disk — Cursor, Codex, Gemini CLI,
+# Antigravity. Use this when the platform's catalog is not an option (submission pending, or importing
+# a marketplace is gated by plan/role). Claude Code does not need this script: it installs open-pr as
+# a plugin from its own marketplace.
 #
-# The skills are links back into this clone by default, so `git pull` here updates every platform at
-# once. --copy detaches them, and then a pull needs this script run again.
+# Cursor gets the whole plugin, since it has a directory for exactly that and then shows it in the
+# plugin list. Everywhere else gets the four skills. Both are links back into this clone by default,
+# so `git pull` here updates every platform at once; --copy detaches them, and then a pull needs this
+# script run again.
 set -euo pipefail
+# Piping this into `head` closes stdout early. Progress messages must not be able to abort an
+# install half way through, so every one of them tolerates a dead pipe.
+trap '' PIPE
+say() { printf "$@" 2>/dev/null || true; }
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 MARKER='<!-- installed by open-pr scripts/install-local.sh — safe to delete -->'
+STAMP=".open-pr-local-install"
 
 usage() {
   cat <<'EOF'
 Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy] [--uninstall]
 
-  --platform NAME  shared      ~/.agents/skills        Cursor, Codex, Gemini CLI  (default)
-                   cursor      ~/.cursor/skills
-                   antigravity ~/.gemini/antigravity-cli/skills
-  --target DIR     install somewhere else entirely; wins over --platform
-  --copy           copy the skills instead of linking them (needed if your platform will not
-                   follow symlinks); afterwards a `git pull` requires re-running this script
+  --platform NAME  shared      skills  ~/.agents/skills                   Codex, Gemini CLI  (default)
+                   cursor      plugin  ~/.cursor/plugins/local/open-pr
+                   antigravity skills  ~/.gemini/antigravity-cli/skills
+  --target DIR     install somewhere else; keeps the --platform layout, wins over its path
+  --copy           copy instead of linking (needed if your platform will not follow symlinks);
+                   afterwards a `git pull` requires re-running this script
   --uninstall      remove only what this script installed, then exit
 
-Installs: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean.
+Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean.
 Never overwrites a file this script did not create.
 EOF
+}
+
+# Two layouts: `skills` drops the four skill directories in, `plugin` puts the whole plugin under one
+# directory the platform already reserves for locally installed plugins.
+platform_kind() {
+  case "$1" in
+    cursor) printf 'plugin\n' ;;
+    shared|antigravity) printf 'skills\n' ;;
+    *) printf 'install-local.sh: unknown platform %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
 }
 
 platform_dir() {
   case "$1" in
     shared) printf '%s\n' "$HOME/.agents/skills" ;;
-    cursor) printf '%s\n' "$HOME/.cursor/skills" ;;
+    cursor) printf '%s\n' "$HOME/.cursor/plugins/local/open-pr" ;;
     antigravity) printf '%s\n' "$HOME/.gemini/antigravity-cli/skills" ;;
-    *) printf 'install-local.sh: unknown platform %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 }
 
@@ -53,7 +69,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+KIND="$(platform_kind "$PLATFORM")"
 [ -n "$TARGET" ] || TARGET="$(platform_dir "$PLATFORM")"
+WHERE="--platform $PLATFORM"
+[ "$TARGET" = "$(platform_dir "$PLATFORM")" ] || WHERE="--platform $PLATFORM --target $TARGET"
 
 SKILLS=()
 for dir in "$REPO"/skills/open-pr-*; do
@@ -62,76 +81,93 @@ for dir in "$REPO"/skills/open-pr-*; do
 done
 [ ${#SKILLS[@]} -gt 0 ] || { printf 'install-local.sh: no skills found under %s/skills\n' "$REPO" >&2; exit 1; }
 
-# Ours = a symlink into this clone, or a copy carrying the marker. Anything else is the user's.
+# What gets written: one path per skill, or the single plugin directory.
+paths=()
+if [ "$KIND" = skills ]; then
+  for name in "${SKILLS[@]}"; do paths+=("$TARGET/$name"); done
+else
+  paths+=("$TARGET")
+fi
+
+# Ours = a symlink into this clone, or a copy carrying the marker line / stamp file. Anything else
+# belongs to the user and is never touched.
 installed_by_us() {
   local path="$1"
   if [ -L "$path" ]; then
-    case "$(readlink -- "$path")" in "$REPO"/*) return 0 ;; *) return 1 ;; esac
+    case "$(readlink -- "$path")" in "$REPO"|"$REPO"/*) return 0 ;; *) return 1 ;; esac
   fi
+  [ -f "$path/$STAMP" ] && return 0
   [ -f "$path/SKILL.md" ] && grep -qF -- "$MARKER" "$path/SKILL.md"
 }
 
 if [ "$ACTION" = uninstall ]; then
   removed=0
-  for name in "${SKILLS[@]}"; do
-    path="$TARGET/$name"
+  for path in "${paths[@]}"; do
     [ -e "$path" ] || [ -L "$path" ] || continue
     if installed_by_us "$path"; then
-      printf 'removing %s\n' "$path"
+      say 'removing %s\n' "$path"
       rm -rf -- "$path"
       removed=$((removed + 1))
     else
-      printf 'kept     %s — not installed by this script\n' "$path"
+      say 'kept     %s — not installed by this script\n' "$path"
     fi
   done
-  printf '\n%d removed from %s\n' "$removed" "$TARGET"
+  say '\n%d removed from %s\n' "$removed" "$TARGET"
   exit 0
 fi
 
-mkdir -p -- "$TARGET"
-
-for name in "${SKILLS[@]}"; do
-  path="$TARGET/$name"
+for path in "${paths[@]}"; do
   if { [ -e "$path" ] || [ -L "$path" ]; } && ! installed_by_us "$path"; then
     printf 'install-local.sh: %s already exists and was not installed by this script — remove it yourself, nothing was written\n' "$path" >&2
     exit 1
   fi
 done
 
-for name in "${SKILLS[@]}"; do
-  path="$TARGET/$name"
-  rm -rf -- "$path"
+if [ "$KIND" = skills ]; then
+  mkdir -p -- "$TARGET"
+  for name in "${SKILLS[@]}"; do
+    path="$TARGET/$name"
+    rm -rf -- "$path"
+    if [ "$MODE" = link ]; then
+      ln -s -- "$REPO/skills/$name" "$path"
+      say 'linked  %s -> %s\n' "$path" "$REPO/skills/$name"
+    else
+      cp -R -- "$REPO/skills/$name" "$path"
+      # A copy sits outside the clone, so the relative hop to the adapter no longer resolves: bake in
+      # the absolute path, and hand ROOT over directly.
+      tmp="$path/SKILL.md.tmp"
+      sed -e "s#\`../../adapters/root.md\` (relative to this file)#\`$REPO/adapters/root.md\`#" \
+          "$path/SKILL.md" \
+        | awk -v root="ROOT: $REPO/src" '
+            /^---$/ { print; if (++fence == 2) print "\n" root; next } { print }
+          ' >"$tmp"
+      mv -- "$tmp" "$path/SKILL.md"
+      say '\n%s\n' "$MARKER" >>"$path/SKILL.md"
+      say 'copied  %s\n' "$path"
+    fi
+  done
+else
+  mkdir -p -- "$(dirname -- "$TARGET")"
+  rm -rf -- "$TARGET"
   if [ "$MODE" = link ]; then
-    ln -s -- "$REPO/skills/$name" "$path"
-    printf 'linked  %s -> %s\n' "$path" "$REPO/skills/$name"
+    ln -s -- "$REPO" "$TARGET"
+    say 'linked  %s -> %s\n' "$TARGET" "$REPO"
   else
-    cp -R -- "$REPO/skills/$name" "$path"
-    # A copy sits outside the clone, so the relative hop to the adapter no longer resolves: bake in
-    # absolute paths, and hand ROOT over directly.
-    tmp="$path/SKILL.md.tmp"
-    sed -e "s#\`../../adapters/root.md\` (relative to this file)#\`$REPO/adapters/root.md\`#" \
-        "$path/SKILL.md" \
-      | awk -v root="ROOT: $REPO/src" '
-          /^---$/ { print; if (++fence == 2) print "\n" root; next } { print }
-        ' >"$tmp"
-    mv -- "$tmp" "$path/SKILL.md"
-    printf '\n%s\n' "$MARKER" >>"$path/SKILL.md"
-    printf 'copied  %s\n' "$path"
+    mkdir -p -- "$TARGET"
+    # Tracked files only: no .git, no local scratch, nothing the platform has no business reading.
+    git -C "$REPO" archive HEAD | tar -x -C "$TARGET"
+    say 'installed by open-pr scripts/install-local.sh from %s — safe to delete\n' "$REPO" >"$TARGET/$STAMP"
+    say 'copied  %s\n' "$TARGET"
   fi
-done
+fi
 
-cat <<EOF
-
-Installed ${#SKILLS[@]} skills into $TARGET
-Invoke them as /open-pr-review, /open-pr-fix, /open-pr-upgrade, /open-pr-clean (Codex: \$open-pr-review).
-Also needed: gh (GitHub) or glab (GitLab), installed and logged in — reviews post as that account.
-EOF
+say '\nInstalled into %s\n' "$TARGET"
+say 'Invoke as /open-pr-review, /open-pr-fix, /open-pr-upgrade, /open-pr-clean (Codex: $open-pr-review).\n'
+say 'Also needed: gh (GitHub) or glab (GitLab), installed and logged in — reviews post as that account.\n'
 
 if [ "$MODE" = link ]; then
-  printf 'Update:    git -C %s pull\n' "$REPO"
+  say 'Update:    git -C %s pull\n' "$REPO"
 else
-  printf 'Update:    git -C %s pull && %s --copy%s\n' "$REPO" "$0" \
-    "$([ "$TARGET" = "$(platform_dir "$PLATFORM")" ] && printf ' --platform %s' "$PLATFORM" || printf ' --target %s' "$TARGET")"
+  say 'Update:    git -C %s pull && %s --copy %s\n' "$REPO" "$0" "$WHERE"
 fi
-printf 'Uninstall: %s --uninstall%s\n' "$0" \
-  "$([ "$TARGET" = "$(platform_dir "$PLATFORM")" ] && printf ' --platform %s' "$PLATFORM" || printf ' --target %s' "$TARGET")"
+say 'Uninstall: %s --uninstall %s\n' "$0" "$WHERE"
