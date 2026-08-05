@@ -47,9 +47,9 @@ flowchart LR
   K --> L["Reply từng finding: đã fix, hoặc vì sao không fix<br/>không resolve thread — để bạn tự chốt"]
 ```
 
-Khác `review` ở chỗ nó **không** dùng worktree, mà sửa thẳng vào repo thật trên đĩa. Nên trước khi chạm
-bất cứ file nào, nó soát chỗ sắp sửa — sai branch, đang trên `main`/`develop`, hay đang ở trong chính
-cái worktree mà `review` tạo ra (worktree đó detached, không có branch) đều dừng ngay.
+Khác `review` ở chỗ nó sửa code thật: repo trên đĩa, hoặc chính worktree mà `review` đã checkout PR ra
+nếu bạn fix liền sau khi review. Nó không tự tạo worktree nào. Nên trước khi chạm file nào, nó soát chỗ
+sắp sửa — sai branch, hoặc PR mà branch nguồn là `main`/`develop`, đều dừng ngay.
 
 ## Mỗi lần một run, và bạn thêm gì vào đó
 

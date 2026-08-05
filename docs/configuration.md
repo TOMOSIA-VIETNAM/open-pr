@@ -31,7 +31,8 @@ cd ~/workspace
 ```
 
 `/open-pr:fix` works from the workspace too — it locates the right repo and edits inside it, as long as
-that repo is on the PR's branch.
+that repo is on the PR's branch — or from the worktree `review` made for that PR, where the URL is
+optional because the session already says which PR is meant.
 
 Everything it remembers is indexed like a table of contents in `notebooks/review/<repo>/memory.md`:
 cheap in tokens because no detail has to be loaded, while still giving the whole picture of what has
