@@ -89,8 +89,10 @@ main() {
       printf '  OPEN_PR_REF=<branch-or-tag> before this command, or see docs/install.md\n' >&2
       [ -z "$tmp" ] || rm -rf "$tmp"
       exit 1; }
-    "$runner" "$@"
-    local rc=$?
+    # `set -e` would exit here on a non-zero uninstall, before the borrowed clone is cleaned up and
+    # before anything is said about what failed.
+    local rc=0
+    "$runner" "$@" || rc=$?
     [ -z "$tmp" ] || rm -rf "$tmp"
     # A run that named no platform meant all of it, so the clone goes too. One that named a platform
     # leaves the rest installed, and they need this clone to keep working.
