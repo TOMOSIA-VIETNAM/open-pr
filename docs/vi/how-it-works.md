@@ -70,6 +70,5 @@ những quy ước bạn đã có sẵn: README, CLAUDE.md, AGENTS.md, docs, wik
 Toàn bộ quy trình agent đi theo — mọi bước ở trên — nằm ở một chỗ duy nhất: markdown dưới `src/`.
 Cursor, Codex, Gemini CLI và Antigravity mỗi cái cần loại file entry riêng để lộ ra một slash command,
 nên mỗi cái nhận một shim ngắn làm đúng hai việc: tìm chỗ plugin được cài, rồi giao lại cho chính file
-command mà mọi nền tảng cùng đọc. Không luật, ngưỡng hay severity nào được nhắc lại trong shim — nhờ vậy đổi
-cách review hoạt động là sửa một file, không phải sửa năm nền tảng. Cách cài trên các nền tảng đó:
-[Cài đặt](./install.md).
+command mà mọi nền tảng cùng đọc. Không luật, ngưỡng hay severity nào được nhắc lại trong shim.
+Cách cài trên các nền tảng đó: [Cài đặt](./install.md).
