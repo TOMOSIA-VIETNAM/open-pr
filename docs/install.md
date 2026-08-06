@@ -33,6 +33,21 @@ so it is the newest version of the fetcher. Pin that too by pointing the URL at 
 Prefer not to run a script off the internet? The two-step below is the same thing with the reading
 in the middle, and the rest of this page is what each platform ends up with.
 
+## Uninstalling
+
+Same one line, with `--uninstall`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
+```
+
+It lists the platforms it can actually see open-pr installed on, takes the numbers you want or `a`
+for all, and removes `~/.open-pr` too once nothing is left pointing at it. Name a platform
+(`-s -- --uninstall --platform cursor`) and the clone stays, since the others still need it.
+
+Only what it installed goes: a skill of your own with the same name is reported and left alone.
+Nothing it wrote into repositories you reviewed is touched — see the last section.
+
 ## Which door
 
 Every platform offers two, and both use a loading mechanism the platform itself documents. They differ

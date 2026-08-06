@@ -33,6 +33,21 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 ネットワーク越しのスクリプトを実行したくない場合は、下の 2 手が同じ内容で、間に「読む」が入るだけです。
 このページの残りは、各プラットフォームで最終的に何が入るかの説明です。
 
+## アンインストール
+
+同じ 1 行に `--uninstall` を付けるだけです:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
+```
+
+実際に open-pr が入っているプラットフォームだけを一覧し、番号（`a` で全部）で選ばせ、参照するものが
+なくなれば `~/.open-pr` も削除します。プラットフォームを指定した場合
+（`-s -- --uninstall --platform cursor`）は、ほかがまだ使うので clone は残します。
+
+消えるのはこのスクリプトが入れたものだけです。同名で自作したスキルは報告のうえ残します。レビュー先の
+リポジトリに書いたものには触れません — ページ末尾を参照してください。
+
 ## どちらの入口を使うか
 
 どのプラットフォームにも入口が 2 つあり、どちらもそのプラットフォーム自身が公開している読み込みの仕組み

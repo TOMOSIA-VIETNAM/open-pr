@@ -32,6 +32,21 @@ tức luôn là bản mới nhất của phần tải. Muốn pin luôn nó thì
 Không muốn chạy script tải từ mạng? Cách hai bước bên dưới cho ra đúng kết quả đó, chỉ thêm bước đọc
 ở giữa; phần còn lại của trang này nói mỗi nền tảng nhận được gì.
 
+## Gỡ cài đặt
+
+Vẫn một dòng đó, thêm `--uninstall`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
+```
+
+Nó liệt kê đúng những nền tảng đang thực sự có open-pr, bạn nhập số muốn gỡ hoặc `a` để gỡ hết, và
+xoá luôn `~/.open-pr` khi không còn gì trỏ tới nữa. Nếu chỉ định nền tảng
+(`-s -- --uninstall --platform cursor`) thì clone được giữ lại, vì các nền tảng còn lại vẫn cần.
+
+Chỉ thứ nó cài mới bị xoá: skill trùng tên do bạn tự viết được báo lại và giữ nguyên. Những gì nó đã
+ghi vào các repo bạn từng review thì không đụng tới — xem mục cuối trang.
+
 ## Chọn cửa nào
 
 Mỗi nền tảng có hai cửa, và cả hai đều dùng cơ chế nạp do chính nền tảng đó công bố. Khác nhau ở chỗ

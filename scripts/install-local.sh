@@ -112,9 +112,11 @@ fi
 # No platform given: ask, rather than guess on the user's behalf which agent they run. Piped into a
 # shell (`curl ... | bash`) stdin is the pipe, so the question goes to the terminal directly.
 ask_on=
-if [ -t 0 ]; then ask_on=/dev/stdin; elif [ -r /dev/tty ]; then ask_on=/dev/tty; fi
+if [ -t 0 ]; then ask_on=/dev/stdin
+elif { : </dev/tty; } 2>/dev/null; then ask_on=/dev/tty
+fi
 
-if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
+if [ "$ACTION" != uninstall ] && [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
   if [ -n "$ask_on" ]; then
     say 'Which platform?\n'
     say '  1) Claude Code           its own marketplace, via the claude CLI\n'
@@ -143,10 +145,13 @@ if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
   fi
 fi
 
-MEMBERS=
-if [ "$SWEEP" = yes ]; then
-  MEMBERS="$SWEEP_PLATFORMS"
-else
+resolve_members() {
+  MEMBERS=
+  if [ "$SWEEP" = yes ]; then
+    MEMBERS="$SWEEP_PLATFORMS"
+    return 0
+  fi
+  local name leaf
   for name in $PLATFORM; do
     for leaf in $(platform_members "$name"); do
       # naming a vendor and one of its halves must not install that half twice
@@ -158,9 +163,7 @@ else
       "$(printf '%s ' $MEMBERS)" >&2
     exit 2
   fi
-fi
-WHERE="--platform $(printf '%s' "$PLATFORM" | tr ' ' ',')"
-[ -z "$TARGET" ] || WHERE="$WHERE --target $TARGET"
+}
 
 if [ "$ACTION" = update ]; then
   say 'updating %s\n' "$REPO"
@@ -188,12 +191,45 @@ paths_for() {
 # Ours = a symlink into this clone, or a copy carrying the marker line / stamp file. Anything else
 # belongs to the user and is never touched.
 installed_by_us() {
-  local path="$1"
+  local path="$1" name target
+  name="$(basename -- "$path")"
   if [ -L "$path" ]; then
-    case "$(readlink -- "$path")" in "$REPO"|"$REPO"/*) return 0 ;; *) return 1 ;; esac
+    target="$(readlink -- "$path")"
+    case "$target" in
+      "$REPO"|"$REPO"/*) return 0 ;;      # into this clone
+    esac
+    # Into SOME clone of open-pr, laid out the way this script lays one out. Someone who deleted
+    # ~/.open-pr by hand still has these links and they are exactly what needs clearing; the shape is
+    # specific enough that a link the user made elsewhere does not match it.
+    case "$target" in
+      */skills/"$name") return 0 ;;
+    esac
+    # The slot itself is ours by name, so any clone of the project linked into it is ours too — and
+    # the default home is ~/.open-pr, whose last segment is not `open-pr`.
+    case "$path" in
+      */plugins/local/open-pr) case "$target" in *open-pr) return 0 ;; esac ;;
+    esac
+    return 1
   fi
   [ -f "$path/$STAMP" ] && return 0
   [ -f "$path/SKILL.md" ] && grep -qF -- "$MARKER" "$path/SKILL.md"
+}
+
+is_installed() {
+  local leaf="$1" kind dir path
+  kind="$(platform_kind "$leaf")"
+  dir="$(platform_dir "$leaf")"
+  if [ "$kind" = marketplace ]; then
+    command -v claude >/dev/null || return 1
+    claude plugin list 2>/dev/null | grep -q 'open-pr' || return 1
+    return 0
+  fi
+  while IFS= read -r path; do
+    { [ -e "$path" ] || [ -L "$path" ]; } && installed_by_us "$path" && return 0
+  done <<EOF
+$(paths_for "$kind" "$dir")
+EOF
+  return 1
 }
 
 require_claude_cli() {
@@ -290,6 +326,41 @@ EOF
   fi
   say 'ready   %s\n' "$dir"
 }
+
+if [ "$ACTION" = uninstall ] && [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
+  found=
+  for leaf in claude $SWEEP_PLATFORMS; do
+    is_installed "$leaf" && found="${found:+$found }$leaf"
+  done
+  [ -n "$found" ] || { say 'open-pr is not installed anywhere this script can see.\n'; exit 0; }
+  if [ -n "$ask_on" ]; then
+    say 'open-pr is installed here:\n'
+    i=0
+    for leaf in $found; do
+      i=$((i + 1))
+      say '  %d) %-16s %s\n' "$i" "$leaf" "$(platform_dir "$leaf")"
+    done
+    say '  a) all of them\n'
+    printf 'Remove which? (numbers, a for all, empty to exit): '
+    read -r choice <"$ask_on" || choice=
+    case "$choice" in
+      a|A) PLATFORM="$found" ;;
+      "") say '\nNothing removed.\n'; exit 0 ;;
+      *)  for n in $(printf '%s' "$choice" | tr ',' ' '); do
+            leaf="$(printf '%s\n' $found | sed -n "${n}p" 2>/dev/null)"
+            [ -n "$leaf" ] || { printf 'install-local.sh: no such choice: %s\n' "$n" >&2; exit 2; }
+            PLATFORM="${PLATFORM:+$PLATFORM }$leaf"
+          done ;;
+    esac
+  else
+    PLATFORM="$found"
+    say 'Removing every install found: %s\n' "$found"
+  fi
+fi
+
+resolve_members
+WHERE="--platform $(printf '%s' "$PLATFORM" | tr ' ' ',')"
+[ -z "$TARGET" ] || WHERE="$WHERE --target $TARGET"
 
 for member in $MEMBERS; do
   kind="$(platform_kind "$member")"

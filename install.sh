@@ -27,13 +27,60 @@ SHIP='/src/ /skills/ /adapters/ /commands/ /.agents/ /.codex-plugin/ /.cursor-pl
 trap '' PIPE
 say() { printf "$@" 2>/dev/null || true; }
 
+# A .git directory alone is not proof it is OURS: someone else's clone parked at ~/.open-pr must be
+# refused rather than have its refs moved and its own install script executed. ssh and https spell the
+# same project differently, so compare owner/repo — a fork keeps the repository name, and matching on
+# that alone would let one through.
+slug() { printf '%s\n' "${1%.git}" | sed 's#.*[:/]\([^/:]*/[^/]*\)$#\1#'; }
+is_our_clone() {
+  local url repo="$2"
+  url="$(git -C "$1" remote get-url origin 2>/dev/null)" || return 1
+  [ "$url" = "$repo" ] || [ "$(slug "$url")" = "$(slug "$repo")" ]
+}
+
 # Everything lives in main so a download cut short cannot execute half a script.
 main() {
   local repo="${OPEN_PR_REPO:-https://github.com/TOMOSIA-VIETNAM/open-pr}"
   local home="${OPEN_PR_HOME:-$HOME/.open-pr}"
   local ref="${OPEN_PR_REF:-}"
+  local uninstalling=no targeted=no arg tmp=
+
+  for arg in "$@"; do
+    case "$arg" in
+      --uninstall) uninstalling=yes ;;
+      --platform|--all|--target) targeted=yes ;;
+    esac
+  done
 
   command -v git >/dev/null || { printf 'install.sh: git is required\n' >&2; exit 1; }
+
+  # Removing needs no update and no particular version: run the installer already on disk, and only
+  # borrow a throwaway clone when there is none — someone who deleted ~/.open-pr by hand still has
+  # skills pointing at nothing, and this is how they get rid of them.
+  if [ "$uninstalling" = yes ]; then
+    local runner=
+    if [ -d "$home/.git" ] && is_our_clone "$home" "$repo"; then
+      runner="$home/scripts/install-local.sh"
+    else
+      tmp="$(mktemp -d)"
+      say 'fetching the uninstaller\n'
+      git clone --quiet --depth 1 --sparse --filter=blob:none "$repo" "$tmp/open-pr" 2>/dev/null \
+        || git clone --quiet --depth 1 "$repo" "$tmp/open-pr"
+      # shellcheck disable=SC2086
+      git -C "$tmp/open-pr" sparse-checkout set --no-cone $SHIP 2>/dev/null || true
+      runner="$tmp/open-pr/scripts/install-local.sh"
+    fi
+    "$runner" "$@"
+    local rc=$?
+    [ -z "$tmp" ] || rm -rf "$tmp"
+    # A run that named no platform meant all of it, so the clone goes too. One that named a platform
+    # leaves the rest installed, and they need this clone to keep working.
+    if [ "$rc" -eq 0 ] && [ "$targeted" = no ] && [ -d "$home/.git" ]; then
+      rm -rf "$home"
+      say 'removed %s\n' "$home"
+    fi
+    exit "$rc"
+  fi
 
   if [ -z "$ref" ]; then
     # Highest release tag, so a one-liner never lands on an unreleased commit.
@@ -41,17 +88,6 @@ main() {
            | awk -F/ '{print $NF}' | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -1)"
     [ -n "$ref" ] || ref=main
   fi
-
-  # A .git directory alone is not proof it is OURS: someone else's clone parked here must fall through
-  # to the refusal below rather than have its refs moved and its own install script executed. ssh and
-  # https spell the same project differently, so compare owner/repo — a fork keeps the repository
-  # name, and matching on that alone would let one through.
-  slug() { printf '%s\n' "${1%.git}" | sed 's#.*[:/]\([^/:]*/[^/]*\)$#\1#'; }
-  is_our_clone() {
-    local url
-    url="$(git -C "$1" remote get-url origin 2>/dev/null)" || return 1
-    [ "$url" = "$repo" ] || [ "$(slug "$url")" = "$(slug "$repo")" ]
-  }
 
   # Ask the remote for THIS ref by name and take what came back. `git clone --branch X --depth 1`
   # narrows the clone's fetch refspec to X, so a plain fetch never learns about any other branch or
@@ -64,7 +100,7 @@ main() {
     git -C "$1" checkout --quiet --detach FETCH_HEAD
   }
 
-  if [ -d "$home/.git" ] && is_our_clone "$home"; then
+  if [ -d "$home/.git" ] && is_our_clone "$home" "$repo"; then
     say 'updating %s to %s\n' "$home" "$ref"
     fetch_ref "$home" || {
       printf 'install.sh: %s has no ref named %s — check the name, or rm -rf %s and run again\n' \
