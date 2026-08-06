@@ -15,10 +15,13 @@
 # This file itself is fetched from the default branch; the tag pinning below applies to the clone it
 # leaves behind, which is what actually runs.
 set -euo pipefail
-# What a running install needs. The rest of the repository — tests, backlogs, the e2e fixture, the
-# docs images — is for people working ON the plugin, and has no business taking room on the disk of
-# someone using it. Cursor's IDE is handed this clone as a plugin directory, so it would index them.
-KEEP='src skills adapters commands scripts .agents .codex-plugin .cursor-plugin'
+# Exactly what a running install needs, and nothing else. The rest of the repository — tests,
+# backlogs, the e2e fixture, the docs images, the tooling under scripts/, and CLAUDE.md, which
+# instructs an agent editing THIS project — has no business on the disk of someone using the plugin.
+# Cursor's IDE is handed this clone as a plugin directory and would index every word of it.
+# An include list, not an exclude list: a file added to the repository stays out until named here.
+SHIP='/src/ /skills/ /adapters/ /commands/ /.agents/ /.codex-plugin/ /.cursor-plugin/
+      /scripts/install-local.sh /gemini-extension.json /plugin.json /LICENSE /README.md'
 
 # Same reason as in install-local.sh: a closed stdout must not abort the install part way.
 trap '' PIPE
@@ -71,15 +74,14 @@ main() {
     exit 1
   else
     say 'cloning %s at %s into %s\n' "$repo" "$ref" "$home"
-    # Cone mode keeps every root file, which is where the manifests live, plus the directories named
-    # above; blob:none leaves the objects behind them unfetched until something asks. Each flag needs
-    # a newer git, and the filter needs a server that offers it, so try the best and fall back.
+    # blob:none leaves the objects behind everything else unfetched until something asks for them.
+    # Both flags need a newer git and the filter needs a server offering it, so fall back in order.
     git clone --quiet --branch "$ref" --depth 1 --sparse --filter=blob:none "$repo" "$home" 2>/dev/null \
       || git clone --quiet --branch "$ref" --depth 1 --sparse "$repo" "$home" 2>/dev/null \
       || git clone --quiet --branch "$ref" --depth 1 "$repo" "$home"
     if [ -d "$home/.git" ]; then
       # shellcheck disable=SC2086
-      git -C "$home" sparse-checkout set --cone $KEEP 2>/dev/null || true
+      git -C "$home" sparse-checkout set --no-cone $SHIP 2>/dev/null || true
     fi
   fi
 

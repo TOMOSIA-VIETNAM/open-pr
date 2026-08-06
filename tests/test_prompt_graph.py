@@ -1087,6 +1087,20 @@ def test_local_installer_covers_every_shim():
     assert not missing, f"install-local.sh never mentions: {missing}"
 
 
+def test_everything_a_run_needs_is_shipped_to_the_user():
+    """install.sh checks out an include list, so a file added to this repository stays off a user's
+    disk until it is named there — which is the point, and also the trap: a new manifest or entry
+    directory that nobody adds to the list is simply missing at run time, on their machine only."""
+    ship = re.search(r"^SHIP='(.*?)'", (REPO / "install.sh").read_text(encoding="utf-8"),
+                     re.S | re.M)
+    assert ship, "install.sh no longer states what it ships"
+    entries = ship.group(1).split()
+    needed = ["src", "skills", "commands", "adapters", "scripts/install-local.sh", *MANIFESTS]
+    missing = [n for n in needed
+               if not any(e.strip("/") == n or n.startswith(e.strip("/") + "/") for e in entries)]
+    assert not missing, f"a run needs these, and install.sh does not ship them: {missing}"
+
+
 def test_bootstrap_owns_no_platform_knowledge():
     """install.sh is the one-command entry: it fetches a clone and hands over. Every platform path
     stays in install-local.sh, or the two drift and the one-liner installs somewhere stale.
