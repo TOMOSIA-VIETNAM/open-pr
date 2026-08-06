@@ -45,11 +45,22 @@ main() {
     [ "$url" = "$repo" ] || [ "$(slug "$url")" = "$(slug "$repo")" ]
   }
 
+  # Ask the remote for THIS ref by name and take what came back. `git clone --branch X --depth 1`
+  # narrows the clone's fetch refspec to X, so a plain fetch never learns about any other branch or
+  # tag, and checking one out fails with "did not match any file(s) known to git". Detaching onto
+  # FETCH_HEAD also spares us guessing whether the ref is a tag or needs an origin/ prefix.
+  fetch_ref() {
+    git -C "$1" fetch --quiet --depth 1 origin "$ref" 2>/dev/null \
+      || git -C "$1" fetch --quiet --tags origin "$ref" \
+      || return 1
+    git -C "$1" checkout --quiet --detach FETCH_HEAD
+  }
+
   if [ -d "$home/.git" ] && is_our_clone "$home"; then
     say 'updating %s to %s\n' "$home" "$ref"
-    git -C "$home" fetch --tags --quiet origin
-    git -C "$home" checkout --quiet "$ref"
-    git -C "$home" pull --ff-only --quiet 2>/dev/null || true
+    fetch_ref "$home" || {
+      printf 'install.sh: %s has no ref named %s — check the name, or rm -rf %s and run again\n' \
+        "$repo" "$ref" "$home" >&2; exit 1; }
   elif [ -e "$home" ]; then
     printf 'install.sh: %s exists and is not a clone of open-pr — move it, nothing was written\n' "$home" >&2
     exit 1
