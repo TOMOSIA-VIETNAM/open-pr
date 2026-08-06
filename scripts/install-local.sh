@@ -234,6 +234,17 @@ EOF
   return 1
 }
 
+# The CLI failing — not installed, not logged in — must not decide the fate of the other platforms
+# in a sweep. Named on its own, the same failure is the answer the user asked for.
+claude_failed() {
+  if [ "$(printf '%s\n' $MEMBERS | wc -w)" -gt 1 ]; then
+    say 'skipped  Claude Code — `claude plugin %s` did not succeed\n' "$1"
+    return 0
+  fi
+  printf 'install-local.sh: `claude plugin %s` failed\n' "$1" >&2
+  exit 1
+}
+
 # Named on its own, a missing CLI is an error; swept up with everything else, it is a line to skip.
 claude_or_skip() {
   command -v claude >/dev/null && return 0
@@ -251,7 +262,7 @@ uninstall_one() {
   local member="$1" kind="$2" dir="$3" path
   if [ "$kind" = marketplace ]; then
     claude_or_skip || return 0
-    claude plugin uninstall "open-pr@open-pr"
+    claude plugin uninstall "open-pr@open-pr" || { claude_failed uninstall; return 0; }
     say '\nRemoved open-pr from Claude Code. The marketplace entry stays; drop it with:\n'
     say '  claude plugin marketplace remove open-pr\n'
     return 0
@@ -275,8 +286,8 @@ install_one() {
 
   if [ "$kind" = marketplace ]; then
     claude_or_skip || return 0
-    claude plugin marketplace add "$MARKETPLACE"
-    claude plugin install "open-pr@open-pr"
+    claude plugin marketplace add "$MARKETPLACE" || { claude_failed "marketplace add"; return 0; }
+    claude plugin install "open-pr@open-pr" || { claude_failed install; return 0; }
     say '\nInstalled into Claude Code. Commands: /open-pr:review /open-pr:fix /open-pr:upgrade /open-pr:clean\n'
     say 'Update:    claude plugin update open-pr@open-pr\n'
     return 0
