@@ -87,7 +87,7 @@ GitLab の MR なら [`glab`](https://gitlab.com/gitlab-org/cli) にログイン
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-何が書き込まれるか、各プラットフォーム自身のインストーラ: [インストール](./docs/install.md)。
+何が書き込まれるか、各プラットフォーム自身のインストーラ: [インストール](./docs/ja/install.md)。
 
 ## 使い方
 

@@ -1,8 +1,9 @@
 description = "Review a GitHub PR / GitLab MR against the conventions learned from that repo, and post exactly one review."
 
 prompt = """
-Locate the plugin: `ls -d ~/.gemini/extensions/*/adapters/root.md 2>/dev/null | head -1`.
+Locate the plugin: `ls -d ~/.gemini/extensions/*/adapters/root.md 2>/dev/null`.
 No output → tell the user open-pr is not installed for Gemini CLI (see its docs/install.md) and STOP.
+More than one → that file's ROOT table says what to do; never pick one silently.
 Read that file → ROOT + this platform's tool names.
 Read ROOT/commands/review.md and obey it VERBATIM, every step, in order. `{{args}}` is what that
 file's `Usage:` block expects.

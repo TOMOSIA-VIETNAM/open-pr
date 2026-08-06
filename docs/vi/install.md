@@ -26,6 +26,9 @@ Script đó không tự làm gì: nó đặt một bản clone vào `~/.open-pr`
 cho `~/.open-pr/scripts/install-local.sh` — đó mới là code cài thật. Cài xong bạn đọc lại nó ở đó,
 đúng thứ vừa chạy, và `--uninstall --all` gỡ sạch.
 
+Tag release pin bản clone, không pin chính dòng lệnh này: `install.sh` được tải từ default branch,
+tức luôn là bản mới nhất của phần tải. Muốn pin luôn nó thì trỏ URL vào một tag thay vì `main`.
+
 Không muốn chạy script tải từ mạng? Cách hai bước bên dưới cho ra đúng kết quả đó, chỉ thêm bước đọc
 ở giữa; phần còn lại của trang này nói mỗi nền tảng nhận được gì.
 

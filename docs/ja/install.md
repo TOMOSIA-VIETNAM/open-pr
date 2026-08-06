@@ -26,6 +26,10 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 `~/.open-pr/scripts/install-local.sh` に処理を渡すだけです。実行後そこで読めます — それが動いたコード
 であり、`--uninstall --all` で元に戻せます。
 
+リリースタグが固定するのは clone であって、この 1 行ではありません: `install.sh` は既定ブランチから
+取得されるため、常に最新の取得スクリプトです。これも固定したい場合は URL を `main` ではなくタグに
+向けてください。
+
 ネットワーク越しのスクリプトを実行したくない場合は、下の 2 手が同じ内容で、間に「読む」が入るだけです。
 このページの残りは、各プラットフォームで最終的に何が入るかの説明です。
 

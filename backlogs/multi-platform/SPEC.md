@@ -110,10 +110,11 @@ Mỗi platform có 2 đường, cả 2 đều official ở mức **cơ chế n�
 | **catalog** | marketplace/extension của platform, tự theo default branch | platform đó đã cho tự host hoặc đã duyệt submit |
 | **local (script)** | user tự clone repo + chạy `scripts/install-local.sh <platform>` | catalog bị nghẽn: chờ duyệt form, hoặc bị gate theo plan/quyền admin |
 
-FORBIDDEN, không ngoại lệ: `curl ... | bash` hay bất kỳ dạng remote-exec mù nào trong docs. Đây là
-tool đi review code người khác; đường cài của nó phải đọc được trước khi chạy. Chuẩn: `git clone`
-**theo tag release** (không phải `main` HEAD) rồi chạy script nằm trong repo đã clone — script đó chịu
-review + CI như mọi file khác.
+One-liner `curl ... | bash` được chấp nhận, với điều kiện nó hỏng an toàn: thân script nằm trong
+`main()` gọi ở dòng cuối (tải thiếu ⇒ không chạy gì), nó không tự cài mà clone **theo tag release**
+rồi `exec` sang script trong bản clone — thứ chịu review + CI và người dùng đọc lại được sau khi cài.
+FORBIDDEN: một one-liner tự thực hiện việc cài ngay trong thân nó, hoặc ghi đè thứ nó không tạo ra.
+Đường hai bước `git clone` + chạy script vẫn được nêu song song cho người muốn đọc trước.
 
 Đường local có 1 lợi thế thật: script biết chính xác nó đặt file ở đâu ⇒ ghi thẳng đường dẫn tuyệt
 đối vào shim, không cần agent resolve `ROOT` lúc chạy. `adapters/root.md` chỉ phục vụ đường catalog.

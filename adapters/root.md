@@ -17,8 +17,11 @@ Resolve with the first method that hits:
 | # | when | how |
 |---|---|---|
 | 1 | whatever sent you here states `ROOT:` + an absolute path | use it verbatim, skip the rest |
-| 2 | you know the absolute path of ANY file in this bundle — this one included | walk up its ancestors → first dir containing `src/commands/review.md` → `ROOT` = that `src` |
-| 3 | else | shell: `for d in ~/.agents/skills/*/src ~/.gemini/extensions/*/src ~/.gemini/antigravity-cli/plugins/*/src ~/.cursor/plugins/*/src ~/.cursor/plugins/local/*/src ~/.codex/plugins/*/src; do [ -f "$d/commands/review.md" ] && printf '%s\n' "$d"; done` |
+| 2 | you know the absolute path of ANY file in this bundle — this one included | RESOLVE SYMLINKS first (`readlink -f`; a skill is usually a link into the clone), then walk up its ancestors → first dir containing `src/commands/review.md` → `ROOT` = that `src` |
+| 3 | else | shell: `for d in ~/.open-pr ~/.agents/skills/open-pr-*/../.. ~/.cursor/skills/open-pr-*/../.. ~/.gemini/config/skills/open-pr-*/../.. ~/.gemini/antigravity-cli/skills/open-pr-*/../.. ~/.gemini/extensions/open-pr ~/.cursor/plugins/local/open-pr ~/.claude/plugins/*/open-pr*; do [ -f "$d/src/commands/review.md" ] && (cd "$d/src" && pwd -P); done \| sort -u` — `pwd -P` before `sort -u`, or one clone reached by four paths counts as four installs |
+
+Method 3's list and `scripts/install-local.sh`'s own target directories are the same set seen from two
+sides; `tests/test_prompt_graph.py` fails when one gains a path the other lacks.
 
 | hits | do |
 |---|---|

@@ -118,8 +118,8 @@ Làm TRƯỚC mọi task viết file, vì 5 đáp án quyết định layout.
   - Kết thúc in: đã ghi gì ở đâu + cách update (`git pull` + chạy lại) + cách gỡ.
   - Test: `shellcheck` sạch; chạy thật với `HOME` trỏ thư mục tạm (scratchpad) rồi verify cây file;
     test `--uninstall` trả về trạng thái ban đầu; test gặp file lạ thì dừng không ghi đè.
-  - FORBIDDEN trong script và trong docs của nó: `curl ... | bash`, `sudo`, ghi ra ngoài các đích đã
-    khai, `git clone` từ `main` khi có tag release.
+  - FORBIDDEN trong script và trong docs của nó: `sudo`, ghi ra ngoài các đích đã khai, `git clone`
+    từ `main` khi có tag release. One-liner được phép, nhưng phải theo đúng ràng buộc ở SPEC.
 - Dependency: MP1, MP3.
 
 ## MP8 — Test chống trôi (đây là cái giữ cam kết "không duplicate")
@@ -194,7 +194,8 @@ Làm TRƯỚC mọi task viết file, vì 5 đáp án quyết định layout.
   - Grep toàn repo: không còn mã task (`MP[0-9]`), `§`, tên file backlog trong file ship được.
   - Mọi lệnh install trong `docs/install.md` là lệnh official, và mỗi lệnh đều có 1 platform đã chạy
     thật hoặc nhãn `untested` đi kèm.
-  - `shellcheck scripts/install-local.sh` sạch; grep toàn repo không có `curl` nào nối vào `bash`/`sh`.
+  - `shellcheck scripts/install-local.sh` + `install.sh` sạch; one-liner duy nhất được phép là cái
+    delegate sang bản clone, và nó phải kết thúc bằng `main "$@"`.
   - Khi form submit marketplace của Cursor được duyệt sau này: đổi nhãn trong `docs/install.md` là
     ĐỦ, không phải viết lại mục hay sửa script — kiểm tra điều này bằng cách đọc lại file.
   - PR mở lên nhánh được user chỉ định, không push `main`.

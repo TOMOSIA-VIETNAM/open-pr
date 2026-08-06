@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One command to install open-pr on Cursor, Codex, Gemini CLI or Antigravity:
+# One command to install open-pr on Claude Code, Cursor, Codex, Gemini CLI or Antigravity:
 #
 #   curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 #
@@ -10,8 +10,14 @@
 # Env: OPEN_PR_HOME (default ~/.open-pr) · OPEN_PR_REF (default: latest release tag; `main` for the
 # development branch) · OPEN_PR_REPO (default: this project on GitHub).
 #
-# Claude Code does not need this: `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`.
+# Claude Code can also install without any of this: `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`.
+#
+# This file itself is fetched from the default branch; the tag pinning below applies to the clone it
+# leaves behind, which is what actually runs.
 set -euo pipefail
+# Same reason as in install-local.sh: a closed stdout must not abort the install part way.
+trap '' PIPE
+say() { printf "$@" 2>/dev/null || true; }
 
 # Everything lives in main so a download cut short cannot execute half a script.
 main() {
@@ -28,8 +34,18 @@ main() {
     [ -n "$ref" ] || ref=main
   fi
 
-  if [ -d "$home/.git" ]; then
-    printf 'updating %s to %s\n' "$home" "$ref"
+  # A .git directory alone is not proof it is OURS: someone else's clone parked here must fall through
+  # to the refusal below rather than have its refs moved. ssh and https spellings of the same project
+  # differ, so the repository name decides when the URLs are not identical.
+  is_our_clone() {
+    local url
+    url="$(git -C "$1" remote get-url origin 2>/dev/null)" || return 1
+    [ "$url" = "$repo" ] && return 0
+    [ "$(basename "${url%.git}")" = "$(basename "${repo%.git}")" ]
+  }
+
+  if [ -d "$home/.git" ] && is_our_clone "$home"; then
+    say 'updating %s to %s\n' "$home" "$ref"
     git -C "$home" fetch --tags --quiet origin
     git -C "$home" checkout --quiet "$ref"
     git -C "$home" pull --ff-only --quiet 2>/dev/null || true
@@ -37,21 +53,21 @@ main() {
     printf 'install.sh: %s exists and is not a clone of open-pr — move it, nothing was written\n' "$home" >&2
     exit 1
   else
-    printf 'cloning %s at %s into %s\n' "$repo" "$ref" "$home"
+    say 'cloning %s at %s into %s\n' "$repo" "$ref" "$home"
     git clone --quiet --branch "$ref" --depth 1 "$repo" "$home"
   fi
 
   if [ ! -x "$home/scripts/install-local.sh" ]; then
     # The newest release predates this installer. Say so rather than failing on a missing path.
-    printf 'release %s has no local installer yet — switching to the development branch\n' "$ref"
+    say 'release %s has no local installer yet — switching to the development branch\n' "$ref"
     git -C "$home" fetch --quiet origin main
     git -C "$home" checkout --quiet FETCH_HEAD
     [ -x "$home/scripts/install-local.sh" ] || {
       printf 'install.sh: %s/scripts/install-local.sh is missing\n' "$home" >&2; exit 1; }
   fi
 
-  printf '\nInstalled the plugin files. Next, the platform you run it on.\n'
-  printf 'Read what does the rest: %s/scripts/install-local.sh\n\n' "$home"
+  say '\nInstalled the plugin files. Next, the platform you run it on.\n'
+  say 'Read what does the rest: %s/scripts/install-local.sh\n\n' "$home"
   exec "$home/scripts/install-local.sh" "$@"
 }
 

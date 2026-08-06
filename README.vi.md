@@ -88,7 +88,7 @@ Một lệnh cài được ở mọi nơi, kể cả Claude Code — với các 
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Nó ghi những gì, và trình cài riêng của từng nền tảng: [Cài đặt](./docs/install.md).
+Nó ghi những gì, và trình cài riêng của từng nền tảng: [Cài đặt](./docs/vi/install.md).
 
 ## Sử dụng
 

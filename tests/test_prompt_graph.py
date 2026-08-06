@@ -1030,6 +1030,37 @@ def test_manifests_agree_on_name_and_declare_one_version():
         f"a version belongs in gemini-extension.json alone, found in: {versioned}"
 
 
+def test_the_declared_version_keeps_up_with_the_release_tags():
+    """The one declared version is the one nobody thinks to bump. Tags are what say which release a
+    checkout is, so the manifest may equal the newest tag or run ahead of it (a bump prepared for the
+    next release) — never behind, which is what shipping a stale number looks like."""
+    tags = subprocess.run(["git", "tag", "--list", "v[0-9]*"], cwd=REPO,
+                          capture_output=True, text=True).stdout.split()
+    if not tags:
+        return  # a shallow clone with no tags cannot judge this
+    def parts(v):
+        return tuple(int(x) for x in re.match(r"v?(\d+)\.(\d+)\.(\d+)", v).groups())
+    newest = max(parts(t) for t in tags if re.match(r"v?\d+\.\d+\.\d+", t))
+    declared = parts(json.loads((REPO / "gemini-extension.json").read_text(encoding="utf-8"))["version"])
+    assert declared >= newest, (
+        f"gemini-extension.json says {declared}, newest release tag is {newest} — bump it")
+
+
+def test_install_paths_have_one_owner():
+    """Where a platform keeps its skills is stated twice: install-local.sh writes there, and the ROOT
+    fallback in adapters/root.md looks there. They drifted apart once already, leaving the fallback
+    unable to find any skills install."""
+    script = (REPO / "scripts" / "install-local.sh").read_text(encoding="utf-8")
+    targets = re.findall(r'printf \'%s\\n\' "\$HOME/([^"]+)"', script)
+    assert targets, "install-local.sh no longer states its target directories"
+    # the search command itself, not the prose around it: a path named in a nearby table would
+    # otherwise satisfy this while the fallback still finds nothing
+    row = [l for l in text(ADAPTER_ROOT).splitlines() if l.startswith("| 3 |")]
+    assert len(row) == 1, "adapters/root.md has no single last-resort ROOT search"
+    missing = [t for t in targets if t not in row[0]]
+    assert not missing, f"the ROOT fallback cannot find installs in: {missing}"
+
+
 def test_local_installer_covers_every_shim():
     """It discovers skills by glob, but its closing message names them. A fifth command must
     show up there too, or users never learn it exists."""

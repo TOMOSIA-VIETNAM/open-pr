@@ -73,6 +73,7 @@ SWEEP=no
 TARGET=
 MODE=link
 ACTION=install
+KIND=          # a sweep visits every platform, so it resolves no single one
 
 while [ $# -gt 0 ]; do
   case "$1" in
