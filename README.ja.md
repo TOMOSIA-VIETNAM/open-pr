@@ -63,31 +63,20 @@ flowchart LR
 
 ## インストール
 
+[Claude Code](https://claude.ai/code):
+
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-更新:
-
-```bash
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
-/reload-plugins
-/open-pr:upgrade
-```
-
-ほかに [Claude Code](https://claude.ai/code) と、GitHub の PR なら [`gh`](https://cli.github.com/)、
-GitLab の MR なら [`glab`](https://gitlab.com/gitlab-org/cli) にログイン済みであることが必要です —
-レビューはそのアカウントで投稿されます。
-
-1 コマンドでどこにでも入ります。Claude Code も含みます（ほかのプラットフォームはまだ実験的）:
+Cursor・Codex・Gemini CLI・Antigravity:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-何が書き込まれるか、各プラットフォーム自身のインストーラ: [インストール](./docs/ja/install.md)。
+アンインストール・更新・プラットフォーム別のコマンド: [インストール](./docs/ja/install.md)。
 
 ## 使い方
 

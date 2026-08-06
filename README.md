@@ -67,31 +67,20 @@ Full size, and the same review in the language each repo picks:
 
 ## Install
 
+[Claude Code](https://claude.ai/code):
+
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-Update:
-
-```bash
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
-/reload-plugins
-/open-pr:upgrade
-```
-
-You also need [Claude Code](https://claude.ai/code), plus [`gh`](https://cli.github.com/) for GitHub
-PRs or [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab MRs, logged in — the review is posted
-through that account.
-
-One command installs it anywhere, Claude Code included — still experimental on the others:
+Cursor, Codex, Gemini CLI, Antigravity:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-What it writes, and each platform's own installer: [Install](./docs/install.md).
+Uninstall, update, per-platform commands: [Install](./docs/install.md).
 
 ## Usage
 
