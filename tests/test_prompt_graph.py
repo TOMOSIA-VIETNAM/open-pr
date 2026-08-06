@@ -425,9 +425,6 @@ def test_posted_output_hardcodes_no_english_connective():
     assert not bad, "English pinned into posted output:\n  " + "\n  ".join(bad)
 
 
-SEVERITY_HEADINGS = {"#### 🔴 MUST FIX", "#### 🟠 SHOULD FIX", "#### 🔵 SUGGESTION", "#### 📝 NOTE"}
-
-
 def test_overview_headings_other_than_severity_follow_the_output_language():
     """The overview template is copied onto the PR heading by heading. The severity ones
     are a fixed vocabulary and stay as written; every other heading is prose, and one left
