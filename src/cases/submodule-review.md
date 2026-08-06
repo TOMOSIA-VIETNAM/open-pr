@@ -88,7 +88,8 @@ exactly 1 for the submodule PR, never repeated.
 ## Presenting output
 
 2 reviews on 2 different PRs (possibly 2 repos) → display in chat AND in the final summary CLEARLY
-SPLIT, referring to each by PR NUMBER. FORBIDDEN: relative labels like "main PR"/"secondary PR":
+SPLIT, referring to each by PR NUMBER, headings IN THE CHAT LANGUAGE. FORBIDDEN: relative labels like
+"main PR"/"secondary PR":
 
 ```
 ### Review of PR #<n-main> (<owner>/<repo>)

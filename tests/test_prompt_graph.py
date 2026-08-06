@@ -425,6 +425,24 @@ def test_posted_output_hardcodes_no_english_connective():
     assert not bad, "English pinned into posted output:\n  " + "\n  ".join(bad)
 
 
+SEVERITY_HEADINGS = {"#### 🔴 MUST FIX", "#### 🟠 SHOULD FIX", "#### 🔵 SUGGESTION", "#### 📝 NOTE"}
+
+
+def test_overview_headings_other_than_severity_follow_the_output_language():
+    """The overview template is copied onto the PR heading by heading. The severity ones
+    are a fixed vocabulary and stay as written; every other heading is prose, and one left
+    as a literal shipped `Files skipped for detailed review` above a Vietnamese body.
+
+    A prose heading in the template must therefore say which language it takes.
+    """
+    block = re.search(r"### 🤖【AI REVIEW】Overview\n(.*?)\n```",
+                      text(SRC / "commands" / "review.md"), re.S)
+    assert block, "the overview template block moved — this guard reads it by its heading"
+    bad = [ln for ln in block.group(1).splitlines()
+           if ln.startswith("#### ") and ln not in SEVERITY_HEADINGS and "OUTPUT LANGUAGE" not in ln]
+    assert not bad, "heading pinned in one language inside the overview:\n  " + "\n  ".join(bad)
+
+
 def test_no_harness_auto_exec_syntax():
     """`` !`cmd` `` in a slash-command body is executed by the harness before the model
     ever sees the file. A `!` used as logical NOT next to a backticked field name reads

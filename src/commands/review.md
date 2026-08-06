@@ -238,7 +238,7 @@ no finding below does. Nothing such ⇒ stop after the reply instructions.
 #### 🔵 SUGGESTION
 #### 📝 NOTE
 
-#### Files skipped for detailed review
+#### <files skipped, IN THE OUTPUT LANGUAGE>
 - `<path>` — <short reason, e.g. "diff ~35KB, looks like seed/dump data">
 ```
 
@@ -246,11 +246,11 @@ Only FILE findings get the full Fix + path structure; LINE stays inline-only. Be
 `#### <emoji>` heading: ≥1 FILE finding at EXACTLY that severity? No — even if a LINE finding has it,
 even for 📝 → drop the heading. FORBIDDEN: an empty heading, writing "no issues", or a count of N.
 
-A heading carries emoji + label, verbatim as above — it groups findings for someone skimming the PR
-body, who needs the severity named. An individual finding carries the emoji ALONE (Step 7), heading or
-not: there the emoji sits against a description that already says what the problem is.
+A SEVERITY heading carries emoji + label, verbatim as above — it groups findings for someone skimming
+the PR body, who needs the severity named. An individual finding carries the emoji ALONE (Step 7),
+heading or not: there the emoji sits against a description that already says what the problem is.
 
-**Files skipped for detailed review** = the content of `<worktree>/.review-skipped.md` (`Read` it again
+The files-skipped section = the content of `<worktree>/.review-skipped.md` (`Read` it again
 while writing this Step, don't rely on context) → ALWAYS last in the overview WHEN that file exists
 non-empty, even under LGTM, so the user knows what to check personally. Missing/empty → drop the
 heading, never write "none".
