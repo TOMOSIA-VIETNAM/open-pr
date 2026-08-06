@@ -1,6 +1,6 @@
 ---
 name: open-pr-upgrade
-description: Bring every per-repo open-pr config found below the current directory up to the schema this build expects. Use when a command reports a config too old, or after updating the plugin. Takes no PR URL.
+description: Bring every per-repo open-pr config below the current directory up to the schema this build expects. Use after updating the plugin, or when a command reports a config too old. Takes no URL.
 ---
 
 1. `Read` `../../adapters/root.md` (relative to this file) → `ROOT` + this platform's tool names.

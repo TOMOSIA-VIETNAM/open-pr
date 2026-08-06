@@ -263,6 +263,7 @@ uninstall_one() {
   if [ "$kind" = marketplace ]; then
     claude_or_skip || return 0
     claude plugin uninstall "open-pr@open-pr" || { claude_failed uninstall; return 0; }
+    removed=$((removed + 1))
     say '\nRemoved open-pr from Claude Code. The marketplace entry stays; drop it with:\n'
     say '  claude plugin marketplace remove open-pr\n'
     return 0

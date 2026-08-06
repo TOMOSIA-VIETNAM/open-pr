@@ -1,8 +1,8 @@
 # Cài đặt
 
-Claude Code là nền tảng plugin này được xây và test trên đó. Cursor, Codex, Gemini CLI và Antigravity
-chạy đúng cùng một review từ cùng những file đó — chỉ khác cái cửa để đi vào, và đó là nội dung trang
-này.
+Claude Code, Cursor, Codex, Gemini CLI và Antigravity chạy đúng cùng một review từ cùng những file
+đó. Chỉ khác cái cửa để đi vào, và đó là nội dung trang này; bảng bên dưới nói từng nền tảng đã được
+test tới đâu.
 
 Dù dùng nền tảng nào, bạn vẫn cần [`gh`](https://cli.github.com/) cho PR GitHub hoặc
 [`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã cài và đã login. Review được post bằng

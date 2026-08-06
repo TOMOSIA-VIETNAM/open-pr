@@ -1,6 +1,6 @@
 ---
 name: open-pr-clean
-description: Remove the git worktrees that open-pr review checked PR code out into — each is a full checkout on disk. Use when reclaiming disk space after reviews. Asks before deleting; takes no PR URL.
+description: Remove the git worktrees open-pr review checked PR code out into, each a full checkout on disk. Use when reclaiming disk space after reviews. Asks first; takes no URL.
 ---
 
 1. `Read` `../../adapters/root.md` (relative to this file) → `ROOT` + this platform's tool names.

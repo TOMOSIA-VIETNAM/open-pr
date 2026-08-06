@@ -1,8 +1,8 @@
 # Install
 
-Claude Code is the platform this plugin is built and tested on. Cursor, Codex, Gemini CLI and
-Antigravity run the same review from the same files — they only enter through a different door, which
-is what this page is about.
+Claude Code, Cursor, Codex, Gemini CLI and Antigravity run the same review from the same files.
+They only enter through a different door, which is what this page is about; the table below says how
+far each one has been tested.
 
 Whatever the platform, you also need [`gh`](https://cli.github.com/) for GitHub PRs or
 [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab MRs, installed and logged in. The review is

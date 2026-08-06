@@ -1,6 +1,6 @@
 ---
 name: open-pr-fix
-description: Act on the findings a review left on a PR or MR — take or decline each by severity, edit the code to match the project, one commit, then reply on the PR. Use when handed a PR or MR URL that has already been reviewed. Edits real code in the current working directory.
+description: Act on the findings a review left on a PR or MR: take or decline each by severity, edit the code, one commit, reply. Use when handed a PR or MR URL that has already been reviewed. Edits real code.
 ---
 
 1. `Read` `../../adapters/root.md` (relative to this file) → `ROOT` + this platform's tool names.

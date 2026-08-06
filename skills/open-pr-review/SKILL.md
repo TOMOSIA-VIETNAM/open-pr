@@ -1,6 +1,6 @@
 ---
 name: open-pr-review
-description: Review a GitHub Pull Request or GitLab Merge Request against the conventions learned from that repo, then post exactly one review with findings tagged by severity. Use when handed a PR or MR URL to review; never edits code.
+description: Review a GitHub Pull Request or GitLab Merge Request against the conventions that repo has taught this plugin, and post exactly one review. Use when handed a PR or MR URL; never edits code.
 ---
 
 1. `Read` `../../adapters/root.md` (relative to this file) → `ROOT` + this platform's tool names.

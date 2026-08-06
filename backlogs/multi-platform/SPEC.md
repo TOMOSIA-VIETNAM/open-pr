@@ -142,8 +142,8 @@ rõ trạng thái đó. FORBIDDEN: bịa ra cách cài lách, hoặc trình bày
 
 ### 4.5 README sạch, install tách docs riêng
 
-README (3 ngôn ngữ) giữ đúng **1 đường cài mặc định là Claude Code** + 1 dòng trỏ
-`docs/install.md`. Mọi platform khác, prereq, cách update, hạn chế từng platform → nằm hết trong
+README (3 ngôn ngữ) giữ đường cài Claude Code sẵn có, cộng đúng 1 khối one-liner (mục "Chỉ dùng đường
+cài OFFICIAL") + 1 dòng trỏ `docs/install.md`. Mọi platform khác, prereq, cách update, hạn chế từng platform → nằm hết trong
 `docs/install.md`. Lý do: README là chỗ trả lời "có nên dùng cái này không", `docs/` trả lời "cài
 chính xác thế nào" — đúng phân vai đã có của repo.
 

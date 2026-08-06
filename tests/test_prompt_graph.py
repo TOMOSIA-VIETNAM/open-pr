@@ -902,8 +902,10 @@ def test_every_scenario_role_resolves():
 
 
 def test_roles_cover_every_shipped_file():
-    """Every file a run can load belongs to some role, or a split could shrink a
-    file to zero measured cost without anyone noticing."""
+    """Every file a Claude Code run can load belongs to some role, or a split could shrink a
+    file to zero measured cost without anyone noticing. Scope is `src/`: the adapter layer ships and
+    is read at run time on other platforms, but no Claude scenario loads it, so it carries no
+    ceiling here."""
     covered = {c for cands in ROLES.values() for c in cands}
     shipped = {rel(p) for p in md_files()} - NEVER_LOADED
     # templates and vendor groups are represented by samples, not exhaustively
@@ -997,7 +999,7 @@ def test_shims_stay_short():
 def test_only_the_adapter_names_platforms():
     """One file knows what Cursor, Codex, Gemini CLI and Antigravity are called and where they
     install. Spread that knowledge and every platform becomes a place to forget."""
-    named = ("cursor", "codex", "gemini", "antigravity")
+    named = ("claude", "cursor", "codex", "gemini", "antigravity")
     leaked = {}
     for f in (*shim_files(), *sorted(TOMLS.glob("*.toml"))):
         body = text(f).lower()
