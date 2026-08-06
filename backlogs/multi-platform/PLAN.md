@@ -159,8 +159,8 @@ Làm TRƯỚC mọi task viết file, vì 5 đáp án quyết định layout.
   - Cursor: nếu MP5 xác nhận import marketplace bị gate theo plan/quyền admin, hoặc form submit lên
     marketplace công khai còn đang chờ duyệt → local install là đường được nêu TRƯỚC cho user cá nhân.
   - Cấm chữ "unofficial"/"không chính thống" cho local install — cơ chế nạp do platform công bố.
-  - Lệnh clone trong docs phải là `git clone --branch <tag>` (không `main` HEAD) và tuyệt đối không
-    `curl ... | bash`.
+  - Lệnh clone trong docs phải là `git clone --branch <tag>` (không `main` HEAD). One-liner
+    `curl ... | bash` được chấp nhận theo đúng điều kiện SPEC nêu.
   - Codex: ghi đúng trạng thái publish lên Plugin Directory và cơ chế marketplace repo official thay
     thế. Không trình bày workaround như đường chuẩn.
   - Prereq viết 1 lần cho mọi platform: `gh` (GitHub) / `glab` (GitLab) đã login — review post bằng

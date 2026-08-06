@@ -35,13 +35,14 @@ main() {
   fi
 
   # A .git directory alone is not proof it is OURS: someone else's clone parked here must fall through
-  # to the refusal below rather than have its refs moved. ssh and https spellings of the same project
-  # differ, so the repository name decides when the URLs are not identical.
+  # to the refusal below rather than have its refs moved and its own install script executed. ssh and
+  # https spell the same project differently, so compare owner/repo — a fork keeps the repository
+  # name, and matching on that alone would let one through.
+  slug() { printf '%s\n' "${1%.git}" | sed 's#.*[:/]\([^/:]*/[^/]*\)$#\1#'; }
   is_our_clone() {
     local url
     url="$(git -C "$1" remote get-url origin 2>/dev/null)" || return 1
-    [ "$url" = "$repo" ] && return 0
-    [ "$(basename "${url%.git}")" = "$(basename "${repo%.git}")" ]
+    [ "$url" = "$repo" ] || [ "$(slug "$url")" = "$(slug "$repo")" ]
   }
 
   if [ -d "$home/.git" ] && is_our_clone "$home"; then
