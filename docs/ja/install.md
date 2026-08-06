@@ -189,8 +189,16 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 同じベンダーでも IDE と CLI は別のディレクトリを読むため、この 2 つの名前で両方をカバーします。片方だけ
 なら `cursor-ide`、`cursor-cli`、`antigravity-cli`、`antigravity-ide`。
 
+複数同時も可能です。カンマ区切りかフラグの繰り返し、Claude Code を除く全部なら `all`:
+
+```bash
+~/.open-pr/scripts/install-local.sh --platform cursor,shared
+~/.open-pr/scripts/install-local.sh --platform all
+```
+
 `--platform` を省くと対話で訊きます: Claude Code・Codex または Gemini CLI・Cursor・Antigravity・
-どれでもない（何も書かずに終了。空欄で Enter も同じ）。その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らない
+どれでもない。数字を複数（`2 3`）入れれば複数選べ、空欄の Enter なら何も書かずに終了します。1 つでも
+不正な番号があれば、何も設置せずに停止します。その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らない
 プラットフォーム向けの `--copy`、clone を pull してから入れ直す `--update`、設置したものだけを消す
 `--uninstall`。`--uninstall --all` なら上記すべてのプラットフォームを一掃するので、4 か所に入れても
 アンインストールは 1 コマンドで済みます。

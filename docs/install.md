@@ -189,8 +189,16 @@ so one run covers both. The other two platforms have a place of their own:
 A vendor's IDE and CLI read different directories, so those two names cover both of theirs. Want one
 only: `cursor-ide`, `cursor-cli`, `antigravity-cli`, `antigravity-ide`.
 
+Several at once, comma-separated or repeated, and `all` for every platform except Claude Code:
+
+```bash
+~/.open-pr/scripts/install-local.sh --platform cursor,shared
+~/.open-pr/scripts/install-local.sh --platform all
+```
+
 Leave `--platform` out and it asks: Claude Code · Codex or Gemini CLI · Cursor · Antigravity · none
-of these, which exits without writing anything (so does an empty answer). Other flags: `--target DIR` to install anywhere else, `--copy` if
+of these. Answer with several numbers (`2 3`) to take more than one, or an empty line to exit having
+written nothing. One bad number and it stops before installing anything. Other flags: `--target DIR` to install anywhere else, `--copy` if
 your platform will not follow symlinks, `--update` to pull this clone and reinstall in one step,
 `--uninstall` to remove what it installed — add `--all` to that and it sweeps every platform above,
 so installing in four places still takes one command to undo.

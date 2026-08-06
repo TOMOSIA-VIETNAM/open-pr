@@ -25,7 +25,9 @@ usage() {
 Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
                                 [--update | --uninstall [--all]]
 
-  --platform NAME  claude       Claude Code, through its own `claude plugin` CLI
+  --platform NAME  repeatable, or comma-separated: --platform cursor,shared
+                   all          every platform below except Claude Code, which its CLI owns
+                   claude       Claude Code, through its own `claude plugin` CLI
                    shared       Codex + Gemini CLI       ~/.agents/skills
                    cursor       the IDE and the CLI      both directories below
                      cursor-ide     the plugin           ~/.cursor/plugins/local/open-pr
@@ -50,6 +52,7 @@ EOF
 # A platform is one directory to write, or a vendor's IDE and CLI taken together.
 platform_members() {
   case "$1" in
+    all) printf '%s\n' "$SWEEP_PLATFORMS" ;;
     cursor) printf 'cursor-ide cursor-cli\n' ;;
     antigravity) printf 'antigravity-cli antigravity-ide\n' ;;
     claude|shared|cursor-ide|cursor-cli|antigravity-cli|antigravity-ide) printf '%s\n' "$1" ;;
@@ -89,7 +92,8 @@ ACTION=install
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --platform) [ $# -ge 2 ] || { usage >&2; exit 2; }; PLATFORM="$2"; shift 2 ;;
+    --platform) [ $# -ge 2 ] || { usage >&2; exit 2; }
+                PLATFORM="${PLATFORM:+$PLATFORM }$(printf '%s' "$2" | tr ',' ' ')"; shift 2 ;;
     --target) [ $# -ge 2 ] || { usage >&2; exit 2; }; TARGET="$2"; shift 2 ;;
     --copy) MODE=copy; shift ;;
     --uninstall) ACTION=uninstall; shift ;;
@@ -118,16 +122,20 @@ if [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
     say '  3) Cursor                IDE and CLI\n'
     say '  4) Antigravity           IDE and CLI\n'
     say '  5) None of these         exit without writing anything\n'
-    printf 'Enter 1-5 (empty to exit): '
+    printf 'Enter 1-5, several at once (2 3) or empty to exit: '
     read -r choice <"$ask_on" || choice=
-    case "$choice" in
-      1) PLATFORM=claude ;;
-      2) PLATFORM=shared ;;
-      3) PLATFORM=cursor ;;
-      4) PLATFORM=antigravity ;;
-      5|"") say '\nNothing installed. Re-run when you know which platform, or pass --platform.\n'; exit 0 ;;
-      *) printf 'install-local.sh: not one of 1-5\n' >&2; exit 2 ;;
-    esac
+    for n in $(printf '%s' "$choice" | tr ',' ' '); do
+      case "$n" in
+        1) PLATFORM="${PLATFORM:+$PLATFORM }claude" ;;
+        2) PLATFORM="${PLATFORM:+$PLATFORM }shared" ;;
+        3) PLATFORM="${PLATFORM:+$PLATFORM }cursor" ;;
+        4) PLATFORM="${PLATFORM:+$PLATFORM }antigravity" ;;
+        5) PLATFORM=; break ;;
+        *) printf 'install-local.sh: not one of 1-5: %s\n' "$n" >&2; exit 2 ;;
+      esac
+    done
+    [ -n "$PLATFORM" ] || {
+      say '\nNothing installed. Re-run when you know which platform, or pass --platform.\n'; exit 0; }
   else
     PLATFORM=shared
     say 'No terminal to ask on — installing the skills for Codex and Gemini CLI.\n'
@@ -139,15 +147,20 @@ MEMBERS=
 if [ "$SWEEP" = yes ]; then
   MEMBERS="$SWEEP_PLATFORMS"
 else
-  MEMBERS="$(platform_members "$PLATFORM")"
+  for name in $PLATFORM; do
+    for leaf in $(platform_members "$name"); do
+      # naming a vendor and one of its halves must not install that half twice
+      case " $MEMBERS " in *" $leaf "*) ;; *) MEMBERS="${MEMBERS:+$MEMBERS }$leaf" ;; esac
+    done
+  done
   if [ -n "$TARGET" ] && [ "$(printf '%s\n' $MEMBERS | wc -w)" -gt 1 ]; then
-    printf 'install-local.sh: --target takes one platform; use %s\n' \
+    printf 'install-local.sh: --target takes one platform; named: %s\n' \
       "$(printf '%s ' $MEMBERS)" >&2
     exit 2
   fi
 fi
-WHERE="--platform $PLATFORM"
-[ -z "$TARGET" ] || WHERE="--platform $PLATFORM --target $TARGET"
+WHERE="--platform $(printf '%s' "$PLATFORM" | tr ' ' ',')"
+[ -z "$TARGET" ] || WHERE="$WHERE --target $TARGET"
 
 if [ "$ACTION" = update ]; then
   say 'updating %s\n' "$REPO"
