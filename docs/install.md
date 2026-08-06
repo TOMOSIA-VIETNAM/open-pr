@@ -100,10 +100,10 @@ repository's URL. Cursor reads `.cursor-plugin/marketplace.json` and tracks the 
 then on. Creating a team marketplace is an admin action on Teams and Enterprise plans, so on a
 personal account use the local route below.
 
-Local: `scripts/install-local.sh --platform cursor` puts the whole plugin under
+Local: `scripts/install-local.sh --platform cursor` covers both. The IDE gets the whole plugin under
 `~/.cursor/plugins/local/open-pr`, the directory Cursor reserves for exactly this, so it appears in
-the plugin list with a toggle like any other. Reload the window afterwards
-(`Developer: Reload Window`).
+the plugin list with a toggle like any other — reload the window afterwards
+(`Developer: Reload Window`). The CLI gets the skills of its own, per the paragraph above.
 
 Either way the four commands show up as `/open-pr-review`, `/open-pr-fix`, `/open-pr-upgrade`,
 `/open-pr-clean`.
@@ -162,7 +162,7 @@ IDE — it has no plugin installer, so use the local route, which writes to the 
 globally (`~/.gemini/config/skills`):
 
 ```bash
-~/.open-pr/scripts/install-local.sh --platform antigravity-ide
+~/.open-pr/scripts/install-local.sh --platform antigravity   # covers the CLI's directory too
 ```
 
 Either way skills become slash commands: `/open-pr-review` and the other three.
@@ -182,13 +182,15 @@ By default it installs the four skills into `~/.agents/skills/`, which Codex and
 so one run covers both. The other two platforms have a place of their own:
 
 ```bash
-~/.open-pr/scripts/install-local.sh --platform cursor            # the whole plugin, in Cursor's local plugin dir
-~/.open-pr/scripts/install-local.sh --platform cursor-cli        # skills, in ~/.cursor/skills
-~/.open-pr/scripts/install-local.sh --platform antigravity       # skills, in ~/.gemini/antigravity-cli/skills
-~/.open-pr/scripts/install-local.sh --platform antigravity-ide   # skills, in ~/.gemini/config/skills
+~/.open-pr/scripts/install-local.sh --platform cursor        # the IDE's plugin dir and the CLI's skills dir
+~/.open-pr/scripts/install-local.sh --platform antigravity   # the CLI's skills dir and the IDE's
 ```
 
-Leave `--platform` out and it asks. Other flags: `--target DIR` to install anywhere else, `--copy` if
+A vendor's IDE and CLI read different directories, so those two names cover both of theirs. Want one
+only: `cursor-ide`, `cursor-cli`, `antigravity-cli`, `antigravity-ide`.
+
+Leave `--platform` out and it asks: Claude Code · Codex or Gemini CLI · Cursor · Antigravity · none
+of these, which exits without writing anything (so does an empty answer). Other flags: `--target DIR` to install anywhere else, `--copy` if
 your platform will not follow symlinks, `--update` to pull this clone and reinstall in one step,
 `--uninstall` to remove what it installed — add `--all` to that and it sweeps every platform above,
 so installing in four places still takes one command to undo.

@@ -99,9 +99,10 @@ repository này. Cursor đọc `.cursor-plugin/marketplace.json` và từ đó t
 marketplace là hành động của admin trên plan Teams và Enterprise, nên với account cá nhân hãy dùng
 đường local bên dưới.
 
-Local: `scripts/install-local.sh --platform cursor` đặt nguyên plugin vào
+Local: `scripts/install-local.sh --platform cursor` phủ cả hai. IDE nhận nguyên plugin vào
 `~/.cursor/plugins/local/open-pr`, đúng thư mục Cursor dành riêng cho việc này, nên nó hiện trong danh
-sách plugin kèm nút bật/tắt như mọi plugin khác. Xong thì reload cửa sổ (`Developer: Reload Window`).
+sách plugin kèm nút bật/tắt như mọi plugin khác — xong thì reload cửa sổ (`Developer: Reload Window`).
+CLI nhận skill riêng như đoạn trên.
 
 Cách nào thì bốn command cũng hiện ra dưới dạng `/open-pr-review`, `/open-pr-fix`, `/open-pr-upgrade`,
 `/open-pr-clean`.
@@ -159,7 +160,7 @@ IDE — không có trình cài plugin, nên dùng đường local, script ghi v�
 global (`~/.gemini/config/skills`):
 
 ```bash
-~/.open-pr/scripts/install-local.sh --platform antigravity-ide
+~/.open-pr/scripts/install-local.sh --platform antigravity   # phủ luôn thư mục của CLI
 ```
 
 Cách nào thì skill cũng thành slash command: `/open-pr-review` và ba cái còn lại.
@@ -179,13 +180,15 @@ Mặc định script cài bốn skill vào `~/.agents/skills/`, nơi Codex và G
 chạy phục vụ cả hai. Hai nền tảng còn lại có chỗ riêng:
 
 ```bash
-~/.open-pr/scripts/install-local.sh --platform cursor            # nguyên plugin, vào thư mục local plugin của Cursor
-~/.open-pr/scripts/install-local.sh --platform cursor-cli        # skill, vào ~/.cursor/skills
-~/.open-pr/scripts/install-local.sh --platform antigravity       # skill, vào ~/.gemini/antigravity-cli/skills
-~/.open-pr/scripts/install-local.sh --platform antigravity-ide   # skill, vào ~/.gemini/config/skills
+~/.open-pr/scripts/install-local.sh --platform cursor        # thư mục plugin của IDE và thư mục skill của CLI
+~/.open-pr/scripts/install-local.sh --platform antigravity   # thư mục skill của CLI và của IDE
 ```
 
-Bỏ `--platform` thì script tự hỏi. Cờ khác: `--target DIR` cài vào chỗ bất kỳ, `--copy` nếu nền tảng
+IDE và CLI của cùng một hãng đọc hai thư mục khác nhau, nên hai tên trên phủ cả hai. Muốn từng cái
+riêng: `cursor-ide`, `cursor-cli`, `antigravity-cli`, `antigravity-ide`.
+
+Bỏ `--platform` thì script tự hỏi: Claude Code · Codex hoặc Gemini CLI · Cursor · Antigravity · không
+chọn cái nào, thoát mà không ghi gì (bỏ trống rồi Enter cũng vậy). Cờ khác: `--target DIR` cài vào chỗ bất kỳ, `--copy` nếu nền tảng
 của bạn không đi theo symlink, `--update` để pull bản clone rồi cài lại trong một bước, `--uninstall`
 để xoá đúng những gì nó đã cài — thêm `--all` thì nó quét mọi nền tảng ở trên, cài 4 chỗ vẫn gỡ bằng
 một lệnh.

@@ -101,10 +101,10 @@ IDE の場合:
 追います。team marketplace の作成は Teams・Enterprise プランの admin 操作なので、個人アカウントでは
 下のローカル経路を使ってください。
 
-ローカル: `scripts/install-local.sh --platform cursor` はプラグイン全体を
+ローカル: `scripts/install-local.sh --platform cursor` が両方を賄います。IDE にはプラグイン全体を
 `~/.cursor/plugins/local/open-pr` に置きます。Cursor がまさにこの用途に確保しているディレクトリなので、
-他のプラグインと同じようにトグル付きで一覧に出ます。実行後はウィンドウを再読み込みしてください
-（`Developer: Reload Window`）。
+他のプラグインと同じようにトグル付きで一覧に出ます（実行後はウィンドウを再読み込み:
+`Developer: Reload Window`）。CLI には上の段落どおりスキルを入れます。
 
 どちらの経路でも、4 つのコマンドは `/open-pr-review`、`/open-pr-fix`、`/open-pr-upgrade`、
 `/open-pr-clean` として現れます。
@@ -162,7 +162,7 @@ IDE — プラグインインストーラがないので、ローカル経路を
 `~/.gemini/config/skills` に書き込みます:
 
 ```bash
-~/.open-pr/scripts/install-local.sh --platform antigravity-ide
+~/.open-pr/scripts/install-local.sh --platform antigravity   # CLI 側のディレクトリも一緒に
 ```
 
 どちらでもスキルはスラッシュコマンドになります: `/open-pr-review` と残りの 3 つ。
@@ -182,13 +182,15 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 1 回の実行で 2 つを賄えます。残る 2 つには専用の置き場があります:
 
 ```bash
-~/.open-pr/scripts/install-local.sh --platform cursor            # プラグイン全体を Cursor のローカルプラグイン用ディレクトリへ
-~/.open-pr/scripts/install-local.sh --platform cursor-cli        # スキルを ~/.cursor/skills へ
-~/.open-pr/scripts/install-local.sh --platform antigravity       # スキルを ~/.gemini/antigravity-cli/skills へ
-~/.open-pr/scripts/install-local.sh --platform antigravity-ide   # スキルを ~/.gemini/config/skills へ
+~/.open-pr/scripts/install-local.sh --platform cursor        # IDE のプラグイン用ディレクトリと CLI のスキル用ディレクトリ
+~/.open-pr/scripts/install-local.sh --platform antigravity   # CLI のスキル用ディレクトリと IDE のそれ
 ```
 
-`--platform` を省くと対話で訊きます。その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らない
+同じベンダーでも IDE と CLI は別のディレクトリを読むため、この 2 つの名前で両方をカバーします。片方だけ
+なら `cursor-ide`、`cursor-cli`、`antigravity-cli`、`antigravity-ide`。
+
+`--platform` を省くと対話で訊きます: Claude Code・Codex または Gemini CLI・Cursor・Antigravity・
+どれでもない（何も書かずに終了。空欄で Enter も同じ）。その他のフラグ: 任意の場所を指す `--target DIR`、symlink を辿らない
 プラットフォーム向けの `--copy`、clone を pull してから入れ直す `--update`、設置したものだけを消す
 `--uninstall`。`--uninstall --all` なら上記すべてのプラットフォームを一掃するので、4 か所に入れても
 アンインストールは 1 コマンドで済みます。
