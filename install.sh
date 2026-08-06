@@ -54,6 +54,13 @@ main() {
 
   command -v git >/dev/null || { printf 'install.sh: git is required\n' >&2; exit 1; }
 
+  if [ -z "$ref" ]; then
+    # Highest release tag, so a one-liner never lands on an unreleased commit.
+    ref="$(git ls-remote --tags --refs "$repo" 'v[0-9]*' 2>/dev/null \
+           | awk -F/ '{print $NF}' | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -1)"
+    [ -n "$ref" ] || ref=main
+  fi
+
   # Removing needs no update and no particular version: run the installer already on disk, and only
   # borrow a throwaway clone when there is none — someone who deleted ~/.open-pr by hand still has
   # skills pointing at nothing, and this is how they get rid of them.
@@ -63,13 +70,25 @@ main() {
       runner="$home/scripts/install-local.sh"
     else
       tmp="$(mktemp -d)"
-      say 'fetching the uninstaller\n'
-      git clone --quiet --depth 1 --sparse --filter=blob:none "$repo" "$tmp/open-pr" 2>/dev/null \
+      say 'fetching the uninstaller from %s\n' "$ref"
+      git clone --quiet --depth 1 --sparse --filter=blob:none --branch "$ref" "$repo" "$tmp/open-pr" 2>/dev/null \
+        || git clone --quiet --depth 1 --branch "$ref" "$repo" "$tmp/open-pr" 2>/dev/null \
         || git clone --quiet --depth 1 "$repo" "$tmp/open-pr"
       # shellcheck disable=SC2086
       git -C "$tmp/open-pr" sparse-checkout set --no-cone $SHIP 2>/dev/null || true
       runner="$tmp/open-pr/scripts/install-local.sh"
+      # A release older than the uninstaller has none: the development branch always does.
+      if [ ! -x "$runner" ]; then
+        say 'release %s has no uninstaller — switching to the development branch\n' "$ref"
+        git -C "$tmp/open-pr" fetch --quiet --depth 1 origin main 2>/dev/null || true
+        git -C "$tmp/open-pr" checkout --quiet --detach FETCH_HEAD 2>/dev/null || true
+      fi
     fi
+    [ -x "$runner" ] || {
+      printf 'install.sh: no uninstaller in %s at %s. Name a ref that has one:\n' "$repo" "$ref" >&2
+      printf '  OPEN_PR_REF=<branch-or-tag> before this command, or see docs/install.md\n' >&2
+      [ -z "$tmp" ] || rm -rf "$tmp"
+      exit 1; }
     "$runner" "$@"
     local rc=$?
     [ -z "$tmp" ] || rm -rf "$tmp"
@@ -82,12 +101,6 @@ main() {
     exit "$rc"
   fi
 
-  if [ -z "$ref" ]; then
-    # Highest release tag, so a one-liner never lands on an unreleased commit.
-    ref="$(git ls-remote --tags --refs "$repo" 'v[0-9]*' 2>/dev/null \
-           | awk -F/ '{print $NF}' | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -1)"
-    [ -n "$ref" ] || ref=main
-  fi
 
   # Ask the remote for THIS ref by name and take what came back. `git clone --branch X --depth 1`
   # narrows the clone's fetch refspec to X, so a plain fetch never learns about any other branch or
