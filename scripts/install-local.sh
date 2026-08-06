@@ -221,7 +221,8 @@ is_installed() {
   dir="$(platform_dir "$leaf")"
   if [ "$kind" = marketplace ]; then
     command -v claude >/dev/null || return 1
-    claude plugin list 2>/dev/null | grep -q 'open-pr' || return 1
+    # </dev/null: on a terminal the CLI may wait for input, and this only asks a question
+    claude plugin list </dev/null 2>/dev/null | grep -q 'open-pr' || return 1
     return 0
   fi
   while IFS= read -r path; do
@@ -333,25 +334,60 @@ if [ "$ACTION" = uninstall ] && [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
     is_installed "$leaf" && found="${found:+$found }$leaf"
   done
   [ -n "$found" ] || { say 'open-pr is not installed anywhere this script can see.\n'; exit 0; }
+
+  # Offered the same way the install question offers them: by vendor, not by directory. A vendor
+  # whose IDE and CLI are both installed is one line, and picking it removes both.
+  labels= ; groups=
+  for vendor in claude shared cursor antigravity; do
+    members=
+    for leaf in $(platform_members "$vendor"); do
+      case " $found " in *" $leaf "*) members="${members:+$members }$leaf" ;; esac
+    done
+    [ -n "$members" ] || continue
+    case "$vendor" in
+      claude)      label='Claude Code' ;;
+      shared)      label='Codex or Gemini CLI' ;;
+      cursor)      label='Cursor' ;;
+      antigravity) label='Antigravity' ;;
+    esac
+    where=
+    for leaf in $members; do where="${where:+$where, }$(platform_dir "$leaf")"; done
+    labels="${labels}${label}|${where}
+"
+    groups="${groups}${members}
+"
+  done
+
+  count="$(printf '%s' "$labels" | grep -c '')"
   if [ -n "$ask_on" ]; then
     say 'open-pr is installed here:\n'
     i=0
-    for leaf in $found; do
+    while IFS='|' read -r label where; do
+      [ -n "$label" ] || continue
       i=$((i + 1))
-      say '  %d) %-16s %s\n' "$i" "$leaf" "$(platform_dir "$leaf")"
-    done
-    say '  a) all of them\n'
-    printf 'Remove which? (numbers, a for all, empty to exit): '
+      say '  %d) %-22s %s\n' "$i" "$label" "$where"
+    done <<EOF
+$labels
+EOF
+    say '  %d) All of them\n' "$((count + 1))"
+    say '  %d) None of these         exit without removing anything\n' "$((count + 2))"
+    printf 'Remove which? (numbers, several at once, empty to exit): '
     read -r choice <"$ask_on" || choice=
-    case "$choice" in
-      a|A) PLATFORM="$found" ;;
-      "") say '\nNothing removed.\n'; exit 0 ;;
-      *)  for n in $(printf '%s' "$choice" | tr ',' ' '); do
-            leaf="$(printf '%s\n' $found | sed -n "${n}p" 2>/dev/null)"
-            [ -n "$leaf" ] || { printf 'install-local.sh: no such choice: %s\n' "$n" >&2; exit 2; }
-            PLATFORM="${PLATFORM:+$PLATFORM }$leaf"
-          done ;;
-    esac
+    [ -n "$choice" ] || choice="$((count + 2))"
+    for n in $(printf '%s' "$choice" | tr ',' ' '); do
+      case "$n" in
+        ''|*[!0-9]*) printf 'install-local.sh: not a number: %s\n' "$n" >&2; exit 2 ;;
+      esac
+      if [ "$n" -eq $((count + 2)) ]; then
+        say '\nNothing removed.\n'; exit 0
+      elif [ "$n" -eq $((count + 1)) ]; then
+        PLATFORM="$found"; break
+      elif [ "$n" -ge 1 ] && [ "$n" -le "$count" ]; then
+        PLATFORM="${PLATFORM:+$PLATFORM }$(printf '%s' "$groups" | sed -n "${n}p")"
+      else
+        printf 'install-local.sh: not one of 1-%d\n' "$((count + 2))" >&2; exit 2
+      fi
+    done
   else
     PLATFORM="$found"
     say 'Removing every install found: %s\n' "$found"

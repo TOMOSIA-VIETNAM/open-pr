@@ -40,8 +40,9 @@ Vẫn một dòng đó, thêm `--uninstall`:
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-Nó liệt kê đúng những nền tảng đang thực sự có open-pr, bạn nhập số muốn gỡ hoặc `a` để gỡ hết, và
-xoá luôn `~/.open-pr` khi không còn gì trỏ tới nữa. Nếu chỉ định nền tảng
+Nó hỏi đúng kiểu lúc cài — mỗi hãng một dòng, nhập được nhiều số cùng lúc, lựa chọn cuối là thoát —
+chỉ khác là chỉ liệt kê những nền tảng thực sự đang có open-pr, và xoá luôn `~/.open-pr` khi không
+còn gì trỏ tới nữa. Nếu chỉ định nền tảng
 (`-s -- --uninstall --platform cursor`) thì clone được giữ lại, vì các nền tảng còn lại vẫn cần.
 
 Chỉ thứ nó cài mới bị xoá: skill trùng tên do bạn tự viết được báo lại và giữ nguyên. Những gì nó đã

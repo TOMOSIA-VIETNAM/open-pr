@@ -41,8 +41,9 @@ Same one line, with `--uninstall`:
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-It lists the platforms it can actually see open-pr installed on, takes the numbers you want or `a`
-for all, and removes `~/.open-pr` too once nothing is left pointing at it. Name a platform
+It asks the same way installing does — one line per vendor, several numbers at once, a last choice
+that exits — except it lists only the platforms it can actually see open-pr installed on, and it
+removes `~/.open-pr` too once nothing is left pointing at it. Name a platform
 (`-s -- --uninstall --platform cursor`) and the clone stays, since the others still need it.
 
 Only what it installed goes: a skill of your own with the same name is reported and left alone.

@@ -41,8 +41,9 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-実際に open-pr が入っているプラットフォームだけを一覧し、番号（`a` で全部）で選ばせ、参照するものが
-なくなれば `~/.open-pr` も削除します。プラットフォームを指定した場合
+訊き方はインストール時と同じです — ベンダーごとに 1 行、番号は複数同時に指定でき、最後の選択肢が終了。
+違いは実際に open-pr が入っているものだけを並べる点と、参照するものがなくなれば `~/.open-pr` も削除する
+点です。プラットフォームを指定した場合
 （`-s -- --uninstall --platform cursor`）は、ほかがまだ使うので clone は残します。
 
 消えるのはこのスクリプトが入れたものだけです。同名で自作したスキルは報告のうえ残します。レビュー先の
