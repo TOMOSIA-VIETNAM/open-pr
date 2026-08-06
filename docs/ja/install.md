@@ -1,9 +1,5 @@
 # インストール
 
-Claude Code・Cursor・Codex・Gemini CLI・Antigravity は、同じファイルから同じレビューを実行します。
-違うのは入口だけで、このページはその入口の話です。各プラットフォームがどこまで検証済みかは下の表を
-参照してください。
-
 どのプラットフォームでも、GitHub の PR なら [`gh`](https://cli.github.com/)、GitLab の MR なら
 [`glab`](https://gitlab.com/gitlab-org/cli) が必要です（インストール済み・ログイン済み）。レビューは
 そのアカウントで投稿されます。
