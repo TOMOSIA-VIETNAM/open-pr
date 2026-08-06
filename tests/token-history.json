@@ -1,5 +1,5 @@
 {
-  "_note": "One point per release tag; one line per command. A line is the MEAN token cost of that command's scenarios in scripts/token_report.py \u2014 review over its 8 (7 review paths + the reconfigure chat path), fix over its 2, upgrade over its 1 \u2014 counting every prompt file a single run Reads into context. Encoder: cl100k_base via tiktoken, a proxy for Claude's own tokenizer (within a few percent, not identical). null = the command did not exist at that tag, which is why a line can start later than the chart. Every point is measured once, at its release, and never recomputed: token_report.py's ROLES map keeps evolving, so rerunning old tags today produces different numbers than were published then \u2014 ROLES lists a pre-1.0 filename as a fallback candidate for exactly that reason. Reproduce a NEW point with `scripts/token_chart.py --add <tag>`; redraw the image from these numbers with `--render`.",
+  "_note": "One point per release tag; one line per command. A line is the MEAN token cost of that command's scenarios in scripts/token_report.py \u2014 every scenario that command owns, review including the reconfigure chat path \u2014 counting every prompt file a single run Reads into context. Encoder: cl100k_base via tiktoken, a proxy for Claude's own tokenizer (within a few percent, not identical). null = the command did not exist at that tag, which is why a line can start later than the chart. Every point is measured once, at its release, and never recomputed: token_report.py's ROLES map keeps evolving, so rerunning old tags today produces different numbers than were published then \u2014 ROLES lists a pre-1.0 filename as a fallback candidate for exactly that reason. Reproduce a NEW point with `scripts/token_chart.py --add <tag>`; redraw the image from these numbers with `--render`.",
   "encoder": "cl100k_base (proxy)",
   "points": [
     {
@@ -36,6 +36,14 @@
       "review": 10793,
       "fix": 8580,
       "upgrade": 2093
+    },
+    {
+      "tag": "v1.1.0",
+      "date": "2026-08-05",
+      "review": 10816,
+      "fix": 8580,
+      "upgrade": 2093,
+      "clean": 1165
     }
   ]
 }

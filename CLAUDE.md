@@ -7,7 +7,7 @@ Claude Code plugin `open-pr`. 4 slash commands, GitHub + GitLab (no Bitbucket ye
 - `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review via the
   vendor's own CLI (`gh`/`glab`).
 - `/open-pr:fix <PR_URL>` — read the findings review left, fix the code, 1 commit, reply on the PR.
-  Edits real code at pwd.
+  Edits real code at pwd — the repo, or the `review` worktree it was called from.
 - `/open-pr:upgrade` — no PR. Migrate the CURRENT repo's local config to the latest
   `schema_version`, fetching `llm-upgrades/` live from this plugin's GitHub repo.
 - `/open-pr:clean` — no PR. Remove the worktrees review checked code out into, after confirming.

@@ -40,7 +40,7 @@ ONE CHOICE per `core/guardrails.md`, EXACTLY 2 options. Its body lists every wor
 size and the total, so consent covers a list the user has read:
 
 - `Remove all N (Recommended)` — detail: the reclaimed total; review re-creates a worktree next run, so
-  nothing is lost but disk
+  nothing is lost but disk — unless `/open-pr:fix` committed there and never pushed
 - `Keep them` — detail: nothing deleted
 
 Subset wanted (free text, or a re-run naming those repos) ⇒ honour it, those only. `Keep them` ⇒ STOP.

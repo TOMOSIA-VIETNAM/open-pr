@@ -98,7 +98,7 @@ What it writes, and each platform's own installer: [Install](./docs/install.md).
 | Command | What it does |
 | ------- | ------------ |
 | `/open-pr:review <URL>` | Reviews the PR and posts exactly **1** review: overview + line-by-line comments. Never edits code, never closes, never merges. The first run in a repo also sets it up |
-| `/open-pr:fix <URL>` | Reads the findings that review left, fixes the code, wraps it in **1** commit, then replies per comment. 🔵/📝 always ask you first |
+| `/open-pr:fix <URL>` | Reads the findings that review left, fixes the code, wraps it in **1** commit, then replies per comment. Runs in the repo or in the review worktree, where the URL is optional. 🔵/📝 always ask you first |
 | `/open-pr:upgrade` | Brings a repo's local config up to the current schema. Summarises what changes and asks; nothing is written until you agree |
 | `/open-pr:clean` | Removes the worktrees `review` checked PR code out into — each is a full checkout on disk. Lists them with their size and asks first; memory and settings are never touched |
 

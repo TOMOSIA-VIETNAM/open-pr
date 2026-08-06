@@ -48,9 +48,10 @@ flowchart LR
   K --> L["A reply per finding: fixed, or why not<br/>never resolves a thread — that stays yours"]
 ```
 
-Unlike `review` it uses **no** worktree: it edits the real repo on disk. So before touching any file it
-checks the place it's about to edit — wrong branch, on `main`/`develop`, or inside the very worktree
-`review` created (that one is detached, no branch) all stop it immediately.
+Unlike `review` it edits real code: the repo on disk, or the worktree `review` checked the PR out into
+when you fix straight after reviewing. It creates no worktree of its own. So before touching any file it
+checks the place it's about to edit — the wrong branch, or a PR whose own branch is `main`/`develop`,
+stops it immediately.
 
 ## One run at a time, and what you add to it
 

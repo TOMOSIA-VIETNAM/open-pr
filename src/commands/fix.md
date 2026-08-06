@@ -1,17 +1,17 @@
 ---
-argument-hint: <PR URL> [content]
+argument-hint: "[PR URL] [content]"
 description: Act on the findings a review left on a PR — takes or declines each by severity, edits code at pwd to match the project, 1 commit, replies once pushed.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
 > here. On top of those:
-> - This command EDITS REAL CODE at pwd (no worktree), then commits/pushes — higher risk than the
+> - This command EDITS REAL CODE at pwd, then commits/pushes — higher risk than the
 >   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action and STOP IMMEDIATELY on
 >   failure. FORBIDDEN: "helpfully" fixing the remote/branch just to pass it.
 > - FORBIDDEN: `git commit --amend`, `git push --force`/`--force-with-lease`, `git add -A`/`git add .`,
->   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing on a protected branch
->   or when the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, checking out the
->   PR/MR, `git worktree` (anything — this command never uses one), close/merge/reopen, creating a
+>   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
+>   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, checking
+>   out the PR/MR, `git worktree add`/`remove`, close/merge/reopen, creating a
 >   review/draft-note batch (this command only replies; posting is `review.md`'s job). `cd`/`find` are
 >   allowed ONLY to self-locate the project directory (Step 1a), and only once `git remote` proves the
 >   match — never by directory name. This bullet + the one above are the SOLE enforcement layer — no
@@ -31,6 +31,10 @@ Example with instructions: /open-pr:fix https://github.com/org/repo/pull/123 onl
 ```
 
 Free-form text outside the URL narrows this run's scope (Step 3 item 3).
+
+No URL → take the PR THIS session already establishes (its review ran here, the user named it, pwd is
+its worktree), say which in 1 short sentence, continue. NOT exactly 1 ⇒ print the `Usage:` block.
+FORBIDDEN: guessing past it.
 
 ## Context
 
@@ -56,23 +60,24 @@ does not apply, while LINE-level handling continues normally.
 
 **1a.** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` for `<repo_dir>`, then `cd` into it — this
 command EDITS that repo's files, so unlike `review.md` it works from inside. Everything below runs there,
-`notebooks/review/<repo>/` included.
+`notebooks/review/<repo>/` included — `<repo_dir>` = a `review` worktree
+(`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory is at `../../`.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 fixing the branch yourself, touching any file, proceeding to Step 2.
 
-1. the current branch matches `headRefName` EXACTLY. Mismatch:
+1. the current branch matches `headRefName` EXACTLY, || `<repo_dir>` = the 1a worktree (DETACHED,
+   already at THIS PR's head). `<current branch>` = `detached` when none. Mismatch:
    ```
    ❌ Current branch (`<current branch>`) doesn't match the PR's branch (`<headRefName>`). Check
       out the correct branch `<headRefName>` and call this again.
    ```
-2. the current branch is NOT one of `main`, `master`, `production`, `prod`, `staging`, `stg`,
+2. `headRefName` is NOT one of `main`, `master`, `production`, `prod`, `staging`, `stg`,
    `release`, `rls`, `dev`, `development`, `develop` (case-insensitive, EXACT match, not substring).
-   It is one — regardless of item 1, since a PR may itself target a protected branch:
+   Read off the PR ⇒ holds detached too, and a PR may itself target a protected branch:
    ```
-   ❌ Currently on a protected branch (`<branch>`) — this command does NOT run on a protected
-      branch even if it matches the PR. Create/check out a dedicated feature branch for this PR
-      and call this again.
+   ❌ The PR's branch (`<headRefName>`) is a protected branch — this command does NOT commit to
+      one. Move the change onto a dedicated feature branch and open the PR from that.
    ```
 
 ## Step 2 — Settings
@@ -134,7 +139,7 @@ Nothing to ask → straight to Step 7.
 ## Step 7 — Fix
 
 `Edit` the code for EVERY finding decided as FIX, matching the layers loaded at Step 4; nothing readable
-→ ordinary judgment, favouring the surrounding style. Directly at pwd — no worktree.
+→ ordinary judgment, favouring the surrounding style. Directly at `<repo_dir>`.
 
 ## Step 8 — Commit
 
@@ -145,10 +150,12 @@ convention from Step 4 when there's a clear signal (e.g. the repo's recent `git 
 
 ## Step 9 — Push
 
+`<push>` = `git push` on a branch, `git push origin HEAD:<headRefName>` detached. NORMAL either way.
+
 - **`auto_push: false`** (default) → STOP at local, tell the dev in 1 short sentence ("Fixed +
   committed locally. Say 'push' when you want me to push it up + reply."). The dev expresses the INTENT
-  to push (matched by intent, not a fixed string) → `git push`, NORMAL, then Step 10.
-- **`auto_push: true`** → `git push`, NORMAL, right after Step 8, then Step 10 in the same run.
+  to push (matched by intent, not a fixed string) → `<push>`, then Step 10.
+- **`auto_push: true`** → `<push>` right after Step 8, then Step 10 in the same run.
 
 ## Step 10 — Reply on the PR
 

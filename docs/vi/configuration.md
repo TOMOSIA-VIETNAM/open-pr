@@ -31,7 +31,8 @@ cd ~/workspace
 ```
 
 `/open-pr:fix` cũng gọi được từ workspace — nó tự tìm đúng repo rồi vào đó sửa, miễn repo ấy đang đứng
-ở branch của PR.
+ở branch của PR — hoặc từ chính worktree mà `review` đã tạo cho PR đó, ở đó URL không bắt buộc vì
+session đã cho biết đang nói về PR nào.
 
 Mọi thứ nó ghi nhớ được index như một mục lục trong `notebooks/review/<repo>/memory.md`: vừa tiết kiệm
 token vì không phải nạp chi tiết, vừa nắm được toàn cảnh những gì đã học. Chi tiết nằm rời từng file

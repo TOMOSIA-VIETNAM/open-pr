@@ -94,7 +94,7 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 | コマンド | 何をするか |
 | -------- | ---------- |
 | `/open-pr:review <URL>` | PR をレビューし、レビューを **1** 件だけ投稿（概要＋行コメント）。コードは変更せず、close も merge もしない。リポジトリでの初回はセットアップも行う |
-| `/open-pr:fix <URL>` | review が残した指摘を読み、コードを修正して **1** コミットにまとめ、各コメントへ返信。🔵/📝 は必ず事前に確認 |
+| `/open-pr:fix <URL>` | review が残した指摘を読み、コードを修正して **1** コミットにまとめ、各コメントへ返信。リポジトリ内でもレビュー worktree 内でも動き、後者では URL 省略可。🔵/📝 は必ず事前に確認 |
 | `/open-pr:upgrade` | リポジトリのローカル設定を現在のスキーマへ更新。変更点を要約して確認し、同意するまで何も書かない |
 | `/open-pr:clean` | `review` が PR のコードをチェックアウトした worktree を削除 — 1 つずつが完全なチェックアウトでディスクを使う。サイズ付きで一覧し先に確認する。memory と設定には触れない |
 
