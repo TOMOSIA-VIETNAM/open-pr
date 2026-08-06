@@ -83,6 +83,7 @@ platform_dir() {
 
 ALL_PLATFORMS='claude shared cursor-ide cursor-cli antigravity-cli antigravity-ide'
 
+ORIG_ARGS=("$@")
 PLATFORM=
 SWEEP=no
 TARGET=
@@ -168,8 +169,28 @@ resolve_members() {
 
 if [ "$ACTION" = update ]; then
   say 'updating %s\n' "$REPO"
-  git -C "$REPO" pull --ff-only
-  ACTION=install
+  if git -C "$REPO" symbolic-ref -q HEAD >/dev/null; then
+    git -C "$REPO" pull --ff-only
+  else
+    # Installed at a release tag, so the clone's fetch refspec is that one tag and `git pull` can
+    # only ever report itself up to date. Ask the remote which release is newest and move onto it.
+    up="$(git -C "$REPO" ls-remote --tags --refs origin 'v[0-9]*' 2>/dev/null \
+          | awk -F/ '{print $NF}' | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -1)"
+    [ -n "$up" ] || up=HEAD
+    git -C "$REPO" fetch --quiet --depth 1 origin "$up" \
+      || { printf 'install-local.sh: could not fetch %s from origin\n' "$up" >&2; exit 1; }
+    git -C "$REPO" checkout --quiet --detach FETCH_HEAD
+    say 'now at %s\n' "$up"
+  fi
+  # The update just rewrote this file while bash is part way through reading it. Hand over to the
+  # new copy rather than run the rest of the old one from shifted byte offsets.
+  rest=()
+  for arg in ${ORIG_ARGS+"${ORIG_ARGS[@]}"}; do
+    [ "$arg" = --update ] || rest+=("$arg")
+  done
+  [ -x "$REPO/scripts/install-local.sh" ] || {
+    printf 'install-local.sh: %s has no installer — nothing was reinstalled\n' "$up" >&2; exit 1; }
+  exec "$REPO/scripts/install-local.sh" ${rest+"${rest[@]}"}
 fi
 
 SKILLS=()
@@ -437,9 +458,9 @@ case " $MEMBERS " in
   *)
     say '\nInvoke as /open-pr-review, /open-pr-fix, /open-pr-upgrade, /open-pr-clean (Codex: $open-pr-review).\n'
     if [ "$MODE" = link ]; then
-      say 'Update:    git -C %s pull\n' "$REPO"
+      say 'Update:    %s --update\n' "$0"
     else
-      say 'Update:    git -C %s pull && %s --copy %s\n' "$REPO" "$0" "$WHERE"
+      say 'Update:    %s --update --copy %s\n' "$0" "$WHERE"
     fi
     say 'Uninstall: %s --uninstall %s\n' "$0" "$WHERE"
     ;;

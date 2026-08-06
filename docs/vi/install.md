@@ -35,7 +35,7 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 | -------- | ---- |
 | Claude Code | `/plugin update open-pr@open-pr` · `/reload-plugins` · `/open-pr:upgrade` |
 | Gemini CLI | `gemini extensions update open-pr` |
-| Còn lại | `git -C ~/.open-pr pull` |
+| Còn lại | `~/.open-pr/scripts/install-local.sh --update` |
 
 Mọi cờ: `~/.open-pr/scripts/install-local.sh --help` · [Cách hoạt động](./how-it-works.md) ·
 [Cấu hình](./configuration.md)
