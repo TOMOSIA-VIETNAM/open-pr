@@ -15,6 +15,11 @@
 # This file itself is fetched from the default branch; the tag pinning below applies to the clone it
 # leaves behind, which is what actually runs.
 set -euo pipefail
+# What a running install needs. The rest of the repository — tests, backlogs, the e2e fixture, the
+# docs images — is for people working ON the plugin, and has no business taking room on the disk of
+# someone using it. Cursor's IDE is handed this clone as a plugin directory, so it would index them.
+KEEP='src skills adapters commands scripts .agents .codex-plugin .cursor-plugin'
+
 # Same reason as in install-local.sh: a closed stdout must not abort the install part way.
 trap '' PIPE
 say() { printf "$@" 2>/dev/null || true; }
@@ -66,7 +71,16 @@ main() {
     exit 1
   else
     say 'cloning %s at %s into %s\n' "$repo" "$ref" "$home"
-    git clone --quiet --branch "$ref" --depth 1 "$repo" "$home"
+    # Cone mode keeps every root file, which is where the manifests live, plus the directories named
+    # above; blob:none leaves the objects behind them unfetched until something asks. Each flag needs
+    # a newer git, and the filter needs a server that offers it, so try the best and fall back.
+    git clone --quiet --branch "$ref" --depth 1 --sparse --filter=blob:none "$repo" "$home" 2>/dev/null \
+      || git clone --quiet --branch "$ref" --depth 1 --sparse "$repo" "$home" 2>/dev/null \
+      || git clone --quiet --branch "$ref" --depth 1 "$repo" "$home"
+    if [ -d "$home/.git" ]; then
+      # shellcheck disable=SC2086
+      git -C "$home" sparse-checkout set --cone $KEEP 2>/dev/null || true
+    fi
   fi
 
   if [ ! -x "$home/scripts/install-local.sh" ]; then

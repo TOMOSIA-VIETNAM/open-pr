@@ -278,8 +278,12 @@ EOF
       say 'linked  %s -> %s\n' "$dir" "$REPO"
     else
       mkdir -p -- "$dir"
-      # Tracked files only: no .git, no local scratch, nothing the platform has no business reading.
-      git -C "$REPO" archive HEAD | tar -x -C "$dir"
+      # Tracked AND checked out: no .git, nothing untracked, and nothing a sparse clone deliberately
+      # left out — `git archive HEAD` would put the whole repository back.
+      git -C "$REPO" ls-files -z \
+        | while IFS= read -r -d '' f; do [ -e "$REPO/$f" ] && printf '%s\0' "$f"; done \
+        | tar -C "$REPO" --null -T - -cf - \
+        | tar -x -C "$dir"
       say 'installed by open-pr scripts/install-local.sh from %s — safe to delete\n' "$REPO" >"$dir/$STAMP"
       say 'copied  %s\n' "$dir"
     fi
