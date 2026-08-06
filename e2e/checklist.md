@@ -15,7 +15,7 @@ Each planted defect and the path it exercises:
 | same file — `history: list = []` default | a finding about the mutable default argument | `templates/python.md` axis 1 — a `.py`-only criterion, so it is the proof the overlay applied BOTH templates and not just one |
 | `.claude/commands/deploy.md` — `rm -rf` with no confirmation | a finding, 🔴 | `agent-instructions` axis 2, base stack on `.md` |
 | same file — `see task DEV-4821` | a finding about the ephemeral reference | `agent-instructions` axis 4 |
-| `db/seeds_dump.sql` — ~40KB of generated inserts | listed under "Files skipped for detailed review", NOT reviewed line by line | `cases/large-diff-guards.md` |
+| `db/seeds_dump.sql` — ~40KB of generated inserts | listed under the files-skipped heading, itself written in the output language, NOT reviewed line by line | `cases/large-diff-guards.md` |
 | PR body — every checklist box unchecked | exactly 1 consolidated 🟠 finding | `cases/pr-template-checklist.md` |
 
 Then check the mechanics:

@@ -91,10 +91,10 @@ exactly 1 for the submodule PR, never repeated.
 SPLIT, referring to each by PR NUMBER. FORBIDDEN: relative labels like "main PR"/"secondary PR":
 
 ```
-### Review of PR #<n-main> (<owner>/<repo>)
+### <"Review of PR", IN THE CHAT LANGUAGE> #<n-main> (<owner>/<repo>)
 (summary + link)
 
-### Review of PR #<n-submodule> (<owner-submodule>/<repo-submodule>)
+### <"Review of PR", IN THE CHAT LANGUAGE> #<n-submodule> (<owner-submodule>/<repo-submodule>)
 (summary + link)
 ```
 
