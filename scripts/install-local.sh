@@ -26,7 +26,7 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
                                 [--update | --uninstall [--all]]
 
   --platform NAME  repeatable, or comma-separated: --platform cursor,shared
-                   all          every platform below except Claude Code, which its CLI owns
+                   all          every platform below, Claude Code included
                    claude       Claude Code, through its own `claude plugin` CLI
                    shared       Codex + Gemini CLI       ~/.agents/skills
                    cursor       the IDE and the CLI      both directories below
@@ -41,8 +41,7 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
                    afterwards a `git pull` requires re-running this script
   --update         git pull in this clone, then reinstall with the same options
   --uninstall      remove only what this script installed, then exit
-  --all            with --uninstall: sweep every file-based platform above. Claude Code keeps its
-                   own plugin state, so remove it with --platform claude --uninstall
+  --all            with --uninstall: sweep every platform above
 
 Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean.
 Never overwrites a file this script did not create.
@@ -52,7 +51,7 @@ EOF
 # A platform is one directory to write, or a vendor's IDE and CLI taken together.
 platform_members() {
   case "$1" in
-    all) printf '%s\n' "$SWEEP_PLATFORMS" ;;
+    all) printf '%s\n' "$ALL_PLATFORMS" ;;
     cursor) printf 'cursor-ide cursor-cli\n' ;;
     antigravity) printf 'antigravity-cli antigravity-ide\n' ;;
     claude|shared|cursor-ide|cursor-cli|antigravity-cli|antigravity-ide) printf '%s\n' "$1" ;;
@@ -82,7 +81,7 @@ platform_dir() {
   esac
 }
 
-SWEEP_PLATFORMS='shared cursor-ide cursor-cli antigravity-cli antigravity-ide'
+ALL_PLATFORMS='claude shared cursor-ide cursor-cli antigravity-cli antigravity-ide'
 
 PLATFORM=
 SWEEP=no
@@ -123,8 +122,9 @@ if [ "$ACTION" != uninstall ] && [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
     say '  2) Codex or Gemini CLI   skills in ~/.agents/skills\n'
     say '  3) Cursor                IDE and CLI\n'
     say '  4) Antigravity           IDE and CLI\n'
-    say '  5) None of these         exit without writing anything\n'
-    printf 'Enter 1-5, several at once (2 3) or empty to exit: '
+    say '  5) All of them\n'
+    say '  6) None of these         exit without writing anything\n'
+    printf 'Enter 1-6, several at once (2 3) or empty to exit: '
     read -r choice <"$ask_on" || choice=
     for n in $(printf '%s' "$choice" | tr ',' ' '); do
       case "$n" in
@@ -132,8 +132,9 @@ if [ "$ACTION" != uninstall ] && [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
         2) PLATFORM="${PLATFORM:+$PLATFORM }shared" ;;
         3) PLATFORM="${PLATFORM:+$PLATFORM }cursor" ;;
         4) PLATFORM="${PLATFORM:+$PLATFORM }antigravity" ;;
-        5) PLATFORM=; break ;;
-        *) printf 'install-local.sh: not one of 1-5: %s\n' "$n" >&2; exit 2 ;;
+        5) PLATFORM=all; break ;;
+        6) PLATFORM=; break ;;
+        *) printf 'install-local.sh: not one of 1-6: %s\n' "$n" >&2; exit 2 ;;
       esac
     done
     [ -n "$PLATFORM" ] || {
@@ -148,7 +149,7 @@ fi
 resolve_members() {
   MEMBERS=
   if [ "$SWEEP" = yes ]; then
-    MEMBERS="$SWEEP_PLATFORMS"
+    MEMBERS="$ALL_PLATFORMS"
     return 0
   fi
   local name leaf
@@ -233,9 +234,15 @@ EOF
   return 1
 }
 
-require_claude_cli() {
-  command -v claude >/dev/null || {
-    printf 'install-local.sh: the claude CLI is not on PATH — see https://claude.ai/code\n' >&2; exit 1; }
+# Named on its own, a missing CLI is an error; swept up with everything else, it is a line to skip.
+claude_or_skip() {
+  command -v claude >/dev/null && return 0
+  if [ "$(printf '%s\n' $MEMBERS | wc -w)" -gt 1 ]; then
+    say 'skipped  Claude Code — its CLI is not on PATH\n'
+    return 1
+  fi
+  printf 'install-local.sh: the claude CLI is not on PATH — see https://claude.ai/code\n' >&2
+  exit 1
 }
 
 removed=0
@@ -243,7 +250,7 @@ removed=0
 uninstall_one() {
   local member="$1" kind="$2" dir="$3" path
   if [ "$kind" = marketplace ]; then
-    require_claude_cli
+    claude_or_skip || return 0
     claude plugin uninstall "open-pr@open-pr"
     say '\nRemoved open-pr from Claude Code. The marketplace entry stays; drop it with:\n'
     say '  claude plugin marketplace remove open-pr\n'
@@ -267,7 +274,7 @@ install_one() {
   local member="$1" kind="$2" dir="$3" path name tmp
 
   if [ "$kind" = marketplace ]; then
-    require_claude_cli
+    claude_or_skip || return 0
     claude plugin marketplace add "$MARKETPLACE"
     claude plugin install "open-pr@open-pr"
     say '\nInstalled into Claude Code. Commands: /open-pr:review /open-pr:fix /open-pr:upgrade /open-pr:clean\n'
@@ -330,7 +337,7 @@ EOF
 
 if [ "$ACTION" = uninstall ] && [ -z "$PLATFORM" ] && [ "$SWEEP" = no ]; then
   found=
-  for leaf in claude $SWEEP_PLATFORMS; do
+  for leaf in $ALL_PLATFORMS; do
     is_installed "$leaf" && found="${found:+$found }$leaf"
   done
   [ -n "$found" ] || { say 'open-pr is not installed anywhere this script can see.\n'; exit 0; }

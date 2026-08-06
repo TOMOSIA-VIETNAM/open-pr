@@ -203,15 +203,15 @@ chạy phục vụ cả hai. Hai nền tảng còn lại có chỗ riêng:
 IDE và CLI của cùng một hãng đọc hai thư mục khác nhau, nên hai tên trên phủ cả hai. Muốn từng cái
 riêng: `cursor-ide`, `cursor-cli`, `antigravity-cli`, `antigravity-ide`.
 
-Chọn nhiều cùng lúc: ngăn bằng dấu phẩy hoặc lặp cờ, và `all` cho mọi nền tảng trừ Claude Code:
+Chọn nhiều cùng lúc: ngăn bằng dấu phẩy hoặc lặp cờ, và `all` cho mọi nền tảng, kể cả Claude Code:
 
 ```bash
 ~/.open-pr/scripts/install-local.sh --platform cursor,shared
 ~/.open-pr/scripts/install-local.sh --platform all
 ```
 
-Bỏ `--platform` thì script tự hỏi: Claude Code · Codex hoặc Gemini CLI · Cursor · Antigravity · không
-chọn cái nào. Nhập nhiều số (`2 3`) để lấy nhiều nền tảng, bỏ trống rồi Enter để thoát mà không ghi
+Bỏ `--platform` thì script tự hỏi: Claude Code · Codex hoặc Gemini CLI · Cursor · Antigravity · tất cả
+· không chọn cái nào. Nhập nhiều số (`2 3`) để lấy nhiều nền tảng, bỏ trống rồi Enter để thoát mà không ghi
 gì. Sai một số là nó dừng trước khi cài bất cứ thứ gì. Cờ khác: `--target DIR` cài vào chỗ bất kỳ, `--copy` nếu nền tảng
 của bạn không đi theo symlink, `--update` để pull bản clone rồi cài lại trong một bước, `--uninstall`
 để xoá đúng những gì nó đã cài — thêm `--all` thì nó quét mọi nền tảng ở trên, cài 4 chỗ vẫn gỡ bằng
