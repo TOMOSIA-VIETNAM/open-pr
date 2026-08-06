@@ -27,7 +27,6 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 向けてください。
 
 ネットワーク越しのスクリプトを実行したくない場合は、下の 2 手が同じ内容で、間に「読む」が入るだけです。
-このページの残りは、各プラットフォームで最終的に何が入るかの説明です。
 
 ## アンインストール
 

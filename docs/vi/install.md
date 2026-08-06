@@ -26,7 +26,7 @@ Tag release pin bản clone, không pin chính dòng lệnh này: `install.sh` �
 tức luôn là bản mới nhất của phần tải. Muốn pin luôn nó thì trỏ URL vào một tag thay vì `main`.
 
 Không muốn chạy script tải từ mạng? Cách hai bước bên dưới cho ra đúng kết quả đó, chỉ thêm bước đọc
-ở giữa; phần còn lại của trang này nói mỗi nền tảng nhận được gì.
+ở giữa.
 
 ## Gỡ cài đặt
 

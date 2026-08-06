@@ -27,7 +27,7 @@ so it is the newest version of the fetcher. Pin that too by pointing the URL at 
 `main`.
 
 Prefer not to run a script off the internet? The two-step below is the same thing with the reading
-in the middle, and the rest of this page is what each platform ends up with.
+in the middle.
 
 ## Uninstalling
 
