@@ -64,23 +64,20 @@ Một review, ba phần gắn với nhau: overview, comment trên đúng dòng k
 
 ## Cài đặt
 
+[Claude Code](https://claude.ai/code):
+
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-Cập nhật:
+Cursor, Codex, Gemini CLI, Antigravity:
 
 ```bash
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
-/reload-plugins
-/open-pr:upgrade
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Cần thêm [Claude Code](https://claude.ai/code), và [`gh`](https://cli.github.com/) cho PR GitHub hoặc
-[`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã login — review được post bằng chính
-account đó.
+Gỡ, cập nhật, lệnh riêng từng nền tảng: [Cài đặt](./docs/vi/install.md).
 
 ## Sử dụng
 

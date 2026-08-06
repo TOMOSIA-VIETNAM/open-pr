@@ -30,7 +30,12 @@ src/templates/    per-stack criteria, cp'd into the reviewed repo
 src/reference/    schema + vendor contract; FORBIDDEN to Read at run time
 src/seeds/        cp'd verbatim into the reviewed repo, never Read
 llm-upgrades/     config migrations, fetched live, never packaged
+adapters/root.md  ROOT + tool-name map; SOLE file naming a non-Claude platform
+skills/           1 shim/command for Cursor · Codex · Gemini CLI · Antigravity
+commands/*.toml   same 4 shims in Gemini CLI's own entry format
+install.sh        one-command entry for non-Claude platforms: clone → install-local.sh
 scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · install_hooks.sh
+                  install-local.sh (skills onto a platform whose catalog is closed)
 tests/            test_prompt_graph.py + budgets.json + duplication_allowlist.json
 e2e/              fixture + checklist for a real review run; never runs in CI
 .claude/skills/   dev-time skills — `e2e-loop` runs the fixture, grades it, fixes back
@@ -98,6 +103,13 @@ splitting an always-loaded file into 2 always-loaded files is a pure loss.
 
 **Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). A new vendor =
 4 new files under `src/vendors/<name>/`, nothing else.
+
+**The adapter layer carries NO behaviour.** `adapters/`, `skills/`, `commands/*.toml` exist so a
+platform other than Claude Code can reach `src/commands/<cmd>.md`; they resolve `ROOT`, map tool names,
+delegate. FORBIDDEN there: a severity, a marker, a guard, a `gh`/`glab` call, a config field, a step.
+Exactly 2 reasons to edit them — a NEW command, or a platform changing its manifest schema. A rule
+change under `src/` reaches all platforms untouched, and `tests/test_prompt_graph.py` fails if this
+stops being true.
 
 **Files must be self-contained.** No refs to task ids, plan phases, design-doc sections, or anything
 that gets deleted. Inline the rule or point at a durable file.
