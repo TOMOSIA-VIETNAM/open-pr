@@ -253,8 +253,16 @@ def lint_flags(vendor, env):
 
 def fixture_url(vendor, pr, env, cfg):
     branch = f"e2e/pr-{pr}"
-    if vendor.startswith("bitbucket"):
-        return ""   # no fixture repo of this project's own exists yet; pass --url instead
+    if vendor == "bitbucket":
+        # No CLI to ask, and its own `q` syntax needs quotes inside the query string, so the
+        # open PRs come back unfiltered and the branch match happens here.
+        repo = cfg["BITBUCKET_REPO"]
+        rc, out, _ = sh(
+            f'curl -sS --fail-with-body -u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN" '
+            f'"https://api.bitbucket.org/2.0/repositories/{repo}/pullrequests'
+            f'?state=OPEN&pagelen=50&fields=values.id,values.source.branch.name" '
+            f"| jq -r '.values[] | select(.source.branch.name == \"{branch}\") | .id' | head -1", env)
+        return f"https://bitbucket.org/{repo}/pull-requests/{out}" if rc == 0 and out else ""
     if vendor == "github":
         rc, out, _ = sh(f'gh pr list -R "{cfg["GITHUB_REPO"]}" --head "{branch}" '
                         f"--json url --jq '.[0].url'", env)

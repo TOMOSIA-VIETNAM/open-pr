@@ -10,8 +10,11 @@ One e2e run belongs to one PR of this project.
 
 ```bash
 pip install -r requirements-dev.txt        # once, for the unit suite
-e2e/bootstrap.sh --pr 20                   # fixture PR/MR on every vendor you are logged in for
+e2e/bootstrap.sh --pr 20                   # asks which vendor, then builds the fixture PR there
 ```
+
+On a terminal it lists the vendors whose credentials it found and asks; in a pipe or a hook it takes
+all of them, and `--vendor github|gitlab|bitbucket|all` skips the question either way.
 
 It prints the fixture URL and the exact `/open-pr:review` command, and records the URL in this
 project's PR #20 description under an `<!-- e2e-fixtures -->` block, so the PR carries its own evidence.
@@ -43,17 +46,31 @@ e2e/bootstrap.sh --pr 20 --teardown        # close the fixture PR/MR, delete its
 
 Teardown never touches the repo itself — only the PR and the branch it created.
 
+**Seeding writes to `main`** of the fixture repo, because the baseline is what the fixture branch is
+diffed against. On a repo already carrying other open PRs, expect their base to move; use `--repo` and a
+throwaway of your own when that matters.
+
+On Bitbucket the review behaves differently by design, and the checklist rows about a draft do not
+apply: the vendor publishes a comment the moment it is created, so `auto_submit_review: false` leaves
+the review in the CHAT and the PR shows nothing at all until you ask for it.
+
 ## Targets and access
 
 `targets.env` names the fixture repos:
 
-| vendor | repo |
-|---|---|
-| GitHub | `tms-minhtang1/open-pr-test` |
-| GitLab | `minhtang1/open-pr-test` |
+| vendor | repo | credential |
+|---|---|---|
+| GitHub | `tms-minhtang1/open-pr-test` | `gh auth login` |
+| GitLab | `minhtang1/open-pr-test` | `glab auth login` |
+| Bitbucket | `tms-minhtang1/open-pr-test` | `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` in the environment |
 
-Both are public, so anyone can read the resulting review. Pushing needs write access, which is the one
-thing a contributor may not have. Both paths work:
+Bitbucket has no CLI to log into, so the script treats those variables as its login and prints which one
+is missing when it cannot proceed. Creating the PR goes over the API with that token; PUSHING goes over
+SSH, so a key at <https://bitbucket.org/account/settings/ssh-keys/> is needed as well — the token alone
+cannot push, and the script says so before doing any work.
+
+All three repos are public, so anyone can read the resulting review. Pushing needs write access, which is
+the one thing a contributor may not have. Both paths work:
 
 - **Write access** → run the commands above as they are.
 - **No write access** → fork the fixture repo and pass `--repo <your-fork>`. The script checks the
