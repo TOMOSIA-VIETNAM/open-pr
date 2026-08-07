@@ -38,20 +38,15 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-| Platform | Command |
-| -------- | ------- |
-| Claude Code | `/plugin uninstall open-pr@open-pr` |
-| Gemini CLI | `gemini extensions uninstall open-pr` |
+[![Uninstall](./images/uninstall.png)](./images/uninstall.png)
 
 ## Update
 
-| Platform | Command |
-| -------- | ------- |
-| Claude Code | `/plugin update open-pr@open-pr` · `/reload-plugins` · `/open-pr:upgrade` |
-| Gemini CLI | `gemini extensions update open-pr` |
-| Everything else | `~/.open-pr/scripts/install-local.sh --update` |
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
+```
 
-Every flag: `~/.open-pr/scripts/install-local.sh --help`
+After you reload the plugin, if the new build changes the **schema** a lot, run `/open-pr:upgrade` to bring that repo's settings up to date.
 
 ---
 

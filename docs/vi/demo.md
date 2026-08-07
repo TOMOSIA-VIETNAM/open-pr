@@ -2,7 +2,7 @@
 
 [← README](../../README.vi.md)
 
-Một review được post mang **ba phần** gắn với nhau:
+Một lượt review được post mang **ba phần** gắn với nhau:
 
 1. **Overview** — toàn bộ diff nói lên điều gì, neo vào đúng commit đã đọc, nhóm theo severity. Finding cấp FILE nằm ở đây (không có line cụ thể để bám).
 2. **Line comment** — finding cấp LINE, mỗi cái kèm code đã sửa trong block `suggestion` để author commit thẳng từ trang PR.

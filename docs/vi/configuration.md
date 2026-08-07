@@ -31,7 +31,16 @@ cd ~/workspace
 
 `/open-pr:fix` gọi được từ workspace (nó tự tìm đúng repo, miễn repo đang ở branch của PR) — hoặc từ chính worktree mà `review` đã tạo; ở đó URL không bắt buộc vì session đã biết PR nào.
 
-## Memory
+## Command
+
+| Command | Bạn đứng ở đâu | Nó ghi gì |
+| --- | --- | --- |
+| `/open-pr:review` | workspace chứa repo (nên vậy), hoặc trong repo — tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
+| `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
+| `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
+| `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
+
+## Setting
 
 Mọi thứ đã học được index trong `notebooks/review/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `notebooks/review/<repo>/memories/*.md`.
 
@@ -52,15 +61,6 @@ Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định
 | `review.big_file_threshold_kb` | file diff to hơn ngưỡng này bị bỏ khỏi lần đọc đầu | `20` |
 | `fix.decline_needs_confirmation` | hỏi trước khi bỏ qua một finding | `true` |
 | `fix.auto_push` | tự push sau khi commit | `false` |
-
-## Mỗi command ghi gì
-
-| Command | Bạn đứng ở đâu | Nó ghi gì |
-| --- | --- | --- |
-| `/open-pr:review` | workspace chứa repo (nên vậy), hoặc trong repo — tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
-| `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
-| `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
 
 ---
 

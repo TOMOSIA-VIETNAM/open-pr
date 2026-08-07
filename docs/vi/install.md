@@ -17,17 +17,18 @@ Hoặc:
 | Platform | Install | Use |
 | -------- | ------- | --- |
 | Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
-| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Codex | `codex plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`codex plugin add open-pr@open-pr` | `$open-pr-review <PR_URL>` |
-| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr --auto-update` | `/review <PR_URL>` |
+| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr --auto-update` | `/open-pr-review <PR_URL>` |
+| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
 
-Không dùng pipe:
+## Update
 
 ```bash
-git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
-~/.open-pr/scripts/install-local.sh
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
 ```
+
+Sau khi reload plugin, nếu bản mới đổi nhiều **schema** thì chạy `/open-pr:upgrade` để cập nhật settings của repo.
 
 ## Uninstall
 
@@ -35,20 +36,7 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-| Platform | Command |
-| -------- | ------- |
-| Claude Code | `/plugin uninstall open-pr@open-pr` |
-| Gemini CLI | `gemini extensions uninstall open-pr` |
-
-## Update
-
-| Platform | Command |
-| -------- | ------- |
-| Claude Code | `/plugin update open-pr@open-pr` · `/reload-plugins` · `/open-pr:upgrade` |
-| Gemini CLI | `gemini extensions update open-pr` |
-| Còn lại | `~/.open-pr/scripts/install-local.sh --update` |
-
-Mọi flag: `~/.open-pr/scripts/install-local.sh --help`
+[![Uninstall](../images/uninstall.png)](../images/uninstall.png)
 
 ---
 

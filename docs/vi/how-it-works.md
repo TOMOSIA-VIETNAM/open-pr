@@ -4,11 +4,11 @@
 
 `/open-pr:review` checkout code của PR ra một **git worktree** riêng — branch bạn đang làm không bị đụng. Vừa review vừa code bình thường.
 
-Nó không chỉ nhìn đúng chỗ PR sửa: logic xung quanh cũng trong scope, nên deadcode và business-logic bug ngoài diff vẫn có thể bị bắt. Thứ ngoài scope nhưng vẫn quan trọng thì nêu thành **advice** để bạn cân — không tính là finding bắt buộc phải fix.
+Nó không chỉ nhìn đúng chỗ PR sửa: các logic xung quanh cũng trong scope, nên deadcode và business-logic bug ngoài diff vẫn có thể bị bắt. Thứ ngoài scope nhưng vẫn quan trọng thì nêu thành **advice** để bạn cân — không tính là finding bắt buộc phải fix.
 
 ## Re-review (lần 2 trở đi)
 
-Gõ lại `/open-pr:review` trên cùng PR sau khi dev đã fix hoặc reply — nó **không** review từ đầu, mà nối tiếp lần trước:
+Nếu vẫn còn trong phiên chat thì chỉ cần nói `hãy review lại` (hoặc gõ lại `/open-pr:review`) trên cùng PR sau khi dev đã fix hoặc reply — nó **không** review từ đầu, mà nối tiếp lần trước:
 
 ```mermaid
 flowchart LR
@@ -26,7 +26,7 @@ flowchart LR
 ```
 
 > [!TIP]
-> Convention chốt trong thread luôn được **hỏi bạn trước** rồi mới ghi memory. Ai cũng có thể viết một “rule” trong comment — không để AI tự nhớ một mình.
+> Convention chốt trong thread luôn được **hỏi bạn trước** rồi mới ghi memory.
 
 ## `/open-pr:fix`
 
@@ -50,7 +50,7 @@ flowchart LR
 ```
 
 > [!WARNING]
-> `fix` sửa code trên đĩa: trong repo, hoặc trong worktree mà `review` đã checkout. Nó **không** tự tạo worktree. Sai branch, hoặc PR mà source branch là `main` / `develop` → dừng ngay, chưa đụng file.
+> `fix` sửa code thật trong repo nơi mà bạn đang đứng. Nếu sai branch hoặc sai PR thì dừng ngay.
 
 ## Một lần một run
 

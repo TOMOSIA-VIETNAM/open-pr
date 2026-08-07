@@ -38,20 +38,15 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-| プラットフォーム | コマンド |
-| ---------------- | -------- |
-| Claude Code | `/plugin uninstall open-pr@open-pr` |
-| Gemini CLI | `gemini extensions uninstall open-pr` |
+[![Uninstall](../images/uninstall.png)](../images/uninstall.png)
 
 ## Update
 
-| プラットフォーム | コマンド |
-| ---------------- | -------- |
-| Claude Code | `/plugin update open-pr@open-pr` · `/reload-plugins` · `/open-pr:upgrade` |
-| Gemini CLI | `gemini extensions update open-pr` |
-| それ以外 | `~/.open-pr/scripts/install-local.sh --update` |
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
+```
 
-全フラグ: `~/.open-pr/scripts/install-local.sh --help`
+プラグインを reload したあと、新しいビルドで **schema** が大きく変わっていれば `/open-pr:upgrade` でそのリポジトリの settings を更新します。
 
 ---
 
