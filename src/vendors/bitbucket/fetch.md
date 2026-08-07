@@ -14,6 +14,7 @@ built from these shorthands:
 | `<diff_cmd>` | `<curl> -L "<api>/pullrequests/<pull_number>/diff"` — `-L` MANDATORY, that path redirects to the repository diff and without it the body is empty |
 | `<patch_pipe>` | `awk -v m=<max_patch_bytes> '/^diff --git /{if(n&&s<m)printf "%s",b; b=""; s=0; n=1} n{b=b $0 "\n"; s+=length($0)+1} END{if(n&&s<m)printf "%s",b}'` |
 | `<size_pipe>` | `awk '/^diff --git /{if(n)print s" "p; p=substr($0,index($0," b/")+3); s=0; n=1} n{s+=length($0)+1} END{if(n)print s" "p}'` |
+| `<paged>` | `paged() { next="$1"; while [ -n "$next" ]; do page=$(<curl> "$next"); printf '%s' "$page" \| jq -r "$2"; next=$(printf '%s' "$page" \| jq -r '.next // empty'); done; }` |
 
 No per-file patch endpoint exists, so the 2 diff entries cut ONE whole-diff response at `diff --git`
 boundaries — hence the 2 pipelines. Both run under `LC_ALL=C`: `awk`'s `length` counts CHARACTERS, and a
@@ -42,8 +43,13 @@ putting one in a URL (a URL reaches the access log, the shell history and every 
 interpolated text, or any other route through the running shell — finding and reply text quotes the PR's
 own diff, i.e. attacker-controlled input, and shell expansion there corrupts the payload or executes it.
 
-**Pagination.** A list endpoint answers `{"values": […], "next": "<url>"}`. Every entry below that ends in
-`.values[]` MUST follow `next` until it is absent — a full first page is not evidence of a last page.
+**Pagination.** A list endpoint answers `{"values": […], "next": "<url>"}` and caps a page at 100, so any
+entry reading `.values[]` MUST walk every page: `<paged>` defines the walk, then `paged "<url>" '<jq>'`
+runs it, printing `<jq>` raw per page. A `@json` at the end of `<jq>` emits an object as one line.
+
+Every such entry below is written that way and MUST be run that way — a PR over 100 comments, files or
+commits silently loses everything past page 1 otherwise, which reads as "no finding there". `"$next"` and
+`"$page"` stay QUOTED: both come from Bitbucket, and an unquoted URL splits on its own `&`.
 
 ## Fetch PR basic info
 
@@ -63,8 +69,8 @@ time plus ~20 link objects, and all of it lands in context for 6 fields' worth o
 
 ## Fetch PR diff — file list
 
-`<curl> "<api>/pullrequests/<pull_number>/diffstat?pagelen=100&fields=next,values.old.path,values.new.path"
-| jq -r '.values[] | (.old.path // empty), (.new.path // empty)'`
+`<paged>; paged "<api>/pullrequests/<pull_number>/diffstat?pagelen=100&fields=next,values.old.path,values.new.path"
+'.values[] | (.old.path // empty), (.new.path // empty)'`
 
 ## Fetch PR diff — patch, omitting oversized files
 
@@ -73,15 +79,15 @@ time plus ~20 link objects, and all of it lands in context for 6 fields' worth o
 
 ## Fetch PR commits headlines
 
-`<curl> "<api>/pullrequests/<pull_number>/commits?pagelen=100&fields=next,values.message" | jq -r
-'.values[].message | split("\n")[0]'` — Bitbucket returns the whole message, so the subject is its
-first line.
+`<paged>; paged "<api>/pullrequests/<pull_number>/commits?pagelen=100&fields=next,values.message"
+'.values[].message | split("\n")[0]'` — Bitbucket returns the whole message, so the subject is its first
+line.
 
 ## Fetch PR review comments (LINE-level findings)
 
-`<curl>
+`<paged>; paged
 "<comments>&fields=next,values.id,values.content.raw,values.user.nickname,values.inline,values.parent.id,values.deleted"
-| jq '[.values[] | select(.deleted != true and .inline != null)]'` — a comment carrying an `inline`
+'.values[] | select(.deleted != true and .inline != null) | @json'` — a comment carrying an `inline`
 object IS a LINE finding; one without it is overview-level and belongs to no line. `parent.id` present
 ⇒ the comment is a reply, which is the linkage a caller matches threads on. A deleted comment stays in
 the list as a tombstone with its content gone, hence the `deleted` filter.
@@ -100,8 +106,8 @@ reviewed nor reported as skipped.
 
 ## Fetch CI checks
 
-`<curl> "<api>/pullrequests/<pull_number>/statuses?pagelen=100&fields=next,values.state,values.name,values.url"
-| jq -r '.values[] | "\(.state) \(.name) — \(.url)"'` — answers `values: []` when the repo has no CI,
+`<paged>; paged "<api>/pullrequests/<pull_number>/statuses?pagelen=100&fields=next,values.state,values.name,values.url"
+'.values[] | "\(.state) \(.name) — \(.url)"'` — answers `values: []` when the repo has no CI,
 so it never needs `|| true`. `state` maps to the caller's bucket: `SUCCESSFUL` ⇒ pass, `FAILED` and
 `STOPPED` ⇒ fail, `INPROGRESS` ⇒ pending. Covers Bitbucket Pipelines and any external CI alike, since
 both report through this one endpoint.
@@ -123,10 +129,10 @@ falls back to the marker. FORBIDDEN: reporting it as an auth failure, or re-runn
 
 ## Fetch review threads (id + isResolved + comment ids)
 
-`<curl> "<comments>&fields=next,values.id,values.parent.id,values.resolution,values.deleted" | jq
-'[.values[] | select(.deleted != true) | {id, parent: .parent.id, resolved: (.resolution != null)}]'` —
-the LINE-findings endpoint again under a narrower projection, so a second round trip buys 1 small object
-per comment instead of re-reading the finding bodies.
+`<paged>; paged "<comments>&fields=next,values.id,values.parent.id,values.resolution,values.deleted"
+'.values[] | select(.deleted != true) | {id, parent: .parent.id, resolved: (.resolution != null)} |
+@json'` — the LINE-findings endpoint again under a narrower projection, so a second pass buys 1 small
+object per comment instead of re-reading the finding bodies.
 
 Bitbucket has no thread object: a thread IS a comment with `parent` absent, plus every comment whose
 `parent.id` chains back to it. That root's `id` is the thread id "Resolve a review thread" takes, and

@@ -23,9 +23,11 @@ Nothing is on the PR when this entry returns.
 
 ## Verify a posted review's state
 
-`<curl> "<comments>&fields=next,values.content.raw,values.deleted" | jq -r --arg m '<finding_marker>'
-'[.values[] | select(.deleted != true and (.content.raw | contains($m)))] | length'` — `<finding_marker>` =
-the FINDING marker of `core/finding-markers.md`, never the reply one.
+`<paged>; paged "<comments>&fields=next,values.content.raw,values.deleted" '.values[] | select(.deleted
+!= true and (.content.raw | contains("<finding_marker>"))) | 1' | wc -l` — `<finding_marker>` = the
+FINDING marker of `core/finding-markers.md`, never the reply one. Counting across EVERY page is what
+makes the number trustworthy: stopping at page 1 would read a published review as unpublished and post
+it a second time.
 
 `0` ⇒ nothing published yet. Otherwise that many findings are already on the PR, which is also what makes a
 half-finished publish recoverable: matching on this plugin's own marker leaves a human's concurrent review

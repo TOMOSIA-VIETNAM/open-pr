@@ -95,7 +95,7 @@ def targets():
     return out
 
 
-RUNNERS = ("gh", "glab", "git", "curl", "LC_ALL=C")
+RUNNERS = ("gh", "glab", "git", "curl", "LC_ALL=C", "paged()")
 
 
 def shorthands(vendor):
@@ -108,7 +108,8 @@ def shorthands(vendor):
         name, value = row[0], row[1]
         m = re.match(r"\s*`([^`]+)`", value)
         if m:
-            out[name] = " ".join(m.group(1).split())
+            # a table cell escapes the pipes of a shell pipeline; the shell wants them back
+            out[name] = " ".join(m.group(1).replace("\\|", "|").split())
     for _ in range(3):          # a shorthand may be written in terms of another
         for k, v in out.items():
             for k2, v2 in out.items():
@@ -142,7 +143,7 @@ def entries(vendor):
         yield head, (cmds[0] if cmds else None), part
 
 
-def all_entries(vendor, keep=("gh", "glab", "curl", "LC_ALL=C")):
+def all_entries(vendor, keep=RUNNERS):
     """Every entry of every group, not just Fetch — a flag typo in `Post a review` is
     the same defect and the live mode must never execute that one."""
     short = shorthands(vendor)
@@ -195,8 +196,8 @@ def lint_curl(vendor):
     for group, head, cmd in all_entries(vendor):
         for segment in re.split(r"\|\||\||&&", cmd):
             segment = segment.strip()
-            if not segment.startswith(("curl", "LC_ALL=C curl")):
-                continue
+            if "curl" not in segment:
+                continue   # a pipeline stage, or a shell helper with no request in it
             checked += 1
             bad = []
             if "--fail-with-body" not in segment:

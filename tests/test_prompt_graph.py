@@ -567,8 +567,8 @@ def test_a_curl_vendor_never_leaks_its_credential():
     for name, body in all_text().items():
         for span in re.findall(r"`([^`]+)`", body) + re.findall(r"```(?:bash)?\n(.*?)```", body, re.S):
             flat = " ".join(span.split())
-            if not flat.startswith(("curl", "<curl>", "LC_ALL=C <curl>")):
-                continue
+            if "curl" not in flat:
+                continue   # prose naming a flag in order to forbid it carries no invocation
             for flag in (" -v", " -i", " --verbose", " --include"):
                 if flag in f" {flat}":
                     bad.append((name, f"{flag.strip()} prints the Authorization header", flat[:70]))

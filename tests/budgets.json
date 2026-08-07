@@ -16,6 +16,6 @@
     "fix/known-repo-github": 8486,
     "fix/first-run-gitlab": 9450
   },
-  "mean": 9731,
+  "mean": 9771,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. Lower them when a change wins tokens back."
 }
