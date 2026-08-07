@@ -1,96 +1,59 @@
-# e2e
+# e2e runbook
 
-Unit tests check the prompt graph as text. They cannot tell you whether a real review, on a real PR,
-still comes out right — that needs a real vendor, a real PR and a real agent run. This directory holds
-the fixture and the checklist for that.
+Unit tests read the prompts as text. Only a real run on a real PR tells you the review still comes out
+right. `bootstrap.sh` builds that PR, `checklist.md` grades it. `<n>` below = the number of the PR of
+THIS project you are testing.
 
-## The ritual
-
-One e2e run belongs to one PR of this project.
+## Run
 
 ```bash
-pip install -r requirements-dev.txt        # once, for the unit suite
-e2e/bootstrap.sh --pr 20                   # asks which vendor, then builds the fixture PR there
+e2e/bootstrap.sh --pr <n>                 # asks which vendor, prints the fixture URL
+python3 scripts/vendor_lint.py --pr <n>   # free, read-only — before the review, never after
+/open-pr:review <fixture url>             # in a Claude Code session, plugin installed
 ```
 
-On a terminal it lists the vendors whose credentials it found and asks; in a pipe or a hook it takes
-all of them, and `--vendor github|gitlab|bitbucket|all` skips the question either way.
+Grade against `checklist.md` — each row names the rule its defect exercises, so a miss says WHICH rule
+regressed. Lint first because a broken vendor command fails every row for an unrelated reason.
 
-It prints the fixture URL and the exact `/open-pr:review` command, and records the URL in this
-project's PR #20 description under an `<!-- e2e-fixtures -->` block, so the PR carries its own evidence.
+Fix half, then cleanup:
 
 ```bash
-python3 scripts/vendor_lint.py --pr 20     # every documented Fetch command runs, read-only, free
+e2e/bootstrap.sh --pr <n> --checkout --clone-dir /tmp/fixture   # no writes to the remote
+cd /tmp/fixture && echo "then: /open-pr:fix <same url>"
+e2e/bootstrap.sh --pr <n> --teardown      # closes the PR, deletes the branch, nothing else
 ```
 
-Run that before spending a model call: a broken vendor command makes every checklist row fail for a
-reason unrelated to the rules under test.
+## Setup, once
 
-Then run `/open-pr:review <fixture url>` in a Claude Code session with the plugin installed, and work
-through `checklist.md`. It maps every planted defect to the code path it exercises, so a miss tells you
-WHICH rule regressed rather than just "the review looked worse".
-
-For the `/open-pr:fix` half, get a working copy on the fixture branch — this writes nothing to the
-remote, so a review already posted keeps its commit anchors:
-
-```bash
-e2e/bootstrap.sh --pr 20 --checkout --clone-dir /tmp/fixture
-```
-
-FORBIDDEN meanwhile: re-running the seeding mode on a `--pr` whose review is already posted. It
-force-pushes the branch and strands the anchors that review points at.
-
-```bash
-e2e/bootstrap.sh --pr 20 --teardown        # close the fixture PR/MR, delete its branch
-```
-
-Teardown never touches the repo itself — only the PR and the branch it created.
-
-**Seeding writes to `main`** of the fixture repo, because the baseline is what the fixture branch is
-diffed against. On a repo already carrying other open PRs, expect their base to move; use `--repo` and a
-throwaway of your own when that matters.
-
-On Bitbucket the review behaves differently by design, and the checklist rows about a draft do not
-apply: the vendor publishes a comment the moment it is created, so `auto_submit_review: false` leaves
-the review in the CHAT and the PR shows nothing at all until you ask for it.
-
-## Targets and access
-
-`targets.env` names the fixture repos:
-
-| vendor | repo | credential |
+| vendor | credential | fixture repo |
 |---|---|---|
-| GitHub | `tms-minhtang1/open-pr-test` | `gh auth login` |
-| GitLab | `minhtang1/open-pr-test` | `glab auth login` |
-| Bitbucket | `tms-minhtang1/open-pr-test` | `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` in the environment |
+| GitHub | `gh auth login` | `targets.env` → `GITHUB_REPO` |
+| GitLab | `glab auth login --hostname gitlab.com` (PAT, `api` scope) | `GITLAB_REPO` |
+| Bitbucket | `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` in the environment — no CLI exists | `BITBUCKET_REPO` |
 
-Bitbucket has no CLI to log into, so the script treats those variables as its login and prints which one
-is missing when it cannot proceed. Creating the PR goes over the API with that token; PUSHING goes over
-SSH, so a key at <https://bitbucket.org/account/settings/ssh-keys/> is needed as well — the token alone
-cannot push, and the script says so before doing any work.
+Also needs an SSH key on that vendor: pushing never uses the token. A vendor you skip is simply skipped,
+with a message. No write access to a fixture repo → fork it and pass `--repo <your-fork>`.
+`pip install -r requirements-dev.txt` once, for the unit suite.
 
-All three repos are public, so anyone can read the resulting review. Pushing needs write access, which is
-the one thing a contributor may not have. Both paths work:
+## Flags
 
-- **Write access** → run the commands above as they are.
-- **No write access** → fork the fixture repo and pass `--repo <your-fork>`. The script checks the
-  permission up front and tells you which of the two applies, rather than failing at push time.
+| flag | does |
+|---|---|
+| `--vendor github\|gitlab\|bitbucket\|all` | skip the question |
+| `--repo ns/name` | build on a fork instead of `targets.env` |
+| `--checkout --clone-dir DIR` | working copy on the fixture branch, no writes |
+| `--teardown` | close the fixture PR, delete its branch |
 
-Logged in for GitHub only? The GitLab half skips with a message — nothing to configure. To add GitLab:
+## Watch out
 
-```bash
-glab auth login --hostname gitlab.com     # paste a PAT with the `api` scope
-```
+- **Never re-seed a `--pr` whose review is already posted** — it force-pushes the branch and strands the
+  commits that review points at. Use `--checkout`.
+- **Seeding writes to `main`** of the fixture repo; other open PRs there will see their base move.
+- **Bitbucket has no draft** — `auto_submit_review: false` leaves the review in the CHAT with the PR
+  empty, so read the draft rows as "not published yet".
+- **A visible `[bot-finding]: #` is a defect** — it must render to nothing. Confirm it is there by
+  reading a comment's raw body, not by looking at the page.
+- **CI never runs this**: real model call, real vendor. `.github/workflows/e2e.yml` drives it by hand.
 
-CI never runs e2e: it costs a real model call and posts to a real vendor, and a fork PR is given no
-secrets. `.github/workflows/e2e.yml` exists so the maintainer can drive the same fixture by hand.
-
-## What the fixture plants
-
-9 defects across 5 files, each aimed at a different path: the Rails template, the embedded-prompt
-overlay on a `.py`, agent-instructions on a `.md`, the large-dump-file guard, and the PR-template
-checklist. `fixtures/base/` is the state of `main`, `fixtures/pr/` overwrites it on the branch, and that
-difference is the diff under review. The 40KB dump is generated at bootstrap, not committed here.
-
-Being model output, a review is never byte-identical twice — assert on shape, which is what the
-checklist does.
+`fixtures/base/` is `main`, `fixtures/pr/` overwrites it on the branch, and that difference is the diff
+under review — 9 planted defects, listed in `checklist.md`. The 40KB dump is generated, never committed.
