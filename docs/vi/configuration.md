@@ -2,7 +2,7 @@
 
 [← README](../../README.vi.md)
 
-Những gì plugin ghi nhớ cho từng repo, và chỗ để bạn sửa.
+Những gì plugin ghi nhớ cho từng repo, và chỗ bạn sửa khi cần.
 
 ## Đứng ở đâu
 
@@ -17,50 +17,51 @@ workspace/            ← gõ ở đây             repo-backend/         ← g�
 └── repo-frontend/    ← sạch, 0 file lạ      (repo-frontend? không thấy)
 ```
 
-`notebooks/review/` — memory + worktree — luôn sinh ra ngay tại chỗ bạn gõ command. Đứng trong repo thì
-nó nằm trong dự án; plugin có tự thêm 1 dòng vào `.gitignore` nên `git status` vẫn sạch, nhưng dòng đó
-là một thay đổi thật trong repo của bạn.
+`notebooks/review/` (memory + worktree) luôn sinh ra **ngay chỗ bạn gõ command**.
 
-Đứng ở workspace thì repo không hề bị chạm, và vì các repo nằm cạnh nhau nên nó review được PR chéo
-repo — nhiều PR của cùng một tính năng trong một lượt, chạy lần lượt chứ không song song. Đứng trong
-`repo-backend` thì `repo-frontend` là vô hình:
+| Đứng ở | Hệ quả |
+| --- | --- |
+| **Workspace** (khuyến nghị) | Repo không bị chạm. Các repo nằm cạnh nhau → review được PR **chéo repo** trong một lượt (lần lượt, không song song) |
+| **Trong repo** | `notebooks/review/` nằm trong dự án. Plugin tự thêm 1 dòng `.gitignore` nên `git status` sạch — nhưng dòng đó vẫn là thay đổi thật trong repo |
 
 ```bash
 cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
 
-`/open-pr:fix` cũng gọi được từ workspace — nó tự tìm đúng repo rồi vào đó sửa, miễn repo ấy đang đứng
-ở branch của PR — hoặc từ chính worktree mà `review` đã tạo cho PR đó, ở đó URL không bắt buộc vì
-session đã cho biết đang nói về PR nào.
+`/open-pr:fix` gọi được từ workspace (nó tự tìm đúng repo, miễn repo đang ở branch của PR) — hoặc từ chính worktree mà `review` đã tạo; ở đó URL không bắt buộc vì session đã biết PR nào.
 
-Mọi thứ nó ghi nhớ được index như một mục lục trong `notebooks/review/<repo>/memory.md`: vừa tiết kiệm
-token vì không phải nạp chi tiết, vừa nắm được toàn cảnh những gì đã học. Chi tiết nằm rời từng file
-trong `notebooks/review/<repo>/memories/*.md`. Cả thư mục `notebooks/review/` do một git local độc lập
-quản lý — không remote, không push — nên bạn theo dõi được memory thay đổi qua từng lần review.
+## Command
 
-Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định rỗng), còn lại nằm ở
-`settings.json`:
+| Command | Bạn đứng ở đâu | Nó ghi gì |
+| --- | --- | --- |
+| `/open-pr:review` | workspace chứa repo (nên vậy), hoặc trong repo — tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
+| `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
+| `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
+| `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
 
+## Setting
 
-| Field                                | Nghĩa                                                                                     | Mặc định            |
-| ------------------------------------ | ----------------------------------------------------------------------------------------- | ------------------- |
-| `shared.chat_language`               | ngôn ngữ nói chuyện trong chat                                                            | tự nhận             |
-| `shared.output_language`             | ngôn ngữ post lên PR                                                                      | hỏi một lần rồi lưu |
-| `review.auto_submit_review`          | `true` = post luôn, `false` = để draft cho bạn xem lại                                    | `false`             |
-| `review.auto_resolve_fixed_findings` | tự resolve thread khi finding đã được sửa                                                 | `false`             |
-| `review.doctor_schedule`             | chu kỳ đọc lại tài liệu quy ước: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"`     |
-| `review.review_ci_status`            | có nhắc CI đang fail hay không (chỉ cảnh báo, không bắt sửa)                              | có CI ⇒ `true`      |
-| `review.many_files_threshold`        | PR nhiều hơn bấy nhiêu file thì cảnh báo quá lớn                                          | `30`                |
-| `review.big_file_threshold_kb`       | file diff to hơn ngưỡng này bị bỏ khỏi lần đọc đầu                                        | `20`                |
-| `fix.decline_needs_confirmation`     | hỏi bạn trước khi bỏ qua một finding                                                      | `true`              |
-| `fix.auto_push`                      | tự push sau khi commit                                                                    | `false`             |
+Mọi thứ đã học được index trong `notebooks/review/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `notebooks/review/<repo>/memories/*.md`.
 
-## Mỗi command ghi gì
+> [!NOTE]
+> Cả thư mục `notebooks/review/` do một **git local độc lập** quản lý — không remote, không push. Bạn theo dõi được memory đổi qua từng lần review.
 
-| Command | Lúc gõ bạn đứng ở đâu | Nó ghi gì |
-| ------- | --------------------- | --------- |
-| `/open-pr:review` | ở workspace chứa repo (nên vậy), hoặc trong chính repo — nó tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
-| `/open-pr:fix` | trong repo đó, hoặc workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo đó + reply trên PR |
-| `/open-pr:upgrade` | ở workspace hoặc repo đã setup — nhiều repo thì nó cho bạn chọn | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | ở bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xoá `notebooks/review/*/worktrees/*` |
+Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định rỗng). Phần còn lại nằm ở `settings.json`:
+
+| Field | Nghĩa | Default |
+| --- | --- | --- |
+| `shared.chat_language` | ngôn ngữ nói chuyện trong chat | tự nhận |
+| `shared.output_language` | ngôn ngữ post lên PR | hỏi một lần rồi lưu |
+| `review.auto_submit_review` | `true` = post luôn, `false` = draft để bạn xem lại | `false` |
+| `review.auto_resolve_fixed_findings` | tự resolve thread khi finding đã được sửa | `false` |
+| `review.doctor_schedule` | chu kỳ đọc lại docs quy ước: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
+| `review.review_ci_status` | có nhắc CI đang fail không (chỉ warn, không bắt sửa) | có CI ⇒ `true` |
+| `review.many_files_threshold` | PR nhiều hơn bấy nhiêu file thì cảnh báo quá lớn | `30` |
+| `review.big_file_threshold_kb` | file diff to hơn ngưỡng này bị bỏ khỏi lần đọc đầu | `20` |
+| `fix.decline_needs_confirmation` | hỏi trước khi bỏ qua một finding | `true` |
+| `fix.auto_push` | tự push sau khi commit | `false` |
+
+---
+
+[Cài đặt](./install.md) · [Flow re-review / fix](./how-it-works.md) · [Review những gì](./review-criteria.md)

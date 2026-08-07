@@ -1,41 +1,43 @@
 # Install
 
-Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gitlab-org/cli)
-(GitLab), installed and logged in — the review posts as that account.
+[← README](../README.md)
 
-| Platform | Install | Use | Status |
-| -------- | ------- | --- | ------ |
-| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR URL>` | tested |
-| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR URL>` | untested |
-| Codex | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform shared` | `$open-pr-review <PR URL>` | untested |
-| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR URL>` | untested |
-| Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR URL>` | untested |
-| All of them | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform all` | as above | — |
+Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — installed and logged in. Reviews post as that account.
 
-`untested` = installs, but nobody has run a review through it yet.
-
-Without the pipe:
+## Install
 
 ```bash
-git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
-~/.open-pr/scripts/install-local.sh
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-## Uninstall
+[![Install](./images/install.png)](./images/install.png)
 
-| Platform | Command |
-| -------- | ------- |
-| Claude Code | `/plugin uninstall open-pr@open-pr` |
-| Gemini CLI | `gemini extensions uninstall open-pr` |
-| Everything else | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --uninstall` |
+Or:
+
+| Platform | Install | Use |
+| -------- | ------- | --- |
+| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
+| Codex | `codex plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`codex plugin add open-pr@open-pr` | `$open-pr-review <PR_URL>` |
+| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr --auto-update` | `/open-pr-review <PR_URL>` |
+| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
+| Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
 
 ## Update
 
-| Platform | Command |
-| -------- | ------- |
-| Claude Code | `/plugin update open-pr@open-pr` · `/reload-plugins` · `/open-pr:upgrade` |
-| Gemini CLI | `gemini extensions update open-pr` |
-| Everything else | `~/.open-pr/scripts/install-local.sh --update` |
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
+```
 
-Every flag: `~/.open-pr/scripts/install-local.sh --help` · [How it works](./how-it-works.md) ·
-[Configuration](./configuration.md)
+After you reload the plugin, if the new build changes the **schema** a lot, run `/open-pr:upgrade` to bring that repo's settings up to date.
+
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
+```
+
+[![Uninstall](./images/uninstall.png)](./images/uninstall.png)
+
+---
+
+[Re-review / fix flow](./how-it-works.md) · [Configuration](./configuration.md)

@@ -1,41 +1,43 @@
 # インストール
 
-[`gh`](https://cli.github.com/)（GitHub）または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）
-がインストール済み・ログイン済みであること — レビューはそのアカウントで投稿されます。
+[← README](../../README.ja.md)
 
-| プラットフォーム | インストール | 使い方 | 状態 |
-| ---------------- | ------------ | ------ | ---- |
-| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR URL>` | テスト済み |
-| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR URL>` | 未テスト |
-| Codex | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform shared` | `$open-pr-review <PR URL>` | 未テスト |
-| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR URL>` | 未テスト |
-| Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR URL>` | 未テスト |
-| すべて | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform all` | 上記と同じ | — |
+[`gh`](https://cli.github.com/)（GitHub）または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）がインストール済み・ログイン済みであること。レビューはそのアカウントで投稿されます。
 
-`未テスト` = インストールはできるが、まだ誰も実際のレビューを流していない。
-
-パイプを使わない場合:
+## Install
 
 ```bash
-git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
-~/.open-pr/scripts/install-local.sh
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-## アンインストール
+[![Install](../images/install.png)](../images/install.png)
 
-| プラットフォーム | コマンド |
-| ---------------- | -------- |
-| Claude Code | `/plugin uninstall open-pr@open-pr` |
-| Gemini CLI | `gemini extensions uninstall open-pr` |
-| それ以外 | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --uninstall` |
+または:
 
-## 更新
+| プラットフォーム | インストール | 使い方 |
+| -------- | ------- | --- |
+| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
+| Codex | `codex plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`codex plugin add open-pr@open-pr` | `$open-pr-review <PR_URL>` |
+| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr --auto-update` | `/open-pr-review <PR_URL>` |
+| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
+| Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
 
-| プラットフォーム | コマンド |
-| ---------------- | -------- |
-| Claude Code | `/plugin update open-pr@open-pr` · `/reload-plugins` · `/open-pr:upgrade` |
-| Gemini CLI | `gemini extensions update open-pr` |
-| それ以外 | `~/.open-pr/scripts/install-local.sh --update` |
+## Update
 
-全フラグ: `~/.open-pr/scripts/install-local.sh --help` · [仕組み](./how-it-works.md) ·
-[設定](./configuration.md)
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
+```
+
+プラグインを reload したあと、新しいビルドで **schema** が大きく変わっていれば `/open-pr:upgrade` でそのリポジトリの settings を更新します。
+
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
+```
+
+[![Uninstall](../images/uninstall.png)](../images/uninstall.png)
+
+---
+
+[再レビュー / fix のフロー](./how-it-works.md) · [設定](./configuration.md)

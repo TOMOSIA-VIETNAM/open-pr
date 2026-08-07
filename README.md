@@ -1,69 +1,52 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ed636fe0-0abf-4d8b-ac8e-134ea39d0f5d" alt="Open PullRequest" width="200">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg?v=bar1">
+    <img src="./docs/images/logo-lockup.svg?v=bar1" alt="Open PullRequest" width="400">
+  </picture>
 </p>
 
-<h1 align="center">Open PullRequest</h1>
-
-<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab</em></p>
+<p align="center">
+  <strong>Agent reviews PRs right on GitHub / GitLab</strong><br>
+  <code>/open-pr:review</code> · <code>/open-pr:fix</code>
+</p>
 
 <p align="center">
-  <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr" alt="License: MIT"></a>
-  <a href="https://claude.ai/code"><img src="https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3" alt="Claude Code Plugin"></a>
+  <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img alt="Release" src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?style=flat-square&label=release&color=2ea44f"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr?style=flat-square&color=blue"></a>
+  <a href="#install"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-supported-181717?style=flat-square&logo=github&logoColor=white"></a>
+  <a href="#install"><img alt="GitLab" src="https://img.shields.io/badge/GitLab-supported-FC6D26?style=flat-square&logo=gitlab&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <a href="#install"><img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97757?style=flat-square&logo=anthropic&logoColor=white"></a>
+  <a href="#install"><img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-000000?style=flat-square&logo=cursor&logoColor=white"></a>
+  <a href="#install"><img alt="Codex" src="https://img.shields.io/badge/Codex-supported-412991?style=flat-square&logo=openai&logoColor=white"></a>
+  <a href="#install"><img alt="Gemini CLI" src="https://img.shields.io/badge/Gemini_CLI-supported-4285F4?style=flat-square&logo=google&logoColor=white"></a>
+  <a href="#install"><img alt="Antigravity" src="https://img.shields.io/badge/Antigravity-supported-6E56CF?style=flat-square"></a>
 </p>
 
 <p align="center">
   <a href="./README.vi.md">Tiếng Việt</a> · <strong>English</strong> · <a href="./README.ja.md">日本語</a>
 </p>
 
-> When a PR lands, the first question in your head usually isn't "is this code correct", it's "did
-the
-> dev read it back even once before sending it".
+In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and at that pace, almost nobody can keep up.
 
-`open-pr` exists for exactly that: a Claude Code plugin that reviews PRs against the conventions
-your
-repo already has, remembers what you tell it, and goes through the same procedure every run — same
-tone, same severity scale, same trail left on the PR.
+The real question usually isn't *"is this code correct?"*, but: **did the dev self-review the PR before sending it**, or just assume *"the reviewer will handle it"*? That makes the reviewer little more than a *vibecoding* tool for the AI.
 
-Works with **GitHub** (`.../pull/<n>`) and **GitLab** (`.../-/merge_requests/<n>`, self-hosted
-included).
+A local review is hard to trust. Anyone can say *"I already reviewed it"*. So `open-pr` moves that step to **remote** for transparency — comments sit on the PR, and anyone who opens it can see them.
 
-## Why not just a generic review skill?
+- `/open-pr:review <PR_URL>` → exactly **1** review (overview + line comments)
+- Dev reads the comments and fixes them, or uses `/open-pr:fix <PR_URL>` (**1** commit + a reply per thread)
+- Every run follows the same procedure: read the repo's conventions, remember what the team discussed on the PR
 
-| What usually happens                                          | `open-pr`                                                                                       |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| No way to tell whether the dev reviewed their own PR          | The dev runs `/open-pr:review` on their own PR; a reviewer sees it right in the conversation     |
-| Advice at the level of generic rules, off the project's conventions | Reads the repo's README/CLAUDE.md/AGENTS.md/docs/wiki, and team rules beat every generic one |
-| You say it once, next time it's the same again                 | You mention it in chat → it asks to write it into that repo's memory → next run applies it      |
-| Fixes arrive as commit spam, amends, force-pushes, no replies   | Exactly 1 commit per run, no history rewriting, and a reply on every comment once pushed        |
+> [!NOTE]
+> **Review rounds** (a suggestion for the team):
+> 1. **Round 1** — Dev runs AI review on the PR themselves. No review comments yet → reviewer **sends it back**, without touching it.
+> 2. **Round 2** — Reviewer runs it again (AI). Clean → **LGTM**.
+> 3. **Round 3** — Reviewer reviews the domain part.
 
-## How it runs
-
-```mermaid
-flowchart LR
-  A[New PR] --> B["/open-pr:review URL"]
-  B --> C{Repo set up?}
-  C -- not yet --> D["One short round of questions<br/>+ read the repo's conventions"]
-  D --> E[Review inside its own worktree]
-  C -- yes --> E
-  E --> F["Post 1 review<br/>🔴 🟠 🔵 📝 · clean → LGTM 🌟"]
-  F --> G["/open-pr:fix URL"] --> H["1 commit + a reply per finding"]
-  F --> I["You mention it in chat"] --> J["Written into the repo's memory"]
-  J -. next run .-> B
-```
-
-Full flow, re-review, and the check `fix` makes before it touches a file:
-[How it works](./docs/how-it-works.md).
-
-### What comes out
-
-One review, three parts that belong together: the overview, a comment on the exact line with the
-corrected code, and the reply `fix` leaves on that same thread once the change is pushed.
-
-<a href="./docs/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="An overview, a line comment carrying a suggested change, and the reply left after the fix was pushed"></a>
-
-Full size, and the same review in the language each repo picks:
-[What a review looks like](./docs/demo.md).
+> [!IMPORTANT]
+> AI lightens the process load, but **final responsibility is still yours**.
 
 ## Install
 
@@ -74,24 +57,66 @@ Full size, and the same review in the language each repo picks:
 /plugin install open-pr@open-pr
 ```
 
-Cursor, Codex, Gemini CLI, Antigravity:
+**Install for Cursor, Codex, Gemini CLI, Antigravity:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Uninstall, update, per-platform commands: [Install](./docs/install.md).
+Full guide: [Install](./docs/install.md).
 
-## Usage
+## What it looks like
+
+One run produces three parts that belong together: an **overview**, **line comments** (with suggested changes), and a **reply** after `/open-pr:fix` has pushed.
+
+<a href="./docs/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="Overview, line comment with a suggested change, and the reply after the fix was pushed"></a>
+
+[See the demo](./docs/demo.md) · supports GitHub (`.../pull/<n>`) and GitLab (`.../-/merge_requests/<n>`, self-hosted included).
+
+## How it differs from a generic review skill
+
+Many review skills are just a `SKILL.md` description. Each run comes out differently — different wording, different strictness, easy to drift from the project's conventions.
+
+| Common with a generic skill | With `open-pr` |
+| --- | --- |
+| Advice stays at generic rules, off the project | Reads README / CLAUDE.md / AGENTS.md / docs / wiki; **team rules beat** generic rules |
+| You remind it once, next time it slips again | Mentions in chat → asks to write into the repo's memory → next run applies it |
+| Told to fix → fixes per the comment — even a wrong comment → correct code becomes wrong | `/open-pr:fix` weighs whether a comment is sound; if not → **reply + evidence**, no code change |
+| Fixes arrive as commit spam, amends, force-pushes, no replies | Exactly **1 commit** per `fix`, no history rewriting, a reply per comment after push |
+
+> [!TIP]
+> The part worth keeping: no matter when you run it, the procedure is the same — bootstrap conventions, pick the output language from the repo, then remember what the team has reminded. Not one AI voice today and another tomorrow.
+
+## Review flow
+
+```mermaid
+flowchart LR
+  A[New PR] --> B["Round 1 · /open-pr:review"]
+  B --> C{Review on remote?}
+  C -- not yet --> D[Reviewer sends it back]
+  C -- yes --> E[Dev fix / /open-pr:fix]
+  E --> F["Round 2 · review again"]
+  F --> G{Clean?}
+  G -- yes --> H[LGTM]
+  G -- not yet --> E
+  H --> I[Round 3 · human domain review]
+```
+
+Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix flow](./docs/how-it-works.md).
+
+## Commands
 
 | Command | What it does |
-| ------- | ------------ |
-| `/open-pr:review <URL>` | Reviews the PR and posts exactly **1** review: overview + line-by-line comments. Never edits code, never closes, never merges. The first run in a repo also sets it up |
-| `/open-pr:fix <URL>` | Reads the findings that review left, fixes the code, wraps it in **1** commit, then replies per comment. Runs in the repo or in the review worktree, where the URL is optional. 🔵/📝 always ask you first |
-| `/open-pr:upgrade` | Brings a repo's local config up to the current schema. Summarises what changes and asks; nothing is written until you agree |
-| `/open-pr:clean` | Removes the worktrees `review` checked PR code out into — each is a full checkout on disk. Lists them with their size and asks first; memory and settings are never touched |
+| --- | --- |
+| `/open-pr:review <PR_URL>` | Posts exactly **1** review. No code edits, no close, no merge. First run in a repo also sets it up |
+| `/open-pr:fix <PR_URL>` | Reads findings → weighs right/wrong → fixes → **1** commit → replies. 🔵 / 📝 always ask first |
+| `/open-pr:upgrade` | Brings local config up to the current schema — summarises, then asks; nothing written until you agree |
+| `/open-pr:clean` | Removes worktrees that `review` checked out (asks first). Memory / settings untouched |
 
-Where to stand, what each command writes, every setting: [Configuration](./docs/configuration.md).
+> [!WARNING]
+> `fix` edits **real code** in the repo (or the review worktree). Run it only when you deliberately want it to handle the comments.
+
+Full configuration: [Configuration](./docs/configuration.md).
 
 ## What it reviews
 
@@ -100,19 +125,18 @@ Where to stand, what each command writes, every setting: [Configuration](./docs/
 3. **Performance**
 4. **Code quality**
 5. **Maintainability & readability**
-6. **Framework/language-specific** — from that stack's own template
+6. **Framework / language-specific** — from that stack's template
 
-Your team's rules outrank all six.
+Criteria in detail and priority when they conflict: [What it reviews](./docs/review-criteria.md).
 
-Every criterion in detail, and the priority order when they conflict:
-[What it reviews](./docs/review-criteria.md).
+## Prompt token chart
 
-Contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md).
+Mean tokens per run — covering both *happy-case* and *bad-case*:
 
-## Context cost per release
-
-![Mean tokens one run loads, per command, at each release](./token-history.svg)
+![Mean tokens per run, by command / release](./token-history.svg)
 
 ---
+
+Contributing? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 Enjoy reviewing 🥰

@@ -1,15 +1,14 @@
-# How it works
+# Re-review / fix flow
 
 [← README](../README.md)
 
-`review` checks the PR's code out into its own git worktree, so the branch you're on is never touched —
-review and keep coding at the same time. And it doesn't only look at what the PR changed: the logic
-around it is in scope too, so deadcode and business-logic bugs outside the diff don't slip past.
-Anything out of scope that still matters comes back as advice for you to weigh, not as a finding you
-must fix.
+`/open-pr:review` checks the PR's code out into its own **git worktree** — the branch you're working on is never touched. Review and keep coding at the same time.
 
-Type `/open-pr:review` again on the same PR after the dev has fixed or replied and it doesn't review
-from scratch — it picks up where the last run left off:
+It doesn't only look at what the PR changed: the logic around it is in scope too, so deadcode and business-logic bugs outside the diff can still be caught. Anything out of scope that still matters comes back as **advice** for you to weigh — not as a finding you must fix.
+
+## Re-review (2nd run onward)
+
+If you're still in the same chat session, just say `please review again` (or type `/open-pr:review` again) on the same PR after the dev has fixed or replied — it does **not** review from scratch; it picks up where the last run left off:
 
 ```mermaid
 flowchart LR
@@ -26,10 +25,12 @@ flowchart LR
   I -- no, findings still open --> L["Post nothing further<br/>the standing review still holds"]
 ```
 
-A convention settled inside a thread is always confirmed with you rather than remembered on its own:
-anyone can write a rule in a comment.
+> [!TIP]
+> A convention settled in a thread is always **asked of you first**, then written into memory.
 
-`/open-pr:fix` runs the other way: it reads the very findings `review` left, then edits real code:
+## `/open-pr:fix`
+
+Runs the other way: reads the very findings `review` left, then edits **real code**.
 
 ```mermaid
 flowchart LR
@@ -48,30 +49,26 @@ flowchart LR
   K --> L["A reply per finding: fixed, or why not<br/>never resolves a thread — that stays yours"]
 ```
 
-Unlike `review` it edits real code: the repo on disk, or the worktree `review` checked the PR out into
-when you fix straight after reviewing. It creates no worktree of its own. So before touching any file it
-checks the place it's about to edit — the wrong branch, or a PR whose own branch is `main`/`develop`,
-stops it immediately.
+> [!WARNING]
+> `fix` edits real code in the repo where you are standing. Wrong branch or wrong PR → stops immediately.
 
-## One run at a time, and what you add to it
+## One run at a time
 
-Commands run only when you type them, and submodules are covered. Extra words after the URL apply to
-that run only:
+Commands run only when you type them. Submodules are covered. Extra words after the URL apply to **that run only**:
 
 ```bash
 /open-pr:review https://github.com/org/repo/pull/123 [instructions]
 /open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
 ```
 
-The first run in a repo asks a short batch of questions — the language to post in, post immediately
-or keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large
-PR and file thresholds — then reads the conventions already in the repo: README, CLAUDE.md,
-AGENTS.md, docs, wiki.
+The first run in a repo asks a short batch of questions — the language to post on the PR, post immediately or keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large PR / file thresholds — then reads the conventions already there: README, CLAUDE.md, AGENTS.md, docs, wiki.
 
 ## Same review on other platforms
 
-The procedure the agent follows — every step above — lives in one place: the markdown under `src/`.
-Cursor, Codex, Gemini CLI and Antigravity each need their own kind of entry file to expose a slash
-command, so each gets a short shim that does two things: find where the plugin is installed, then hand
-over to the one command file every platform reads. No rule, threshold or severity is restated in a shim.
-Installing on those platforms: [Install](./install.md).
+The whole procedure the agent follows lives in **one place**: the markdown under `src/`.
+
+Cursor, Codex, Gemini CLI, Antigravity each need their own entry file to expose a slash command — so each gets a short shim that does exactly two things: find where the plugin is installed, then hand over to the same command file. No rule, threshold, or severity is restated in a shim.
+
+---
+
+[Install](./install.md) · [Configuration](./configuration.md) · [What it looks like](./demo.md)
