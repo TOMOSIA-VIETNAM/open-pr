@@ -63,6 +63,9 @@ MAY_BE_EMPTY = {
     "Fetch PR review comments (LINE-level findings)",
     "Fetch CI checks",
     "Fetch PR reviews (FILE-level findings + review_id)",
+    # a thread only exists once someone comments, and on a vendor that derives threads from the
+    # comment list an empty answer is the honest one
+    "Fetch review threads (id + isResolved + comment ids)",
 }
 
 # An entry with no command must SAY it has none, or the parse failed and that is a bug

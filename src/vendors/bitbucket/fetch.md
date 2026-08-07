@@ -11,10 +11,14 @@ built from these shorthands:
 | `<api>` | `https://api.bitbucket.org/2.0/repositories/<owner>/<repo>` |
 | `<curl>` | `curl -sS --fail-with-body <auth>` |
 | `<comments>` | `<api>/pullrequests/<pull_number>/comments?pagelen=100` — 3 entries read it, each with its own `&fields=` |
-| `<diff_cmd>` | `<curl> -L "<api>/pullrequests/<pull_number>/diff"` — `-L` MANDATORY, that path redirects to the repository diff and without it the body is empty |
+| `<diff_cmd>` | `<curl> -L "<api>/pullrequests/<pull_number>/diff"` |
 | `<patch_pipe>` | `awk -v m=<max_patch_bytes> '/^diff --git /{if(n&&s<m)printf "%s",b; b=""; s=0; n=1} n{b=b $0 "\n"; s+=length($0)+1} END{if(n&&s<m)printf "%s",b}'` |
 | `<size_pipe>` | `awk '/^diff --git /{if(n)print s" "p; p=substr($0,index($0," b/")+3); s=0; n=1} n{s+=length($0)+1} END{if(n)print s" "p}'` |
-| `<paged>` | `paged() { next="$1"; while [ -n "$next" ]; do page=$(<curl> "$next"); printf '%s' "$page" \| jq -r "$2"; next=$(printf '%s' "$page" \| jq -r '.next // empty'); done; }` |
+| `<paged>` | `paged() { next="$1"; while [ -n "$next" ]; do page=$(<curl> -L "$next"); printf '%s' "$page" \| jq -r "$2"; next=$(printf '%s' "$page" \| jq -r '.next // empty'); done; }` |
+
+`-L` in `<diff_cmd>` and in `<paged>` is MANDATORY: `/diff` AND `/diffstat` both answer 302 to the
+repository-level endpoint, and without it the body is EMPTY — which reads as "this PR changed nothing"
+rather than as an error. Read-only GETs only, all on one host, so following the redirect leaks nothing.
 
 No per-file patch endpoint exists, so the 2 diff entries cut ONE whole-diff response at `diff --git`
 boundaries — hence the 2 pipelines. Both run under `LC_ALL=C`: `awk`'s `length` counts CHARACTERS, and a
@@ -65,12 +69,18 @@ time plus ~20 link objects, and all of it lands in context for 6 fields' worth o
 ## Fetch PR head commit SHA
 
 `<curl> "<api>/pullrequests/<pull_number>?fields=source.commit.hash" | jq -r '.source.commit.hash'` →
-`<commit_id>`.
+`<commit_id>`, which Bitbucket ABBREVIATES to 12 characters. git resolves that prefix, so a checkout and
+a `<first 7>` label both work — but FORBIDDEN: comparing it for equality against a 40-character SHA from
+`git rev-parse` or from another vendor; prefix-match instead.
 
 ## Fetch PR diff — file list
 
 `<paged>; paged "<api>/pullrequests/<pull_number>/diffstat?pagelen=100&fields=next,values.old.path,values.new.path"
-'.values[] | (.old.path // empty), (.new.path // empty)'`
+'.values[] | if .old.path == .new.path then .new.path else (.old.path // empty), (.new.path // empty) end'`
+
+1 line per changed file — `old.path` and `new.path` are EQUAL for a plain modification, and printing both
+would count that file twice against the caller's file-count threshold. A rename prints both, an add prints
+the new path, a delete prints the old one.
 
 ## Fetch PR diff — patch, omitting oversized files
 
@@ -137,3 +147,6 @@ object per comment instead of re-reading the finding bodies.
 Bitbucket has no thread object: a thread IS a comment with `parent` absent, plus every comment whose
 `parent.id` chains back to it. That root's `id` is the thread id "Resolve a review thread" takes, and
 `resolution` (an object once resolved, `null` before) is Bitbucket's name for `isResolved`.
+
+`resolution` is set on the ROOT ONLY — a reply inside a resolved thread still reads `null`. Judge a
+thread by its root; FORBIDDEN: reading a reply's flag as the thread's state.

@@ -237,9 +237,18 @@ nhánh "hoặc review đã soạn trong chat, với vendor không có draft".
   - Commit theo path đã sửa (không `git add -A`), push CHỈ branch `feat/bitbucket-support`, 1 PR, không
     đụng `main`.
 - Dependency: B1 → B8.
-- Status: gate offline XANH — `check.sh main`: 53/53 test pass, duplication scan sạch, context-cost đo
-  xong; `vendor_lint.py` offline sạch 3 vendor (15 lệnh curl + 32 flag CLI). Grep self-containment sạch.
-  CÒN LẠI, chưa có bằng chứng nên KHÔNG tính là verified: live lint trên fixture Cloud thật, user tự
-  chạy `python3 scripts/vendor_lint.py --url <PR_URL>`.
+- Status: DONE. Offline: `check.sh main` 53/53 pass, duplication scan sạch, `vendor_lint.py` sạch 3
+  vendor, grep self-containment sạch.
+  Live trên fixture `bitbucket.org/tms-minhtang1/open-pr-test`: 11/11 entry `Fetch` chạy thật pass, và
+  đường write (post inline + overview, reply, resolve/unresolve, permalink) xác nhận trên 1 PR throwaway
+  riêng. Chạy thật bắt được 3 lỗi mà offline không thể thấy:
+  - `/diffstat` cũng trả 302 như `/diff` ⇒ `<paged>` thiếu `-L` thì body RỖNG, đọc ra như "PR không đổi
+    file nào" chứ không phải lỗi.
+  - `diffstat` trả `old.path` == `new.path` cho file sửa thường ⇒ in cả 2 sẽ đếm file gấp đôi, lệch
+    `many_files_threshold`. Rename mới in 2 dòng.
+  - `source.commit.hash` bị Bitbucket VIẾT TẮT 12 ký tự; git resolve được prefix nên checkout/label vẫn
+    đúng, nhưng so sánh bằng với SHA 40 ký tự thì luôn sai.
+  Nhận thêm 2 sự thật để không phải thử lại: reactions endpoint trả 404 (đúng là No equivalent), và
+  `resolution` chỉ nằm trên comment ROOT — reply trong thread đã resolve vẫn đọc ra `null`.
 
 ## Thứ tự: B1 → B2 → B3 → B5 → B6 → B7 → B8 → B9 (B4 hoãn, độc lập)
