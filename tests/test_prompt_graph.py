@@ -514,16 +514,11 @@ def test_diff_fetch_is_size_gated_in_every_vendor():
         entry = [p for p in re.split(r"\n(?=## )", body) if "<max_patch_bytes>" in p]
         assert entry, v
         cmd = " ".join(" ".join(entry[0].split()).split())
-        # The filter is either in this entry's own jq, or in the shared awk pipeline the entry
-        # hands the threshold to — what must never happen is a threshold nothing acts on.
-        assert any(k in cmd for k in ("select", RAW_HTTP_PIPELINES)), \
+        # jq filters it, or awk does when the diff arrives as one text blob. What must never
+        # happen is a threshold nothing acts on.
+        assert any(k in cmd for k in ("select", "awk -v m=<max_patch_bytes>")), \
             f"{v}: the threshold is named but nothing filters on it"
 
-
-# A vendor with no CLI has no per-file patch endpoint either, so its patch and size entries
-# hand a whole-diff command to the awk pipelines of this atom. Naming it is what lets the two
-# tests below see a filter that lives one Read away instead of inside the entry.
-RAW_HTTP_PIPELINES = "core/raw-http-vendor.md"
 
 # An entry is bounded when its output cannot grow with the PR. Either the command filters
 # or projects, or its shape caps it: one value, one line per file, one line per commit.
@@ -557,7 +552,7 @@ def test_every_fetch_entry_is_bounded_or_declared():
             if head in BOUNDED_BY_SHAPE or head in UNBOUNDED_BY_DESIGN:
                 continue
             flat = " ".join(part.split())
-            markers = ("select", "| jq '{", "--json", "fields=", "No equivalent", RAW_HTTP_PIPELINES)
+            markers = ("select", "| jq '{", "--json", "fields=", "No equivalent", "<patch_pipe>")
             if not any(k in flat for k in markers):
                 loose.append((v, head))
     assert not loose, (
@@ -915,8 +910,8 @@ def test_manifest_descriptions_name_every_vendor():
         texts[f"marketplace.json[{p['name']}]"] = p["description"]
     missing = {}
     for where, text in texts.items():
-        # A directory name is one token (`bitbucket-server`); prose spells the same vendor with
-        # a space. Compare on the flattened form so both spellings count as naming it.
+        # A directory name is one token; prose may spell the same vendor with a space. Compare
+        # on the flattened form so both spellings count as naming it.
         flat = text.lower().replace("-", " ")
         absent = [v for v in VENDORS if v.replace("-", " ") not in flat]
         if absent:

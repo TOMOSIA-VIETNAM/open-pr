@@ -270,8 +270,8 @@ none. Invariants on every vendor:
 - every FILE finding inside the overview body — FORBIDDEN: mixing one into a LINE-level entry
 
 `auto_submit_review`: `true` → carry that entry through to its own submit/publish step; `false` → stop at
-whatever the vendor calls pending/draft and say it isn't published, FORBIDDEN: publishing on the user's
-behalf. That entry may also describe how to verify the post landed — follow it if present.
+whatever holds the review unpublished there — a server-side draft, or the composed review in chat on a
+vendor with none — and say it isn't published, FORBIDDEN: publishing on the user's behalf. That entry may also describe how to verify the post landed — follow it if present.
 
 Post/publish error || that verify reports a mismatch → `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/cases/post-review.md`. Happy path → skip that file.

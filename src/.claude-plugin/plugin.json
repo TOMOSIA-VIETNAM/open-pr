@@ -1,7 +1,7 @@
 {
   "name": "open-pr",
   "displayName": "PR/MR Reviewer with memory",
-  "description": "Review pull requests on GitHub, GitLab, Bitbucket Cloud and Bitbucket Server across many stacks, learning each repo's own conventions over time and posting one review through that vendor's own CLI or REST API.",
+  "description": "Review pull requests on GitHub, GitLab and Bitbucket across many stacks, learning each repo's own conventions over time and posting one review through that vendor's own CLI or REST API.",
   "author": {
     "name": "Minh Tang Q."
   },

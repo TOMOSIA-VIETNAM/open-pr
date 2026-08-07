@@ -63,13 +63,6 @@ ROLES = {
     "bb-worktree": ["vendors/bitbucket/worktree.md"],
     "bb-post": ["vendors/bitbucket/post.md"],
     "bb-thread": ["vendors/bitbucket/thread.md"],
-    "bbs-fetch": ["vendors/bitbucket-server/fetch.md"],
-    "bbs-worktree": ["vendors/bitbucket-server/worktree.md"],
-    "bbs-post": ["vendors/bitbucket-server/post.md"],
-    "bbs-thread": ["vendors/bitbucket-server/thread.md"],
-    # both atoms load only for a vendor that has no CLI of its own
-    "raw-http": ["core/raw-http-vendor.md"],
-    "pending-staging": ["core/pending-review-staging.md"],
     "guardrails": ["core/guardrails.md"],
     "locate-repo": ["core/locate-repo.md"],
     "upgrades-index": ["core/llm-upgrades-index.md"],
@@ -136,16 +129,16 @@ SCENARIOS = {
         "clean-cmd", "guardrails",
     ],
     "review/known-repo-bitbucket-clean": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "raw-http",
-        "bb-fetch", "bb-worktree", "bb-post", "pending-staging", "criteria", "always-rule", "tpl-rails",
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack",
+        "bb-fetch", "bb-worktree", "bb-post", "criteria", "always-rule", "tpl-rails",
     ],
-    "review/known-repo-bitbucket-server-rereview": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "raw-http",
-        "bbs-fetch", "bbs-worktree", "bbs-post", "bbs-thread", "pending-staging", "case-re-review",
-        "marker-logic", "criteria", "always-rule", "tpl-vue",
+    "review/known-repo-bitbucket-rereview": [
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "bb-fetch",
+        "bb-worktree", "bb-post", "bb-thread", "case-re-review", "marker-logic", "criteria",
+        "always-rule", "tpl-vue",
     ],
     "fix/known-repo-bitbucket": [
-        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "raw-http",
+        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack",
         "bb-fetch", "bb-thread", "marker-logic", "criteria", "always-rule", "tpl-rails",
     ],
     "fix/known-repo-github": [

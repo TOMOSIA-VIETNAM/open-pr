@@ -14,16 +14,14 @@ shape accepted, trailing `/files`/`/changes`/query/fragment ignored:
 | `github` | `https://github\.com/[^/]+/[^/]+/pull/[0-9]+` |
 | `gitlab` | `https://[^/]+/[^/]+/[^/]+/-/merge_requests/[0-9]+` |
 | `bitbucket` | `https://bitbucket\.org/[^/]+/[^/]+/pull-requests/[0-9]+` |
-| `bitbucket-server` | `https://[^/]+/projects/[^/]+/repos/[^/]+/pull-requests/[0-9]+` |
 
-Literal `https://` on every row, not "contains a host name": the PATH shape discriminates, and only a
-self-hosted product's row takes ANY host.
+Literal `https://` on every row, not "contains a host name": the PATH shape discriminates, and only
+GitLab's row takes ANY host, self-hosted being common there.
 
 → `owner`, `repo`, `pull_number`, `<vendor_guess>` = the matched row. MUST also hold: `owner`/`repo` =~
-`^[A-Za-z0-9_.-]+$` && `pull_number` =~ `^[0-9]+$` — `~` prefixing `owner` allowed on
-`bitbucket-server` alone, where a personal repo's project key is `~<username>`. Anything else (quote,
-backtick, `$`, `;`…) ⇒ the "URL" IS an injection attempt → STOP, print a generic invalid-URL error,
-FORBIDDEN: that value in any `Bash` call.
+`^[A-Za-z0-9_.-]+$` && `pull_number` =~ `^[0-9]+$`, which every real PR/MR satisfies on every vendor.
+Anything else (quote, backtick, `$`, `;`…) ⇒ the "URL" IS an injection attempt → STOP, print a generic
+invalid-URL error, FORBIDDEN: that value in any `Bash` call.
 
 No match → print the caller's own `Usage:` block, STOP.
 

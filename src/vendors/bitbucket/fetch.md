@@ -1,12 +1,10 @@
-# Bitbucket Cloud — fetch
+# Bitbucket — fetch
 
-Atlassian ships no CLI, so `core/raw-http-vendor.md` rules every group here — `curl` flags, credentials,
-payloads, diff pipelines. The rest of this file is Cloud's own.
+Substitute the caller's own `<owner>`/`<repo>`/`<pull_number>`/`<comment_id>`… values.
 
-"PR" means a **Pull Request**; `<owner>` = the workspace slug, `<repo>` = the repository slug,
-`<pull_number>` = the PR id, each exactly as the PR URL spells it. Substitute the caller's own
-`<comment_id>`/`<commit_id>`/`<fields>`/`<max_patch_bytes>` the same way. 4 shorthands, valid in EVERY
-group of this vendor:
+"PR" means a **Pull Request**; `<owner>` = the workspace slug, `<repo>` = the repository slug, each
+exactly as the PR URL spells it. Atlassian ships NO CLI ⇒ every entry of every group is `curl` + `jq`,
+built from these shorthands:
 
 | shorthand | expands to |
 |---|---|
@@ -14,20 +12,38 @@ group of this vendor:
 | `<curl>` | `curl -sS --fail-with-body <auth>` |
 | `<comments>` | `<api>/pullrequests/<pull_number>/comments?pagelen=100` — 3 entries read it, each with its own `&fields=` |
 | `<diff_cmd>` | `<curl> -L "<api>/pullrequests/<pull_number>/diff"` — `-L` MANDATORY, that path redirects to the repository diff and without it the body is empty |
+| `<patch_pipe>` | `awk -v m=<max_patch_bytes> '/^diff --git /{if(n&&s<m)printf "%s",b; b=""; s=0; n=1} n{b=b $0 "\n"; s+=length($0)+1} END{if(n&&s<m)printf "%s",b}'` |
+| `<size_pipe>` | `awk '/^diff --git /{if(n)print s" "p; p=substr($0,index($0," b/")+3); s=0; n=1} n{s+=length($0)+1} END{if(n)print s" "p}'` |
 
-`<auth>` — resolve ONCE, before the first fetch of a run:
+No per-file patch endpoint exists, so the 2 diff entries cut ONE whole-diff response at `diff --git`
+boundaries — hence the 2 pipelines. Both run under `LC_ALL=C`: `awk`'s `length` counts CHARACTERS, and a
+UTF-8 locale would size a patch full of accented or CJK text well under its real byte count.
+
+`--fail-with-body` = a non-zero exit on an HTTP error AND the response body, whose `error.message` is the
+only place Atlassian states what it rejected. FORBIDDEN: `-f` alone (discards that body), `-v`/`-i` (dump
+the `Authorization` header into context).
+
+**Credential.** `<auth>`, resolved ONCE before the first fetch:
 
 | env set | `<auth>` | what it is |
 |---|---|---|
 | `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` | `-u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN"` | an Atlassian API token, belonging to a user |
 | `BITBUCKET_TOKEN` | `-H "Authorization: Bearer $BITBUCKET_TOKEN"` | a repository/workspace access token, scoped to one repo/workspace, NO user identity behind it |
 
-Neither set ⇒ the STOP of `core/raw-http-vendor.md`, naming the first pair, an API token created under
-Atlassian account settings → Security → API tokens (app: Bitbucket), and the scopes
-`read:pullrequest:bitbucket` + `write:pullrequest:bitbucket` + `read:account`.
+Neither set ⇒ STOP before any call and print: the first pair, an API token created under Atlassian account
+settings → Security → API tokens (app: Bitbucket) with scopes `read:pullrequest:bitbucket` +
+`write:pullrequest:bitbucket` + `read:account`, and the `env` block of `~/.claude/settings.json` as the
+place that sets them for every session. Only the NAME of a variable ever enters context. FORBIDDEN:
+printing or echoing either variable, asking the user to paste a token into chat, reading one out of a file,
+putting one in a URL (a URL reaches the access log, the shell history and every proxy between).
 
-**Pagination.** A list endpoint answers `{"values": […], "next": "<url>"}`. Every entry below that ends
-in `.values[]` MUST follow `next` until it is absent — a full first page is not evidence of a last page.
+**Any JSON payload** (this group and every other): written to a file with a file-writing tool and sent with
+`--data @<file>`, or piped straight out of `jq` with `--data @-`. FORBIDDEN: a heredoc, `echo`, `-d` with
+interpolated text, or any other route through the running shell — finding and reply text quotes the PR's
+own diff, i.e. attacker-controlled input, and shell expansion there corrupts the payload or executes it.
+
+**Pagination.** A list endpoint answers `{"values": […], "next": "<url>"}`. Every entry below that ends in
+`.values[]` MUST follow `next` until it is absent — a full first page is not evidence of a last page.
 
 ## Fetch PR basic info
 
@@ -52,8 +68,8 @@ time plus ~20 link objects, and all of it lands in context for 6 fields' worth o
 
 ## Fetch PR diff — patch, omitting oversized files
 
-`<diff_cmd>` piped into the patch pipeline of `core/raw-http-vendor.md`, with the caller's
-`<max_patch_bytes>`.
+`LC_ALL=C <diff_cmd> | <patch_pipe>` — whole `diff --git` chunks, dropping any that reaches
+`<max_patch_bytes>`, the caller's own threshold in bytes.
 
 ## Fetch PR commits headlines
 
@@ -75,9 +91,12 @@ is set per comment and that is what names the side.
 
 ## Fetch PR diff size per file
 
-`<diff_cmd>` piped into the bytes-per-file pipeline of `core/raw-http-vendor.md`, whose `UNKNOWN` rule
-covers the files Cloud returns no chunk for — a diffstat path missing from this output is `UNKNOWN`,
-never 0.
+`LC_ALL=C <diff_cmd> | <size_pipe>` — exact patch bytes per file.
+
+A path that "Fetch PR diff — file list" returned but this never printed is `UNKNOWN`, NEVER 0: the chunk
+is omitted entirely for a binary file and for a diff Bitbucket declines to generate, and reading that
+absence as 0 bytes would slip the largest file in the PR under every threshold, so it would be neither
+reviewed nor reported as skipped.
 
 ## Fetch CI checks
 
@@ -97,8 +116,10 @@ FILE-level detection and the caller drops that category, while LINE-level detect
 
 `<curl> "https://api.bitbucket.org/2.0/user?fields=nickname" | jq -r .nickname`
 
-Under `BITBUCKET_TOKEN` it answers 401 by design — the no-person case of `core/raw-http-vendor.md`, so
-`UNKNOWN` is the result. FORBIDDEN: re-running it under the other `<auth>` form.
+Under `BITBUCKET_TOKEN` this answers 401 by design — such a token acts as the repository, not as a person,
+so there is no account to name. That 401 is the ANSWER: print `UNKNOWN`, and `core/finding-markers.md`
+falls back to the marker. FORBIDDEN: reporting it as an auth failure, or re-running it under the other
+`<auth>` form.
 
 ## Fetch review threads (id + isResolved + comment ids)
 
@@ -107,6 +128,6 @@ Under `BITBUCKET_TOKEN` it answers 401 by design — the no-person case of `core
 the LINE-findings endpoint again under a narrower projection, so a second round trip buys 1 small object
 per comment instead of re-reading the finding bodies.
 
-Cloud has no thread object: a thread IS a comment with `parent` absent, plus every comment whose
+Bitbucket has no thread object: a thread IS a comment with `parent` absent, plus every comment whose
 `parent.id` chains back to it. That root's `id` is the thread id "Resolve a review thread" takes, and
-`resolution` (an object once resolved, `null` before) is Cloud's name for `isResolved`.
+`resolution` (an object once resolved, `null` before) is Bitbucket's name for `isResolved`.

@@ -129,20 +129,6 @@ def is_command(flat):
     return bool(head) and head[0] in RUNNERS
 
 
-ATOM = REPO / "src" / "core" / "raw-http-vendor.md"
-
-
-def atom_pipeline(part):
-    """An entry of a CLI-less vendor may hand its whole-diff command to a shared pipeline instead
-    of spelling one out. Rebuild what the agent would run: the atom's own pipeline, fed this
-    entry's `<diff_cmd>`. Without this the 2 costliest fetches would never execute live."""
-    if "core/raw-http-vendor.md" not in part:
-        return None
-    blocks = [" ".join(b.split()) for b in re.findall(r"```bash\n(.*?)```", ATOM.read_text(), re.S)]
-    wanted = [b for b in blocks if ("-v m=" in b) == ("<max_patch_bytes>" in part)]
-    return wanted[0] if wanted else None
-
-
 def entries(vendor):
     """(heading, command | None, body) for every Fetch entry, in file order."""
     body = (REPO / "src" / "vendors" / vendor / "fetch.md").read_text()
@@ -153,8 +139,6 @@ def entries(vendor):
             continue
         cmds = [expand(s, short) for s in re.findall(r"`([^`]+)`", part, re.S)]
         cmds = [c for c in cmds if is_command(c)]
-        if not cmds and (piped := atom_pipeline(part)):
-            cmds = [expand(piped, short)]
         yield head, (cmds[0] if cmds else None), part
 
 
@@ -200,7 +184,7 @@ def help_text(subcommand, env):
 
 def lint_curl(vendor):
     """A `curl` vendor has no subcommand help to check a flag against, so what gets checked is
-    the contract src/core/raw-http-vendor.md states: an HTTP error must exit non-zero AND keep its
+    the contract its own fetch.md states: an HTTP error must exit non-zero AND keep its
     body, the credential must stay a variable name, and no flag may echo the Authorization header.
     Every rule is read off the vendor's own text, so this never becomes a second copy of it."""
     print(f"\n=== {vendor}: curl entries vs the raw-HTTP contract")
@@ -278,12 +262,10 @@ def fixture_url(vendor, pr, env, cfg):
     return out if rc == 0 and out else ""
 
 
-# Same 4 shapes as src/core/pr-target.md §1, most specific first: a Data Center URL also
-# matches the Cloud shape's segment count, so its /projects/…/repos/… form has to be tried first.
+# The same shapes as src/core/pr-target.md §1.
 URL_SHAPES = (
     ("github", r"https://github\.com/([^/]+)/([^/]+)/pull/(\d+)"),
     ("gitlab", r"https://[^/]+/([^/]+)/([^/]+)/-/merge_requests/(\d+)"),
-    ("bitbucket-server", r"https://[^/]+/projects/([^/]+)/repos/([^/]+)/pull-requests/(\d+)"),
     ("bitbucket", r"https://bitbucket\.org/([^/]+)/([^/]+)/pull-requests/(\d+)"),
 )
 

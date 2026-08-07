@@ -2,8 +2,7 @@
 
 ## Mission
 
-Claude Code plugin `open-pr`. 4 slash commands, 4 vendors — GitHub, GitLab, Bitbucket Cloud, Bitbucket
-Data Center:
+Claude Code plugin `open-pr`. 4 slash commands, 3 vendors — GitHub, GitLab, Bitbucket:
 
 - `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review through the
   vendor's own CLI (`gh`/`glab`) or, where the vendor ships none, its REST API over `curl`.
@@ -100,8 +99,8 @@ splitting an always-loaded file into 2 always-loaded files is a pure loss.
 **Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). Adding one = 4
 files under `src/vendors/<name>/`, its URL row in `core/pr-target.md` §1, and its atoms + scenarios in
 `token_report.py` — no `commands/` or `cases/` file changes, and nothing enumerates vendors anywhere else.
-A vendor shipping no CLI inherits `core/raw-http-vendor.md`, plus `core/pending-review-staging.md` when
-its API has no draft to hold a review in; both are shared, neither is copied per vendor.
+Whatever that vendor's API lacks (a CLI, a draft, a review object, a per-PR ref) is described inside its
+own 4 files, never worked around in a caller.
 
 **Files must be self-contained.** No refs to task ids, plan phases, design-doc sections, or anything
 that gets deleted. Inline the rule or point at a durable file.

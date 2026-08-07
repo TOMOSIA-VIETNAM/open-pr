@@ -1,6 +1,6 @@
-# Bitbucket Cloud — worktree checkout
+# Bitbucket — worktree checkout
 
-Cloud publishes NO per-PR git ref, so the source BRANCH is the only route to the PR head, and a PR from a
+Bitbucket publishes NO per-PR git ref, so the source BRANCH is the only route to the PR head, and a PR from a
 fork lives in another repository — hence the lookup both entries start from:
 
 `<curl>

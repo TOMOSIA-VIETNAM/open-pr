@@ -1,8 +1,8 @@
-# Bitbucket Cloud — thread interaction
+# Bitbucket — thread interaction
 
 ## Reply on a PR
 
-ONE mechanism for BOTH kinds — a reply is a comment carrying `parent`, and Cloud accepts that whether the
+ONE mechanism for BOTH kinds — a reply is a comment carrying `parent`, and Bitbucket accepts that whether the
 parent is anchored to a line or top-level:
 
 ```bash
@@ -21,11 +21,12 @@ shows it has a `parent`, in which case follow `parent.id` up first. `DELETE` on 
 
 ## React to a PR comment
 
-**No equivalent.** Cloud exposes no reactions endpoint — the emoji picker in its UI has no public API behind
+**No equivalent.** Bitbucket exposes no reactions endpoint — the emoji picker in its UI has no public API behind
 it. A caller reacting as an ADDITION to some other action still performs that other action, and adds
 nothing here.
 
 ## Finding permalink
 
 `<curl> "<api>/pullrequests/<pull_number>/comments/<comment_id>?fields=links.html.href" | jq -r
-'.links.html.href'`, `<comment_id>` per `core/pending-review-staging.md`.
+'.links.html.href'` — a FILE-level finding lives in the overview comment on this vendor, so
+`<comment_id>` is the id that comment's POST returned.
