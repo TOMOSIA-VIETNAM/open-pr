@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg">
-    <img src="./docs/images/logo-lockup.svg" alt="Open PullRequest" width="280">
+    <img src="./docs/images/logo-lockup.svg" alt="Open PullRequest" width="180">
   </picture>
 </p>
 
@@ -32,7 +32,7 @@
 > PR が届いたとき最初に浮かぶ問いは、たいてい「このコードは正しいか」ではなく「開発者は送る前に一度でも
 > 読み返したか」です。
 
-`open-pr`（**Open PullRequest**）はそこに向けて作られました。リポジトリに既にある規約に沿って PR をレビューし、あなたが指摘した
+`open-pr` はそこに向けて作られました。リポジトリに既にある規約に沿って PR をレビューし、あなたが指摘した
 ことを記憶し、毎回同じ手順を通る Claude Code プラグインです — 同じトーン、同じ重大度の分け方、同じ形の
 痕跡を PR に残します。
 
