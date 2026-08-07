@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg?v=427bfae">
-    <img src="./docs/images/logo-lockup.svg?v=427bfae" alt="Open PullRequest" width="280">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg?v=trim1">
+    <img src="./docs/images/logo-lockup.svg?v=trim1" alt="Open PullRequest" width="220">
   </picture>
 </p>
 

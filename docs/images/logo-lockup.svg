@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" role="img" aria-label="Open PullRequest">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 182 64" role="img" aria-label="Open PullRequest">
   <defs>
     <linearGradient id="accent" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FF8F6B"/>
@@ -10,8 +10,7 @@
       <stop offset="1" stop-color="#FF8F6B" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <!-- mark left, same geometry as logo.svg -->
-  <g transform="translate(2 2) scale(0.94)">
+  <g transform="translate(0 2) scale(0.94)">
     <circle cx="40" cy="30" r="12.2" fill="url(#glow)"/>
     <path d="M10 18h18M10 28h14M10 38h20M10 48h12" fill="none" stroke="#1F1E1D" stroke-width="3" stroke-linecap="round" opacity=".9"/>
     <circle cx="40" cy="30" r="14" fill="none" stroke="url(#accent)" stroke-width="3.5"/>
@@ -19,9 +18,8 @@
     <circle cx="37.5" cy="27.5" r="1.8" fill="#FFF8F4" opacity=".9"/>
     <path d="M50.5 40.5 58 52" fill="none" stroke="url(#accent)" stroke-width="3.5" stroke-linecap="round"/>
   </g>
-  <!-- wordmark on one line; baseline tuned to lens center (~y=30) -->
   <text
-    x="74"
+    x="70"
     y="39"
     font-family="Inter, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
     font-size="28"
