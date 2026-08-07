@@ -31,22 +31,22 @@
 
 Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nửa mà nằm ở khâu review. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
 
-Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*?
+Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*? Điều này không khác gì reviewer chính là công cụ vibecoding cho AI.
 
-Local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. `open-pr` đưa bước đó lên **remote** — review nằm ngay trên GitHub / GitLab, ai vào PR cũng thấy.
+Nếu review ở Local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. Vì vậy `open-pr` đã giải quyết bằng cách đưa bước đó lên **remote** để minh bạch — comment nằm ngay trên PR, ai vào PR cũng thấy.
 
-- Dán URL → `/open-pr:review` → đúng **1** review (overview + line comment)
-- Dev đọc comment rồi tự fix, hoặc dùng `/open-pr:fix` (1 commit + reply từng thread)
-- Mỗi lần chạy cùng một procedure: đọc convention repo, nhớ những gì team đã remind
-
-> [!IMPORTANT]
-> **Review rounds (gợi ý cho team):**
-> 1. **Round 1** — Dev tự chạy AI review trên PR. Chưa thấy review → reviewer **trả về**, chưa đụng vào.
-> 2. **Round 2** — Reviewer chạy lại (AI). Sạch → **LGTM**.
-> 3. **Round 3** — Human review phần domain. Trách nhiệm cuối vẫn thuộc về người.
+- `/open-pr:review <PR_URL>` → đúng **1** review (overview + line comment)
+- Dev đọc comment rồi tự fix, hoặc dùng `/open-pr:fix <PR_URL>` (1 commit + reply từng thread)
+- Mỗi lần chạy cùng một procedure: đọc convention repo, tự ghi nhớ những gì team đã thảo luận trong PR
 
 > [!NOTE]
-> Khi dùng trong team, AI sẽ gánh phần lớn logic / convention / security / performance. Reviewer còn lại tập trung vào **business domain**. Tiết kiệm hơn 80% công sức review.
+> **Review rounds (gợi ý cho team):**
+> 1. **Round 1** — Dev tự chạy AI review trên PR. Chưa thấy comment review → reviewer **trả về**, chưa đụng vào.
+> 2. **Round 2** — Reviewer chạy lại (AI). Sạch → **LGTM**.
+> 3. **Round 3** — Reviewer review phần domain.
+
+> [!IMPORTANT]
+> AI sẽ giúp bạn giảm bớt gánh nặng trong khâu quy trình, nhưng **TRÁCH NHIỆM** cuối cùng vẫn là bạn. Hãy làm việc một cách sáng suốt và trách nhiệm.
 
 ## Cài đặt
 
@@ -57,36 +57,37 @@ Local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. `open-pr` đ
 /plugin install open-pr@open-pr
 ```
 
-Cursor, Codex, Gemini CLI, Antigravity:
+**Cài đặt cho Cursor, Codex, Gemini CLI, Antigravity:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Uninstall, update, lệnh theo từng platform: [Cài đặt](./docs/vi/install.md).
+Hướng dẫn chi tiết: [Cài đặt](./docs/vi/install.md).
 
-## Một review trông như thế nào
+## Kết quả trông như thế nào
 
-Một lần chạy cho ra ba phần gắn với nhau: overview, line comment (kèm suggested change), và reply sau khi `fix` đã push.
+Một lần chạy cho ra ba phần gắn với nhau: overview, line comment (kèm suggested change), và reply sau khi `open-pr:fix` đã push.
 
 <a href="./docs/vi/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
 
-[Xem demo đầy đủ](./docs/vi/demo.md) · hỗ trợ GitHub (`.../pull/<n>`) và GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted).
+[Xem demo](./docs/vi/demo.md) · hỗ trợ GitHub (`.../pull/<n>`) và GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted).
 
-## Khác gì so với skill review generic?
+## Khác gì so với skill review phổ thông
 
-Nhiều skill review chỉ là một file mô tả. Mỗi lần chạy một kiểu — wording khác, độ khắt khác, dễ lệch convention dự án.
+Nhiều skill review chỉ là một file SKILL.md mô tả. Mỗi lần chạy một kiểu — wording khác, độ khắt khác, dễ lệch convention dự án.
 
 | Hay gặp với skill generic | Với `open-pr` |
 | --- | --- |
 | Advice dừng ở luật chung, lệch project | Đọc README / CLAUDE.md / AGENTS.md / docs / wiki; **team rule thắng** generic rule |
 | Remind xong, lần sau vẫn mắc lại | Mentions trong chat → xin ghi vào memory của repo → lần sau tự apply |
-| Fix thành commit spam, amend, force-push, không reply | Đúng **1 commit** mỗi lần `fix`, không rewrite history, reply từng comment sau khi push |
+| Bảo fix là fix theo comment — kể cả comment sai → code đúng thành sai | `/open-pr:fix` tự cân comment hợp lý hay không; không hợp lý thì **reply + đưa dẫn chứng**, không đụng code |
+| Fix bị spam commit, amend, force-push, không reply | Đúng **1 commit** mỗi lần `fix`, không rewrite history, reply từng comment sau khi push |
 
 > [!TIP]
 > Điểm đáng giữ nhất: dù chạy lúc nào, procedure cũng giống nhau — bootstrap convention, chọn output language theo repo, rồi memory những gì team đã remind. Không phải hôm nay AI một giọng, ngày mai một giọng khác.
 
-## Flow
+## Flow Review
 
 ```mermaid
 flowchart LR
