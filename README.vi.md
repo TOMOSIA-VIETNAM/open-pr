@@ -29,26 +29,24 @@
   <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja.md">日本語</a>
 </p>
 
-## 30 giây
+Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nửa mà nằm ở khâu review. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
 
-AI viết code nhanh → PR đổ về dày. Reviewer vừa soi convention, vừa cover nghiệp vụ → không kham nổi.
+Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*?
 
-Câu hỏi thật sự không phải *"code đúng chưa?"* mà là: **dev đã tự đọc lại PR trước khi gửi chưa**, hay cứ nghĩ *"có người review lo"*?
+Local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. `open-pr` đưa bước đó lên **remote** — review nằm ngay trên GitHub / GitLab, ai vào PR cũng thấy.
 
-`open-pr` đưa phần self-review đó **lên remote** — ai cũng nhìn thấy trên GitHub / GitLab. Không dựa lời *"tôi review local rồi"*.
-
-- Dán URL → `/open-pr:review` → 1 review (overview + comment đúng dòng)
-- Dev đọc comment → tự fix, hoặc `/open-pr:fix` (1 commit + reply từng thread)
-- Cùng một quy trình mỗi lần chạy · nhớ convention repo · nhớ lời bạn đã nhắc
+- Dán URL → `/open-pr:review` → đúng **1** review (overview + line comment)
+- Dev đọc comment rồi tự fix, hoặc dùng `/open-pr:fix` (1 commit + reply từng thread)
+- Mỗi lần chạy cùng một procedure: đọc convention repo, nhớ những gì team đã remind
 
 > [!IMPORTANT]
-> **Luật vòng review (gợi ý dùng trong team):**
+> **Review rounds (gợi ý cho team):**
 > 1. **Round 1** — Dev tự chạy AI review trên PR. Chưa thấy review → reviewer **trả về**, chưa đụng vào.
-> 2. **Round 2** — Reviewer (hoặc AI) chạy lại. Sạch → để lại **LGTM**.
-> 3. **Round 3** — Người review nghiệp vụ. Trách nhiệm cuối vẫn là con người.
+> 2. **Round 2** — Reviewer chạy lại (AI). Sạch → **LGTM**.
+> 3. **Round 3** — Human review phần domain. Trách nhiệm cuối vẫn thuộc về người.
 
 > [!NOTE]
-> Trên thực tế dùng trong team, phần soi convention / security / performance AI gánh phần lớn — reviewer còn lại tập trung **domain**. Con số cụ thể mỗi team khác nhau; cái quan trọng là gánh nặng review không còn đổ hết lên một người.
+> Khi dùng trong team, AI sẽ gánh phần lớn logic / convention / security / performance. Reviewer còn lại tập trung vào **business domain**. Tiết kiệm hơn 80% công sức review.
 
 ## Cài đặt
 
@@ -65,80 +63,79 @@ Cursor, Codex, Gemini CLI, Antigravity:
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Gỡ / cập nhật / lệnh từng nền tảng → [Cài đặt](./docs/vi/install.md).
+Uninstall, update, lệnh theo từng platform: [Cài đặt](./docs/vi/install.md).
 
-## Trông như thế nào
+## Một review trông như thế nào
 
-Một lần review = ba thứ đi cùng nhau: overview, comment đúng dòng (kèm gợi ý sửa), và reply sau khi `fix` đã push.
+Một lần chạy cho ra ba phần gắn với nhau: overview, line comment (kèm suggested change), và reply sau khi `fix` đã push.
 
-<a href="./docs/vi/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, comment trên dòng kèm suggested change, và reply sau khi fix đã push"></a>
+<a href="./docs/vi/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
 
-[Xem demo đầy đủ](./docs/vi/demo.md) · GitHub (`.../pull/<n>`) và GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted).
+[Xem demo đầy đủ](./docs/vi/demo.md) · hỗ trợ GitHub (`.../pull/<n>`) và GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted).
 
-## Vì sao không chỉ một skill `.md`?
+## Khác gì so với skill review generic?
 
-Skill review kiểu “một file mô tả” mỗi lần chạy một kiểu — lời văn khác, độ khắt khác, quên convention.
+Nhiều skill review chỉ là một file mô tả. Mỗi lần chạy một kiểu — wording khác, độ khắt khác, dễ lệch convention dự án.
 
-| Chuyện hay gặp | `open-pr` |
+| Hay gặp với skill generic | Với `open-pr` |
 | --- | --- |
-| Không biết dev đã tự review chưa | Review nằm **trên PR** — nhìn conversation là biết |
-| Góp ý kiểu luật chung, lệch dự án | Đọc README / CLAUDE.md / AGENTS.md / docs / wiki; **rule team thắng** |
-| Nhắc xong lần sau vẫn thế | Chat → xin ghi memory repo → lần sau tự nhớ |
-| Fix spam commit, amend, force-push, không reply | Đúng **1 commit** / lần `fix`, không đè lịch sử, reply từng comment |
+| Advice dừng ở luật chung, lệch project | Đọc README / CLAUDE.md / AGENTS.md / docs / wiki; **team rule thắng** generic rule |
+| Remind xong, lần sau vẫn mắc lại | Mentions trong chat → xin ghi vào memory của repo → lần sau tự apply |
+| Fix thành commit spam, amend, force-push, không reply | Đúng **1 commit** mỗi lần `fix`, không rewrite history, reply từng comment sau khi push |
 
 > [!TIP]
-> Điểm “đời” nhất: chạy lúc nào cũng **cùng một quy trình** — bootstrap convention, chọn ngôn ngữ comment theo repo, rồi memory những gì team đã nhắc. Không phải “hôm nay AI vui, ngày mai AI khác tính”.
+> Điểm đáng giữ nhất: dù chạy lúc nào, procedure cũng giống nhau — bootstrap convention, chọn output language theo repo, rồi memory những gì team đã remind. Không phải hôm nay AI một giọng, ngày mai một giọng khác.
 
-## Flow nhanh
+## Flow
 
 ```mermaid
 flowchart LR
-  A[PR mới] --> B["Round 1 · /open-pr:review"]
+  A[New PR] --> B["Round 1 · /open-pr:review"]
   B --> C{Review trên remote?}
   C -- chưa --> D[Reviewer trả về]
   C -- rồi --> E[Dev fix / /open-pr:fix]
   E --> F["Round 2 · review lại"]
-  F --> G{Sạch?}
+  F --> G{Clean?}
   G -- có --> H[LGTM]
   G -- chưa --> E
-  H --> I[Round 3 · người review domain]
+  H --> I[Round 3 · human review domain]
 ```
 
-Chi tiết re-review, worktree, guard trước khi `fix` đụng file → [Nó chạy thế nào](./docs/vi/how-it-works.md).
+Chi tiết re-review, worktree, và guard trước khi `fix` đụng file: [Nó chạy thế nào](./docs/vi/how-it-works.md).
 
-## Lệnh
+## Commands
 
-| Lệnh | Làm gì |
+| Command | Làm gì |
 | --- | --- |
-| `/open-pr:review <URL>` | Post đúng **1** review. Không sửa code, không close, không merge. Lần đầu trong repo → setup luôn |
-| `/open-pr:fix <URL>` | Đọc comment → cân đúng/sai → sửa → **1** commit → reply. 🔵 / 📝 luôn hỏi trước |
-| `/open-pr:upgrade` | Nâng config local lên schema mới — tóm tắt rồi hỏi, chưa đồng ý thì không ghi |
-| `/open-pr:clean` | Xoá worktree review đã checkout (hỏi trước). Memory / settings không đụng |
+| `/open-pr:review <URL>` | Post đúng **1** review. Không edit code, không close, không merge. Lần đầu trong repo thì setup luôn |
+| `/open-pr:fix <URL>` | Đọc finding → cân đúng/sai → fix → **1** commit → reply. 🔵 / 📝 luôn ask trước |
+| `/open-pr:upgrade` | Nâng local config lên schema hiện tại — summarize rồi hỏi; chưa đồng ý thì không ghi gì |
+| `/open-pr:clean` | Xóa worktree mà `review` đã checkout (ask trước). Memory / settings không bị đụng |
 
 > [!WARNING]
-> `fix` sửa **code thật** trong repo (hoặc worktree review). Chạy khi bạn chủ động muốn nó xử lý comment — đừng coi như “xem thử vô hại”.
+> `fix` sửa **code thật** trong repo (hoặc review worktree). Chỉ chạy khi bạn chủ động muốn nó xử lý comment — đừng coi như lệnh “xem thử”.
 
-Cấu hình đầy đủ → [Cấu hình](./docs/vi/configuration.md).
+Full configuration: [Cấu hình](./docs/vi/configuration.md).
 
-## Nó soi những gì
+## Review những gì
 
-1. Bug & logic  
-2. Security  
-3. Performance  
-4. Chất lượng code  
-5. Dễ bảo trì & dễ đọc  
-6. Đặc thù framework / language (template theo stack)
+1. Bugs & logic
+2. Security
+3. Performance
+4. Code quality
+5. Maintainability & readability
+6. Framework / language-specific — theo template của stack đó
 
-Rule team thắng cả sáu. Chi tiết → [Nó review những gì](./docs/vi/review-criteria.md).
+Team rule thắng cả sáu. Chi tiết tiêu chí và thứ tự ưu tiên khi conflict: [Nó review những gì](./docs/vi/review-criteria.md).
 
-## Token theo release
+## Context cost theo release
 
-Biểu đồ cho ai tò mò “một lần chạy nặng bao nhiêu context” — không bắt buộc đọc trước khi dùng:
+Biểu đồ cho ai muốn biết một lần chạy load bao nhiêu token — không cần đọc trước khi dùng:
 
-![Số token trung bình một lần chạy, theo command / release](./token-history.svg)
+![Mean tokens per run, theo command / release](./token-history.svg)
 
 ---
 
-Góp code? [CONTRIBUTING.md](./CONTRIBUTING.md).
+Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-Chúc review nhẹ đầu hơn 🫡
+Chúc review nhẹ đầu hơn.
