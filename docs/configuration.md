@@ -48,7 +48,7 @@ lives in `settings.json`:
 | ------------------------------------ | -------------------------------------------------------------------------------------- | -------------------- |
 | `shared.chat_language`               | language used in chat                                                                  | auto-detected        |
 | `shared.output_language`             | language posted on the PR                                                              | asked once, then kept |
-| `review.auto_submit_review`          | `true` = post straight away, `false` = keep a draft for you to look over               | `false`              |
+| `review.auto_submit_review`          | `true` = post straight away, `false` = hold it for you to look over first — as a draft on the PR where the vendor has drafts, and in the chat on Bitbucket, which has none, leaving the PR empty | `false`              |
 | `review.auto_resolve_fixed_findings` | resolve a thread once its finding is fixed                                             | `false`              |
 | `review.doctor_schedule`             | how often the convention docs are re-read: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status`            | whether to mention failing CI (a warning only, never a demand to fix)                  | CI present ⇒ `true`  |

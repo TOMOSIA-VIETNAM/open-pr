@@ -47,7 +47,7 @@ Rule riêng của team thì viết văn xuôi bình thường vào `ALWAYS_RULE.
 | ------------------------------------ | ----------------------------------------------------------------------------------------- | ------------------- |
 | `shared.chat_language`               | ngôn ngữ nói chuyện trong chat                                                            | tự nhận             |
 | `shared.output_language`             | ngôn ngữ post lên PR                                                                      | hỏi một lần rồi lưu |
-| `review.auto_submit_review`          | `true` = post luôn, `false` = để draft cho bạn xem lại                                    | `false`             |
+| `review.auto_submit_review`          | `true` = post luôn, `false` = giữ lại cho bạn xem trước — dạng draft trên PR ở vendor có draft, còn Bitbucket không có draft nên review nằm trong chat và PR vẫn trống | `false`             |
 | `review.auto_resolve_fixed_findings` | tự resolve thread khi finding đã được sửa                                                 | `false`             |
 | `review.doctor_schedule`             | chu kỳ đọc lại tài liệu quy ước: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"`     |
 | `review.review_ci_status`            | có nhắc CI đang fail hay không (chỉ cảnh báo, không bắt sửa)                              | có CI ⇒ `true`      |

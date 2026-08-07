@@ -4,7 +4,7 @@
 
 <h1 align="center">Open PullRequest</h1>
 
-<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab</em></p>
+<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab · Bitbucket</em></p>
 
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
@@ -25,8 +25,9 @@ your
 repo already has, remembers what you tell it, and goes through the same procedure every run — same
 tone, same severity scale, same trail left on the PR.
 
-Works with **GitHub** (`.../pull/<n>`) and **GitLab** (`.../-/merge_requests/<n>`, self-hosted
-included).
+Works with **GitHub** (`.../pull/<n>`), **GitLab** (`.../-/merge_requests/<n>`, self-hosted included)
+and **Bitbucket Cloud** (`.../pull-requests/<n>`). Whichever URL you paste is the vendor it uses — there
+is nothing to declare up front.
 
 ## Why not just a generic review skill?
 
@@ -81,9 +82,13 @@ Update:
 /open-pr:upgrade
 ```
 
-You also need [Claude Code](https://claude.ai/code), plus [`gh`](https://cli.github.com/) for GitHub
-PRs or [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab MRs, logged in — the review is posted
-through that account.
+You also need [Claude Code](https://claude.ai/code) and the credential for the vendor you use:
+[`gh`](https://cli.github.com/) for GitHub, [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab, and
+for Bitbucket, which ships no CLI, an API token in an environment variable. The review is posted through
+that account.
+
+How to get a token, the minimum permissions per vendor and a command to check it:
+[Getting a token per vendor](./docs/credentials.md).
 
 ## Usage
 

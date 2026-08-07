@@ -4,7 +4,7 @@
 
 <h1 align="center">Open PullRequest</h1>
 
-<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab</em></p>
+<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab · Bitbucket</em></p>
 
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
@@ -23,7 +23,9 @@
 nhớ những gì bạn nhắc, và lần nào cũng đi qua cùng một quy trình — cùng một tone, cùng một cách phân
 loại, cùng một cách để lại dấu vết trên PR.
 
-Hỗ trợ **GitHub** (`.../pull/<n>`) và **GitLab** (`.../-/merge_requests/<n>`, kể cả self-hosted).
+Hỗ trợ **GitHub** (`.../pull/<n>`), **GitLab** (`.../-/merge_requests/<n>`, kể cả self-hosted) và
+**Bitbucket Cloud** (`.../pull-requests/<n>`). Dán URL nào thì nó dùng đúng vendor đó, không cần khai
+báo trước.
 
 ## Vì sao không dùng một skill review chung?
 
@@ -78,9 +80,12 @@ Cập nhật:
 /open-pr:upgrade
 ```
 
-Cần thêm [Claude Code](https://claude.ai/code), và [`gh`](https://cli.github.com/) cho PR GitHub hoặc
-[`glab`](https://gitlab.com/gitlab-org/cli) cho MR GitLab, đã login — review được post bằng chính
-account đó.
+Cần thêm [Claude Code](https://claude.ai/code) và credential của vendor bạn dùng: [`gh`](https://cli.github.com/)
+cho GitHub, [`glab`](https://gitlab.com/gitlab-org/cli) cho GitLab, còn Bitbucket không có CLI nên dùng
+API token đặt trong biến môi trường. Review được post bằng chính account đó.
+
+Cách lấy token, quyền tối thiểu cho từng vendor và lệnh tự kiểm tra:
+[Lấy token cho từng vendor](./docs/vi/credentials.md).
 
 ## Sử dụng
 

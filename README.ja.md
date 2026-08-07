@@ -4,7 +4,7 @@
 
 <h1 align="center">Open PullRequest</h1>
 
-<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab</em></p>
+<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab · Bitbucket</em></p>
 
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
@@ -23,7 +23,9 @@
 ことを記憶し、毎回同じ手順を通る Claude Code プラグインです — 同じトーン、同じ重大度の分け方、同じ形の
 痕跡を PR に残します。
 
-**GitHub**（`.../pull/<n>`）と **GitLab**（`.../-/merge_requests/<n>`、セルフホスト含む）に対応。
+**GitHub**（`.../pull/<n>`）、**GitLab**（`.../-/merge_requests/<n>`、セルフホスト含む）、
+**Bitbucket Cloud**（`.../pull-requests/<n>`）に対応。貼った URL のベンダーがそのまま使われ、事前の
+指定は要りません。
 
 ## 汎用のレビュースキルでは足りない理由
 
@@ -77,9 +79,12 @@ flowchart LR
 /open-pr:upgrade
 ```
 
-ほかに [Claude Code](https://claude.ai/code) と、GitHub の PR なら [`gh`](https://cli.github.com/)、
-GitLab の MR なら [`glab`](https://gitlab.com/gitlab-org/cli) にログイン済みであることが必要です —
-レビューはそのアカウントで投稿されます。
+ほかに [Claude Code](https://claude.ai/code) と、使うベンダーの認証情報が必要です。GitHub は
+[`gh`](https://cli.github.com/)、GitLab は [`glab`](https://gitlab.com/gitlab-org/cli)、CLI のない
+Bitbucket は環境変数に置いた API token です。レビューはそのアカウントで投稿されます。
+
+トークンの取得方法、ベンダーごとの最小権限、確認コマンド:
+[ベンダーごとのトークン取得](./docs/ja/credentials.md)。
 
 ## 使い方
 
