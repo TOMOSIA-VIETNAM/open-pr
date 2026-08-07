@@ -7,26 +7,21 @@ Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gi
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Installs Claude Code, Cursor, Codex, Gemini CLI, and Antigravity.
+The terminal asks which platform to install.
 
-### Claude Code
-
-```bash
-/plugin marketplace add TOMOSIA-VIETNAM/open-pr
-/plugin install open-pr@open-pr
-```
-
-### One platform
+To pin a platform (no prompt):
 
 | Platform | Install | Use |
 | -------- | ------- | --- |
+| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
 | Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Codex | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform shared` | `$open-pr-review <PR_URL>` |
 | Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR_URL>` |
 | Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
+| All | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform all` | as above |
 
 Without the pipe:
 

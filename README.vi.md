@@ -60,7 +60,7 @@ Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồ
 **Cài đặt cho Cursor, Codex, Gemini CLI, Antigravity:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
 Hướng dẫn chi tiết: [Cài đặt](./docs/vi/install.md).

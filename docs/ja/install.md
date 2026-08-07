@@ -7,26 +7,21 @@
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Claude Code / Cursor / Codex / Gemini CLI / Antigravity を入れます。
+ターミナルでプラットフォームを選びます。
 
-### Claude Code
-
-```bash
-/plugin marketplace add TOMOSIA-VIETNAM/open-pr
-/plugin install open-pr@open-pr
-```
-
-### 1 プラットフォームだけ
+プラットフォームを指定する場合（プロンプトなし）:
 
 | プラットフォーム | インストール | 使い方 |
 | ---------------- | ------------ | ------ |
+| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
 | Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Codex | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform shared` | `$open-pr-review <PR_URL>` |
 | Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR_URL>` |
 | Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
+| All | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform all` | 上記と同じ |
 
 パイプなし:
 

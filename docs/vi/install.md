@@ -7,25 +7,19 @@ Cần [`gh`](https://cli.github.com/) (GitHub) hoặc [`glab`](https://gitlab.co
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Cài Claude Code, Cursor, Codex, Gemini CLI, Antigravity.
+Terminal hỏi chọn platform.
 
-### Claude Code
-
-```bash
-/plugin marketplace add TOMOSIA-VIETNAM/open-pr
-/plugin install open-pr@open-pr
-```
-
-### Một platform
+Muốn chỉ định sẵn (không hỏi):
 
 | Platform | Install | Use |
 | -------- | ------- | --- |
+| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
 | Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Codex | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform shared` | `$open-pr-review <PR_URL>` |
-| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR_URL>` |
+| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/open-pr-review <PR_URL>` |
 | Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
 
 Không dùng pipe:
