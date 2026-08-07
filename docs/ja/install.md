@@ -4,25 +4,22 @@
 
 [`gh`](https://cli.github.com/)（GitHub）または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）がインストール済み・ログイン済みであること。レビューはそのアカウントで投稿されます。
 
-## 推奨: All で入れる
-
-1 本のコマンド — 全プラットフォームへ入れます（Claude Code / Cursor / Codex / Gemini CLI / Antigravity）:
+## Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
 ```
 
-> [!TIP]
-> **All** を使う。1 プラットフォームだけにしたいときだけ下の表へ。
+Claude Code / Cursor / Codex / Gemini CLI / Antigravity を入れます。
 
-## Claude Code
+### Claude Code
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-## プラットフォーム別（任意）
+### 1 プラットフォームだけ
 
 | プラットフォーム | インストール | 使い方 |
 | ---------------- | ------------ | ------ |
@@ -31,27 +28,25 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 | Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR_URL>` |
 | Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
 
-パイプを使わない場合:
+パイプなし:
 
 ```bash
 git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 ~/.open-pr/scripts/install-local.sh
 ```
 
-## アンインストール
-
-まず curl のアンインストーラ（`install.sh` が入れたものを外す）:
+## Uninstall
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-| プラットフォーム | 個別コマンド（必要なとき） |
-| ---------------- | -------------------------- |
+| プラットフォーム | コマンド |
+| ---------------- | -------- |
 | Claude Code | `/plugin uninstall open-pr@open-pr` |
 | Gemini CLI | `gemini extensions uninstall open-pr` |
 
-## 更新
+## Update
 
 | プラットフォーム | コマンド |
 | ---------------- | -------- |

@@ -4,25 +4,22 @@
 
 Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — installed and logged in. Reviews post as that account.
 
-## Recommended: install All
-
-One command — installs every platform (Claude Code, Cursor, Codex, Gemini CLI, Antigravity):
+## Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
 ```
 
-> [!TIP]
-> Prefer **All**. Use the per-platform table only when you intentionally want a single platform.
+Installs Claude Code, Cursor, Codex, Gemini CLI, and Antigravity.
 
-## Claude Code
+### Claude Code
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-## Per platform (optional)
+### One platform
 
 | Platform | Install | Use |
 | -------- | ------- | --- |
@@ -40,14 +37,12 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 
 ## Uninstall
 
-Prefer the curl uninstaller (removes what `install.sh` put on disk):
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-| Platform | Platform-specific (if needed) |
-| -------- | ----------------------------- |
+| Platform | Command |
+| -------- | ------- |
 | Claude Code | `/plugin uninstall open-pr@open-pr` |
 | Gemini CLI | `gemini extensions uninstall open-pr` |
 
