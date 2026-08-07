@@ -4,13 +4,13 @@
       <stop stop-color="#FFB090"/>
       <stop offset="1" stop-color="#E07A58"/>
     </linearGradient>
-    <radialGradient id="glow" cx="40" cy="30" r="20" gradientUnits="userSpaceOnUse">
+    <radialGradient id="glow" cx="40" cy="30" r="12.2" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FF8F6B" stop-opacity=".38"/>
       <stop offset=".55" stop-color="#FF8F6B" stop-opacity=".12"/>
       <stop offset="1" stop-color="#FF8F6B" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <circle cx="40" cy="30" r="20" fill="url(#glow)"/>
+  <circle cx="40" cy="30" r="12.2" fill="url(#glow)"/>
   <path d="M10 18h18M10 28h14M10 38h20M10 48h12" fill="none" stroke="#F0EEE6" stroke-width="3" stroke-linecap="round" opacity=".85"/>
   <circle cx="40" cy="30" r="14" fill="none" stroke="url(#accent)" stroke-width="3.5"/>
   <circle cx="40" cy="30" r="5.5" fill="#F0EEE6"/>
