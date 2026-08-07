@@ -83,11 +83,28 @@ Copy the token while it is on screen — closing the dialog is final.
 **Step 2 — set the environment variables.** Two of them: `BITBUCKET_EMAIL` is the email of the Atlassian
 account that created the token (not the Bitbucket username), `BITBUCKET_API_TOKEN` is the token.
 
-| Where | Suits |
-| ----- | ----- |
-| `~/.claude/settings.json`, `env` block | every Claude Code session, no terminal to reopen — the one to prefer |
-| `~/.zshrc` / `~/.bashrc` | you want it in an ordinary terminal too |
-| a repo's `.claude/settings.local.json` | only one project needs it, and that file is already gitignored |
+Pick one of the two.
+
+**Option A — export in the shell.** Works with every agent: Claude Code, Codex, Gemini CLI, Antigravity,
+Cursor.
+
+Open `~/.zshrc` (zsh, the macOS default) or `~/.bashrc` (bash) in an editor and add two lines:
+
+```bash
+export BITBUCKET_EMAIL="you@company.com"
+export BITBUCKET_API_TOKEN="the-token-you-copied"
+```
+
+Reload and check:
+
+```bash
+source ~/.zshrc          # or ~/.bashrc
+printenv BITBUCKET_EMAIL
+```
+
+Use an editor, not `echo ... >> ~/.zshrc` — that leaves the token in `~/.zsh_history`.
+
+**Option B — `~/.claude/settings.json`.** Claude Code only, but no terminal to reopen:
 
 ```json
 {
@@ -98,7 +115,8 @@ account that created the token (not the Bitbucket username), `BITBUCKET_API_TOKE
 }
 ```
 
-After editing `~/.claude/settings.json`, start a new Claude Code session — settings are read at startup.
+After editing it, start a new Claude Code session — settings are read at startup. If only one project
+needs the token, put it in that repo's `.claude/settings.local.json`, which is already gitignored.
 
 **Step 3 — check it.** Neither command prints the token:
 
@@ -136,7 +154,7 @@ push — the account needs an SSH key:
 
 A token sits in plaintext in whichever file you put it in, so:
 
-- `chmod 600 ~/.claude/settings.json` after editing it.
+- `chmod 600` whichever file holds it — `~/.zshrc`, `~/.bashrc` or `~/.claude/settings.json`.
 - Keep it out of a repo's `.claude/settings.json`, which is committable — use `settings.local.json`.
 - Never paste it into a chat, a PR or a commit message. The plugin needs the variable's **name**, never
   its value.

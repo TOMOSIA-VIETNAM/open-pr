@@ -83,11 +83,28 @@ Bitbucket では 401 が返ります。アプリに **Bitbucket** を選び、�
 **手順 2 — 環境変数を設定する。** 2 つです。`BITBUCKET_EMAIL` はトークンを作成した Atlassian アカウントの
 メールアドレス（Bitbucket のユーザー名ではありません）、`BITBUCKET_API_TOKEN` がトークンです。
 
-| 置き場所 | 向いている場合 |
-| -------- | -------------- |
-| `~/.claude/settings.json` の `env` ブロック | すべての Claude Code セッションで有効、ターミナルの再起動も不要 — 推奨 |
-| `~/.zshrc` / `~/.bashrc` | 通常のターミナルでも使いたい |
-| リポジトリの `.claude/settings.local.json` | 1 つのプロジェクトだけで必要な場合。このファイルは既に gitignore 済み |
+どちらか一方を選びます。
+
+**方法 A — シェルで export する。** Claude Code、Codex、Gemini CLI、Antigravity、Cursor など、どのエージェント
+でも使えます。
+
+`~/.zshrc`（zsh、macOS の既定）または `~/.bashrc`（bash）をエディタで開き、2 行追加します。
+
+```bash
+export BITBUCKET_EMAIL="you@company.com"
+export BITBUCKET_API_TOKEN="コピーしたトークン"
+```
+
+読み込み直して確認します。
+
+```bash
+source ~/.zshrc          # または ~/.bashrc
+printenv BITBUCKET_EMAIL
+```
+
+編集はエディタで行い、`echo ... >> ~/.zshrc` は使わないでください。トークンが `~/.zsh_history` に残ります。
+
+**方法 B — `~/.claude/settings.json`。** Claude Code 専用ですが、ターミナルを開き直す必要はありません。
 
 ```json
 {
@@ -98,7 +115,8 @@ Bitbucket では 401 が返ります。アプリに **Bitbucket** を選び、�
 }
 ```
 
-`~/.claude/settings.json` を編集したら、新しい Claude Code セッションを開きます。設定は起動時に読まれます。
+編集したら新しい Claude Code セッションを開きます。設定は起動時に読まれます。1 つのプロジェクトだけで必要
+なら、そのリポジトリの `.claude/settings.local.json` に置きます。このファイルは既に gitignore 済みです。
 
 **手順 3 — 確認する。** どちらのコマンドもトークンを出力しません。
 
@@ -136,7 +154,7 @@ push できません。アカウントに SSH 鍵が必要です。
 
 トークンは置いたファイルの中で平文のままなので、次を守ります。
 
-- 編集後に `chmod 600 ~/.claude/settings.json`。
+- トークンを置いたファイルに `chmod 600` — `~/.zshrc`、`~/.bashrc`、`~/.claude/settings.json` のいずれでも。
 - リポジトリの `.claude/settings.json` には置かない（コミットされ得る）。`settings.local.json` を使う。
 - チャット、PR、コミットメッセージに貼らない。プラグインが必要なのは変数の**名前**だけで、値は不要です。
 - 動く範囲で最も狭い権限にし、有効期限を付ける。漏洩が疑われたら作成したページで revoke して作り直せば

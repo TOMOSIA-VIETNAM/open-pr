@@ -81,11 +81,27 @@ Copy token ngay khi hiện — đóng cửa sổ là không xem lại được.
 **Bước 2 — đặt biến môi trường.** Hai biến: `BITBUCKET_EMAIL` là email của account Atlassian vừa tạo
 token (không phải username Bitbucket), `BITBUCKET_API_TOKEN` là token.
 
-| Đặt ở đâu | Phù hợp khi |
-| --------- | ----------- |
-| `~/.claude/settings.json`, block `env` | mọi session Claude Code, không cần mở lại terminal — nên dùng |
-| `~/.zshrc` / `~/.bashrc` | muốn dùng cả ở terminal thường |
-| `.claude/settings.local.json` của một repo | chỉ một dự án cần, và file này đã được gitignore |
+Chọn một trong hai cách.
+
+**Cách A — export ở shell.** Dùng được với mọi agent: Claude Code, Codex, Gemini CLI, Antigravity, Cursor.
+
+Mở `~/.zshrc` (zsh, mặc định trên macOS) hoặc `~/.bashrc` (bash) bằng editor, thêm 2 dòng:
+
+```bash
+export BITBUCKET_EMAIL="ban@congty.com"
+export BITBUCKET_API_TOKEN="token-vua-copy"
+```
+
+Nạp lại và kiểm tra:
+
+```bash
+source ~/.zshrc          # hoặc ~/.bashrc
+printenv BITBUCKET_EMAIL
+```
+
+Sửa bằng editor, đừng `echo ... >> ~/.zshrc` — token sẽ nằm lại trong `~/.zsh_history`.
+
+**Cách B — `~/.claude/settings.json`.** Chỉ Claude Code, nhưng không cần mở lại terminal:
 
 ```json
 {
@@ -96,7 +112,8 @@ token (không phải username Bitbucket), `BITBUCKET_API_TOKEN` là token.
 }
 ```
 
-Sửa `~/.claude/settings.json` xong thì mở session Claude Code mới, vì settings chỉ đọc lúc khởi động.
+Sửa xong thì mở session Claude Code mới, vì settings chỉ đọc lúc khởi động. Chỉ một dự án cần thì đặt vào
+`.claude/settings.local.json` của repo đó — file này đã được gitignore.
 
 **Bước 3 — kiểm tra.** Hai lệnh này không in token ra:
 
@@ -134,7 +151,7 @@ cần SSH key trên account:
 
 Token nằm dạng plaintext ở bất cứ file nào bạn đặt vào, nên:
 
-- `chmod 600 ~/.claude/settings.json` sau khi sửa.
+- `chmod 600` file nào đang giữ token — `~/.zshrc`, `~/.bashrc` hay `~/.claude/settings.json`.
 - Đừng đặt token vào `.claude/settings.json` của repo — file đó commit được; dùng bản `settings.local.json`.
 - Đừng dán token vào chat, PR hay commit message. Plugin chỉ cần **tên biến**, không cần giá trị.
 - Cấp quyền hẹp nhất chạy được và đặt ngày hết hạn. Nghi token bị lộ thì revoke ngay ở đúng trang đã tạo
