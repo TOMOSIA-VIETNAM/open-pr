@@ -1,89 +1,61 @@
-# Backlog: Bitbucket support — 1 vendor (Cloud), Data Center HOÃN
+# Backlog: Bitbucket support
 
-Mục tiêu: `/open-pr:review` + `/open-pr:fix` chạy được trên Bitbucket Cloud VÀ Bitbucket Data Center
-(Server), giữ nguyên mọi tính năng đã có với GitHub/GitLab: comment line-by-line, overview, FILE-level,
-re-review, resolve thread, reply.
+Mục tiêu: `/open-pr:review` + `/open-pr:fix` chạy trên Bitbucket Cloud với đủ tính năng như
+GitHub/GitLab — comment line-by-line, overview, FILE-level, re-review, resolve thread, reply.
 
-Khác biệt nền tảng so với 2 vendor cũ: **Bitbucket không có CLI chính thức** ⇒ mọi entry là `curl` +
-`jq`, credential phải tự truyền vào. Và Cloud vs Data Center là **2 API khác hẳn nhau** (Cloud
-`api.bitbucket.org/2.0` REST 2.0; DC `<host>/rest/api/latest` REST 1.0, path/payload/field khác hoàn
-toàn) ⇒ 2 vendor directory riêng, KHÔNG nhồi branch vào cùng 1 bộ file.
+Phạm vi: **1 vendor `bitbucket`** (Cloud). Bitbucket Data Center HOÃN, xem Task B4.
 
-## Quyết định đã chốt với user (không tự đổi khi implement)
+Khác biệt nền tảng so với 2 vendor cũ: **Bitbucket không có CLI** ⇒ mọi entry là `curl` + `jq`,
+credential tự truyền vào.
+
+## Quyết định đã chốt với user
 
 | # | Quyết định |
 |---|---|
-| 1 | CHỈ Bitbucket Cloud, 1 vendor dir `bitbucket`. Data Center HOÃN — user không có instance để kiểm thử, và ship bộ lệnh chỉ-đọc-doc là ship thứ chưa ai chạy. Bảng path DC đã verify ở dưới giữ lại để lần sau không phải research lại |
-| 2 | Giao 1 PR duy nhất cho cả 2 vendor |
-| 3 | Credential qua ENV VAR, hướng dẫn set trong README. Plugin chỉ nhắc TÊN biến, giá trị token không bao giờ vào context |
-| 4 | Luồng post/verify/publish giữ đúng semantics như GitHub/GitLab — `auto_submit_review: false` phải thật sự chưa có gì hiện trên PR. Bitbucket không có draft ⇒ tầng "chưa publish" là CHAT: soạn review trong chat, hỏi user, rồi mới POST. KHÔNG dùng staging file (phương án cũ, đã bỏ vì phức tạp hơn giá trị nó mang lại) |
-| 5 | Fixture live: user có Bitbucket **Cloud** thật và tự chạy `vendor_lint.py --url <PR>`; agent KHÔNG tự gọi API thật của user |
+| 1 | Chỉ Bitbucket Cloud. Data Center là API khác hẳn (`/rest/api/1.0`: path, field, payload comment đều khác) nên phải là vendor dir riêng, KHÔNG nhồi branch vào cùng bộ file — và không ship khi chưa có instance để chạy thật |
+| 2 | 1 PR duy nhất |
+| 3 | Credential qua ENV VAR. Plugin chỉ nhắc TÊN biến, giá trị token không bao giờ vào context. Hướng dẫn set nằm trong vendor `fetch.md` (nơi agent đọc lúc chạy); README hoãn |
+| 4 | `auto_submit_review: false` phải thật sự chưa có gì hiện trên PR. Bitbucket không có draft ⇒ tầng "chưa publish" là CHAT |
+| 5 | Live verify do user tự chạy trên fixture Cloud của mình; agent KHÔNG tự gọi API thật của user |
 
-## Ground truth đã verify (dùng lại, đừng suy diễn lại)
+## Ground truth — Bitbucket Cloud
 
-Nguồn: OpenAPI spec chính thức `https://api.bitbucket.org/swagger.json` (Cloud) và
-`https://developer.atlassian.com/server/bitbucket/10.2.swagger.v3.json` (DC), đối chiếu thêm doc
-Atlassian. Mọi path dưới đây có thật trong spec.
+Nguồn: OpenAPI spec chính thức `https://api.bitbucket.org/swagger.json`. Mọi path dưới đây có trong spec.
 
-**Auth.** App password của Bitbucket Cloud đã bị xoá hoàn toàn (brownout 2026-06-09, removed
-2026-07-28) ⇒ chỉ còn 2 đường:
+**Auth.** App password đã bị xoá hoàn toàn (brownout 2026-06-09, removed 2026-07-28) ⇒ còn 2 đường:
 - API token gắn với 1 user: HTTP Basic `email:token` — `/user` gọi được.
-- Repository/Workspace Access Token: `Authorization: Bearer <token>` — scope hẹp hơn nhưng `/user`
-  trả 401 ⇒ entry "Fetch account running the command" BẮT BUỘC có nhánh không dựa vào `/user`.
-- DC dùng HTTP access token (PAT) qua `Authorization: Bearer`, và trả về header `X-AUSERNAME` trên
-  mọi request đã auth ⇒ đó là whoami của DC (DC không có endpoint `/user`).
+- Repository/Workspace Access Token: `Authorization: Bearer <token>` — scope hẹp hơn, `/user` trả 401 ⇒
+  "Fetch account running the command" BẮT BUỘC có nhánh không dựa vào `/user`.
 
-**Cloud — path (prefix `https://api.bitbucket.org/2.0/repositories/<owner>/<repo>`):**
+**Path** (prefix `https://api.bitbucket.org/2.0/repositories/<owner>/<repo>`):
 
 | việc | path |
 |---|---|
 | PR object (title/description/author/source/destination) | `/pullrequests/<n>` |
 | head SHA | cùng object, field `source.commit.hash` |
 | file list + số dòng thay đổi | `/pullrequests/<n>/diffstat` (paginated; `status`, `lines_added`, `lines_removed`, `old.path`, `new.path`) |
-| unified diff | `/pullrequests/<n>/diff` — LÀ REDIRECT sang `/diff/{spec}` ⇒ cần `-L`; hỗ trợ query `path=` (lặp nhiều lần) để bound theo file |
+| unified diff | `/pullrequests/<n>/diff` — LÀ REDIRECT sang `/diff/{spec}` ⇒ cần `-L`; hỗ trợ query `path=` (lặp nhiều lần) |
 | commits | `/pullrequests/<n>/commits` |
-| comment list (cả inline + overview + reply) | `/pullrequests/<n>/comments` |
+| comment list (inline + overview + reply) | `/pullrequests/<n>/comments` |
 | tạo comment | `POST /pullrequests/<n>/comments` — inline: `{"content":{"raw":...},"inline":{"path":...,"to":<line>}}` (`from` = phía old); reply: `{"parent":{"id":<id>}}`; overview: bỏ `inline` |
-| resolve | `POST /pullrequests/<n>/comments/<id>/resolve` (DELETE = unresolve); trạng thái đọc ở field `resolution` |
+| resolve | `POST /pullrequests/<n>/comments/<id>/resolve` (DELETE = unresolve); trạng thái ở field `resolution` |
 | CI | `/pullrequests/<n>/statuses` |
 | permalink của comment | field `links.html.href` trên chính comment |
 | projection server-side | query `?fields=` — rẻ hơn jq vì cắt ngay ở network |
 
-**Cloud — cái KHÔNG có:**
-- Không có draft/pending review dùng được: schema `pullrequest_comment` có field `pending` nhưng
-  KHÔNG có endpoint publish nào trong spec ⇒ coi như không tồn tại, mọi POST comment là public ngay.
-- Không có reactions API (grep spec: 0 path) ⇒ "React to a PR comment" = No equivalent.
-- Không có review object gộp ⇒ "Fetch PR reviews (FILE-level findings + review_id)" = No equivalent,
-  giống GitLab.
-- Không có ref `refs/pull-requests/<n>/from` (khác DC). Checkout phải: đọc `source.branch.name` +
+**Cái KHÔNG có:**
+- Draft/pending review dùng được: schema `pullrequest_comment` có field `pending` nhưng KHÔNG có endpoint
+  publish nào trong spec ⇒ mọi POST comment là public ngay.
+- Reactions API (grep spec: 0 path) ⇒ "React to a PR comment" = No equivalent.
+- Review object gộp ⇒ "Fetch PR reviews (FILE-level findings + review_id)" = No equivalent, như GitLab.
+- Ref `refs/pull-requests/<n>/from`. Checkout phải đọc `source.branch.name` +
   `source.repository.full_name` + `source.commit.hash`; cùng repo → fetch branch từ `origin`, fork →
   fetch từ URL repo fork; rồi `checkout --detach <hash>`.
 
-**Data Center — path (prefix `<host>/rest/api/latest/projects/<owner>/repos/<repo>`):**
+## Cơ chế "review chưa publish"
 
-| việc | path |
-|---|---|
-| PR object | `/pull-requests/<n>` (`fromRef.latestCommit` = head SHA, `author.user.name`) |
-| file list | `/pull-requests/<n>/changes` |
-| unified diff | `/pull-requests/<n>.diff` (text thật), per-file `/pull-requests/<n>/diff/<path>` |
-| commits | `/pull-requests/<n>/commits` |
-| comment list | `/pull-requests/<n>/activities` (toàn bộ) hoặc `/pull-requests/<n>/comments?path=` (theo file) |
-| tạo comment | `POST /pull-requests/<n>/comments` — line: `anchor{line, lineType, fileType, path, fromHash, toHash, diffType}`; file-level: `anchor` không có `line`; reply: `parent.id`; overview: không có `anchor` |
-| resolve | `PUT /pull-requests/<n>/comments/<id>` với `{"state":"RESOLVED","version":<version hiện tại>}` — sai `version` là fail, phải GET trước |
-| CI | `<host>/rest/build-status/latest/commits/<sha>` |
-| reactions | `PUT <host>/rest/comment-likes/latest/projects/<owner>/repos/<repo>/pull-requests/<n>/comments/<id>/reactions/<emoticon>` |
-| draft review | `GET /pull-requests/<n>/review` = các thread PENDING của chính user; `PUT /pull-requests/<n>/review` = complete review (`commentText`, `participantStatus`, `lastReviewedCommit`) |
-| checkout | có ref thật: `refs/pull-requests/<n>/from` |
-
-**Điểm DC chưa verify được (không có instance):** cách TẠO một comment pending. Spec có field
-`pending`/`state` trên `RestComment` và có `GET/PUT .../review`, nhưng payload để POST ra comment
-pending thì spec không mô tả. Vì vậy Task B3 chốt dùng CHUNG một cơ chế staging cho cả 2 vendor
-Bitbucket (xem dưới) — không đánh cược vào payload chưa kiểm chứng.
-
-## Cơ chế "review chưa publish" — chat, không phải file
-
-Interface yêu cầu: "Post a review" tạo ra kết quả UNPUBLISHED, "Verify" nói nó còn unpublished không,
-"Publish" mới làm nó hiện ra. Bitbucket không có draft API dùng được ⇒ map như sau, không thêm file nào:
+Interface yêu cầu: "Post a review" cho ra kết quả UNPUBLISHED, "Verify" nói nó còn unpublished không,
+"Publish" mới làm nó hiện ra. Không có draft API ⇒ map vào chat, không thêm file nào:
 
 - "Post a review": soạn review + payload từng finding TRONG CHAT, không gọi API. Sau bước này PR sạch.
 - "Verify a posted review's state": đếm comment trên PR có marker của plugin (`core/finding-markers.md`).
@@ -92,194 +64,182 @@ Interface yêu cầu: "Post a review" tạo ra kết quả UNPUBLISHED, "Verify"
 - Publish fail giữa đường: chạy lại Verify, chỉ POST finding còn thiếu. CẤM POST lại cái đã có —
   Bitbucket không có bulk undo, trùng thì phải xoá tay từng comment.
 
-`review.md` Bước 9 vốn đã trung lập ("stop at whatever the vendor calls pending/draft") nên chỉ cần thêm
-đúng nhánh "hoặc review đã soạn trong chat, với vendor không có draft" — không sửa flow.
+`review.md` Bước 9 vốn trung lập ("stop at whatever the vendor calls pending/draft") nên chỉ cần thêm
+nhánh "hoặc review đã soạn trong chat, với vendor không có draft".
 
-## Task B1: URL → vendor cho 2 shape Bitbucket
+## Task B1: URL → vendor
 
 - File: `src/core/pr-target.md`.
 - Acceptance:
-  - Bảng regex thêm 2 dòng: `bitbucket` = `https://bitbucket\.org/[^/]+/[^/]+/pull-requests/[0-9]+`
-    (host pin cứng `bitbucket.org` vì Cloud chỉ có 1 host); `bitbucket-server` =
-    `https://[^/]+/projects/[^/]+/repos/[^/]+/pull-requests/[0-9]+` (host bất kỳ vì self-hosted).
-  - Ghi rõ discriminator giữa 4 vendor để không ai đoán: `/pull/` = GitHub, `/-/merge_requests/` =
-    GitLab, `/pull-requests/` + host `bitbucket.org` = Cloud, `/pull-requests/` + segment
-    `/projects/…/repos/…` = DC. Không có cặp nào chồng nhau.
-  - Repo cá nhân của DC có project key dạng `~username` ⇒ guard charset `owner` phải cho phép ký tự
-    `~` ở ĐẦU cho riêng shape DC, giữ nguyên các ký tự đang chặn (quote, backtick, `$`, `;`…). Không
-    nới lỏng guard cho 3 vendor còn lại.
-  - `<repo>` cho memory folder vẫn là segment repo (DC: `repositorySlug`), không phải project key.
+  - Bảng regex thêm 1 dòng: `bitbucket` = `https://bitbucket\.org/[^/]+/[^/]+/pull-requests/[0-9]+` —
+    host pin cứng vì Cloud chỉ có 1 host.
+  - Discriminator không được để ai đoán: `/pull/` = GitHub, `/-/merge_requests/` = GitLab,
+    `/pull-requests/` = Bitbucket. Không cặp nào chồng nhau.
+  - Guard charset `owner`/`repo`/`pull_number` GIỮ NGUYÊN — workspace/repo slug của Bitbucket nằm trong
+    bộ ký tự đang cho phép, không cần nới.
 - Dependency: không.
-- Status: DONE. 2 dòng regex mới + discriminator viết gọn lại (bảng regex tự nói host pin vs `[^/]+`
-  nên đoạn prose cũ dài dòng bị cắt). Guard charset nới `~` CHỈ cho `bitbucket-server`.
+- Status: DONE. Đoạn prose discriminator viết gọn vì bảng regex tự nói host pin vs `[^/]+`.
 
-## Task B2: settings + bootstrap nhận 4 giá trị vendor
+## Task B2: settings + bootstrap nhận giá trị vendor mới
 
 - File: `src/setup/bootstrap.md`, `src/reference/settings-schema.md`.
 - Acceptance:
-  - `shared.git_remote_type` nhận `"github"` | `"gitlab"` | `"bitbucket"` | `"bitbucket-server"`.
-    Câu hỏi bootstrap hiện ghi "(no `"bitbucket"` yet)" — xoá hẳn, không để lại dấu vết.
-  - KHÔNG bump `schema_version`, KHÔNG thêm `llm-upgrades/vN.md`: thêm giá trị hợp lệ cho một field
-    đã tồn tại không cần transform file config của repo cũ (`"github"`/`"gitlab"` vẫn hợp lệ y
-    nguyên). Ghi lý do này ở đây, không ghi vào file config.
+  - `shared.git_remote_type` nhận thêm `"bitbucket"`.
+  - KHÔNG bump `schema_version`, KHÔNG thêm `llm-upgrades/vN.md`: thêm giá trị hợp lệ cho field đã tồn
+    tại không cần transform config repo cũ (`"github"`/`"gitlab"` vẫn hợp lệ y nguyên).
   - Không thêm field nào cho credential — token là env var, tuyệt đối không nằm trong `settings.json`.
-- Dependency: B1 (biết đúng 2 tên vendor).
-- Status: DONE, có 1 thay đổi tốt hơn acceptance: câu hỏi bootstrap KHÔNG liệt kê 4 giá trị mà trỏ về
-  bảng regex ở `core/pr-target.md` — nếu không, thêm vendor thứ 5 sẽ phải sửa 2 chỗ. `settings-schema.md`
-  ghi valid values = tên thư mục dưới `src/vendors/`. KHÔNG bump `schema_version`, KHÔNG thêm
-  `llm-upgrades/vN.md` (giá trị mới cho field đã tồn tại, repo cũ không cần transform).
+- Dependency: B1.
+- Status: DONE. Câu hỏi bootstrap KHÔNG liệt kê giá trị mà trỏ về bảng regex `core/pr-target.md`; nếu
+  liệt kê thì vendor sau phải sửa 2 chỗ. `settings-schema.md` ghi valid values = tên thư mục dưới
+  `src/vendors/`.
 
-## Task B3: `src/vendors/bitbucket/` — Bitbucket Cloud
+## Task B3: `src/vendors/bitbucket/`
 
 - Acceptance:
   - 4 file `fetch.md`/`worktree.md`/`post.md`/`thread.md`, bộ heading `## <entry>` khớp TUYỆT ĐỐI với
-    `src/vendors/github/` (cùng entry, cùng thứ tự trong từng group) — test parity sẽ bắt nếu lệch.
-  - `fetch.md` mở đầu bằng phần vendor-wide (theo đúng chỗ interface quy định): thuật ngữ ("PR" =
-    Pull Request; `<owner>` = workspace, `<repo>` = repo slug), base URL, và AUTH:
-    - `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` → `curl -u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN"`.
-    - Hoặc `BITBUCKET_TOKEN` (repo/workspace access token) → `-H "Authorization: Bearer
-      $BITBUCKET_TOKEN"`.
-    - Thiếu cả 2 → STOP, in hướng dẫn tạo token, FORBIDDEN: đoán/hỏi token qua chat.
-    - FORBIDDEN: in giá trị biến ra output, `curl -v`, `echo $BITBUCKET_*`, hay nhét token vào URL.
-    - Mọi lệnh dùng `curl -sS --fail-with-body` (exit non-zero khi HTTP lỗi NHƯNG vẫn in body để đọc
-      được message lỗi của Atlassian).
-  - Mỗi entry TỰ bound output theo đúng luật interface: `?fields=` và/hoặc `jq` projection nằm TRONG
-    lệnh, không lọc sau. Riêng 2 entry diff:
-    - "Fetch PR diff — patch, omitting oversized files": 1 request tới `/diff` (nhớ `-L`), tách theo
-      `diff --git`, chỉ in chunk dưới `<max_patch_bytes>`.
-    - "Fetch PR diff size per file": byte thật của từng chunk; file có trong diffstat nhưng không có
-      chunk trong diff (binary / bị cắt) ⇒ `UNKNOWN`, TUYỆT ĐỐI không phải 0.
-  - Pagination: Cloud trả `values[]` + `next` ⇒ entry nào có thể vượt 1 trang (comments, diffstat)
-    phải lặp tới hết `next`, không lấy 1 trang rồi coi là đủ.
-  - `post.md` theo cơ chế staging file ở trên; Post-error notes ghi rõ rủi ro publish nửa vời + cách
-    resume, và FORBIDDEN các shortcut publish thẳng bỏ qua staging.
-  - `thread.md`: "React to a PR comment" = **No equivalent** (Cloud không có API). "Finding
-    permalink" = `links.html.href` của comment (Cloud CÓ, khác GitLab).
-  - `fetch.md` "Fetch PR reviews (FILE-level findings + review_id)" = **No equivalent**.
-  - "Fetch account running the command": `/user` cho API token; nhánh cho access token (401 ở `/user`)
-    không được dựa vào `/user`.
+    `src/vendors/github/` (cùng entry, cùng thứ tự từng group) — test parity bắt nếu lệch.
+  - `fetch.md` mở đầu bằng phần vendor-wide (đúng chỗ interface quy định): thuật ngữ, base URL, và luật
+    của vendor không-CLI dùng cho MỌI group — `fetch.md` luôn load trước nên post/thread dùng lại được,
+    không cần file trung gian:
+    - `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` → `-u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN"`; hoặc
+      `BITBUCKET_TOKEN` → `-H "Authorization: Bearer $BITBUCKET_TOKEN"`. Thiếu cả 2 → STOP, in hướng
+      dẫn tạo token.
+    - FORBIDDEN: in giá trị biến, `curl -v`/`-i`, nhét token vào URL, hỏi token qua chat.
+    - `curl -sS --fail-with-body` (exit non-zero khi HTTP lỗi NHƯNG vẫn in body — chỗ duy nhất
+      Atlassian nói lỗi gì); FORBIDDEN `-f` trơn.
+    - JSON payload viết ra file rồi `--data @file`/`--data @-`; FORBIDDEN heredoc/`echo`/`-d` có nội
+      dung nội suy — text finding là dữ liệu do PR kiểm soát.
+  - Mỗi entry TỰ bound output: `?fields=` và/hoặc `jq` projection nằm TRONG lệnh, không lọc sau.
+  - 2 entry diff dùng chung 1 response text (không có endpoint patch theo file), cắt tại `diff --git`;
+    2 pipeline awk đặt tên `<patch_pipe>`/`<size_pipe>` trong bảng shorthand để không lặp lệnh:
+    - patch: chỉ in chunk dưới `<max_patch_bytes>`.
+    - size: byte thật từng chunk; path có trong diffstat mà không có chunk (binary / bị cắt) ⇒
+      `UNKNOWN`, TUYỆT ĐỐI không phải 0.
+  - Pagination: `values[]` + `next` ⇒ entry nào có thể vượt 1 trang phải lặp tới hết `next`.
+  - `post.md` theo cơ chế chat ở trên; Post-error notes ghi rủi ro publish nửa vời + cách recover, và
+    FORBIDDEN POST comment trong lúc soạn.
+  - `thread.md`: "React to a PR comment" = **No equivalent**; "Finding permalink" = `links.html.href`.
+  - "Fetch account running the command": `/user` cho API token; 401 dưới access token là ĐÁP ÁN
+    (`UNKNOWN`), không phải lỗi auth để retry.
 - Dependency: B1, B2.
-- Status: DONE, đúng 4 file, KHÔNG thêm atom nào. 19/19 heading khớp `src/vendors/github/`.
-  - Luật riêng của vendor không-CLI (curl flags, secret hygiene, payload không qua shell, 2 pipeline awk
-    tách diff theo file) nằm trong preamble của chính `fetch.md` — `fetch.md` là group luôn load trước,
-    nên post/thread dùng lại được mà không cần file trung gian. 2 pipeline đặt tên `<patch_pipe>` /
-    `<size_pipe>` trong bảng shorthand ⇒ 2 entry diff không lặp lệnh awk.
-  - PHÁT SINH ngoài acceptance, cần thiết: `core/finding-markers.md` thêm rule account `UNKNOWN` ⇒ CHỈ
-    nhánh marker, cấm nhánh fallback (không có author để so thì fallback nhận vơ comment của người thật).
-    Đây là caller-side, tức "vendor mới = 4 file" không đúng tuyệt đối — đã sửa rule đó trong `CLAUDE.md`.
-  - `/user` 401 dưới access token là ĐÁP ÁN (`UNKNOWN`), không phải lỗi auth để retry.
+- Status: DONE, đúng 4 file. 19/19 heading khớp `src/vendors/github/`.
+  Ngoài acceptance, bắt buộc phải có: `core/finding-markers.md` thêm rule account `UNKNOWN` ⇒ CHỈ nhánh
+  marker, cấm nhánh fallback (không có author để so thì fallback nhận vơ comment của người thật). Đây là
+  caller-side ⇒ rule "vendor mới = 4 file, nothing else" trong `CLAUDE.md` không đúng, xem B8.
 
-## Task B4 (HOÃN): `src/vendors/bitbucket-server/` — Bitbucket Data Center
+## Task B4 (HOÃN): Bitbucket Data Center
 
-- Acceptance:
-  - Cùng bộ heading, cùng luật bound/auth/secret như B3, nhưng theo REST 1.0 (bảng path ở trên).
-  - Auth: `BITBUCKET_SERVER_TOKEN` (HTTP access token) → `Authorization: Bearer`. Host lấy từ CHÍNH
+- Điều kiện khởi động: có instance DC để chạy `vendor_lint.py --url <PR_DC>`. Không có instance thì bộ
+  lệnh chỉ đối chiếu được với spec, tức chưa ai chạy — không ship.
+- Acceptance khi làm:
+  - Vendor dir riêng `src/vendors/bitbucket-server/`, cùng bộ heading và cùng luật bound/auth/payload
+    như B3, nhưng REST 1.0.
+  - 1 dòng regex mới ở `core/pr-target.md`:
+    `https://[^/]+/projects/[^/]+/repos/[^/]+/pull-requests/[0-9]+` — host bất kỳ vì self-hosted,
+    `/projects/…/repos/…` là discriminator so với Cloud.
+  - Repo cá nhân có project key `~username` ⇒ guard charset `owner` phải cho phép `~` ở ĐẦU cho riêng
+    shape này, giữ nguyên các ký tự đang chặn, không nới cho vendor khác.
+  - Auth `BITBUCKET_SERVER_TOKEN` (HTTP access token) → `Authorization: Bearer`. `<host>` lấy từ chính
     host của PR URL, không hardcode.
-  - "Fetch account running the command": đọc header `X-AUSERNAME` (DC không có `/user`).
-  - "React to a PR comment": DC CÓ endpoint reactions ⇒ implement thật, không phải No equivalent.
-  - "Resolve a review thread": phải GET comment lấy `version` rồi mới PUT — ghi rõ vì sai version là
-    fail, đây là điểm khác biệt duy nhất cần 2 request.
-  - Checkout dùng `refs/pull-requests/<n>/from`, detached, cho cả entry worktree thường và entry
-    submodule.
-  - Đầu `fetch.md` ghi caveat: bộ lệnh này verify theo OpenAPI spec chính thức của Bitbucket Data
-    Center, CHƯA chạy trên instance thật; nêu tên đúng 2 chỗ rủi ro cao nhất (payload `anchor` khi
-    tạo line comment, và `version` khi resolve) để người dùng đầu tiên biết soi ở đâu.
-- Dependency: B3 (copy khung + luật chung, chỉ đổi API).
-- Status: HOÃN, KHÔNG ship. Đã viết đủ 19 entry rồi xoá vì không có instance thật để verify — bộ lệnh
-  chỉ-đối-chiếu-spec là thứ chưa ai chạy, không nên đưa cho user. Cần biết khi làm lại: bảng path DC ở
-  phần ground truth trên đây đã verify theo OpenAPI spec chính thức; DC có `refs/pull-requests/<n>/from`
-  (checkout đơn giản hơn Cloud) và CÓ reactions API (`/rest/comment-likes/...`, Cloud không có); 2 chỗ
-  rủi ro cao nhất là payload `anchor` khi tạo line comment và `version` bắt buộc khi resolve. Điều kiện
-  khởi động lại: có instance DC để chạy `vendor_lint.py --url <PR_DC>`.
+  - "Fetch account running the command": đọc header `X-AUSERNAME` (không có endpoint `/user`).
+  - "React to a PR comment": có endpoint thật ⇒ implement, không phải No equivalent.
+  - "Resolve a review thread": GET comment lấy `version` rồi mới PUT — sai `version` là fail.
+  - Checkout dùng `refs/pull-requests/<n>/from`, detached.
+- Ground truth đã verify theo spec `https://developer.atlassian.com/server/bitbucket/10.2.swagger.v3.json`
+  (prefix `<host>/rest/api/latest/projects/<owner>/repos/<repo>`) — dùng lại, đừng research lại:
 
-## Task B5: `scripts/vendor_lint.py` phải lint được vendor không-CLI
+| việc | path |
+|---|---|
+| PR object | `/pull-requests/<n>` (`fromRef.latestCommit` = head SHA, `author.user.name`, `toRef.displayId` = base branch) |
+| file list | `/pull-requests/<n>/changes` (`path.toString`, `srcPath.toString` khi rename) |
+| unified diff | `/pull-requests/<n>.diff` (text), per-file `/pull-requests/<n>/diff/<path>` (JSON hunks, to hơn) |
+| commits | `/pull-requests/<n>/commits` |
+| comment list | `/pull-requests/<n>/activities` — `/comments` BẮT BUỘC query `path` nên không trả được cả PR |
+| tạo comment | `POST /pull-requests/<n>/comments` — line: `anchor{diffType, line, lineType, fileType, path}`; reply: `parent.id`; overview: không có `anchor` |
+| resolve | `PUT /pull-requests/<n>/comments/<id>` với `{"state":"RESOLVED","version":<version>}` |
+| CI | `<host>/rest/build-status/latest/commits/<sha>` |
+| reactions | `PUT <host>/rest/comment-likes/latest/projects/<owner>/repos/<repo>/pull-requests/<n>/comments/<id>/reactions/<emoticon>` |
+| pagination | `isLastPage` + `nextPageStart` (khác Cloud dùng `next`) |
+| draft review | `GET /pull-requests/<n>/review` = thread PENDING của chính user; `PUT` = complete review |
+
+- 2 chỗ rủi ro cao nhất, soi trước khi tin: payload `anchor` khi tạo line comment, và `version` khi
+  resolve. Spec KHÔNG mô tả cách TẠO một comment pending (chỉ có đọc/complete) ⇒ dùng cơ chế chat như
+  B3, không đánh cược vào payload chưa kiểm chứng.
+- Tên emoticon cho reactions: spec không khai enum ⇒ phải xác nhận trên instance thật.
+
+## Task B5: `scripts/vendor_lint.py` lint được vendor không-CLI
 
 - Acceptance:
-  - Parser hiện chỉ nhận lệnh bắt đầu bằng `gh`/`glab`/`git` ⇒ entry `curl` bị coi là "no command
-    parsed" và FAIL. Mở rộng để nhận `curl`.
-  - Chế độ offline (chạy trong CI, không cần credential) thêm luật tĩnh cho entry `curl`:
-    có `--fail-with-body`; host đúng (`api.bitbucket.org` cho Cloud, `/rest/api/` cho DC); auth chỉ
-    qua tên biến `$BITBUCKET_*`; KHÔNG có token/email literal; KHÔNG có `-v`; entry nào gọi endpoint
-    redirect (`/pullrequests/<n>/diff`) phải có `-L`.
-  - Chế độ live: chạy được các entry `Fetch` read-only của Cloud với fixture thật + credential từ env.
-    `parse_url` nhận 2 shape URL mới; bỏ giả định "vendor nào cũng có 1 CLI để `command -v`".
-  - Live mode TUYỆT ĐỐI không chạy entry `post`/`thread` (đang là luật của script, giữ nguyên).
-- Dependency: B3, B4.
+  - Parser nhận thêm lệnh bắt đầu bằng `curl` (trước đó chỉ `gh`/`glab`/`git` ⇒ entry curl bị coi là
+    "no command parsed" và FAIL).
+  - Chế độ offline (chạy CI, không cần credential) thêm luật tĩnh cho entry `curl`: có
+    `--fail-with-body`; URL cùng host với `<api>` của chính vendor đó; auth chỉ qua tên biến; KHÔNG
+    credential literal; KHÔNG `-v`/`-i`/`-f` trơn; shorthand nào tự ghi flag MANDATORY thì phải có flag đó.
+  - Chế độ live: chạy được các entry `Fetch` read-only với fixture thật + credential từ env. `parse_url`
+    nhận shape URL mới; bỏ giả định "vendor nào cũng có 1 CLI để `command -v`".
+  - Live mode TUYỆT ĐỐI không chạy entry `post`/`thread`.
+- Dependency: B3.
 - Status: DONE. Lint tự phát hiện vendor từ thư mục (không hardcode danh sách) và expand shorthand đọc
-  từ chính bảng trong `fetch.md`, nên entry diff (`<diff_cmd> | <patch_pipe>`) vẫn chạy được ở live mode.
-  Luật tĩnh cho curl: `--fail-with-body` bắt buộc, cấm `-f`/`-v`/`-i`, cấm credential literal, URL phải
-  cùng host với `<api>`, và shorthand nào tự ghi "`-X` MANDATORY" thì phải thật sự có flag đó.
-  ĐÃ NEGATIVE-TEST trên bản copy: cả 4 luật đều bắt lỗi khi cố tình phá (không phải test rỗng).
+  từ chính bảng trong `fetch.md`, nên entry diff (`<diff_cmd> | <patch_pipe>`) chạy được ở live mode.
+  Negative-test trên bản copy: cả 4 luật tĩnh đều bắt lỗi khi cố tình phá — không phải test rỗng.
 
 ## Task B6: test suite
 
 - File: `tests/test_prompt_graph.py`.
 - Acceptance:
-  - Parity/reachability/interface-doc test đang tự quét thư mục `src/vendors/` ⇒ phải xanh với 4
-    vendor, không sửa gì. Nếu đỏ thì lỗi ở vendor file, không phải ở test — sửa vendor file.
-  - Test "description phải nêu mọi vendor" so khớp tên thư mục với text ⇒ chuẩn hoá `-` để
-    "Bitbucket Server" trong prose khớp thư mục `bitbucket-server`. Không đổi bản chất luật.
-  - Test "mọi fetch entry phải bound" đang nhận marker `select` / `jq '{` / `--json` / No equivalent ⇒
-    thêm `fields=` (projection server-side của Bitbucket) là marker hợp lệ. Không nới thêm gì khác.
-  - THÊM guard mới: không file nào trong `src/` chứa token/email literal của Bitbucket; mọi lệnh
-    `curl` trong `src/vendors/` đều có `--fail-with-body` và không có `-v`.
-- Dependency: B3, B4.
-- Status: DONE. 2 guard cũ được nới ĐÚNG bản chất, không nới nghĩa: threshold được filter bởi `awk` khi
-  diff về dạng 1 khối text (không chỉ `jq select`), và `fields=` là marker bound hợp lệ (projection
-  server-side). Test tên vendor trong description so khớp sau khi phẳng hoá `-`. 2 test MỚI: không
-  entry curl nào rò credential (`-v`/`-i`/literal), và vendor curl phải báo lỗi HTTP kèm body.
+  - Parity/reachability/interface-doc test tự quét `src/vendors/` ⇒ phải xanh với vendor mới, không sửa
+    test. Đỏ thì lỗi ở vendor file, không phải ở test.
+  - 2 guard cũ chỉ được nới đúng bản chất, không nới nghĩa: threshold `<max_patch_bytes>` được filter
+    bởi `awk` khi diff về dạng 1 khối text (không chỉ `jq select`); `fields=` là marker bound hợp lệ
+    (projection server-side). Test "description phải nêu mọi vendor" so khớp sau khi phẳng hoá `-`.
+  - THÊM guard: không entry `curl` nào rò credential (`-v`/`-i`/literal); vendor `curl` phải báo lỗi
+    HTTP kèm body.
+- Dependency: B3.
+- Status: DONE.
 
 ## Task B7: token budget
 
 - File: `scripts/token_report.py`, `tests/budgets.json`.
 - Acceptance:
-  - Thêm atom cho 8 file vendor mới; thêm scenario review + fix cho Bitbucket Cloud và DC (đủ để đo
-    load set thật, không phải cho đẹp).
-  - Ceiling trong `budgets.json` phải là số ĐO ĐƯỢC bằng `token_report.py`, không phải số đoán.
-  - Vendor Bitbucket đắt hơn `gh`/`glab` là điều tất yếu (curl + jq dài hơn CLI wrapper). Nếu scenario
-    của GitHub/GitLab bị đắt lên thì đó là regression thật ⇒ phải điều tra, không được `--update-budgets`
-    cho qua.
-- Dependency: B3, B4.
-- Status: DONE, số ĐO thật: 8 atom vendor + 2 atom core + 3 scenario mới (review Cloud, re-review DC,
-  fix Cloud). CẢNH BÁO ĐÃ GHI NHẬN: scenario của GitHub/GitLab ĐẮT THÊM +81 tok (+0.7–1.1%), riêng
-  scenario có re-review/fix +71 tok (+0.8–0.9%). Nguyên nhân: `core/pr-target.md` (+44, luôn load) do
-  1 dòng regex mới, và `core/finding-markers.md` (+27) do rule `UNKNOWN`. Đã cắt hết chỗ cắt được —
-  phần còn lại là giá không tránh được của việc nhận thêm 1 vendor. Ceiling của `upgrade`/`clean` giữ nguyên vì 2 scenario đó không đổi.
+  - Thêm atom cho 4 file vendor mới + scenario đo được load set thật (review, re-review, fix).
+  - Ceiling trong `budgets.json` phải là số ĐO bằng `token_report.py`, không phải số đoán.
+  - Bitbucket đắt hơn `gh`/`glab` là tất yếu (curl + jq dài hơn CLI wrapper). Scenario GitHub/GitLab đắt
+    lên thì phải điều tra + nói rõ, không `--update-budgets` cho qua.
+- Dependency: B3.
+- Status: DONE, số đo thật. CẢNH BÁO GHI NHẬN: scenario GitHub/GitLab đắt thêm **+44 tok (+0.4%)**,
+  scenario có re-review/fix **+71 tok (+0.8–0.9%)**. Nguyên nhân: `core/pr-target.md` +44 (luôn load, do
+  1 dòng regex) và `core/finding-markers.md` +27 (rule `UNKNOWN`). Đã cắt hết chỗ cắt được; còn lại là
+  giá của việc nhận thêm 1 vendor. Ceiling `upgrade`/`clean` giữ nguyên vì 2 scenario đó không đổi.
 
 ## Task B8: tài liệu dev
 
 - Acceptance:
-  - `CLAUDE.md`: Mission đang ghi "GitHub + GitLab (no Bitbucket yet)" → cập nhật đúng thực tế 4
-    vendor. Rule "một vendor mới = 4 file, không sửa gì khác" đang KHÔNG đúng cho vendor không có CLI
-    (Bitbucket kéo theo regex, bootstrap, lint, budget) → viết lại rule cho đúng, không bolt thêm câu
-    ngoại lệ bên cạnh câu cũ.
-  - Hướng dẫn credential cho user cuối KHÔNG viết vào `README*.md` ở đợt này (user chốt để sau). Phần
-    tên biến + cách xử lý khi thiếu biến vẫn phải đủ TRONG vendor file, vì đó là nơi agent đọc lúc
-    chạy — không được để user cuối kẹt vì thiếu README.
-  - `e2e/` không thêm fixture Bitbucket ở đợt này (user tự test bằng repo của mình).
-- Dependency: B3, B4.
-- Status: DONE trong phạm vi user chốt. `CLAUDE.md`: Mission 3 vendor, rule "vendor mới = 4 file" viết
-  lại cho đúng (kèm regex row + scenario budget), "flag lint" → "vendor lint".
-  README×3 và fixture e2e KHÔNG làm ở đợt này theo yêu cầu user.
+  - `CLAUDE.md`: Mission nêu đúng số vendor. Rule "một vendor mới = 4 file, không sửa gì khác" KHÔNG
+    đúng (kéo theo regex row, scenario budget, và với vendor không CLI thì cả lint) → viết lại rule,
+    không bolt câu ngoại lệ cạnh câu cũ.
+  - Hướng dẫn credential cho user cuối KHÔNG vào `README*.md` đợt này (user chốt để sau). Tên biến +
+    cách xử lý khi thiếu biến vẫn phải đủ TRONG vendor file — đó là nơi agent đọc lúc chạy, nên user
+    cuối không bị kẹt vì thiếu README.
+  - `e2e/` không thêm fixture Bitbucket đợt này (user tự test bằng repo của mình).
+- Dependency: B3.
+- Status: DONE trong phạm vi user chốt. README×3 + fixture e2e còn nợ.
 
 ## Task B9: cổng verify cuối + PR
 
 - Acceptance:
   - `scripts/check.sh <base-ref>` xanh (suite + duplication + context-cost).
-  - `vendor_lint.py` offline xanh cho cả 4 vendor. Live mode: user tự chạy trên fixture Cloud của
-    mình — cung cấp đúng lệnh, KHÔNG tự gọi API thật của user.
-  - Grep gate: không file bền nào (`src/`, `scripts/`, `tests/`, `CLAUDE.md`, README) chứa mã task của
-    backlog này (`B1`…`B9`) trong tên biến / tên resource / comment, không chứa `§`, `Phase `, hay
-    tham chiếu tới chính file backlog này. Tên đặt theo chức năng thật.
-  - Rule-coverage: không `MUST`/`FORBIDDEN`/`NEVER` nào của file bị sửa (B1, B2, B6, B8) bị mất so
-    với `main`.
-  - Commit theo path đã sửa (không `git add -A`), push CHỈ branch `feat/bitbucket-support`, mở 1 PR.
-    Không đụng `main`.
+  - `vendor_lint.py` offline xanh mọi vendor. Live mode: user tự chạy trên fixture Cloud của mình —
+    cung cấp đúng lệnh, KHÔNG tự gọi API thật của user.
+  - Grep gate: không file bền nào (`src/`, `scripts/`, `tests/`, `CLAUDE.md`) chứa mã task của backlog
+    này (`B1`…`B9`) trong tên biến / tên resource / comment, không chứa `§` lạ, `Phase `, hay tham chiếu
+    tới chính file backlog này.
+  - Rule-coverage: không `MUST`/`FORBIDDEN`/`NEVER` nào của file bị sửa mất so với `main`.
+  - Commit theo path đã sửa (không `git add -A`), push CHỈ branch `feat/bitbucket-support`, 1 PR, không
+    đụng `main`.
 - Dependency: B1 → B8.
-- Status: gate offline XANH — `scripts/check.sh main`: 53/53 test pass, duplication scan sạch,
-  context-cost đo xong; `vendor_lint.py` offline sạch cả 3 vendor (15 lệnh curl + 32 flag CLI).
-  Grep self-containment sạch: không mã task `B1..B9`, không `Phase`, không trỏ về file backlog này.
-  CÒN LẠI: live lint trên fixture Cloud thật do USER tự chạy — chưa có bằng chứng chạy thật, không
-  được coi là đã verify. Lệnh: `python3 scripts/vendor_lint.py --url <PR_URL_Cloud>`.
+- Status: gate offline XANH — `check.sh main`: 53/53 test pass, duplication scan sạch, context-cost đo
+  xong; `vendor_lint.py` offline sạch 3 vendor (15 lệnh curl + 32 flag CLI). Grep self-containment sạch.
+  CÒN LẠI, chưa có bằng chứng nên KHÔNG tính là verified: live lint trên fixture Cloud thật, user tự
+  chạy `python3 scripts/vendor_lint.py --url <PR_URL>`.
 
-## Thứ tự: B1 → B2 → B3 → B4 → B5 → B6 → B7 → B8 → B9
+## Thứ tự: B1 → B2 → B3 → B5 → B6 → B7 → B8 → B9 (B4 hoãn, độc lập)
