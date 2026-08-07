@@ -1,11 +1,9 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-dark.svg">
-    <img src="./docs/images/logo.svg" alt="Open PullRequest" width="120">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg">
+    <img src="./docs/images/logo-lockup.svg" alt="Open PullRequest" width="280">
   </picture>
 </p>
-
-<h1 align="center">Open PullRequest</h1>
 
 <p align="center">
   <strong>Agent review &amp; fix for pull requests</strong><br>
@@ -35,7 +33,7 @@
 the
 > dev read it back even once before sending it".
 
-`open-pr` exists for exactly that: a Claude Code plugin that reviews PRs against the conventions
+`open-pr` (**Open PullRequest**) exists for exactly that: a Claude Code plugin that reviews PRs against the conventions
 your
 repo already has, remembers what you tell it, and goes through the same procedure every run — same
 tone, same severity scale, same trail left on the PR.

@@ -1,11 +1,9 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-dark.svg">
-    <img src="./docs/images/logo.svg" alt="Open PullRequest" width="120">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg">
+    <img src="./docs/images/logo-lockup.svg" alt="Open PullRequest" width="280">
   </picture>
 </p>
-
-<h1 align="center">Open PullRequest</h1>
 
 <p align="center">
   <strong>Agent review &amp; sửa comment trên pull request</strong><br>
@@ -34,7 +32,7 @@
 > Khi bạn nhận PR câu hỏi đầu tiên hiện lên thường không phải "code này đúng chưa", mà là "dev có
 > tự đọc lại lần nào trước khi gửi không".
 
-`open-pr` sinh ra cho đúng chỗ đó: một plugin Claude Code review PR theo quy ước sẵn có của repo, ghi
+`open-pr` (**Open PullRequest**) sinh ra cho đúng chỗ đó: một plugin Claude Code review PR theo quy ước sẵn có của repo, ghi
 nhớ những gì bạn nhắc, và lần nào cũng đi qua cùng một quy trình — cùng một tone, cùng một cách phân
 loại, cùng một cách để lại dấu vết trên PR.
 
