@@ -10,6 +10,8 @@ Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gi
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
+[![Install](./images/install.png)](./images/install.png)
+
 The terminal asks which platform to install.
 
 To pin a platform (no prompt):

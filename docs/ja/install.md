@@ -10,6 +10,8 @@
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
+[![Install](../images/install.png)](../images/install.png)
+
 ターミナルでプラットフォームを選びます。
 
 プラットフォームを指定する場合（プロンプトなし）:

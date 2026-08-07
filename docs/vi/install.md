@@ -10,7 +10,7 @@ Cần [`gh`](https://cli.github.com/) (GitHub) hoặc [`glab`](https://gitlab.co
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Terminal hỏi chọn platform.
+[![Install](../images/install.png)](../images/install.png)
 
 Muốn chỉ định sẵn (không hỏi):
 
