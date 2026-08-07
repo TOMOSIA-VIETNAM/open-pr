@@ -12,33 +12,15 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 [![Install](./images/install.png)](./images/install.png)
 
-The terminal asks which platform to install.
-
-To pin a platform (no prompt):
+Or:
 
 | Platform | Install | Use |
 | -------- | ------- | --- |
 | Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
-| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Codex | `codex plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`codex plugin add open-pr@open-pr` | `$open-pr-review <PR_URL>` |
-| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr --auto-update` | `/review <PR_URL>` |
+| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr --auto-update` | `/open-pr-review <PR_URL>` |
+| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
-| All | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform all` | as above |
-
-Without the pipe:
-
-```bash
-git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
-~/.open-pr/scripts/install-local.sh
-```
-
-## Uninstall
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
-```
-
-[![Uninstall](./images/uninstall.png)](./images/uninstall.png)
 
 ## Update
 
@@ -48,6 +30,14 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 After you reload the plugin, if the new build changes the **schema** a lot, run `/open-pr:upgrade` to bring that repo's settings up to date.
 
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
+```
+
+[![Uninstall](./images/uninstall.png)](./images/uninstall.png)
+
 ---
 
-[How it works](./how-it-works.md) · [Configuration](./configuration.md)
+[Re-review / fix flow](./how-it-works.md) · [Configuration](./configuration.md)
