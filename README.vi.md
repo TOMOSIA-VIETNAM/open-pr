@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg?v=trim1">
-    <img src="./docs/images/logo-lockup.svg?v=trim1" alt="Open PullRequest" width="220">
+    <img src="./docs/images/logo-lockup.svg?v=trim1" alt="Open PullRequest" width="400">
   </picture>
 </p>
 
@@ -29,24 +29,24 @@
   <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja.md">日本語</a>
 </p>
 
-Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nửa mà nằm ở khâu review. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
+Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
 
-Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*? Điều này không khác gì reviewer chính là công cụ vibecoding cho AI.
+Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*? Điều này không khác gì reviewer chính là công cụ *vibecoding* cho AI.
 
-Nếu review ở Local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. Vì vậy `open-pr` đã giải quyết bằng cách đưa bước đó lên **remote** để minh bạch — comment nằm ngay trên PR, ai vào PR cũng thấy.
+Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. Vì vậy `open-pr` đưa bước đó lên **remote** để minh bạch — comment nằm ngay trên PR, ai vào cũng thấy.
 
 - `/open-pr:review <PR_URL>` → đúng **1** review (overview + line comment)
-- Dev đọc comment rồi tự fix, hoặc dùng `/open-pr:fix <PR_URL>` (1 commit + reply từng thread)
+- Dev đọc comment rồi tự fix, hoặc dùng `/open-pr:fix <PR_URL>` (**1** commit + reply từng thread)
 - Mỗi lần chạy cùng một procedure: đọc convention repo, tự ghi nhớ những gì team đã thảo luận trong PR
 
 > [!NOTE]
-> **Review rounds (gợi ý cho team):**
+> **Review rounds** (gợi ý cho team):
 > 1. **Round 1** — Dev tự chạy AI review trên PR. Chưa thấy comment review → reviewer **trả về**, chưa đụng vào.
 > 2. **Round 2** — Reviewer chạy lại (AI). Sạch → **LGTM**.
 > 3. **Round 3** — Reviewer review phần domain.
 
 > [!IMPORTANT]
-> AI sẽ giúp bạn giảm bớt gánh nặng trong khâu quy trình, nhưng **TRÁCH NHIỆM** cuối cùng vẫn là bạn. Hãy làm việc một cách sáng suốt và trách nhiệm.
+> AI giảm gánh nặng ở khâu quy trình, nhưng **trách nhiệm cuối cùng vẫn là bạn**.
 
 ## Cài đặt
 
@@ -67,7 +67,7 @@ Hướng dẫn chi tiết: [Cài đặt](./docs/vi/install.md).
 
 ## Kết quả trông như thế nào
 
-Một lần chạy cho ra ba phần gắn với nhau: overview, line comment (kèm suggested change), và reply sau khi `open-pr:fix` đã push.
+Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push.
 
 <a href="./docs/vi/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
 
@@ -75,7 +75,7 @@ Một lần chạy cho ra ba phần gắn với nhau: overview, line comment (k�
 
 ## Khác gì so với skill review phổ thông
 
-Nhiều skill review chỉ là một file SKILL.md mô tả. Mỗi lần chạy một kiểu — wording khác, độ khắt khác, dễ lệch convention dự án.
+Nhiều skill review chỉ là một file `SKILL.md` mô tả. Mỗi lần chạy một kiểu — wording khác, độ khắt khác, dễ lệch convention dự án.
 
 | Hay gặp với skill generic | Với `open-pr` |
 | --- | --- |
@@ -102,36 +102,36 @@ flowchart LR
   H --> I[Round 3 · human review domain]
 ```
 
-Chi tiết re-review, worktree, và guard trước khi `fix` đụng file: [Nó chạy thế nào](./docs/vi/how-it-works.md).
+Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fix](./docs/vi/how-it-works.md).
 
 ## Commands
 
 | Command | Làm gì |
 | --- | --- |
-| `/open-pr:review <URL>` | Post đúng **1** review. Không edit code, không close, không merge. Lần đầu trong repo thì setup luôn |
-| `/open-pr:fix <URL>` | Đọc finding → cân đúng/sai → fix → **1** commit → reply. 🔵 / 📝 luôn ask trước |
+| `/open-pr:review <PR_URL>` | Post đúng **1** review. Không edit code, không close, không merge. Lần đầu trong repo thì setup luôn |
+| `/open-pr:fix <PR_URL>` | Đọc finding → cân đúng/sai → fix → **1** commit → reply. 🔵 / 📝 luôn ask trước |
 | `/open-pr:upgrade` | Nâng local config lên schema hiện tại — summarize rồi hỏi; chưa đồng ý thì không ghi gì |
 | `/open-pr:clean` | Xóa worktree mà `review` đã checkout (ask trước). Memory / settings không bị đụng |
 
 > [!WARNING]
-> `fix` sửa **code thật** trong repo (hoặc review worktree). Chỉ chạy khi bạn chủ động muốn nó xử lý comment — đừng coi như lệnh “xem thử”.
+> `fix` sửa **code thật** trong repo (hoặc review worktree). Chỉ chạy khi bạn chủ động muốn nó xử lý comment.
 
 Full configuration: [Cấu hình](./docs/vi/configuration.md).
 
 ## Review những gì
 
-1. Bugs & logic
-2. Security
-3. Performance
-4. Code quality
-5. Maintainability & readability
-6. Framework / language-specific — theo template của stack đó
+1. **Bugs & logic**
+2. **Security**
+3. **Performance**
+4. **Code quality**
+5. **Maintainability & readability**
+6. **Framework / language-specific** — theo template của stack đó
 
-Team rule thắng cả sáu. Chi tiết tiêu chí và thứ tự ưu tiên khi conflict: [Nó review những gì](./docs/vi/review-criteria.md).
+Chi tiết tiêu chí và thứ tự ưu tiên khi conflict: [Nó review những gì](./docs/vi/review-criteria.md).
 
-## Context cost theo release
+## Biểu đồ prompt token
 
-Biểu đồ cho ai muốn biết một lần chạy load bao nhiêu token — không cần đọc trước khi dùng:
+Số token bình quân mỗi lần chạy — gồm cả *happy-case* và *bad-case*:
 
 ![Mean tokens per run, theo command / release](./token-history.svg)
 
@@ -139,4 +139,4 @@ Biểu đồ cho ai muốn biết một lần chạy load bao nhiêu token — k
 
 Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-Chúc review nhẹ đầu hơn.
+Enjoy reviewing 🥰
