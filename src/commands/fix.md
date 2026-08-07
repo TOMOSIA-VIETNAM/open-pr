@@ -170,8 +170,8 @@ For EACH finding decided (fixed or declined), `V§"Reply on a PR"`:
   the vendor has an addressable one; otherwise reference it by file path + short description.
   FORBIDDEN: blockquoting the whole review verbatim.
 
-Content MUST end with `<!-- bot-reply -->` — the stable marker Step 3 reads back, independent of prose
-shape.
+Content MUST end with the reply marker of `core/finding-markers.md`, blank line before it as that atom
+requires — the stable thing Step 3 reads back, independent of prose shape.
 
 FORBIDDEN: resolving a thread — this command has no auto-resolve setting, unlike `re-review.md`.
 

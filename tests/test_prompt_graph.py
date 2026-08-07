@@ -222,11 +222,32 @@ def test_overview_headings_carry_emoji_and_label():
 def test_markers_are_byte_identical_everywhere():
     """The bot markers are the plugin's cross-run identity — a variant spelling
     makes past findings invisible to re-review and fix."""
-    for marker in ("<!-- bot-finding -->", "<!-- bot-reply -->"):
-        core = marker.strip("<!- >")
+    for label in ("bot-finding", "bot-reply"):
         for name, body in all_text().items():
-            for m in re.finditer(rf"<!--\s*{re.escape(core)}\s*-->", body):
-                assert m.group(0) == marker, f"{name}: {m.group(0)!r} != {marker!r}"
+            # the destination only, so a marker quoted inline in prose keeps its backtick
+            for m in re.finditer(rf"\[\s*{label}\s*\]:\s*([^\s`]+)", body):
+                assert m.group(0) == f"[{label}]: #", f"{name}: {m.group(0)!r} != [{label}]: #"
+
+
+def test_the_marker_is_written_after_a_blank_line():
+    """A link reference definition cannot interrupt a paragraph: pressed against the text
+    above it, GitHub renders `[bot-finding]: #` as a visible broken link rather than
+    dropping it. Every place the plugin PRINTS a marker has to show the blank line."""
+    bad = []
+    for name, body in all_text().items():
+        for m in re.finditer(r"(?m)^(.*)\n(\[bot-(?:finding|reply)\]: #)$", body):
+            if m.group(1).strip():
+                bad.append((name, m.group(1)[-40:]))
+    assert not bad, f"marker printed straight after text, so it renders visibly: {bad}"
+
+
+def test_the_html_comment_marker_is_never_written():
+    """Bitbucket escapes raw HTML, so an `<!-- bot-finding -->` reaches the page verbatim.
+    Reading it back stays supported for PRs that already carry it; writing it does not."""
+    for name, body in all_text().items():
+        for m in re.finditer(r"<!--\s*bot-(?:finding|reply)\s*-->", body):
+            assert name == "core/finding-markers.md", \
+                f"{name}: writes the escaped marker form {m.group(0)!r}"
 
 
 def _axis_names(body):

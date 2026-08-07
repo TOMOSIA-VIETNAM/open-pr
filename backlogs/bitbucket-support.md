@@ -250,5 +250,32 @@ nhánh "hoặc review đã soạn trong chat, với vendor không có draft".
     đúng, nhưng so sánh bằng với SHA 40 ký tự thì luôn sai.
   Nhận thêm 2 sự thật để không phải thử lại: reactions endpoint trả 404 (đúng là No equivalent), và
   `resolution` chỉ nằm trên comment ROOT — reply trong thread đã resolve vẫn đọc ra `null`.
+  Xem PR render thật còn bắt thêm 1 lỗi nữa, xem Task B10.
 
-## Thứ tự: B1 → B2 → B3 → B5 → B6 → B7 → B8 → B9 (B4 hoãn, độc lập)
+## Task B10: marker phải VÔ HÌNH trên trang PR
+
+- Vấn đề: Bitbucket ESCAPE raw HTML ⇒ `<!-- bot-finding -->` hiện nguyên chữ trên PR, lộ nội bộ cho
+  người đọc. GitHub/GitLab thì ẩn nó, nên lỗi này chỉ thấy khi xem trang Bitbucket thật.
+- Acceptance:
+  - Marker viết ra = link reference definition `[bot-finding]: #` / `[bot-reply]: #`.
+  - Marker MUST là dòng CUỐI của body và MUST có DÒNG TRỐNG phía trước. Không có dòng trống thì GitHub
+    render thành link hỏng nhìn thấy được (`<a href="#">bot-finding</a>: #`) vì definition không được
+    cắt giữa paragraph.
+  - Đọc lại PR thì nhận CẢ 2 dạng (`[...]: #` và `<!-- ... -->`) — PR đang mở còn mang dạng cũ.
+  - Chỉ `core/finding-markers.md` được phép chứa dạng HTML comment (để mô tả luật nhận dạng); file khác
+    viết dạng đó là lỗi.
+- Bằng chứng (render API thật của cả 3 vendor, không đoán):
+
+| dạng | Bitbucket | GitHub | GitLab |
+|---|---|---|---|
+| `<!-- bot-finding -->` | HIỆN (escape) | ẩn | ẩn |
+| `[bot-finding]: #` có dòng trống trước | ẩn | ẩn | ẩn |
+| `[bot-finding]: #` KHÔNG có dòng trống | ẩn | **HIỆN** (link hỏng) | — |
+| `[](#bot-finding)` | ra thẻ `<a>` rỗng | — | — |
+| ký tự zero-width bọc text | HIỆN | — | — |
+
+  `content.raw` vẫn giữ nguyên marker sau khi render ⇒ detect không bị ảnh hưởng.
+- Status: DONE. 2 test MỚI: marker không được dán ngay dưới text (chặn case GitHub render hỏng), và
+  không file nào ngoài `core/finding-markers.md` được viết dạng HTML comment.
+
+## Thứ tự: B1 → B2 → B3 → B5 → B6 → B7 → B8 → B9 → B10 (B4 hoãn, độc lập)

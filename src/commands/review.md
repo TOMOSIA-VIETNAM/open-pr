@@ -172,11 +172,12 @@ finding inside `comments[]`.
 <emoji> <short description>.
 **Fix** — <code or words>
 *(optional)* because <one sentence>.
-<!-- bot-finding -->
+
+[bot-finding]: #
 ```
 
-`<!-- bot-finding -->` MUST end EVERY finding, FILE and LINE alike — the marker `core/finding-markers.md`
-matches on later.
+That last line MUST end EVERY finding, FILE and LINE alike, and the BLANK LINE before it is part of the
+format — `core/finding-markers.md` owns the marker and says what breaks without it.
 
 FORBIDDEN: a text label before the description ("Vấn đề"/"Issue") — in a finding the emoji IS the label,
 unlike a Step 8 grouping heading, which names the severity too. Severity: 🔴 MUST FIX / 🟠 SHOULD FIX /
