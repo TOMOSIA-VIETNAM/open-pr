@@ -1,7 +1,7 @@
 {
   "name": "open-pr",
   "displayName": "PR/MR Reviewer with memory",
-  "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI.",
+  "description": "Review pull requests on GitHub, GitLab, Bitbucket Cloud and Bitbucket Server across many stacks, learning each repo's own conventions over time and posting one review through that vendor's own CLI or REST API.",
   "author": {
     "name": "Minh Tang Q."
   },
@@ -9,10 +9,12 @@
     "code-review",
     "github",
     "gitlab",
+    "bitbucket",
     "pull-request",
     "merge-request",
     "gh-cli",
-    "glab-cli"
+    "glab-cli",
+    "bitbucket-rest-api"
   ],
   "commands": "./commands/"
 }

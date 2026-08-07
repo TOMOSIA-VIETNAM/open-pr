@@ -29,7 +29,7 @@ SEQUENTIAL calls (q1-4, then the rest), finishing one before the next.
 
 | # | field | values | default |
 |---|---|---|---|
-| 1 | `git_remote_type` | `"github"` \| `"gitlab"` (no `"bitbucket"` yet) | `<vendor_guess>` already computed by the caller (`core/pr-target.md` §2) — reuse, FORBIDDEN: re-deriving or asking twice |
+| 1 | `git_remote_type` | one `<vendor_guess>` value of `core/pr-target.md` §1's table | `<vendor_guess>` already computed by the caller (`core/pr-target.md` §2) — reuse, FORBIDDEN: re-deriving or asking twice |
 | 2 | `output_language` | the language findings/replies get POSTED in (`"en"`/`"vi"`/`"ja"`…) | — |
 | 3 | `auto_submit_review` | true/false | `false` |
 | 4 | `auto_resolve_fixed_findings` | true/false | `false` |

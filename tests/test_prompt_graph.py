@@ -514,8 +514,16 @@ def test_diff_fetch_is_size_gated_in_every_vendor():
         entry = [p for p in re.split(r"\n(?=## )", body) if "<max_patch_bytes>" in p]
         assert entry, v
         cmd = " ".join(" ".join(entry[0].split()).split())
-        assert "select" in cmd, f"{v}: the threshold is named but nothing filters on it"
+        # The filter is either in this entry's own jq, or in the shared awk pipeline the entry
+        # hands the threshold to — what must never happen is a threshold nothing acts on.
+        assert any(k in cmd for k in ("select", RAW_HTTP_PIPELINES)), \
+            f"{v}: the threshold is named but nothing filters on it"
 
+
+# A vendor with no CLI has no per-file patch endpoint either, so its patch and size entries
+# hand a whole-diff command to the awk pipelines of this atom. Naming it is what lets the two
+# tests below see a filter that lives one Read away instead of inside the entry.
+RAW_HTTP_PIPELINES = "core/raw-http-vendor.md"
 
 # An entry is bounded when its output cannot grow with the PR. Either the command filters
 # or projects, or its shape caps it: one value, one line per file, one line per commit.
@@ -549,10 +557,43 @@ def test_every_fetch_entry_is_bounded_or_declared():
             if head in BOUNDED_BY_SHAPE or head in UNBOUNDED_BY_DESIGN:
                 continue
             flat = " ".join(part.split())
-            if not any(k in flat for k in ("select", "| jq '{", "--json", "No equivalent")):
+            markers = ("select", "| jq '{", "--json", "fields=", "No equivalent", RAW_HTTP_PIPELINES)
+            if not any(k in flat for k in markers):
                 loose.append((v, head))
     assert not loose, (
         "fetch entry neither filters nor is listed as bounded/unbounded by design: " + str(loose))
+
+
+def test_a_curl_vendor_never_leaks_its_credential():
+    """A vendor with no CLI carries its own token, so the prompt files are what decide whether the
+    VALUE can reach the terminal. `-v`/`-i` print the Authorization header; an interpolated literal
+    would put the token itself in a command line, and from there in the shell history."""
+    bad = []
+    for name, body in all_text().items():
+        for span in re.findall(r"`([^`]+)`", body) + re.findall(r"```(?:bash)?\n(.*?)```", body, re.S):
+            flat = " ".join(span.split())
+            if not flat.startswith(("curl", "<curl>", "LC_ALL=C <curl>")):
+                continue
+            for flag in (" -v", " -i", " --verbose", " --include"):
+                if flag in f" {flat}":
+                    bad.append((name, f"{flag.strip()} prints the Authorization header", flat[:70]))
+            if re.search(r"(?i)(token|password|api_token)\s*[:=]\s*[A-Za-z0-9]{8,}", flat):
+                bad.append((name, "a credential literal", flat[:70]))
+    assert not bad, f"credential leak in a curl entry: {bad}"
+
+
+def test_a_curl_vendor_reports_http_errors_with_their_body():
+    """`--fail-with-body` is the only curl form that both exits non-zero on an HTTP error and keeps
+    the response body — and the body is where the API says what it rejected. Plain `-f` throws that
+    away; no flag at all makes an error page look like a successful empty answer."""
+    for v in VENDORS:
+        body = text(SRC / "vendors" / v / "fetch.md")
+        if "curl" not in body:
+            continue  # a vendor with a CLI of its own
+        assert "--fail-with-body" in body, \
+            f"{v}: defines a curl shorthand that does not fail loudly with its body"
+        assert not re.search(r"curl (?:-[a-zA-Z]+ )*-f(?: |$)", body), \
+            f"{v}: bare -f discards the error body"
 
 
 def test_size_entry_never_reports_zero_for_a_withheld_patch():
@@ -874,7 +915,10 @@ def test_manifest_descriptions_name_every_vendor():
         texts[f"marketplace.json[{p['name']}]"] = p["description"]
     missing = {}
     for where, text in texts.items():
-        absent = [v for v in VENDORS if v not in text.lower()]
+        # A directory name is one token (`bitbucket-server`); prose spells the same vendor with
+        # a space. Compare on the flattened form so both spellings count as naming it.
+        flat = text.lower().replace("-", " ")
+        absent = [v for v in VENDORS if v.replace("-", " ") not in flat]
         if absent:
             missing[where] = absent
     assert not missing, f"description does not mention every supported vendor: {missing}"

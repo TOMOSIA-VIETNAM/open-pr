@@ -2,10 +2,11 @@
 
 ## Mission
 
-Claude Code plugin `open-pr`. 4 slash commands, GitHub + GitLab (no Bitbucket yet):
+Claude Code plugin `open-pr`. 4 slash commands, 4 vendors — GitHub, GitLab, Bitbucket Cloud, Bitbucket
+Data Center:
 
-- `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review via the
-  vendor's own CLI (`gh`/`glab`).
+- `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review through the
+  vendor's own CLI (`gh`/`glab`) or, where the vendor ships none, its REST API over `curl`.
 - `/open-pr:fix <PR_URL>` — read the findings review left, fix the code, 1 commit, reply on the PR.
   Edits real code at pwd — the repo, or the `review` worktree it was called from.
 - `/open-pr:upgrade` — no PR. Migrate the CURRENT repo's local config to the latest
@@ -96,8 +97,11 @@ Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/s
 **Split a file only when the split-off part is conditional.** An extra `Read` costs ~40-60 tokens;
 splitting an always-loaded file into 2 always-loaded files is a pure loss.
 
-**Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). A new vendor =
-4 new files under `src/vendors/<name>/`, nothing else.
+**Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). Adding one = 4
+files under `src/vendors/<name>/`, its URL row in `core/pr-target.md` §1, and its atoms + scenarios in
+`token_report.py` — no `commands/` or `cases/` file changes, and nothing enumerates vendors anywhere else.
+A vendor shipping no CLI inherits `core/raw-http-vendor.md`, plus `core/pending-review-staging.md` when
+its API has no draft to hold a review in; both are shared, neither is copied per vendor.
 
 **Files must be self-contained.** No refs to task ids, plan phases, design-doc sections, or anything
 that gets deleted. Inline the rule or point at a durable file.
@@ -112,7 +116,7 @@ After ANY edit under `src/`. `scripts/check.sh <base-ref>` runs all three checks
 scan, context-cost report — and nothing is done until it passes.
 
 Everything shipped under `src/` has a CI check: the markdown by the suite, the vendor commands by the
-flag lint, the manifests by their own two tests. GitHub Actions is currently DISABLED on this repository
+vendor lint, the manifests by their own two tests. GitHub Actions is currently DISABLED on this repository
 by the organisation, so those run locally until an admin enables it — `scripts/install_hooks.sh` puts
 them on pre-push meanwhile.
 

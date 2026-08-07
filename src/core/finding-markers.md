@@ -6,13 +6,16 @@ marker, independent of prose shape (emoji, bullet layout and description length 
 
 ## A past LINE finding
 
-A TOP-LEVEL comment (no `in_reply_to_id`) whose `user.login` == "Fetch account running the command",
+A TOP-LEVEL comment (no `in_reply_to_id`) whose author == "Fetch account running the command",
 matching 1 of 2 patterns — test the marker first, fall back only when it misses, never require both:
 
 - **Marker** (the standard): the body contains `<!-- bot-finding -->`.
 - **Fallback** (pre-marker comments only, a migration bridge, never for new findings): the first line
   opens with 🔴/🟠/🔵/📝 immediately followed by a `**Fix**`/`**Gợi ý**` line. Delete this branch once no
   pre-marker PR remains open.
+
+Account `UNKNOWN` (a credential with no user behind it) ⇒ marker branch ONLY; FORBIDDEN: the fallback
+there — with no author to match, it would claim a human's severity-emoji comment as ours.
 
 ## A past FILE-level finding
 
