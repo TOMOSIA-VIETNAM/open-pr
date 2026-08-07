@@ -12,7 +12,7 @@
   </defs>
   <g transform="translate(0 2) scale(0.94)">
     <circle cx="40" cy="30" r="12.2" fill="url(#glow)"/>
-    <path d="M10 18h18M10 28h14M10 38h20M10 48h12" fill="none" stroke="#1F1E1D" stroke-width="3" stroke-linecap="round" opacity=".9"/>
+    <path d="M10 18h16M10 28h14M10 38h13M10 48h12" fill="none" stroke="#1F1E1D" stroke-width="3" stroke-linecap="round" opacity=".9"/>
     <circle cx="40" cy="30" r="14" fill="none" stroke="url(#accent)" stroke-width="3.5"/>
     <circle cx="40" cy="30" r="5.5" fill="#1F1E1D"/>
     <circle cx="37.5" cy="27.5" r="1.8" fill="#FFF8F4" opacity=".9"/>
