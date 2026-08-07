@@ -86,7 +86,7 @@ flowchart LR
 Cursor・Codex・Gemini CLI・Antigravity:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
 ```
 
 アンインストール・更新・プラットフォーム別のコマンド: [インストール](./docs/ja/install.md)。

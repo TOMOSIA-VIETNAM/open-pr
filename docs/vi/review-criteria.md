@@ -16,4 +16,6 @@ Sáu trục. **Team rule luôn thắng** cả sáu.
 > [!IMPORTANT]
 > Thứ tự khi **conflict**: team rule → memory đã học → template của stack → 5 tiêu chí trên. Team rule luôn thắng.
 
-Quay lại: [README](../../README.vi.md) · [Kết quả trông như thế nào](./demo.md)
+---
+
+[Kết quả trông như thế nào](./demo.md) · [Cấu hình](./configuration.md)

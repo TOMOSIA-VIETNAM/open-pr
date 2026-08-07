@@ -4,19 +4,32 @@
 
 Cần [`gh`](https://cli.github.com/) (GitHub) hoặc [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — đã cài và đã login. Review post bằng chính account đó.
 
-> [!NOTE]
-> Một lệnh `curl … | bash` trên README cài nhanh cho Cursor / Codex / Gemini CLI / Antigravity. Bảng dưới là lệnh **theo từng platform** nếu muốn chọn riêng.
+## Khuyến nghị: cài All
 
-| Platform | Install | Use | Status |
-| -------- | ------- | --- | ------ |
-| Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` | tested |
-| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` | untested |
-| Codex | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform shared` | `$open-pr-review <PR_URL>` | untested |
-| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR_URL>` | untested |
-| Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` | untested |
-| All | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform all` | như trên | — |
+Một lệnh — script hỏi / cài các platform bạn chọn:
 
-`untested` = cài được, nhưng chưa ai chạy một review thật qua platform đó.
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
+```
+
+> [!TIP]
+> Nên dùng **All** trừ khi bạn cố ý chỉ muốn một platform. Script vẫn cho chọn từng cái khi cần.
+
+## Claude Code
+
+```bash
+/plugin marketplace add TOMOSIA-VIETNAM/open-pr
+/plugin install open-pr@open-pr
+```
+
+## Theo từng platform (tuỳ chọn)
+
+| Platform | Install | Use |
+| -------- | ------- | --- |
+| Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
+| Codex | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform shared` | `$open-pr-review <PR_URL>` |
+| Gemini CLI | `gemini extensions install https://github.com/TOMOSIA-VIETNAM/open-pr` | `/review <PR_URL>` |
+| Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
 
 Không thích pipe? Clone rồi chạy local:
 
@@ -27,11 +40,16 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 
 ## Uninstall
 
-| Platform | Command |
-| -------- | ------- |
+Ưu tiên một lệnh curl (gỡ các bản đã cài qua `install.sh`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
+```
+
+| Platform | Command riêng (nếu cần) |
+| -------- | ----------------------- |
 | Claude Code | `/plugin uninstall open-pr@open-pr` |
 | Gemini CLI | `gemini extensions uninstall open-pr` |
-| Còn lại | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --uninstall` |
 
 ## Update
 
@@ -43,4 +61,6 @@ git clone https://github.com/TOMOSIA-VIETNAM/open-pr ~/.open-pr
 
 Mọi flag: `~/.open-pr/scripts/install-local.sh --help`
 
-Tiếp theo: [Flow re-review / fix](./how-it-works.md) · [Cấu hình](./configuration.md)
+---
+
+[Flow re-review / fix](./how-it-works.md) · [Cấu hình](./configuration.md)

@@ -69,4 +69,6 @@ Toàn bộ procedure agent đi theo nằm ở **một chỗ**: markdown dưới 
 
 Cursor, Codex, Gemini CLI, Antigravity mỗi cái cần entry file riêng để lộ slash command — nên mỗi cái nhận một shim ngắn làm đúng hai việc: tìm chỗ plugin được cài, rồi giao lại cho cùng một command file. Không rule, threshold hay severity nào được nhắc lại trong shim.
 
-Cài trên các platform đó: [Cài đặt](./install.md).
+---
+
+[Cài đặt](./install.md) · [Cấu hình](./configuration.md) · [Kết quả trông như thế nào](./demo.md)

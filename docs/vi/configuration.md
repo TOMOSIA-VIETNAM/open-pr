@@ -61,3 +61,7 @@ Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
 | `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
 | `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
+
+---
+
+[Cài đặt](./install.md) · [Flow re-review / fix](./how-it-works.md) · [Review những gì](./review-criteria.md)

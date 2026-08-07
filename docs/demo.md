@@ -1,5 +1,7 @@
 # What a review looks like
 
+[← README](../README.md)
+
 A posted review carries three things at once, and they belong to one another:
 
 1. **The overview** — what the whole diff amounts to, anchored to the commit it was read at, grouped by
@@ -22,5 +24,6 @@ Severity is the author's contract with the reviewer: 🔴 MUST FIX · 🟠 SHOUL
 📝 NOTE. `/open-pr:fix` acts on 🔴 and 🟠 on its own and always asks before touching a 🔵 or a 📝. A diff
 with nothing to say gets one line — **LGTM 🌟** — and no headings at all.
 
-Back to [the README](../README.md) · [Configuration](./configuration.md) ·
-[What it reviews](./review-criteria.md)
+---
+
+[Configuration](./configuration.md) · [What it reviews](./review-criteria.md)

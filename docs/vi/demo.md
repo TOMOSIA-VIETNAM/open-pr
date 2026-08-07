@@ -30,4 +30,6 @@ Cùng một review bằng [English](../demo.md) và [日本語](../ja/demo.md).
 
 Diff không có gì để nói → một dòng **LGTM 🌟**, không heading.
 
-Tiếp theo: [Cấu hình](./configuration.md) · [Review những gì](./review-criteria.md)
+---
+
+[Cấu hình](./configuration.md) · [Review những gì](./review-criteria.md)

@@ -90,7 +90,7 @@ Full size, and the same review in the language each repo picks:
 Cursor, Codex, Gemini CLI, Antigravity:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
 ```
 
 Uninstall, update, per-platform commands: [Install](./docs/install.md).
