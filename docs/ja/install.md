@@ -6,14 +6,14 @@
 
 ## 推奨: All で入れる
 
-1 本のコマンド — スクリプトが選んだプラットフォームへ入れます:
+1 本のコマンド — 全プラットフォームへ入れます（Claude Code / Cursor / Codex / Gemini CLI / Antigravity）:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
 ```
 
 > [!TIP]
-> 意図して 1 プラットフォームだけにしない限り **All** を使う。
+> **All** を使う。1 プラットフォームだけにしたいときだけ下の表へ。
 
 ## Claude Code
 

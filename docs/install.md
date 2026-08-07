@@ -6,14 +6,14 @@ Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gi
 
 ## Recommended: install All
 
-One command — the script installs the platforms you choose:
+One command — installs every platform (Claude Code, Cursor, Codex, Gemini CLI, Antigravity):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
 ```
 
 > [!TIP]
-> Prefer **All** unless you intentionally want a single platform.
+> Prefer **All**. Use the per-platform table only when you intentionally want a single platform.
 
 ## Claude Code
 

@@ -6,14 +6,14 @@ Cần [`gh`](https://cli.github.com/) (GitHub) hoặc [`glab`](https://gitlab.co
 
 ## Khuyến nghị: cài All
 
-Một lệnh — script hỏi / cài các platform bạn chọn:
+Một lệnh — cài đủ platform (Claude Code, Cursor, Codex, Gemini CLI, Antigravity):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --platform all
 ```
 
 > [!TIP]
-> Nên dùng **All** trừ khi bạn cố ý chỉ muốn một platform. Script vẫn cho chọn từng cái khi cần.
+> Nên dùng **All**. Chỉ xuống bảng dưới khi bạn cố ý muốn đúng một platform.
 
 ## Claude Code
 
