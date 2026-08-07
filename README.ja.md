@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ed636fe0-0abf-4d8b-ac8e-134ea39d0f5d" alt="Open PullRequest" width="160">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-dark.svg">
+    <img src="./docs/images/logo.svg" alt="Open PullRequest" width="120">
+  </picture>
 </p>
 
 <h1 align="center">Open PullRequest</h1>
