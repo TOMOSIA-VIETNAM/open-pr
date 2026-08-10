@@ -13,7 +13,7 @@
 ![Overview、suggested change を含む行コメント、fix push 後の返信](../images/review-demo-ja.png)
 
 > [!NOTE]
-> 言語は **リポジトリ** 単位であり、ユーザー単位ではありません。`shared.output_language` が PR に **POST** される内容を決めます — エージェントがチャットであなたと話す言語とは独立です。
+> 言語は **リポジトリ** 単位であり、ユーザー単位ではありません。`shared.output_language` が PR に **POST** される内容を決めます — エージェントがチャットであなたと話す言語とは独立です。どちらも対象は散文のみで、コード自身が名付けた識別子（`UserChildDivision`、カラム名、設定キーなど）は翻訳せず原文のまま引用されるため、指摘された名前をそのまま grep できます。
 
 同じレビューの [English](../demo.md) と [Tiếng Việt](../vi/demo.md) もあります。
 

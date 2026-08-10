@@ -44,6 +44,15 @@ language already used earlier this session → this project's Claude Code memory
 (`$LANG`/`locale`) → ask (choice: English/Vietnamese/Japanese + Other free text). Write to
 `.shared.chat_language` ONLY. Whichever command detects it first wins, the other never re-detects.
 
+## Identifiers stay VERBATIM — under BOTH languages
+
+Both settings govern PROSE only. What the codebase itself names is reproduced exactly as written, in
+backticks: class/type/function/var/constant/enum, table + column, config key, route, path, branch, CLI
+command/flag, quoted error/log text. FORBIDDEN: translating, transliterating, altering
+case/plural/spacing — `UserChildDivision` stays `UserChildDivision`. A domain term whose only definition
+in this project IS an identifier counts as one; any explanation goes in prose AROUND the verbatim token,
+never in place of it.
+
 ## Fresh file → `schema_version`
 
 Never a literal written in any prompt file: `Read`

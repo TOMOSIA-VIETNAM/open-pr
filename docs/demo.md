@@ -13,7 +13,7 @@ The image below is a real review on a PR in this repository, in the language tha
 ![Overview, line comment with a suggested change, and the reply after the fix was pushed](./images/review-demo-en.png)
 
 > [!NOTE]
-> Language follows the **repo**, not the user. `shared.output_language` decides what gets **POSTED** on the PR — independent of the language the agent talks to you in chat.
+> Language follows the **repo**, not the user. `shared.output_language` decides what gets **POSTED** on the PR — independent of the language the agent talks to you in chat. Either way it applies to prose only: identifiers the code itself names (`UserChildDivision`, a column, a config key) are quoted verbatim, never translated, so you can grep for what a finding names.
 
 The same review in [Vietnamese](./vi/demo.md) and [Japanese](./ja/demo.md).
 

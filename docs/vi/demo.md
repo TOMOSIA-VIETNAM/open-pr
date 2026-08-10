@@ -13,7 +13,7 @@ Một lượt review được post mang **ba phần** gắn với nhau:
 ![Overview, line comment kèm suggested change, và reply sau khi fix đã push](../images/review-demo-vi.png)
 
 > [!NOTE]
-> Ngôn ngữ theo **repo**, không theo user. `shared.output_language` quyết định cái gì được **POST** lên PR — độc lập với ngôn ngữ agent nói chuyện với bạn trong chat.
+> Ngôn ngữ theo **repo**, không theo user. `shared.output_language` quyết định cái gì được **POST** lên PR — độc lập với ngôn ngữ agent nói chuyện với bạn trong chat. Cả hai chỉ áp cho văn xuôi: identifier do chính code đặt tên (`UserChildDivision`, tên column, config key) được giữ nguyên văn, không dịch, để bạn grep đúng thứ mà finding nhắc tới.
 
 Cùng một review bằng [English](../demo.md) và [日本語](../ja/demo.md).
 
