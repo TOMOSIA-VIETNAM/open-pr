@@ -7,7 +7,7 @@ this file's.
 1. `git remote -v` at pwd names `<owner>/<repo>` → `<repo_dir>` = `.`, skip 2. Case-insensitive, both
    `https://<host>/<owner>/<repo>.git` and `git@<host>:<owner>/<repo>.git`, `<host>` = this PR's own URL
    host so self-hosted matches.
-2. Else `find . -maxdepth 4 -type d -iname "$REPO" -not -path '*/node_modules/*' 2>/dev/null`, then
+2. Else `find . -maxdepth 4 -type d -iname "$REPO" 2>&1 | grep -Ev 'node_modules'`, then
    `git -C "<candidate>" remote -v 2>/dev/null` per candidate, cross-checked against `<owner>/<repo>` — a
    matching directory NAME is never enough, the remote MUST match.
    - exactly 1 → that is `<repo_dir>`; state which in 1 short sentence
