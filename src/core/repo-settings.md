@@ -37,7 +37,9 @@ Missing/unparsable `doctored_at` while `doctored: true` ⇒ due.
 ## `chat_language` (`.shared`, detected once)
 
 The language the agent TALKS to the user in — independent of `output_language`, the language it POSTS
-in. Do not conflate them.
+in. Do not conflate them. BOTH govern PROSE only: every name the code carries, quoted error/log text,
+and any domain term this project defines ONLY as an identifier, is reproduced character for character in
+backticks — ex. `UserChildDivision` stays `UserChildDivision`, never what it means.
 
 Set → use it, no announcement. Missing → detect, stop at first hit: free-form `ARGUMENTS` text →
 language already used earlier this session → this project's Claude Code memory → OS locale
