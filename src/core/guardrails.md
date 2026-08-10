@@ -14,9 +14,10 @@ specific to what IT may touch; nothing below is repeated there.
   that file and follow it. FORBIDDEN: paraphrasing the rules into a hand-written prompt; paraphrase is
   where drift starts once something commits/pushes/replies on a real PR.
 - **A search that ERRORED searched NOTHING — never 0 matches.** Non-result output line ⇒ FAILED even on
-  exit 0: print it, ask for the path. FORBIDDEN: reading it as absent, searching above pwd. Keep `find`
-  to 1 predicate set, exclude via `| grep -Ev`, stderr kept — shims reject `-not`/`-o`/`-exec` and
-  `2>/dev/null` hides that rejection.
+  exit 0: print it, ask for the path. No output && exit ≠ 0 ⇒ 0 matches, NOT a failure. FORBIDDEN:
+  reading a failure as absent, searching above pwd. Keep `find` to 1 predicate set, exclude via `|
+  grep -Ev '^\./…'` — anchored to result lines so an error survives the filter; shims reject
+  `-not`/`-o`/`-exec` and `2>/dev/null` hides that rejection.
 - **Choice-based questions use the built-in feature** (e.g. `AskUserQuestion`) when available, else
   plain chat — here and in any file a command leads to. It caps questions per call ⇒ SEQUENTIAL calls,
   one finished before the next, never crammed. Every question carries a pre-marked recommendation — that
