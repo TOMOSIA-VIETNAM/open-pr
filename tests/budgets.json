@@ -1,18 +1,18 @@
 {
   "scenarios": {
-    "review/new-repo-github": 12592,
-    "review/known-repo-github-clean": 10073,
-    "review/known-repo-gitlab-rereview": 13982,
-    "review/large-diff-multistack": 11884,
-    "review/submodule-bump": 11891,
-    "review/agent-instructions-repo": 10724,
-    "review/post-error-github": 10428,
-    "chat/reconfigure-review": 7711,
+    "review/new-repo-github": 12513,
+    "review/known-repo-github-clean": 9993,
+    "review/known-repo-gitlab-rereview": 13902,
+    "review/large-diff-multistack": 11804,
+    "review/submodule-bump": 11811,
+    "review/agent-instructions-repo": 10644,
+    "review/post-error-github": 10348,
+    "chat/reconfigure-review": 7631,
     "upgrade": 2134,
     "clean": 1201,
-    "fix/known-repo-github": 8549,
-    "fix/first-run-gitlab": 9513
+    "fix/known-repo-github": 8470,
+    "fix/first-run-gitlab": 9433
   },
-  "mean": 9223,
+  "mean": 9157,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. Lower them when a change wins tokens back."
 }
