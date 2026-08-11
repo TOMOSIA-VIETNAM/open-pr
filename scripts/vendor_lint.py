@@ -135,14 +135,15 @@ def drives(flat, runners=RUNNERS):
     return any(f" {r}" in f" {flat}" for r in runners)
 
 
-FENCE = re.compile(r"```(?:bash)?\n(.*?)```", re.S)
+FENCE = re.compile(r"```[A-Za-z0-9_+-]*\n(.*?)```", re.S)
 
 
 def spans(part):
     """Every command-shaped span of an entry, flattened: the fenced blocks, then the inline backticks
     of what is left. An entry needing a branch or a loop cannot fit in inline backticks, and a fence
-    must be REMOVED before scanning for them — the closing backtick of ``` otherwise opens a span that
-    swallows the fence's language tag, yielding `bash if …` as if it were a command."""
+    must be REMOVED before scanning for them, WHATEVER its language tag: a fence left in place makes the
+    inline scan pair backticks across it, which both invents a span carrying the tag (`bash if …`) and
+    drops the real command that followed out of sight."""
     for span in FENCE.findall(part):
         yield " ".join(span.split())
     for span in re.findall(r"`([^`]+)`", FENCE.sub("", part), re.S):

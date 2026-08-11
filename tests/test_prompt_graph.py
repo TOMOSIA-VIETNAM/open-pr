@@ -247,6 +247,28 @@ def test_a_link_reference_marker_carries_its_blank_line_rule():
                 f"{v}/{group}: uses the link-reference form without stating the blank-line rule itself"
 
 
+def test_the_span_walker_survives_any_fence_tag():
+    """`spans()` is tested directly because comparing the two walkers cannot catch this: both go
+    through it, so a parser bug makes them wrong identically and the comparison still passes.
+
+    A fence the regex fails to recognise is left in the text, and the inline-backtick scan then pairs
+    backticks ACROSS it — inventing a span that carries the language tag, and dropping the real command
+    that came after out of sight. The second half is the dangerous one: the lint reports clean on an
+    entry it never looked at."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import vendor_lint  # noqa: E402
+
+    for tag in ("", "bash", "json", "markdown", "sh", "Bash", "yaml"):
+        part = (f"## E\n\n```{tag}\n"
+                'if [ -n "$X" ]; then printf a; else gh api user; fi\n'
+                "```\n\nProse `gh pr view <url>` inline.\n")
+        got = list(vendor_lint.spans(part))
+        assert any("printf a" in s for s in got), f"tag {tag!r}: fenced command lost"
+        assert any(s == "gh pr view <url>" for s in got), f"tag {tag!r}: inline command lost — {got}"
+        assert not any(tag and s.startswith(tag) for s in got), \
+            f"tag {tag!r}: a span carries the language tag — {got}"
+
+
 def test_the_static_lint_sees_every_entry_the_live_lint_runs():
     """`lint_curl` walks all_entries() while the live mode walks entries(). A stricter rule in
     one of them hides an entry from the static checks — `--fail-with-body`, `-v`, a credential
