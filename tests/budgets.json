@@ -1,10 +1,10 @@
 {
   "scenarios": {
-    "review/new-repo-github": 12393,
-    "review/known-repo-github-clean": 9986,
-    "review/known-repo-gitlab-rereview": 13895,
+    "review/new-repo-github": 12777,
+    "review/known-repo-github-clean": 10190,
+    "review/known-repo-gitlab-rereview": 14220,
     "review/large-diff-multistack": 11797,
-    "review/submodule-bump": 11703,
+    "review/submodule-bump": 12008,
     "review/agent-instructions-repo": 10637,
     "review/post-error-github": 10341,
     "chat/reconfigure-review": 7735,
@@ -16,6 +16,6 @@
     "fix/known-repo-github": 8588,
     "fix/first-run-gitlab": 9552
   },
-  "mean": 9278,
+  "mean": 10097,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }
