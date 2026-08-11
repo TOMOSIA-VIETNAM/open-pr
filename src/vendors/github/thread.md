@@ -25,3 +25,7 @@ content=<+1|heart|hooray|rocket|confused|eyes>`
 
 `https://github.com/<owner>/<repo>/pull/<pull_number>#pullrequestreview-<review_id>` — `<review_id>` =
 the review containing that finding ("Fetch PR reviews").
+
+## Reply marker
+
+`<!-- bot-reply -->` — an HTML comment, dropped from the rendered page here.

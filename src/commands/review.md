@@ -172,12 +172,11 @@ finding inside `comments[]`.
 <emoji> <short description>.
 **Fix** — <code or words>
 *(optional)* because <one sentence>.
-
-[bot-finding]: #
+<marker>
 ```
 
-That last line MUST end EVERY finding, FILE and LINE alike, and the BLANK LINE before it is part of the
-format — `core/finding-markers.md` owns the marker and says what breaks without it.
+`<marker>` = `V§"Finding marker"`, verbatim including any blank line it requires; MUST end EVERY finding,
+FILE and LINE alike.
 
 FORBIDDEN: a text label before the description ("Vấn đề"/"Issue") — in a finding the emoji IS the label,
 unlike a Step 8 grouping heading, which names the severity too. Severity: 🔴 MUST FIX / 🟠 SHOULD FIX /
@@ -272,7 +271,8 @@ none. Invariants on every vendor:
 
 `auto_submit_review`: `true` → carry that entry through to its own submit/publish step; `false` → stop at
 whatever holds the review unpublished there — a server-side draft, or the composed review in chat on a
-vendor with none — and say it isn't published, FORBIDDEN: publishing on the user's behalf. That entry may also describe how to verify the post landed — follow it if present.
+vendor with none — and say it isn't published, FORBIDDEN: publishing on the user's behalf. That entry may
+also describe how to verify the post landed — follow it if present.
 
 Post/publish error || that verify reports a mismatch → `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/cases/post-review.md`. Happy path → skip that file.

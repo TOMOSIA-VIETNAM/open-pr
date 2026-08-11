@@ -30,3 +30,8 @@ nothing here.
 `<curl> "<api>/pullrequests/<pull_number>/comments/<comment_id>?fields=links.html.href" | jq -r
 '.links.html.href'` — a FILE-level finding lives in the overview comment on this vendor, so
 `<comment_id>` is the id that comment's POST returned.
+
+## Reply marker
+
+`[bot-reply]: #` — a link reference definition, under the same blank-line rule as the finding marker
+(this vendor's `post.md`), and for the same reason: raw HTML is escaped here.

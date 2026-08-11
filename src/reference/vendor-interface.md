@@ -34,8 +34,10 @@ files are the run-time artifact.
 | post | Verify a posted review's state | whether "Post a review"'s result is still unpublished, without a race against someone else's concurrent review |
 | post | Publish the pending review | make that result visible |
 | post | Commit URL | a markdown link to one commit, label = the SHA's first 7 chars, code-styled |
+| post | Finding marker | the literal that ends every finding on this vendor, plus whatever rule its form needs — it MUST render to nothing on that vendor's PR page |
 | post | Post-error notes | this vendor's known failure modes for the 3 entries above, and the shortcut commands that must never substitute for them |
 | thread | Reply on a PR | a reply inside an existing thread, for a LINE finding and for a FILE/overview finding |
 | thread | Resolve a review thread | mark a thread resolved, given a finding's `comment_id` |
 | thread | React to a PR comment | add one of `+1`/`heart`/`hooray`/`rocket`/`confused`/`eyes` to a comment |
 | thread | Finding permalink | a URL addressing a FILE-level finding — or an explicit "none exists" |
+| thread | Reply marker | the same, for a reply |

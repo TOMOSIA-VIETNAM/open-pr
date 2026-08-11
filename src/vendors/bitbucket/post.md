@@ -49,6 +49,14 @@ That `-H` is MANDATORY: without it Bitbucket reads the body as form data and ans
 `[<first 7 of commit_id>](https://bitbucket.org/<owner>/<repo>/commits/<commit_id>)` — the commit path is
 `/commits/` plural; `/commit/` 404s.
 
+## Finding marker
+
+`[bot-finding]: #` — a link reference definition, NOT an HTML comment: Bitbucket escapes raw HTML, so
+`<!-- … -->` would show up verbatim on the page.
+
+MUST be the last line of the body with a BLANK LINE before it. A definition cannot interrupt a
+paragraph, and pressed against the text above it this renders as a visible broken link.
+
 ## Post-error notes
 
 - A 400 whose `error.message` names `inline` is a bad anchor: a `path` not among the files this PR changed,

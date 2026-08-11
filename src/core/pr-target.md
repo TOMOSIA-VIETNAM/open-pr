@@ -53,8 +53,8 @@ that command with THIS PR's validated values per the entry's own flag/scoping co
 |---|---|
 | `fetch` | every `Fetch …` entry |
 | `worktree` | the 2 `Checkout a PR …` entries |
-| `post` | Post a review · Verify a posted review's state · Publish the pending review · Commit URL · Post-error notes |
-| `thread` | Reply on a PR · Resolve a review thread · React to a PR comment · Finding permalink |
+| `post` | Post a review · Verify a posted review's state · Publish the pending review · Commit URL · Finding marker · Post-error notes |
+| `thread` | Reply on a PR · Resolve a review thread · React to a PR comment · Finding permalink · Reply marker |
 
 `Read` a group file when its first entry is needed, never all 4 upfront. Entry names are identical
 across vendors (`reference/vendor-interface.md`) ⇒ a caller never names one. A command's Context lists
