@@ -33,7 +33,7 @@ nothing here.
 
 ## Reply marker
 
-`[bot-reply]: #` — a link reference definition, NOT an HTML comment: raw HTML is escaped here.
+`[bot-reply]: #` — a link reference definition, not an HTML comment: raw HTML is escaped here.
 
-MUST be the last line of the body with a BLANK LINE before it. A definition cannot interrupt a paragraph,
-and pressed against the text above it this renders as a visible broken link.
+Last line of the body, with a BLANK LINE before it — a definition cannot interrupt a paragraph, and
+pressed against the text above it renders as a visible broken link.

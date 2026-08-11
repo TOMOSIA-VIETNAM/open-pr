@@ -15,8 +15,8 @@ shape accepted, trailing `/files`/`/changes`/query/fragment ignored:
 | `gitlab` | `https://[^/]+/[^/]+/[^/]+/-/merge_requests/[0-9]+` |
 | `bitbucket` | `https://bitbucket\.org/[^/]+/[^/]+/pull-requests/[0-9]+` |
 
-Literal `https://` on every row, not "contains a host name": the PATH shape discriminates, and only
-GitLab's row takes ANY host, self-hosted being common there.
+Literal `https://`, never "contains a host name" — the PATH shape discriminates, so a row takes ANY host
+exactly when that product is self-hosted.
 
 → `owner`, `repo`, `pull_number`, `<vendor_guess>` = the matched row. MUST also hold: `owner`/`repo` =~
 `^[A-Za-z0-9_.-]+$` && `pull_number` =~ `^[0-9]+$`, which every real PR/MR satisfies on every vendor.

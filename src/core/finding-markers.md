@@ -1,25 +1,21 @@
 # Recognizing this plugin's own findings and replies
 
-Every finding and every reply ends with a marker: invisible on the PR page, and this plugin's identity
-across runs, independent of prose shape (emoji, layout, description length all drift).
-
-WRITE it via `V§"Finding marker"` / `V§"Reply marker"` — the literal is the vendor's, since what renders
-to nothing differs per vendor. READ it as `bot-finding`/`bot-reply` inside EITHER an HTML comment or a
-link reference definition: a long-lived PR spans a change of form, and an unrecognized marker means that
-finding gets posted again as new.
+A marker ends every finding and reply this plugin posts — its identity across runs, independent of prose
+shape (emoji, layout, length all drift). Match `bot-finding`/`bot-reply` inside EITHER an HTML comment or
+a link reference definition: the literal is the vendor's, a long-lived PR spans a change of form, and a
+marker not recognized is a finding posted again as new.
 
 ## A past LINE finding
 
-A TOP-LEVEL comment (no `in_reply_to_id`) whose author == "Fetch account running the command",
-matching 1 of 2 patterns — test the marker first, fall back only when it misses, never require both:
+A TOP-LEVEL comment (no `in_reply_to_id`) whose author == "Fetch account running the command" — that
+entry answering `UNKNOWN` means there is no author to test, so the Marker branch below is the ONLY test
+and the Fallback is FORBIDDEN, or a human's severity-emoji comment gets claimed as ours. Otherwise test
+the marker first, fall back only when it misses, never require both:
 
 - **Marker** (the standard): the body carries a finding marker, either form.
 - **Fallback** (pre-marker comments only, a migration bridge, never for new findings): the first line
   opens with 🔴/🟠/🔵/📝 immediately followed by a `**Fix**`/`**Gợi ý**` line. Delete this branch once no
   pre-marker PR remains open.
-
-Account `UNKNOWN` (a credential with no user behind it) ⇒ marker branch ONLY; FORBIDDEN: the fallback
-there — with no author to match it would claim a human's severity-emoji comment as ours.
 
 ## A past FILE-level finding
 

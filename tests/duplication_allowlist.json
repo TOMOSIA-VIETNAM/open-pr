@@ -76,12 +76,12 @@
       "reason": "A shared URL prefix of two different endpoints (draft_notes and draft_notes/bulk_publish), not a rule stated twice. Shortening it would hide which endpoint each entry calls."
     },
     {
-      "sha": "b1272ac010bb",
+      "sha": "456a878850f6",
       "files": [
         "vendors/bitbucket/post.md",
         "vendors/bitbucket/thread.md"
       ],
-      "sample": "must be the last line of the body with a blank line before it a definition cannot interrupt",
+      "sample": "last line of the body with a blank line before it a definition cannot interrupt a paragraph and",
       "reason": "The blank-line rule is stated in BOTH marker entries on purpose. A caller loads one group: review.md reads post, fix.md and re-review.md read thread, and the fix scenario in token_report.py proves bb-post is not loaded there. A pointer from one to the other is a rule the reader never sees, which is what the review found; each entry states it and test_a_link_reference_marker_carries_its_blank_line_rule now requires exactly that."
     }
   ]

@@ -31,7 +31,7 @@ SEQUENTIAL calls (q1-4, then the rest), finishing one before the next.
 |---|---|---|---|
 | 1 | `git_remote_type` | one `<vendor_guess>` value of `core/pr-target.md` §1's table | `<vendor_guess>` already computed by the caller (`core/pr-target.md` §2) — reuse, FORBIDDEN: re-deriving or asking twice |
 | 2 | `output_language` | the language findings/replies get POSTED in (`"en"`/`"vi"`/`"ja"`…) | — |
-| 3 | `auto_submit_review` | `true` = published when the run ends; `false` = UNPUBLISHED, seen by you alone — this vendor's own draft where it has one, THIS CHAT where it has none. FORBIDDEN: calling `false` a draft on the PR, which on a vendor without drafts promises something that never appears | `false` |
+| 3 | `auto_submit_review` | `true` = published when the run ends; `false` = seen by you alone, in this vendor's draft or — where it has none — in THIS CHAT. FORBIDDEN: promising a draft ON the PR without knowing this vendor has them | `false` |
 | 4 | `auto_resolve_fixed_findings` | true/false | `false` |
 | 5 | `doctor_schedule` | `{N} days`\|`{N} weeks`\|`{N} months`\|`never` | `"1 months"` |
 | 6 | `review_ci_status` | true/false — ASK ONLY WHEN this PR's "CI checks" array is non-empty (≥1 check ⇒ CI configured). Empty → skip the question, write `false`, no explanation needed | `true` |

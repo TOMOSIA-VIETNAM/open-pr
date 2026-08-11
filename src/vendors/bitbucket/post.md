@@ -52,11 +52,11 @@ That `-H` is MANDATORY: without it Bitbucket reads the body as form data and ans
 
 ## Finding marker
 
-`[bot-finding]: #` — a link reference definition, NOT an HTML comment: Bitbucket escapes raw HTML, so
-`<!-- … -->` would show up verbatim on the page.
+`[bot-finding]: #` — a link reference definition, not an HTML comment: raw HTML is escaped here and
+`<!-- … -->` would show on the page.
 
-MUST be the last line of the body with a BLANK LINE before it. A definition cannot interrupt a
-paragraph, and pressed against the text above it this renders as a visible broken link.
+Last line of the body, with a BLANK LINE before it — a definition cannot interrupt a paragraph, and
+pressed against the text above it renders as a visible broken link.
 
 ## Post-error notes
 
