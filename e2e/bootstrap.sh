@@ -55,7 +55,9 @@ authed() { case "$1" in
              { [ -n "${BITBUCKET_EMAIL:-}" ] && [ -n "${BITBUCKET_API_TOKEN:-}" ]; } ;;
 esac }
 
-available() { for v in $ALL_VENDORS; do authed "$v" && printf '%s ' "$v"; done; }
+# `return 0` is load-bearing: a `for` carries the last iteration's status, bitbucket is last, and under
+# `set -e` an unauthenticated bitbucket would kill the script before it could say which vendors it found.
+available() { for v in $ALL_VENDORS; do authed "$v" && printf '%s ' "$v"; done; return 0; }
 
 # Asking beats guessing when a human is watching: one fixture PR per vendor costs a real
 # branch on a real repo, and picking "all" by accident makes three.
@@ -78,7 +80,11 @@ choose_vendor() {
 case "$VENDOR" in
   "")  if [ -t 0 ] && ! $TEARDOWN; then VENDOR=$(choose_vendor); else VENDOR=$(available); fi
        [ -n "$VENDOR" ] || { echo "no vendor is authenticated — see e2e/README.md" >&2; exit 1; } ;;
-  all|both) VENDOR="$ALL_VENDORS" ;;
+  all) VENDOR="$ALL_VENDORS" ;;
+  # No `both`: it used to mean 2 vendors and there are 3, so an old command line would build a third
+  # fixture PR on a real repo. An unknown name stops here rather than reaching `run_<name>`.
+  *)   for v in $VENDOR; do case " $ALL_VENDORS " in *" $v "*) : ;;
+         *) echo "unknown vendor: $v (want: $ALL_VENDORS, or all)" >&2; exit 2 ;; esac; done ;;
 esac
 
 # Generated, not committed: a 40KB blob belongs in the fixture branch, not in this

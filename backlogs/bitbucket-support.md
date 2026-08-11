@@ -222,7 +222,8 @@ nhánh "hoặc review đã soạn trong chat, với vendor không có draft".
     cuối không bị kẹt vì thiếu README.
   - `e2e/` không thêm fixture Bitbucket đợt này (user tự test bằng repo của mình).
 - Dependency: B3.
-- Status: DONE trong phạm vi user chốt. README×3 + fixture e2e còn nợ.
+- Status: DONE. `CLAUDE.md` nêu đúng 3 vendor và luật "thêm vendor" kể cả 2 file mà vendor không-CLI
+  kéo theo. README×3 + `docs/credentials.md` ×3 ngôn ngữ + `e2e/` hỗ trợ Bitbucket đều nằm trong PR này.
 
 ## Task B9: cổng verify cuối + PR
 

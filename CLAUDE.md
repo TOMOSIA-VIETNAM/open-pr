@@ -96,11 +96,13 @@ Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/s
 **Split a file only when the split-off part is conditional.** An extra `Read` costs ~40-60 tokens;
 splitting an always-loaded file into 2 always-loaded files is a pure loss.
 
-**Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). Adding one = 4
-files under `src/vendors/<name>/`, its URL row in `core/pr-target.md` §1, and its atoms + scenarios in
-`token_report.py` — no `commands/` or `cases/` file changes, and nothing enumerates vendors anywhere else.
-Whatever that vendor's API lacks (a CLI, a draft, a review object, a per-PR ref) is described inside its
-own 4 files, never worked around in a caller.
+**Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). Adding one = 4 files
+under `src/vendors/<name>/`, its URL row in `core/pr-target.md` §1, its atoms + scenarios in
+`token_report.py` — no `commands/` or `cases/` file changes. A vendor with NO CLI additionally touches
+`scripts/vendor_lint.py` (its executable, its URL shape, its static-lint branch) and `e2e/bootstrap.sh`
+(its auth check, its `run_`/`teardown_` pair). Whatever its API lacks — a CLI, a draft, a review object, a
+per-PR ref, a marker form that renders to nothing — is described inside its own 4 files, never worked
+around in a caller.
 
 **Files must be self-contained.** No refs to task ids, plan phases, design-doc sections, or anything
 that gets deleted. Inline the rule or point at a durable file.

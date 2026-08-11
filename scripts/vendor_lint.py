@@ -133,6 +133,14 @@ def is_command(flat):
     return bool(head) and head[0] in RUNNERS
 
 
+def fenced(part):
+    """Every fenced block of an entry, flattened. An entry needing a branch or a loop cannot fit in
+    inline backticks, and skipping the fence would leave it unexecuted and reported as "no command
+    parsed" — a parse bug wearing the costume of a broken entry."""
+    for span in re.findall(r"```(?:bash)?\n(.*?)```", part, re.S):
+        yield " ".join(span.split())
+
+
 def entries(vendor):
     """(heading, command | None, body) for every Fetch entry, in file order."""
     body = (REPO / "src" / "vendors" / vendor / "fetch.md").read_text()
@@ -141,8 +149,11 @@ def entries(vendor):
         head = part.splitlines()[0][3:].strip()
         if not head.startswith("Fetch"):
             continue
-        cmds = [expand(s, short) for s in re.findall(r"`([^`]+)`", part, re.S)]
-        cmds = [c for c in cmds if is_command(c)]
+        # expand BEFORE testing for a runner: the shorthands are what carry `curl` into an entry
+        inline = [expand(s, short) for s in re.findall(r"`([^`]+)`", part, re.S)]
+        cmds = [c for c in inline if is_command(c)]
+        cmds += [c for c in (expand(s, short) for s in fenced(part))
+                 if any(f" {r}" in f" {c}" for r in RUNNERS)]
         yield head, (cmds[0] if cmds else None), part
 
 

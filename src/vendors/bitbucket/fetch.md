@@ -14,15 +14,23 @@ built from these shorthands:
 | `<diff_cmd>` | `<curl> -L "<api>/pullrequests/<pull_number>/diff"` |
 | `<patch_pipe>` | `awk -v m=<max_patch_bytes> '/^diff --git /{if(n&&s<m)printf "%s",b; b=""; s=0; n=1} n{b=b $0 "\n"; s+=length($0)+1} END{if(n&&s<m)printf "%s",b}'` |
 | `<size_pipe>` | `awk '/^diff --git /{if(n)print s" "p; p=substr($0,index($0," b/")+3); s=0; n=1} n{s+=length($0)+1} END{if(n)print s" "p}'` |
-| `<paged>` | `paged() { next="$1"; while [ -n "$next" ]; do page=$(<curl> -L "$next"); printf '%s' "$page" \| jq -r "$2"; next=$(printf '%s' "$page" \| jq -r '.next // empty'); done; }` |
+| `<paged>` | `paged() { next="$1"; while [ -n "$next" ]; do page=$(<curl> -L "$next") \|\| { printf 'paged: %s\n' "$page" >&2; return 1; }; printf '%s' "$page" \| jq -r "$2"; next=$(printf '%s' "$page" \| jq -r '.next // empty'); done; }` |
+
+Every `\|` in that table is a shell pipe escaped for markdown — drop the backslash when building the
+command, or `jq` never runs and `printf` prints a bar instead.
 
 `-L` in `<diff_cmd>` and in `<paged>` is MANDATORY: `/diff` AND `/diffstat` both answer 302 to the
 repository-level endpoint, and without it the body is EMPTY — which reads as "this PR changed nothing"
 rather than as an error. Read-only GETs only, all on one host, so following the redirect leaks nothing.
 
+`<paged>` aborts on an HTTP error rather than returning what it has: `--fail-with-body` exits non-zero,
+an error body carries no `.next`, and swallowing that would end the loop and report a 401 as "this PR has
+no comments".
+
 No per-file patch endpoint exists, so the 2 diff entries cut ONE whole-diff response at `diff --git`
-boundaries — hence the 2 pipelines. Both run under `LC_ALL=C`: `awk`'s `length` counts CHARACTERS, and a
-UTF-8 locale would size a patch full of accented or CJK text well under its real byte count.
+boundaries — hence the 2 pipelines. `LC_ALL=C` prefixes the PIPELINE STAGE that counts, never the fetch:
+an environment prefix applies to one command, and `awk`'s `length` counts CHARACTERS, so under a UTF-8
+locale a patch full of accented or CJK text sizes well under its real byte count.
 
 `--fail-with-body` = a non-zero exit on an HTTP error AND the response body, whose `error.message` is the
 only place Atlassian states what it rejected. FORBIDDEN: `-f` alone (discards that body), `-v`/`-i` (dump
@@ -84,7 +92,7 @@ the new path, a delete prints the old one.
 
 ## Fetch PR diff — patch, omitting oversized files
 
-`LC_ALL=C <diff_cmd> | <patch_pipe>` — whole `diff --git` chunks, dropping any that reaches
+`<diff_cmd> | LC_ALL=C <patch_pipe>` — whole `diff --git` chunks, dropping any that reaches
 `<max_patch_bytes>`, the caller's own threshold in bytes.
 
 ## Fetch PR commits headlines
@@ -107,7 +115,7 @@ is set per comment and that is what names the side.
 
 ## Fetch PR diff size per file
 
-`LC_ALL=C <diff_cmd> | <size_pipe>` — exact patch bytes per file.
+`<diff_cmd> | LC_ALL=C <size_pipe>` — exact patch bytes per file.
 
 A path that "Fetch PR diff — file list" returned but this never printed is `UNKNOWN`, NEVER 0: the chunk
 is omitted entirely for a binary file and for a diff Bitbucket declines to generate, and reading that
@@ -130,12 +138,17 @@ FILE-level detection and the caller drops that category, while LINE-level detect
 
 ## Fetch account running the command
 
-`<curl> "https://api.bitbucket.org/2.0/user?fields=nickname" | jq -r .nickname`
+```bash
+if [ -n "${BITBUCKET_TOKEN:-}" ]; then printf 'UNKNOWN\n'; else <curl> "https://api.bitbucket.org/2.0/user?fields=nickname" | jq -r .nickname; fi
+```
 
-Under `BITBUCKET_TOKEN` this answers 401 by design — such a token acts as the repository, not as a person,
-so there is no account to name. That 401 is the ANSWER: print `UNKNOWN`, and `core/finding-markers.md`
-falls back to the marker. FORBIDDEN: reporting it as an auth failure, or re-running it under the other
-`<auth>` form.
+ONE line, every clause `;`-terminated — a reader flattening this to run it must not have to guess where a
+statement ends.
+
+The branch is the point: a repository/workspace access token acts as the repository, not as a person, so
+`/user` answers 401 BY DESIGN — and `<curl>` fails loudly, so calling it anyway yields an error instead of
+the `UNKNOWN` this entry owes its caller. `UNKNOWN` sends `core/finding-markers.md` down its marker-only
+branch. FORBIDDEN: reporting that 401 as an auth failure, or retrying under the other `<auth>` form.
 
 ## Fetch review threads (id + isResolved + comment ids)
 
