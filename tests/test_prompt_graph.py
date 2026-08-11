@@ -232,9 +232,10 @@ def test_markers_are_byte_identical_everywhere():
 
 
 def test_a_link_reference_marker_carries_its_blank_line_rule():
-    """A link reference definition cannot interrupt a paragraph: pressed against the text
-    above it, the renderer emits a visible broken link instead of dropping it. A vendor
-    using that form must say so where it defines it, since the caller writes it verbatim."""
+    """A link reference definition cannot interrupt a paragraph: pressed against the text above
+    it, the renderer emits a visible broken link instead of dropping it. The rule has to be IN the
+    entry, stated: a caller loads one group, so a pointer from `thread` to `post` is a rule that
+    `/open-pr:fix` never reads."""
     for v in VENDORS:
         for group, label in (("post", "bot-finding"), ("thread", "bot-reply")):
             body = text(SRC / "vendors" / v / f"{group}.md")
@@ -242,8 +243,34 @@ def test_a_link_reference_marker_carries_its_blank_line_rule():
             if not entry:
                 continue        # this vendor uses the HTML-comment form
             flat = " ".join(entry[0].split())
-            assert "BLANK LINE" in flat or "blank-line" in flat, \
-                f"{v}/{group}: uses the link-reference form without stating the blank-line rule"
+            assert "BLANK LINE" in flat, \
+                f"{v}/{group}: uses the link-reference form without stating the blank-line rule itself"
+
+
+def test_the_static_lint_sees_every_entry_the_live_lint_runs():
+    """`lint_curl` walks all_entries() while the live mode walks entries(). A stricter rule in
+    one of them hides an entry from the static checks — `--fail-with-body`, `-v`, a credential
+    literal — while it still runs against a real PR."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import vendor_lint  # noqa: E402
+
+    for v in VENDORS:
+        runnable = {h for h, cmd, _ in vendor_lint.entries(v) if cmd}
+        seen = {h for _, h, _ in vendor_lint.all_entries(v)}
+        assert runnable <= seen, f"{v}: static lint cannot see {sorted(runnable - seen)}"
+
+
+def test_scripts_never_point_at_a_prompt_file_that_is_gone():
+    """A script's own docstring is documentation too, and `src/` moves under it — the reference
+    that outlived its file sat in a docstring twice before anything checked it."""
+    dead = []
+    for f in sorted((REPO / "scripts").glob("*.py")) + sorted((REPO / "scripts").glob("*.sh")):
+        for m in re.finditer(r"src/[A-Za-z0-9_./-]+\.md", f.read_text()):
+            ref = m.group(0)
+            if "<" in ref or (REPO / ref).exists():
+                continue
+            dead.append(f"{f.name} → {ref}")
+    assert not dead, f"scripts referencing a file that does not exist: {dead}"
 
 
 def test_the_marker_literal_belongs_to_the_vendor():

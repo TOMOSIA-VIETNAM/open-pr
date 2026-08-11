@@ -33,5 +33,7 @@ nothing here.
 
 ## Reply marker
 
-`[bot-reply]: #` — a link reference definition, under the same blank-line rule as the finding marker
-(this vendor's `post.md`), and for the same reason: raw HTML is escaped here.
+`[bot-reply]: #` — a link reference definition, NOT an HTML comment: raw HTML is escaped here.
+
+MUST be the last line of the body with a BLANK LINE before it. A definition cannot interrupt a paragraph,
+and pressed against the text above it this renders as a visible broken link.

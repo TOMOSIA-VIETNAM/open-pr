@@ -16,8 +16,8 @@ Two modes:
             subcommand's own --help. No fixture, no credentials, no network — so this is
             the half that belongs in CI. It also covers post/thread entries, which the
             live mode must not run. A vendor reached by `curl` has no subcommand help to
-            check against, so its entries are held to the rules of
-            src/core/raw-http-vendor.md instead: fail loudly with the body, follow a
+            check against, so its entries are held to the rules stated in
+            src/vendors/<name>/fetch.md: fail loudly with the body, follow a
             documented redirect, never print the Authorization header, never carry a
             credential literal.
     live    the read-only Fetch entries executed against an open fixture PR. Needs a
@@ -128,16 +128,24 @@ def expand(cmd, subs):
     return " ".join(cmd.split())
 
 
-def is_command(flat):
-    head = flat.split()[:1]
-    return bool(head) and head[0] in RUNNERS
+def drives(flat, runners=RUNNERS):
+    """Whether this text runs one of the runners — the SOLE test, shared by both walkers below.
+    A second, stricter rule in one of them silently narrows what the static lint can see: an entry
+    opening with `if` is a command to one walker and invisible to the other."""
+    return any(f" {r}" in f" {flat}" for r in runners)
 
 
-def fenced(part):
-    """Every fenced block of an entry, flattened. An entry needing a branch or a loop cannot fit in
-    inline backticks, and skipping the fence would leave it unexecuted and reported as "no command
-    parsed" — a parse bug wearing the costume of a broken entry."""
-    for span in re.findall(r"```(?:bash)?\n(.*?)```", part, re.S):
+FENCE = re.compile(r"```(?:bash)?\n(.*?)```", re.S)
+
+
+def spans(part):
+    """Every command-shaped span of an entry, flattened: the fenced blocks, then the inline backticks
+    of what is left. An entry needing a branch or a loop cannot fit in inline backticks, and a fence
+    must be REMOVED before scanning for them — the closing backtick of ``` otherwise opens a span that
+    swallows the fence's language tag, yielding `bash if …` as if it were a command."""
+    for span in FENCE.findall(part):
+        yield " ".join(span.split())
+    for span in re.findall(r"`([^`]+)`", FENCE.sub("", part), re.S):
         yield " ".join(span.split())
 
 
@@ -150,10 +158,7 @@ def entries(vendor):
         if not head.startswith("Fetch"):
             continue
         # expand BEFORE testing for a runner: the shorthands are what carry `curl` into an entry
-        inline = [expand(s, short) for s in re.findall(r"`([^`]+)`", part, re.S)]
-        cmds = [c for c in inline if is_command(c)]
-        cmds += [c for c in (expand(s, short) for s in fenced(part))
-                 if any(f" {r}" in f" {c}" for r in RUNNERS)]
+        cmds = [c for c in (expand(s, short) for s in spans(part)) if drives(c)]
         yield head, (cmds[0] if cmds else None), part
 
 
@@ -165,10 +170,9 @@ def all_entries(vendor, keep=RUNNERS):
         body = (REPO / "src" / "vendors" / vendor / f"{group}.md").read_text()
         for part in re.split(r"\n(?=## )", body)[1:]:
             head = part.splitlines()[0][3:].strip()
-            for span in re.findall(r"`([^`]+)`", part, re.S) + \
-                        re.findall(r"```(?:bash)?\n(.*?)```", part, re.S):
+            for span in spans(part):
                 flat = expand(span, short)
-                if flat.split()[:1] and flat.split()[0] in keep:
+                if drives(flat, keep):
                     yield group, head, flat
 
 

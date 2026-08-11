@@ -23,15 +23,16 @@ Nothing is on the PR when this entry returns.
 
 ## Verify a posted review's state
 
-`<paged>; paged "<comments>&fields=next,values.content.raw,values.deleted" '.values[] | select(.deleted
-!= true and (.content.raw | contains("<finding_marker>"))) | 1' | wc -l` — `<finding_marker>` = the
-FINDING marker of `core/finding-markers.md`, never the reply one. Counting across EVERY page is what
-makes the number trustworthy: stopping at page 1 would read a published review as unpublished and post
-it a second time.
+`<paged>; paged "<comments>&fields=next,values.id,values.content.raw,values.inline,values.deleted"
+'.values[] | select(.deleted != true and (.content.raw | contains("<finding_marker>"))) | {id, path:
+.inline.path, line: .inline.to} | @json'` — `<finding_marker>` = the "Finding marker" entry below, never
+the reply one.
 
-`0` ⇒ nothing published yet. Otherwise that many findings are already on the PR, which is also what makes a
-half-finished publish recoverable: matching on this plugin's own marker leaves a human's concurrent review
-uncounted.
+Nothing ⇒ nothing published yet. Otherwise each line names a finding ALREADY on the PR by path and line,
+which is what makes a half-finished publish recoverable: a bare count says how many landed but not which,
+and Bitbucket has no bulk undo for a duplicate. `path`/`line` are `null` for the overview. `| wc -l` gives
+the count when only the count is wanted. Walking EVERY page is what makes either answer trustworthy —
+stopping at page 1 reads a published review as unpublished and posts it twice.
 
 ## Publish the pending review
 
