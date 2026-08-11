@@ -42,12 +42,16 @@ WINDOW = {"cross": 18, "intra": 12}
 
 # Scopes are scanned INDEPENDENTLY — a phrase shared between a shipped file and a
 # dev file is not a duplicated rule, they address different readers.
-#   src  the plugin itself; also what the token budget measures
-#   dev  read by an agent working ON the plugin: never shipped, never in the budget,
-#        but a duplicate still costs every session that loads it
-# README*.md and CONTRIBUTING.md are human prose and belong to neither.
+#   src       the plugin itself; also what the token budget measures
+#   dev       read by an agent working ON the plugin: never shipped, never in the budget,
+#             but a duplicate still costs every session that loads it
+#   adapters  the entry layer other platforms read instead of src/commands/: shipped and
+#             read at run time, outside the budget because Claude Code never loads it
+# README*.md and CONTRIBUTING.md are human prose and belong to none of them.
 SCOPES = {"src": lambda: sorted(SRC.rglob("*.md")),
-          "dev": lambda: [REPO / "CLAUDE.md", *sorted((REPO / ".claude").rglob("*.md"))]}
+          "dev": lambda: [REPO / "CLAUDE.md", *sorted((REPO / ".claude").rglob("*.md"))],
+          "adapters": lambda: sorted([*(REPO / "adapters").rglob("*.md"),
+                                      *(REPO / "skills").rglob("*.md")])}
 
 
 def in_nested_checkout(p):
@@ -67,7 +71,7 @@ def md_files(scope="src"):
 
 
 def rel(p):
-    return str(p.relative_to(SRC)) if SRC in p.parents else p.name
+    return str(p.relative_to(SRC)) if SRC in p.parents else str(p.relative_to(REPO))
 
 
 def strip_fences(body):
@@ -157,8 +161,9 @@ def _key(prev, name, line):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", default="both", choices=["cross", "intra", "both"])
-    ap.add_argument("--scope", default="all", choices=["src", "dev", "all"],
-                    help="src = the shipped plugin, dev = CLAUDE.md (default: both, scanned apart)")
+    ap.add_argument("--scope", default="all", choices=[*SCOPES, "all"],
+                    help="src = the shipped plugin, dev = CLAUDE.md, adapters = the non-Claude "
+                         "entry layer (default: all, each scanned apart)")
     ap.add_argument("--window", type=int, help="words per window (default 18 cross / 12 intra)")
     ap.add_argument("--min-waste", type=int, default=0, help="hide blocks below this token count")
     ap.add_argument("--all", action="store_true", help="include allowlisted blocks")

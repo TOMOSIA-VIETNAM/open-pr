@@ -1,101 +1,123 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ed636fe0-0abf-4d8b-ac8e-134ea39d0f5d" alt="Open PullRequest" width="200">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-lockup-dark.svg?v=bar1">
+    <img src="./docs/images/logo-lockup.svg?v=bar1" alt="Open PullRequest" width="400">
+  </picture>
 </p>
 
-<h1 align="center">Open PullRequest</h1>
-
-<p align="center"><em>/open-pr:review — Agent Review Pull/Merge Request · GitHub · GitLab · Bitbucket</em></p>
+<p align="center">
+  <strong>エージェントが GitHub / GitLab / Bitbucket 上で PR をレビュー</strong><br>
+  <code>/open-pr:review</code> · <code>/open-pr:fix</code>
+</p>
 
 <p align="center">
-  <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?label=release" alt="Latest Release"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr" alt="License: MIT"></a>
-  <a href="https://claude.ai/code"><img src="https://img.shields.io/badge/Claude%20Code-Plugin-5A32A3" alt="Claude Code Plugin"></a>
+  <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img alt="Release" src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?style=flat-square&label=release&color=2ea44f"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr?style=flat-square&color=blue"></a>
+  <a href="#インストール"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-supported-181717?style=flat-square&logo=github&logoColor=white"></a>
+  <a href="#インストール"><img alt="GitLab" src="https://img.shields.io/badge/GitLab-supported-FC6D26?style=flat-square&logo=gitlab&logoColor=white"></a>
+  <a href="#インストール"><img alt="Bitbucket" src="https://img.shields.io/badge/Bitbucket-supported-0052CC?style=flat-square&logo=bitbucket&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <a href="#インストール"><img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97757?style=flat-square&logo=anthropic&logoColor=white"></a>
+  <a href="#インストール"><img alt="Cursor" src="https://img.shields.io/badge/Cursor-supported-000000?style=flat-square&logo=cursor&logoColor=white"></a>
+  <a href="#インストール"><img alt="Codex" src="https://img.shields.io/badge/Codex-supported-412991?style=flat-square&logo=openai&logoColor=white"></a>
+  <a href="#インストール"><img alt="Gemini CLI" src="https://img.shields.io/badge/Gemini_CLI-supported-4285F4?style=flat-square&logo=google&logoColor=white"></a>
+  <a href="#インストール"><img alt="Antigravity" src="https://img.shields.io/badge/Antigravity-supported-6E56CF?style=flat-square"></a>
 </p>
 
 <p align="center">
   <a href="./README.vi.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <strong>日本語</strong>
 </p>
 
-> PR が届いたとき最初に浮かぶ問いは、たいてい「このコードは正しいか」ではなく「開発者は送る前に一度でも
-> 読み返したか」です。
+AI コーディングの時代、PR の出る速さはレビューの速さを大きく上回っています。ボトルネックはもうコーディングではなく、**レビュー工程**にあります。レビュアーはプロジェクトの convention / security / performance を確認しつつ、ビジネスロジックもカバーしなければなりません — その頻度では、ほぼ持ちこたえられません。
 
-`open-pr` はそこに向けて作られました。リポジトリに既にある規約に沿って PR をレビューし、あなたが指摘した
-ことを記憶し、毎回同じ手順を通る Claude Code プラグインです — 同じトーン、同じ重大度の分け方、同じ形の
-痕跡を PR に残します。
+本当の問いはたいてい *「このコードは正しいか？」* ではなく、**開発者は送る前に PR をセルフレビューしたか**、それとも *"レビュアーがやってくれる"* と決めつけたか、です。それではレビュアーは AI の *vibecoding* ツールそのものです。
 
-**GitHub**（`.../pull/<n>`）、**GitLab**（`.../-/merge_requests/<n>`、セルフホスト含む）、
-**Bitbucket Cloud**（`.../pull-requests/<n>`）に対応。貼った URL のベンダーがそのまま使われ、事前の
-指定は要りません。
+ローカルでのレビューは信じにくい。誰でも *"レビュー済み"* と言えます。だから `open-pr` はそのステップを **remote** に移して可視化します — コメントは PR 上にあり、開いた人なら誰でも見られます。
 
-## 汎用のレビュースキルでは足りない理由
+- `/open-pr:review <PR_URL>` → ちょうど **1** 件のレビュー（overview + 行コメント）
+- 開発者がコメントを読んで自分で直すか、`/open-pr:fix <PR_URL>` を使う（**1** コミット + スレッドごとの返信）
+- 毎回同じ手順: リポジトリの convention を読み、チームが PR で議論したことを記憶する
 
-| よくあること                                             | `open-pr`                                                                                        |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 開発者が自分で見直したかどうか分からない                 | 開発者が自分の PR で `/open-pr:review` を実行すれば、レビュアーは会話を見るだけで分かる          |
-| 指摘が一般論にとどまり、プロジェクトの規約とずれる       | リポジトリの README/CLAUDE.md/AGENTS.md/docs/wiki を読み、チームのルールが一般論に勝つ           |
-| 一度伝えても次回また同じことを言われる                   | チャットで指摘 → そのリポジトリの memory に書く許可を求める → 次回から自動で適用                |
-| 修正はコミット乱発・amend・force-push、返信なし          | 1 回の実行で 1 コミット、履歴は書き換えず、push 後に各コメントへ返信                            |
+> [!NOTE]
+> **レビューラウンド**（チームへの提案）:
+> 1. **Round 1** — 開発者が自分の PR で AI レビューを実行。レビューコメントがまだない → レビュアーは **差し戻し**、触れない。
+> 2. **Round 2** — レビュアーが再度実行（AI）。クリーン → **LGTM**。
+> 3. **Round 3** — レビュアーがドメイン部分をレビュー。
 
-## 動きかた
-
-```mermaid
-flowchart LR
-  A[新しい PR] --> B["/open-pr:review URL"]
-  B --> C{リポジトリは設定済み?}
-  C -- まだ --> D["短い質問を 1 回<br/>+ リポジトリの規約を読む"]
-  D --> E[専用 worktree 内でレビュー]
-  C -- 済み --> E
-  E --> F["レビューを 1 件投稿<br/>🔴 🟠 🔵 📝 · 問題なし → LGTM 🌟"]
-  F --> G["/open-pr:fix URL"] --> H["1 コミット + 指摘ごとに返信"]
-  F --> I["チャットで指摘"] --> J["リポジトリの memory に記録"]
-  J -. 次回から .-> B
-```
-
-全体のフロー、再レビュー、そして `fix` がファイルに触れる前に行う確認: [動きかた](./docs/ja/how-it-works.md)。
-
-### 出てくるもの
-
-1 件のレビューに 3 つの要素が揃います。Overview、修正後のコードを添えた該当行へのコメント、そして push
-後に `fix` が同じスレッドへ残す返信です。
-
-<a href="./docs/ja/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、push 後に残された返信"></a>
-
-フルサイズと、各リポジトリが選んだ言語での同じレビュー:
-[レビューの見え方](./docs/ja/demo.md)。
+> [!IMPORTANT]
+> AI はプロセス上の負荷を減らしますが、**最終責任はあなたにあります**。
 
 ## インストール
+
+[Claude Code](https://claude.ai/code):
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
 /plugin install open-pr@open-pr
 ```
 
-更新:
+**Cursor・Codex・Gemini CLI・Antigravity へのインストール:**
 
 ```bash
-/plugin marketplace update open-pr
-/plugin update open-pr@open-pr
-/reload-plugins
-/open-pr:upgrade
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-ほかに [Claude Code](https://claude.ai/code) と、使うベンダーの認証情報が必要です。GitHub は
-[`gh`](https://cli.github.com/)、GitLab は [`glab`](https://gitlab.com/gitlab-org/cli)、CLI のない
-Bitbucket は環境変数に置いた API token です。レビューはそのアカウントで投稿されます。
+詳細ガイド: [インストール](./docs/ja/install.md) · [ベンダーごとのトークン取得](./docs/ja/credentials.md)。
 
-トークンの取得方法、ベンダーごとの最小権限、確認コマンド:
-[ベンダーごとのトークン取得](./docs/ja/credentials.md)。
+## 結果の見え方
 
-## 使い方
+1 回の実行で、結びついた 3 つの要素が出ます: **overview**、**行コメント**（suggested change 付き）、そして `/open-pr:fix` が push したあとの **返信**。
+
+<a href="./docs/ja/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、fix push 後の返信"></a>
+
+[デモを見る](./docs/ja/demo.md) · GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`、セルフホスト含む）、Bitbucket Cloud（`.../pull-requests/<n>`）に対応。
+
+## 汎用レビュースキルとの違い
+
+多くのレビュースキルは `SKILL.md` の説明ファイルだけです。実行のたびに出方が変わり — 言い回しが違い、厳しさが違い、プロジェクトの convention からずれやすい。
+
+| 汎用スキルでありがちなこと | `open-pr` では |
+| --- | --- |
+| 指摘が一般論にとどまり、プロジェクトとずれる | README / CLAUDE.md / AGENTS.md / docs / wiki を読む; **チームルールが**一般ルールに**勝つ** |
+| 一度注意しても、次回また同じことをする | チャットでの指摘 → リポジトリの memory に書く許可を求める → 次回から自動適用 |
+| 直せと言われたらコメントどおり直す — 間違ったコメントでも → 正しかったコードが壊れる | `/open-pr:fix` がコメントの妥当性を判断; 妥当でなければ **返信 + 根拠**、コードには触らない |
+| 修正がコミット乱発・amend・force-push、返信なし | `fix` ごとにちょうど **1 コミット**、履歴は書き換えず、push 後に各コメントへ返信 |
+
+> [!TIP]
+> いちばん残したい点: いつ実行しても手順は同じ — convention を bootstrap し、リポジトリに合わせて出力言語を選び、チームが注意したことを memory に残す。今日は AI の口調がこう、明日は別、にはなりません。
+
+## レビューフロー
+
+```mermaid
+flowchart LR
+  A[新しい PR] --> B["Round 1 · /open-pr:review"]
+  B --> C{remote にレビューがある?}
+  C -- まだ --> D[レビュアーが差し戻し]
+  C -- ある --> E[開発者が修正 / /open-pr:fix]
+  E --> F["Round 2 · 再レビュー"]
+  F --> G{クリーン?}
+  G -- はい --> H[LGTM]
+  G -- まだ --> E
+  H --> I[Round 3 · 人間がドメインをレビュー]
+```
+
+再レビュー、worktree、`fix` 前のガードの詳細: [再レビュー / fix のフロー](./docs/ja/how-it-works.md)。
+
+## コマンド
 
 | コマンド | 何をするか |
-| -------- | ---------- |
-| `/open-pr:review <URL>` | PR をレビューし、レビューを **1** 件だけ投稿（概要＋行コメント）。コードは変更せず、close も merge もしない。リポジトリでの初回はセットアップも行う |
-| `/open-pr:fix <URL>` | review が残した指摘を読み、コードを修正して **1** コミットにまとめ、各コメントへ返信。リポジトリ内でもレビュー worktree 内でも動き、後者では URL 省略可。🔵/📝 は必ず事前に確認 |
-| `/open-pr:upgrade` | リポジトリのローカル設定を現在のスキーマへ更新。変更点を要約して確認し、同意するまで何も書かない |
-| `/open-pr:clean` | `review` が PR のコードをチェックアウトした worktree を削除 — 1 つずつが完全なチェックアウトでディスクを使う。サイズ付きで一覧し先に確認する。memory と設定には触れない |
+| --- | --- |
+| `/open-pr:review <PR_URL>` | ちょうど **1** 件のレビューを投稿。コードは変更せず、close も merge もしない。リポジトリでの初回はセットアップも行う |
+| `/open-pr:fix <PR_URL>` | finding を読む → 正誤を判断 → 修正 → **1** コミット → 返信。🔵 / 📝 は必ず先に確認 |
+| `/open-pr:upgrade` | ローカル設定を現在の schema へ上げる — 要約してから確認; 同意するまで何も書かない |
+| `/open-pr:clean` | `review` がチェックアウトした worktree を削除（先に確認）。memory / settings には触れない |
 
-どこに立つか、各コマンドが何を書くか、すべての設定: [設定](./docs/ja/configuration.md)。
+> [!WARNING]
+> `fix` はリポジトリ（またはレビュー worktree）の **実コード** を編集します。コメントを処理させたいと自分で決めたときだけ実行してください。
+
+全設定: [設定](./docs/ja/configuration.md)。
 
 ## 何をレビューするか
 
@@ -104,17 +126,18 @@ Bitbucket は環境変数に置いた API token です。レビューはその�
 3. **パフォーマンス**
 4. **コード品質**
 5. **保守性 & 可読性**
-6. **フレームワーク/言語に固有の観点** — そのスタック自身のテンプレートが持つ
+6. **フレームワーク / 言語固有** — そのスタックのテンプレートに沿う
 
-チームのルールは 6 つすべてに優先します。
+観点の詳細と競合時の優先順位: [何をレビューするか](./docs/ja/review-criteria.md)。
 
-各観点の詳細と、競合したときの優先順位:
-[何をレビューするか](./docs/ja/review-criteria.md)。
+## プロンプトトークンのグラフ
 
-## リリースごとのコンテキストコスト
+1 回の実行あたりの平均トークン数 — *happy-case* と *bad-case* の両方を含む:
 
-![1 回の実行が読み込むトークン数の平均を、コマンド別・リリース別に示したグラフ](./token-history.svg)
+![コマンド / リリース別の 1 回あたり平均トークン数](./token-history.svg)
 
 ---
+
+Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 Enjoy reviewing 🥰

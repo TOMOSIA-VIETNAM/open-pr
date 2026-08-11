@@ -1,0 +1,14 @@
+{
+  "name": "open-pr",
+  "description": "Marketplace for the open-pr plugin: a GitHub/GitLab PR reviewer with per-repo memory.",
+  "owner": {
+    "name": "Minh Tang Q."
+  },
+  "plugins": [
+    {
+      "name": "open-pr",
+      "source": "./",
+      "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI."
+    }
+  ]
+}

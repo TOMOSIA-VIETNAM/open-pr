@@ -312,7 +312,8 @@ def main():
         b = {"scenarios": {k: int(v["tokens"] * 1.02) for k, v in hs.items()},
              "mean": int(sum(v["tokens"] for v in hs.values()) / len(hs) * 1.02),
              "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. "
-                      "Lower them when a change wins tokens back."}
+                      "--update-budgets rewrites EVERY ceiling, RAISING any that was tightened by "
+                      "hand — lower them by hand when a change wins tokens back."}
         (REPO / "tests" / "budgets.json").write_text(json.dumps(b, indent=2) + "\n")
         print("\nwrote tests/budgets.json")
 

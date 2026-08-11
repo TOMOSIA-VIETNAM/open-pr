@@ -1,0 +1,12 @@
+description = "Act on the findings a review left on a PR / MR: edit the code, one commit, reply on the PR."
+
+prompt = """
+Locate the plugin: `ls -d ~/.gemini/extensions/*/adapters/root.md 2>/dev/null`.
+No output → tell the user open-pr is not installed for Gemini CLI (see its docs/install.md) and STOP.
+More than one → that file's ROOT table says what to do; never pick one silently.
+Read that file → ROOT + this platform's tool names.
+Read ROOT/commands/fix.md and obey it VERBATIM, every step, in order. `{{args}}` is what that
+file's `Usage:` block expects.
+This command writes to real code and pushes; its safety checks run where that file says, first.
+FORBIDDEN: summarizing, reordering or skipping a step; fixing from what this file says.
+"""

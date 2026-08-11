@@ -1,14 +1,14 @@
-# Nó chạy thế nào
+# Flow re-review / fix
 
 [← README](../../README.vi.md)
 
-`review` checkout code của PR ra một git worktree riêng, nên branch bạn đang làm không bị đụng tới —
-vừa review vừa code bình thường. Nó không chỉ nhìn những chỗ PR sửa mà ngắm cả logic liên quan, nên
-deadcode và bug nghiệp vụ nằm ngoài diff cũng không lọt. Những gì ngoài scope nhưng vẫn ảnh hưởng thì
-nó nêu thành lời khuyên để bạn cân, không tính là finding phải sửa.
+`/open-pr:review` checkout code của PR ra một **git worktree** riêng — branch bạn đang làm không bị đụng. Vừa review vừa code bình thường.
 
-Gõ lại `/open-pr:review` trên cùng PR sau khi dev đã fix hoặc đã phản hồi thì nó không review lại từ
-đầu, mà nối tiếp lần trước:
+Nó không chỉ nhìn đúng chỗ PR sửa: các logic xung quanh cũng trong scope, nên deadcode và business-logic bug ngoài diff vẫn có thể bị bắt. Thứ ngoài scope nhưng vẫn quan trọng thì nêu thành **advice** để bạn cân — không tính là finding bắt buộc phải fix.
+
+## Re-review (lần 2 trở đi)
+
+Nếu vẫn còn trong phiên chat thì chỉ cần nói `hãy review lại` (hoặc gõ lại `/open-pr:review`) trên cùng PR sau khi dev đã fix hoặc reply — nó **không** review từ đầu, mà nối tiếp lần trước:
 
 ```mermaid
 flowchart LR
@@ -16,7 +16,7 @@ flowchart LR
   B --> C{Đã fix?}
   C -- rồi --> D["Reply xác nhận đúng thread ấy<br/>· resolve nếu bạn đã bật"]
   C -- chưa --> E["Để nguyên thread đang mở<br/>không nhắc lại, không tạo finding trùng"]
-  B --> F{Thread có chốt<br/>một quy ước?}
+  B --> F{Thread có chốt<br/>một convention?}
   F -- có --> G["Hỏi bạn trước<br/>→ ghi vào memory của repo"]
   A --> H[Review phần diff mới]
   H --> I{Có gì mới?}
@@ -25,19 +25,21 @@ flowchart LR
   I -- không, còn finding mở --> L["Không post thêm gì<br/>review đang treo vẫn còn nguyên giá trị"]
 ```
 
-Quy ước chốt trong thread nó luôn hỏi bạn trước chứ không tự nhớ: rule nằm trong comment thì ai cũng
-viết được.
+> [!TIP]
+> Convention chốt trong thread luôn được **hỏi bạn trước** rồi mới ghi memory.
 
-`/open-pr:fix` đi ngược chiều: nó đọc chính những finding `review` để lại, rồi sửa code thật:
+## `/open-pr:fix`
+
+Đi chiều ngược lại: đọc đúng những finding mà `review` để lại, rồi sửa **code thật**.
 
 ```mermaid
 flowchart LR
   A["/open-pr:fix URL"] --> B{"Đúng branch của PR?<br/>không đứng trên main/develop?"}
   B -- không --> C["Dừng ngay<br/>chưa chạm file nào"]
   B -- đúng --> D["Đọc finding review để lại<br/>bỏ thread đã resolve · đã xử lý · dev đã chốt"]
-  D --> E{Mức độ?}
+  D --> E{Severity?}
   E -- "🔴 🟠 · fix luôn" --> F["Sửa theo convention<br/>+ memory của repo"]
-  E -- "🔵 📝 · hoặc thấy finding không hợp lý" --> G["Gom mọi thắc mắc vào đúng 1 lượt hỏi<br/>chờ bạn chốt xong mới sửa"]
+  E -- "🔵 📝 · hoặc finding không hợp lý" --> G["Gom mọi thắc mắc vào đúng 1 lượt hỏi<br/>chờ bạn chốt xong mới sửa"]
   G --> F
   F --> H["Đúng 1 commit<br/>chỉ add file vừa sửa · không amend, không force-push"]
   H --> I{auto_push?}
@@ -47,20 +49,26 @@ flowchart LR
   K --> L["Reply từng finding: đã fix, hoặc vì sao không fix<br/>không resolve thread — để bạn tự chốt"]
 ```
 
-Khác `review` ở chỗ nó sửa code thật: repo trên đĩa, hoặc chính worktree mà `review` đã checkout PR ra
-nếu bạn fix liền sau khi review. Nó không tự tạo worktree nào. Nên trước khi chạm file nào, nó soát chỗ
-sắp sửa — sai branch, hoặc PR mà branch nguồn là `main`/`develop`, đều dừng ngay.
+> [!WARNING]
+> `fix` sửa code thật trong repo nơi mà bạn đang đứng. Nếu sai branch hoặc sai PR thì dừng ngay.
 
-## Mỗi lần một run, và bạn thêm gì vào đó
+## Một lần một run
 
-Command chỉ chạy khi bạn tự gõ, và hỗ trợ cả submodule. Viết thêm gì sau URL thì phần đó chỉ áp cho
-lần chạy đó:
+Command chỉ chạy khi bạn tự gõ. Submodule cũng được cover. Viết thêm gì sau URL thì chỉ áp cho **lần chạy đó**:
 
 ```bash
-/open-pr:review https://github.com/org/repo/pull/123 [Nội dung]
-/open-pr:fix    https://github.com/org/repo/pull/123 [Nội dung]
+/open-pr:review https://github.com/org/repo/pull/123 [instructions]
+/open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
 ```
 
-Lần đầu với một repo, plugin hỏi một loạt câu ngắn — ngôn ngữ post lên PR, post ngay hay để draft, có
-tự resolve thread đã fix không, bao lâu đọc lại tài liệu, ngưỡng PR và file quá lớn — rồi tự đọc
-những quy ước bạn đã có sẵn: README, CLAUDE.md, AGENTS.md, docs, wiki.
+Lần đầu với một repo, plugin hỏi một loạt câu ngắn — output language trên PR, post ngay hay draft, có auto-resolve thread đã fix không, chu kỳ đọc lại docs, ngưỡng PR / file quá lớn — rồi tự đọc convention sẵn có: README, CLAUDE.md, AGENTS.md, docs, wiki.
+
+## Cùng một review trên platform khác
+
+Toàn bộ procedure agent đi theo nằm ở **một chỗ**: markdown dưới `src/`.
+
+Cursor, Codex, Gemini CLI, Antigravity mỗi cái cần entry file riêng để lộ slash command — nên mỗi cái nhận một shim ngắn làm đúng hai việc: tìm chỗ plugin được cài, rồi giao lại cho cùng một command file. Không rule, threshold hay severity nào được nhắc lại trong shim.
+
+---
+
+[Cài đặt](./install.md) · [Cấu hình](./configuration.md) · [Kết quả trông như thế nào](./demo.md)

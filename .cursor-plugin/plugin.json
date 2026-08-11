@@ -1,0 +1,22 @@
+{
+  "name": "open-pr",
+  "displayName": "PR/MR Reviewer with memory",
+  "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI.",
+  "author": {
+    "name": "Minh Tang Q."
+  },
+  "homepage": "https://github.com/TOMOSIA-VIETNAM/open-pr",
+  "repository": "https://github.com/TOMOSIA-VIETNAM/open-pr",
+  "license": "MIT",
+  "category": "developer-tools",
+  "keywords": [
+    "code-review",
+    "github",
+    "gitlab",
+    "pull-request",
+    "merge-request",
+    "gh-cli",
+    "glab-cli"
+  ],
+  "skills": "./skills/"
+}

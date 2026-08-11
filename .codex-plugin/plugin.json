@@ -1,0 +1,31 @@
+{
+  "name": "open-pr",
+  "description": "Review GitHub Pull Requests and GitLab Merge Requests across many stacks, learning each repo's own conventions over time and posting one review via that vendor's own CLI.",
+  "author": {
+    "name": "Minh Tang Q."
+  },
+  "homepage": "https://github.com/TOMOSIA-VIETNAM/open-pr",
+  "repository": "https://github.com/TOMOSIA-VIETNAM/open-pr",
+  "license": "MIT",
+  "keywords": [
+    "code-review",
+    "github",
+    "gitlab",
+    "pull-request",
+    "merge-request"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "PR/MR Reviewer with memory",
+    "shortDescription": "Review a PR or MR against the conventions learned from that repo.",
+    "longDescription": "Adds four skills: review a GitHub PR or GitLab MR and post one review, act on the findings a review left, migrate a repo's local config, and remove the worktrees review checked code out into. Posts through gh or glab, so the review appears as your own account.",
+    "developerName": "Minh Tang Q.",
+    "category": "Developer Tools",
+    "websiteURL": "https://github.com/TOMOSIA-VIETNAM/open-pr",
+    "defaultPrompt": [
+      "Review https://github.com/org/repo/pull/123 with open-pr.",
+      "Act on the open-pr findings left on https://github.com/org/repo/pull/123.",
+      "Remove the review worktrees open-pr left on disk."
+    ]
+  }
+}

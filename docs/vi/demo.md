@@ -1,26 +1,35 @@
-# Một review trông như thế nào
+# Kết quả trông như thế nào
 
-Một review được post mang ba thứ cùng lúc, và chúng gắn với nhau:
+[← README](../../README.vi.md)
 
-1. **Overview** — toàn bộ diff nói lên điều gì, gắn vào đúng commit đã đọc, nhóm theo severity. Finding
-   cấp FILE nằm ở đây, vì chúng không có dòng cụ thể nào để bám vào.
-2. **Comment trên đúng dòng** — finding cấp LINE, mỗi cái kèm code đã sửa trong block `suggestion` để
-   tác giả commit thẳng từ trang PR.
-3. **Reply** — `/open-pr:fix` trả lời ngay trên thread đó sau khi đã push, nên cuộc trao đổi ở lại đúng
-   nơi vấn đề được nêu, không phải bắt đầu lại từ đầu PR.
+Một lượt review được post mang **ba phần** gắn với nhau:
 
-Ảnh dưới đây là một review thật, trên một pull request của chính repo này, bằng ngôn ngữ mà
-`settings.json` của repo đó chọn.
+1. **Overview** — toàn bộ diff nói lên điều gì, neo vào đúng commit đã đọc, nhóm theo severity. Finding cấp FILE nằm ở đây (không có line cụ thể để bám).
+2. **Line comment** — finding cấp LINE, mỗi cái kèm code đã sửa trong block `suggestion` để author commit thẳng từ trang PR.
+3. **Reply** — `/open-pr:fix` trả lời đúng thread đó sau khi đã push. Cuộc trao đổi ở lại chỗ vấn đề được nêu, không restart từ đầu PR.
 
-![Overview, comment trên dòng kèm suggested change, và reply để lại sau khi fix đã được push](../images/review-demo-vi.png)
+Ảnh dưới là một review thật trên PR của chính repo này, bằng ngôn ngữ mà `settings.json` của repo đó chọn:
 
-Ngôn ngữ là theo repo, không theo người dùng: `shared.output_language` quyết định cái gì được POST, và
-nó độc lập với ngôn ngữ agent nói chuyện với bạn. Cùng review đó bằng
-[tiếng Anh](../demo.md) và [tiếng Nhật](../ja/demo.md).
+![Overview, line comment kèm suggested change, và reply sau khi fix đã push](../images/review-demo-vi.png)
 
-Severity là cam kết giữa reviewer và tác giả: 🔴 MUST FIX · 🟠 SHOULD FIX · 🔵 SUGGESTION · 📝 NOTE.
-`/open-pr:fix` tự xử 🔴 và 🟠, còn 🔵 hay 📝 thì luôn hỏi trước. Diff không có gì để nói thì chỉ một dòng
-— **LGTM 🌟** — không heading nào cả.
+> [!NOTE]
+> Ngôn ngữ theo **repo**, không theo user. `shared.output_language` quyết định cái gì được **POST** lên PR — độc lập với ngôn ngữ agent nói chuyện với bạn trong chat.
 
-Về [README](../../README.vi.md) · [Cấu hình](./configuration.md) ·
-[Review những gì](./review-criteria.md)
+Cùng một review bằng [English](../demo.md) và [日本語](../ja/demo.md).
+
+## Severity
+
+Đây là “hợp đồng” giữa reviewer và author:
+
+| | Mức | `/open-pr:fix` |
+| --- | --- | --- |
+| 🔴 | MUST FIX | tự xử |
+| 🟠 | SHOULD FIX | tự xử |
+| 🔵 | SUGGESTION | luôn **ask** trước |
+| 📝 | NOTE | luôn **ask** trước |
+
+Diff không có gì để nói → một dòng **LGTM 🌟**, không heading.
+
+---
+
+[Cấu hình](./configuration.md) · [Review những gì](./review-criteria.md)
