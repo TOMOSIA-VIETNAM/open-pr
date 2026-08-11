@@ -19,7 +19,7 @@ Same layout `/open-pr:upgrade` searches: `notebooks/review/` sits wherever `/ope
 pwd or one level down. FORBIDDEN: `cd`.
 
 ```bash
-find . -maxdepth 6 -type d -path '*/notebooks/review/*/worktrees/*' -not -path '*/worktrees/*/*' 2>/dev/null
+find . -maxdepth 6 -type d -path '*/notebooks/review/*/worktrees/*' 2>&1 | grep -Ev '^\./.*/worktrees/[^/]+/'
 ```
 
 None → say there is nothing to clean, STOP.

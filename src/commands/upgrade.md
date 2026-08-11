@@ -24,7 +24,7 @@ every repo's side by side, a repo reviewed from inside keeps its own. Search bot
 `cd`, deriving `<repo>` from a git remote (a workspace has none):
 
 ```bash
-find . -maxdepth 4 -type d -path '*/notebooks/review' -not -path '*/worktrees/*' -not -path '*/node_modules/*'
+find . -maxdepth 4 -type d -path '*/notebooks/review' 2>&1 | grep -Ev '^\./.*(/worktrees/|node_modules)'
 ```
 
 Each hit's subdirectories are the `<set>`s, named `<repo>`; key them by PATH — one `<repo>` may sit under
