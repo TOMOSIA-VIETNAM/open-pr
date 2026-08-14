@@ -166,14 +166,18 @@ finding inside `comments[]`.
 - never read library source unless genuinely unsure
 - never pad the count with trivia; there is no minimum N
 
-**Finding format** (`**Fix**` → `**Gợi ý**` when the output language is Vietnamese):
+**Finding format** — every `<…>` is a placeholder to REPLACE, never to print, `<Fix>` being that word in
+the output language:
 
 ```
 <emoji> <short description>.
-**Fix** — <code or words>
-*(optional)* because <one sentence>.
+**<Fix>** — <the fix in words>
+<why, 1 sentence, only when it adds to the description>
 <marker>
 ```
+
+A code fix is a fence on its own line, and the label line then ends at `**<Fix>**` — a dangling `—`
+before a fence reads as cut off.
 
 `<marker>` = `V§"Finding marker"`, verbatim including any blank line it requires; MUST end EVERY finding,
 FILE and LINE alike.
@@ -183,7 +187,7 @@ unlike a Step 8 grouping heading, which names the severity too. Severity: 🔴 M
 🔵 SUGGESTION, and 📝 NOTE for out-of-scope or genuinely not worth fixing in this PR — minor but easy to
 fix now is 🔵, not 📝. Each finding carries its own emoji, whatever heading it ends up under.
 
-**Fix** shows the corrected CODE in a fence by default: a LINE comment replacing that exact line ⇒
+The fix shows the corrected CODE in a fence by default: a LINE comment replacing that exact line ⇒
 ` ```suggestion `, anything else ⇒ a normal language fence. Inline code inside prose is NOT a substitute.
 Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm) — FORBIDDEN: prose when the
 code is writable.

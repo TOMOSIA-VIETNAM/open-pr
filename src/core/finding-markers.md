@@ -14,7 +14,7 @@ the marker first, fall back only when it misses, never require both:
 
 - **Marker** (the standard): the body carries a finding marker, either form.
 - **Fallback** (pre-marker comments only, a migration bridge, never for new findings): the first line
-  opens with 🔴/🟠/🔵/📝 immediately followed by a `**Fix**`/`**Gợi ý**` line. Delete this branch once no
+  opens with 🔴/🟠/🔵/📝 immediately followed by a bolded label line, whatever language it is in. Delete this branch once no
   pre-marker PR remains open.
 
 ## A past FILE-level finding
