@@ -38,6 +38,7 @@ LINES = [
     {"key": "fix", "label": "/open-pr:fix", "colour": "#e3742f", "cmd_role": "fix-cmd"},
     {"key": "upgrade", "label": "/open-pr:upgrade", "colour": "#a371f7", "cmd_role": "upgrade-cmd"},
     {"key": "clean", "label": "/open-pr:clean", "colour": "#3fb950", "cmd_role": "clean-cmd"},
+    {"key": "feedback", "label": "/open-pr:feedback", "colour": "#db61a2", "cmd_role": "feedback-cmd"},
 ]
 
 NOTE = (

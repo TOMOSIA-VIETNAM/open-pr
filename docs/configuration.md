@@ -39,6 +39,7 @@ cd ~/workspace
 | `/open-pr:fix` | in that repo / workspace holding it — but **the repo must be on the PR's branch** | real code in the repo + replies on the PR |
 | `/open-pr:upgrade` | workspace or repo already set up — several repos → lets you pick | `notebooks/review/<repo>/settings.json` |
 | `/open-pr:clean` | anywhere above the `notebooks/review/` to clean | writes nothing — only deletes `notebooks/review/*/worktrees/*` |
+| `/open-pr:feedback` | anywhere | writes nothing locally — one issue on the plugin's own tracker, after you approve the text |
 
 ## Setting
 

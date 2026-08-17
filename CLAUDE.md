@@ -2,7 +2,7 @@
 
 ## Mission
 
-Claude Code plugin `open-pr`. 4 slash commands, 3 vendors — GitHub, GitLab, Bitbucket:
+Claude Code plugin `open-pr`. 5 slash commands, 3 vendors — GitHub, GitLab, Bitbucket:
 
 - `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review through the
   vendor's own CLI (`gh`/`glab`) or, where the vendor ships none, its REST API over `curl`.
@@ -12,6 +12,8 @@ Claude Code plugin `open-pr`. 4 slash commands, 3 vendors — GitHub, GitLab, Bi
   `schema_version`, fetching `llm-upgrades/` live from this plugin's GitHub repo.
 - `/open-pr:clean` — no PR. Remove the worktrees review checked code out into, after confirming.
   Never touches memory or config.
+- `/open-pr:feedback` — no PR, no repo of the user's touched. Turn what this chat shows into 1 issue on
+  THIS plugin's own tracker, stripped of anything identifying the user, approved by them before it goes.
 
 Everything is markdown + 1 JSON config. No build, no runtime. "Trying it" = install the plugin and
 call it against a real PR.
@@ -101,7 +103,7 @@ Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/s
 **Split a file only when the split-off part is conditional.** An extra `Read` costs ~40-60 tokens;
 splitting an always-loaded file into 2 always-loaded files is a pure loss.
 
-**Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). Adding one = 4 files
+**Callers never name a vendor to reach a PR.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). Adding one = 4 files
 under `src/vendors/<name>/`, its URL row in `core/pr-target.md` §1, its atoms + scenarios in
 `token_report.py` — no `commands/` or `cases/` file changes. A vendor with NO CLI additionally touches
 `scripts/vendor_lint.py` (its executable, its URL shape, its static-lint branch) and `e2e/bootstrap.sh`

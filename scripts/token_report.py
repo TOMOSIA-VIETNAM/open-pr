@@ -69,6 +69,7 @@ ROLES = {
     "reconfigure": ["core/reconfigure.md"],
     "upgrade-cmd": ["commands/upgrade.md"],
     "clean-cmd": ["commands/clean.md"],
+    "feedback-cmd": ["commands/feedback.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
@@ -127,6 +128,9 @@ SCENARIOS = {
     ],
     "clean": [
         "clean-cmd", "guardrails",
+    ],
+    "feedback": [
+        "feedback-cmd", "guardrails",
     ],
     "review/known-repo-bitbucket-clean": [
         "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack",

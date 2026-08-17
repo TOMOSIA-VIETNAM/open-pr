@@ -113,6 +113,7 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:fix <PR_URL>` | Reads findings → weighs right/wrong → fixes → **1** commit → replies. 🔵 / 📝 always ask first |
 | `/open-pr:upgrade` | Brings local config up to the current schema — summarises, then asks; nothing written until you agree |
 | `/open-pr:clean` | Removes worktrees that `review` checked out (asks first). Memory / settings untouched |
+| `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |
 
 > [!WARNING]
 > `fix` edits **real code** in the repo (or the review worktree). Run it only when you deliberately want it to handle the comments.

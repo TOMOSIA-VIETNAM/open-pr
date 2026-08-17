@@ -39,6 +39,7 @@ cd ~/workspace
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
 | `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
 | `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
+| `/open-pr:feedback` | bất kỳ đâu | không ghi gì ở máy — một issue trên tracker của plugin, sau khi bạn duyệt nội dung |
 
 ## Setting
 

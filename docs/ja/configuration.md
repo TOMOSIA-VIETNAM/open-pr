@@ -39,6 +39,7 @@ cd ~/workspace
 | `/open-pr:fix` | そのリポジトリ内 / それを含むワークスペース — ただし **リポジトリが PR のブランチ上にあること** | リポジトリの実コード + PR への返信 |
 | `/open-pr:upgrade` | 設定済みのワークスペースまたはリポジトリ — 複数あれば選択させる | `notebooks/review/<repo>/settings.json` |
 | `/open-pr:clean` | 掃除したい `notebooks/review/` より上のどこか | 何も書かない — `notebooks/review/*/worktrees/*` だけを削除 |
+| `/open-pr:feedback` | どこでも | ローカルには何も書かない — 本文を承認したあと、プラグイン自身の tracker に issue を 1 件 |
 
 ## Setting
 
