@@ -43,15 +43,8 @@ backticks — ex. `UserChildDivision` stays `UserChildDivision`, never what it m
 
 Set → use it, no announcement. Missing → detect, stop at first hit: free-form `ARGUMENTS` text →
 language already used earlier this session → Claude Code memory, this project's || the user's → OS
-locale (`$LANG`/`locale`) → ask per "Language choices". Write to `.shared.chat_language` ONLY.
+locale (`$LANG`/`locale`) → ask per `cases/language-choice.md`. Write to `.shared.chat_language` ONLY.
 Whichever command detects it first wins, the other never re-detects.
-
-## Language choices
-
-`output_language` + `chat_language` alike, NO fixed menu: `.shared.chat_language` when set, else the
-chain above's hit, `(Recommended)` + English + Other free text; neither ⇒ English alone. An
-`output_language` pick NEVER writes `chat_language`. Store BCP-47 codes (`pt`, not `Portuguese`);
-multi-script ⇒ pin the script, asking when unknown: Chinese `zh-Hans` || `zh-Hant`, never bare `zh`.
 
 ## Fresh file → `schema_version`
 

@@ -75,6 +75,8 @@ ROLES = {
     "case-re-review": ["cases/re-review.md"],
     # whichever file currently holds the "is this our own finding" logic
     "marker-logic": ["core/finding-markers.md", "cases/re-review.md"],
+    # second candidate = where the block sat before it became an ask-only atom
+    "case-language-choice": ["cases/language-choice.md", "core/repo-settings.md"],
     "case-large-diff": ["cases/large-diff-guards.md"],
     "case-pr-template": ["cases/pr-template-checklist.md"],
     "case-submodule": ["cases/submodule-review.md"],
@@ -88,7 +90,7 @@ ROLES = {
 SCENARIOS = {
     "review/new-repo-github": [
         "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "setup-bootstrap",
-        "setup-doctor", "memory-commit", "upgrades-index", "gh-fetch", "gh-worktree",
+        "setup-doctor", "memory-commit", "upgrades-index", "case-language-choice", "gh-fetch", "gh-worktree",
         "gh-post",
         "criteria", "always-rule", "setup-template", "tpl-rails",
     ],
