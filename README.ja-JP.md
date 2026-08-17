@@ -68,15 +68,15 @@ AI コーディングの時代、PR の出る速さはレビューの速さを�
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-詳細ガイド: [インストール](./docs/ja/install.md) · [ベンダーごとのトークン取得](./docs/ja/credentials.md)。
+詳細ガイド: [インストール](./docs/ja-JP/install.md) · [ベンダーごとのトークン取得](./docs/ja-JP/credentials.md)。
 
 ## 結果の見え方
 
 1 回の実行で、結びついた 3 つの要素が出ます: **overview**、**行コメント**（suggested change 付き）、そして `/open-pr:fix` が push したあとの **返信**。
 
-<a href="./docs/ja/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、fix push 後の返信"></a>
+<a href="./docs/ja-JP/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、fix push 後の返信"></a>
 
-[デモを見る](./docs/ja/demo.md) · GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`、セルフホスト含む）、Bitbucket Cloud（`.../pull-requests/<n>`）に対応。
+[デモを見る](./docs/ja-JP/demo.md) · GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`、セルフホスト含む）、Bitbucket Cloud（`.../pull-requests/<n>`）に対応。
 
 ## 汎用レビュースキルとの違い
 
@@ -107,7 +107,7 @@ flowchart LR
   H --> I[Round 3 · 人間がドメインをレビュー]
 ```
 
-再レビュー、worktree、`fix` 前のガードの詳細: [再レビュー / fix のフロー](./docs/ja/how-it-works.md)。
+再レビュー、worktree、`fix` 前のガードの詳細: [再レビュー / fix のフロー](./docs/ja-JP/how-it-works.md)。
 
 ## コマンド
 
@@ -122,7 +122,7 @@ flowchart LR
 > [!WARNING]
 > `fix` はリポジトリ（またはレビュー worktree）の **実コード** を編集します。コメントを処理させたいと自分で決めたときだけ実行してください。
 
-全設定: [設定](./docs/ja/configuration.md)。
+全設定: [設定](./docs/ja-JP/configuration.md)。
 
 ## 何をレビューするか
 
@@ -133,7 +133,7 @@ flowchart LR
 5. **保守性 & 可読性**
 6. **フレームワーク / 言語固有** — そのスタックのテンプレートに沿う
 
-観点の詳細と競合時の優先順位: [何をレビューするか](./docs/ja/review-criteria.md)。
+観点の詳細と競合時の優先順位: [何をレビューするか](./docs/ja-JP/review-criteria.md)。
 
 ## プロンプトトークンのグラフ
 

@@ -863,8 +863,8 @@ def test_clean_deletes_worktrees_and_nothing_else():
 def test_docs_exist_in_every_language_and_their_links_resolve():
     """The READMEs hand their reference material to docs/, one tree per language. A page
     translated in one language and not another leaves that reader at a 404, and a relative
-    link written at the wrong depth (docs/vi/ is two levels down, docs/ is one) breaks
-    silently — GitHub renders the text and only the click fails."""
+    link written at the wrong depth (a translated tree is two levels down, docs/ is one)
+    breaks silently — GitHub renders the text and only the click fails."""
     en = sorted(p.name for p in (REPO / "docs").glob("*.md"))
     assert en, "docs/ holds no English page"
     # every translated tree is discovered, so adding a language cannot skip the check
