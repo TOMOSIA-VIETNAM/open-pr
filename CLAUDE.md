@@ -60,11 +60,11 @@ case and still needs you to spot it. An accepted duplicate needs its `sha` and a
 
 **Stage by path** — only what you touched. FORBIDDEN: `git add -A`, `git add .`, `git commit -a`.
 
-**Push only the branch you were handed.** `main` is what UAT installs from — never push, merge or
-force-push to it, and never push a branch the user did not name. A PR is the only path in, with ONE
-exception: `token_chart.py --commit` pushes `tests/token-history.json` + `token-history.svg` after a
-tag, and refuses when the diff holds anything else, when pwd is not `main`, or when `HEAD` ≠
-`origin/main`. Nothing else may push there, and never `--force`.
+**Push only the branch you were handed.** `main` is what UAT installs from — never push or force-push
+to it, and never push a branch the user did not name. A PR is the only path in, `token_chart.py
+--commit` included: after a tag it opens and squash-merges `chore/chart-<tag>` carrying
+`tests/token-history.json` + `token-history.svg`, and refuses when the diff holds anything else, when
+pwd is not `main`, or when `HEAD` ≠ `origin/main`. Never `--force`.
 
 **One release, one `schema_version`.** Bump only when an EXISTING repo's config needs transforming — a
 field with a read-time default needs no migration. On an unreleased branch, EDIT the pending
