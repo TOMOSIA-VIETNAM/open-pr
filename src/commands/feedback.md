@@ -9,15 +9,15 @@ description: Report a problem with the open-pr plugin itself, or ask for a chang
 >   repo, and any write to the user's repo, config, memory or worktrees — this run only reads the chat.
 > - The issue is PUBLIC and cannot be unposted. FORBIDDEN: creating or commenting before the user
 >   approves the exact text at Step 4.
-> - It carries the PROBLEM, never the user's work. Step 2 is what keeps that true.
+> - Carries the PROBLEM, never the user's work — Step 2.
 >
 > This CRITICAL block is the SOLE enforcement layer — no `allowed-tools` backs it (deliberate).
 
 ## Step 1 — What is being reported
 
 Sources, in order: `ARGUMENTS`, then what THIS chat session shows — which `/open-pr:` command the user
-ran, what it did, what they wanted instead. FORBIDDEN, however useful it looks: reading the reviewed
-repo, its diff, its `notebooks/review/`, its settings or memory to enrich the report.
+ran, what it did, what they wanted instead. FORBIDDEN: reading the reviewed repo, its diff, its
+`notebooks/review/`, its settings or memory to enrich the report.
 
 Both empty ⇒ ONE free-text question — what should change, and what prompted it — then WAIT.
 
@@ -34,31 +34,23 @@ A reader of the issue MUST NOT be able to tell which repo, company or person it 
 | token, key, password, internal hostname, IP | drop — never echoed, not even masked |
 | vendor (GitHub/GitLab/Bitbucket), stack, language, command name, plugin's own message text | KEEP — the plugin's behaviour depends on these |
 
-Unsure whether a detail identifies ⇒ drop it. Nothing in the issue may need it.
+Unsure whether a detail identifies ⇒ drop it.
 
 ## Step 3 — Draft it, in English
 
-English whatever language the chat is in: the tracker is public and its readers maintain the plugin.
-Title ≤ 70 chars, states the problem. Body EXACTLY this shape:
+English whatever the chat language. Title ≤ 70 chars, states the problem. The tracker answers 2 forms
+— pick by what is reported, fill that form's fields, nothing else:
 
-```
-### What happened
+| the plugin | form | label | field → content |
+|---|---|---|---|
+| misbehaved, crashed, reviewed wrongly | `bug_report.yml` | `bug` | `description` ← what it did + what was expected · `steps` ← the sequence that reached it · `version` ← below · `env` ← OS, vendor, stack |
+| lacks something, could be better | `feature_request.yml` | `enhancement` | `problem` ← the situation hit · `solution` ← the wish · `alternatives` ← what was tried instead, omitted when nothing was |
 
-<1-3 sentences — the behaviour>
+FORBIDDEN to fill: `pr_url`, `evidence` — Step 2 removes exactly what they ask for. They stay empty;
+only the user, in the browser, may add them.
 
-### What would be better
-
-<1-3 sentences — the wish>
-
-### Context
-
-- command: `/open-pr:<name>`
-- vendor: <GitHub | GitLab | Bitbucket | n/a>
-- stack: <what the reviewed project is built in, or n/a>
-- plugin: <version, or `unknown`>
-```
-
-FORBIDDEN in the body: the chat transcript, your own reasoning or steps, a proposed diff, apologies.
+Each field: 1-3 sentences. FORBIDDEN in any of them: the chat transcript, your own reasoning or steps,
+a proposed diff, apologies.
 
 Version:
 
@@ -78,8 +70,8 @@ gh search issues --repo TOMOSIA-VIETNAM/open-pr --state all --limit 5 "<2-4 keyw
 
 Either failing ⇒ no search; the draft still goes to the user, and Step 5 takes path B.
 
-Print the drafted title and body VERBATIM — that text, never a summary of it. Then ONE CHOICE per
-`core/guardrails.md`, at most 4 options:
+Print the drafted title and every filled field VERBATIM — that text, never a summary — and which form
+it goes to. Then ONE CHOICE per `core/guardrails.md`, at most 4 options:
 
 - `Post it (Recommended)` — a public issue on the tracker
 - `Comment on #<n>` — the CLOSEST match the search returned, named in the question body along with any
@@ -89,24 +81,31 @@ Print the drafted title and body VERBATIM — that text, never a summary of it. 
 
 ## Step 5 — Send it
 
-`Write` the body to `"${TMPDIR:-/tmp}"/open-pr-feedback.md` first — shell quoting reshapes a multi-line
-body, a file does not.
+`Write` both files first — a multi-line body does not survive shell quoting. `$T` ≡ `"${TMPDIR:-/tmp}"`:
+
+| file | holds |
+|---|---|
+| `$T/open-pr-feedback.json` | 1 flat object: `template` = the form's filename, `title`, 1 key per field ID filled at Step 3 |
+| `$T/open-pr-feedback.md` | same fields, each `### <the form's label for it>` + content, in the form's order |
 
 | path | when | run |
 |---|---|---|
-| A | `gh` authenticated, `Post it` | `gh issue create --repo TOMOSIA-VIETNAM/open-pr --title "<title>" --body-file "${TMPDIR:-/tmp}"/open-pr-feedback.md` |
-| A | `gh` authenticated, `Comment on #<n>` | `gh issue comment <n> --repo TOMOSIA-VIETNAM/open-pr --body-file "${TMPDIR:-/tmp}"/open-pr-feedback.md` |
+| A | `gh` authenticated, `Post it` | `gh issue create --repo TOMOSIA-VIETNAM/open-pr --title "<title>" --label <label> --body-file "$T"/open-pr-feedback.md` |
+| A | `gh` authenticated, `Comment on #<n>` | `gh issue comment <n> --repo TOMOSIA-VIETNAM/open-pr --body-file "$T"/open-pr-feedback.md` |
 | B | no `gh`, not authenticated, or A errored | prefilled link, below — the user submits it |
 
-Path B, printed on its own line so it is clickable:
+`--label` rejected (the label was renamed) ⇒ run it again without that flag; nothing else changes.
+
+Path B goes through the form: a blank issue is refused there, and the form is what carries the label.
+Print the URL on its own line, so it is clickable:
 
 ```bash
-python3 -c 'import sys,urllib.parse as u;print("https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new?title="+u.quote(sys.argv[1])+"&body="+u.quote(sys.argv[2]))' "<title>" "$(cat "${TMPDIR:-/tmp}"/open-pr-feedback.md)"
+python3 -c 'import json,os,urllib.parse as u;d=json.load(open(os.environ.get("TMPDIR","/tmp")+"/open-pr-feedback.json"));print("https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new?"+u.urlencode(d))'
 ```
 
-No `python3` ⇒ print `https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new` plus the title and body,
-for the user to paste. A errors (403, network, repo moved) ⇒ print the error, then path B. FORBIDDEN:
-a second attempt at a different repo.
+No `python3` ⇒ print `https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new/choose` plus the title and
+the fields, for the user to paste into the form they pick. A errors (403, network, repo moved) ⇒ print
+the error, then path B. FORBIDDEN: a second attempt at a different repo.
 
 ## Step 6 — Report
 
