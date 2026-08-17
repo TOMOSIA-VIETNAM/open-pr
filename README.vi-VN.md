@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja.md">日本語</a>
+  <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
 Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.

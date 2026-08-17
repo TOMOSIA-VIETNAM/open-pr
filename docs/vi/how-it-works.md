@@ -1,6 +1,6 @@
 # Flow re-review / fix
 
-[← README](../../README.vi.md)
+[← README](../../README.vi-VN.md)
 
 `/open-pr:review` checkout code của PR ra một **git worktree** riêng — branch bạn đang làm không bị đụng. Vừa review vừa code bình thường.
 

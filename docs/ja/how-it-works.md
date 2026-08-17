@@ -1,6 +1,6 @@
 # 再レビュー / fix のフロー
 
-[← README](../../README.ja.md)
+[← README](../../README.ja-JP.md)
 
 `/open-pr:review` は PR のコードを専用の **git worktree** にチェックアウトします — 作業中のブランチには触れません。レビュー中もそのまま開発を続けられます。
 

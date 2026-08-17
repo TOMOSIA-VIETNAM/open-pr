@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.vi.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <strong>日本語</strong>
+  <a href="./README.vi-VN.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <strong>日本語</strong> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
 AI コーディングの時代、PR の出る速さはレビューの速さを大きく上回っています。ボトルネックはもうコーディングではなく、**レビュー工程**にあります。レビュアーはプロジェクトの convention / security / performance を確認しつつ、ビジネスロジックもカバーしなければなりません — その頻度では、ほぼ持ちこたえられません。

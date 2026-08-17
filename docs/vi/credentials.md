@@ -1,6 +1,6 @@
 # Lấy token cho từng vendor
 
-[← README](../../README.vi.md)
+[← README](../../README.vi-VN.md)
 
 Plugin không có credential riêng: nó đọc PR và post review bằng chính account bạn cấp token, nên review
 xuất hiện dưới tên bạn. Mỗi vendor một cách lấy, quyền tối thiểu và lệnh tự kiểm tra nằm ngay dưới.

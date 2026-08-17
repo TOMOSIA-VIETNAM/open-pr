@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.vi.md">Tiếng Việt</a> · <strong>English</strong> · <a href="./README.ja.md">日本語</a>
+  <a href="./README.vi-VN.md">Tiếng Việt</a> · <strong>English</strong> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
 In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and at that pace, almost nobody can keep up.

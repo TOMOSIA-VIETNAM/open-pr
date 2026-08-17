@@ -867,11 +867,18 @@ def test_docs_exist_in_every_language_and_their_links_resolve():
     silently — GitHub renders the text and only the click fails."""
     en = sorted(p.name for p in (REPO / "docs").glob("*.md"))
     assert en, "docs/ holds no English page"
-    for lang in ("vi", "ja"):
+    # every translated tree is discovered, so adding a language cannot skip the check
+    langs = sorted(d.name for d in (REPO / "docs").iterdir()
+                   if d.is_dir() and d.name != "images")
+    assert langs, "docs/ holds no translated tree"
+    for lang in langs:
         got = sorted(p.name for p in (REPO / "docs" / lang).glob("*.md"))
         assert got == en, f"docs/{lang} has {got}, English has {en}"
 
-    pages = [REPO / f for f in ("README.md", "README.vi.md", "README.ja.md")]
+    readmes = sorted(p.name for p in REPO.glob("README*.md"))
+    assert len(readmes) == len(langs) + 1, \
+        f"{readmes} does not pair with docs trees {langs} plus English"
+    pages = [REPO / f for f in readmes]
     pages += sorted((REPO / "docs").rglob("*.md"))
     dead = []
     for page in pages:

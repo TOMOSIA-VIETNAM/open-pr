@@ -1,6 +1,6 @@
 # 結果の見え方
 
-[← README](../../README.ja.md)
+[← README](../../README.ja-JP.md)
 
 投稿されるレビューは結びついた **3 つの部分** を持ちます:
 
@@ -15,7 +15,7 @@
 > [!NOTE]
 > 言語は **リポジトリ** 単位であり、ユーザー単位ではありません。`shared.output_language` が PR に **POST** される内容を決めます — エージェントがチャットであなたと話す言語とは独立です。
 
-同じレビューの [English](../demo.md) と [Tiếng Việt](../vi/demo.md) もあります。
+同じレビューの [English](../demo.md)、[Tiếng Việt](../vi/demo.md)、[简体中文](../zh-Hans/demo.md) もあります。
 
 ## 同じ実行を、各ベンダーで
 
