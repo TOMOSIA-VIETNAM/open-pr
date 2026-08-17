@@ -6,7 +6,10 @@
 </p>
 
 <p align="center">
-  <strong>Agent review PR ngay trên GitHub / GitLab / Bitbucket</strong><br>
+  <strong>Agent review PR ngay trên
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
+  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
+  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket</strong><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 

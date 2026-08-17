@@ -6,7 +6,11 @@
 </p>
 
 <p align="center">
-  <strong>エージェントが GitHub / GitLab / Bitbucket 上で PR をレビュー</strong><br>
+  <strong>エージェントが
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
+  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
+  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket
+  上で PR をレビュー</strong><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
