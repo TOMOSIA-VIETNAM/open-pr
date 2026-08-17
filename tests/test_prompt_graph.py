@@ -88,7 +88,7 @@ def test_section_refs_resolve():
     renaming one reddens here instead of leaving a dangling ref."""
     bad = []
     for name, body in all_text().items():
-        for m in re.finditer(r'`((?:core/)?[a-z-]+\.md)` (?:§(\d)|"([^"]+)")', body):
+        for m in re.finditer(r'`((?:[a-z-]+/)?[a-z-]+\.md)` (?:§(\d)|"([^"]+)")', body):
             target = SRC / m.group(1)
             num, heading = m.group(2), m.group(3)
             wanted = rf"^## {num}\." if num else rf"^## {re.escape(heading)}"

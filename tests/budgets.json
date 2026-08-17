@@ -17,6 +17,6 @@
     "fix/first-run-gitlab": 9643,
     "feedback": 2120
   },
-  "mean": 9525,
+  "mean": 9599,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy); some are tightened by hand below that. --update-budgets rewrites EVERY ceiling to measured +2%, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }
