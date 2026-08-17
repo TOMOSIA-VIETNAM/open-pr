@@ -478,10 +478,32 @@ def test_review_writes_at_the_invocation_directory():
 
 def test_fix_suggestions_prefer_a_code_fence():
     """A finding whose Fix is prose makes the dev reconstruct the intended logic. The
-    fence is the default; prose is for fixes with no code form."""
-    step7 = text(SRC / "commands" / "review.md")
+    fence is the default; prose is for a fix with no code form, and for one whose code
+    would be a design decision the dev owns — reviewer-authored code ships unreviewed,
+    so a minor note must not carry an architecture."""
+    step7 = " ".join(text(SRC / "commands" / "review.md").split())
     assert "shows the corrected CODE in a fence by default" in step7
-    assert "FORBIDDEN: prose when the" in step7, "prose must be the exception, not a sibling option"
+    assert "FORBIDDEN: prose anywhere else the" in step7, \
+        "prose must be the exception, not a sibling option"
+    assert "at 🔵/📝 it would INTRODUCE state outliving one call" in step7, \
+        "the low-severity fix must not introduce state the dev never chose"
+    assert "raise the severity and keep the code" in step7, \
+        "the escape from prose is a higher severity, not a silent downgrade"
+
+
+def test_review_checks_its_own_output_against_the_code():
+    """Two defects belong to no single hunk. One lives where a mechanism meets an invariant
+    the code already states about itself; the other is a claim of repetition made without
+    counting. Both need Step 7 to look past the hunk it is on."""
+    step7 = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "an invariant the code asserts about ITSELF" in step7, \
+        "Step 7 must collect the invariants the code states"
+    assert "each fix about to be proposed against it" in step7, \
+        "the invariant check must cover the review's own fixes, not the diff alone"
+    assert "search for EVERY site, list them all" in step7, \
+        "a repetition finding must enumerate, not sample"
+    assert "stays a SUBJECT of it" in step7, \
+        "citing an artifact as evidence must not exempt it from the same finding"
 
 
 def test_chat_does_not_repeat_the_posted_findings():

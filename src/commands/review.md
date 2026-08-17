@@ -164,6 +164,11 @@ finding inside `comments[]`.
 - the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
   paths" file is absent BY DESIGN; the guard above owns how it gets read
 - never read library source unless genuinely unsure
+- an invariant the code asserts about ITSELF (usually a comment in a region read anyway): hold each
+  mechanism this PR introduces AND each fix about to be proposed against it. Breaks it ⇒ a finding, or a
+  fix to redesign
+- "repeated across call sites" as a finding's nature ⇒ search for EVERY site, list them all; an artifact
+  cited in it as evidence or mitigation stays a SUBJECT of it
 - never pad the count with trivia; there is no minimum N
 
 **Finding format** — every `<…>` is a placeholder to REPLACE, never to print, `<Fix>` being that word in
@@ -189,8 +194,11 @@ fix now is 🔵, not 📝. Each finding carries its own emoji, whatever heading 
 
 The fix shows the corrected CODE in a fence by default: a LINE comment replacing that exact line ⇒
 ` ```suggestion `, anything else ⇒ a normal language fence. Inline code inside prose is NOT a substitute.
-Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm) — FORBIDDEN: prose when the
-code is writable.
+Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm), || at 🔵/📝 it would INTRODUCE
+state outliving one call (module/global var, cache, memo, singleton, timer, retry loop) — the dev's design
+choice ⇒ name the constraint + the failure to avoid, || raise the severity and keep the code.
+Reworking state already there (another cache key, an invalidation in an existing mutation) introduces none
+⇒ code. FORBIDDEN: prose anywhere else the code is writable.
 
 ≥2 independent points (common on LINE) → one `-` bullet each, never one multi-clause sentence.
 
