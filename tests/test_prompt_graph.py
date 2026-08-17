@@ -83,12 +83,16 @@ def test_backtick_file_refs_exist():
 
 
 def test_section_refs_resolve():
-    """`core/pr-target.md` §2 must point at a real numbered heading."""
+    """A ref addresses a section either by number (`core/pr-target.md` §2) or by heading
+    (`core/repo-settings.md` "Fresh file"); both must land on a heading that exists, so
+    renaming one reddens here instead of leaving a dangling ref."""
     bad = []
     for name, body in all_text().items():
-        for m in re.finditer(r"`((?:core/)?[a-z-]+\.md)` §(\d)", body):
+        for m in re.finditer(r'`((?:core/)?[a-z-]+\.md)` (?:§(\d)|"([^"]+)")', body):
             target = SRC / m.group(1)
-            if not target.exists() or not re.search(rf"^## {m.group(2)}\.", text(target), re.M):
+            num, heading = m.group(2), m.group(3)
+            wanted = rf"^## {num}\." if num else rf"^## {re.escape(heading)}"
+            if not target.exists() or not re.search(wanted, text(target), re.M):
                 bad.append((name, m.group(0)))
     assert not bad, f"unresolvable section refs: {bad}"
 
