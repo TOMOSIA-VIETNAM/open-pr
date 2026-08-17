@@ -76,6 +76,15 @@
       "fix": 8896,
       "upgrade": 2211,
       "clean": 1299
+    },
+    {
+      "tag": "v1.3.0",
+      "date": "2026-08-17",
+      "review": 11655,
+      "fix": 9585,
+      "upgrade": 2211,
+      "clean": 1299,
+      "feedback": 2078
     }
   ]
 }
