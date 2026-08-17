@@ -56,6 +56,12 @@ NOTE = (
 
 STAMP = "mean per group · cl100k_base proxy · each point frozen at its release · tests/token-history.json"
 
+PR_BODY = (
+    "One point per release tag on the context-cost chart, measured at {tag} by "
+    "`scripts/token_chart.py --add`. The SVG is redrawn from those numbers, never hand-edited — "
+    "the suite redraws it and compares."
+)
+
 W, H = 720, 260
 PAD_L, PAD_R, PAD_T, PAD_B = 62, 18, 38, 46
 GREY = "#8b949e"
@@ -186,24 +192,44 @@ def porcelain_paths(status):
     return sorted(line.split(maxsplit=1)[1] for line in status.splitlines() if line.strip())
 
 
-def commit_and_push(tag):
-    """The ONE push to main this repo allows, and only ever these two files."""
+def land_via_pr(tag):
+    """main accepts changes through a pull request only, so the chart point lands the same way as
+    everything else: a branch holding exactly the two chart files, opened and squash-merged.
+
+    The guards stay what they were — the branch is cut from a main that is already in sync, and
+    carries nothing but the chart."""
     paths = porcelain_paths(sh("git", "status", "--porcelain"))
     allowed = ["tests/token-history.json", "token-history.svg"]
     if not paths:
         print("nothing to commit — the chart already holds this tag")
         return
     if paths != allowed:
-        raise SystemExit(f"refusing to push: the tree also changes {set(paths) - set(allowed)}")
+        raise SystemExit(f"refusing to land: the tree also changes {set(paths) - set(allowed)}")
     if sh("git", "branch", "--show-current") != "main":
-        raise SystemExit("refusing to push: the chart commit belongs on main")
+        raise SystemExit("refusing to land: the chart point is cut from main")
     sh("git", "fetch", "origin", "main")
     if sh("git", "rev-parse", "HEAD") != sh("git", "rev-parse", "origin/main"):
-        raise SystemExit("refusing to push: HEAD is not origin/main — sync first, never force")
+        raise SystemExit("refusing to land: HEAD is not origin/main — sync first, never force")
+
+    branch = f"chore/chart-{tag}"
+    subject = f"chore(chart): context cost at {tag}"
+    sh("git", "checkout", "-b", branch)
     sh("git", "add", *allowed)
-    sh("git", "commit", "-m", f"chore(chart): context cost at {tag}")
-    sh("git", "push", "origin", "main")
-    print(f"pushed the {tag} point to main")
+    sh("git", "commit", "-m", subject)
+    sh("git", "push", "-u", "origin", branch)
+    url = sh("gh", "pr", "create", "--base", "main", "--head", branch,
+             "--title", subject, "--body", PR_BODY.format(tag=tag))
+    # back on main first: --delete-branch removes the local branch too, which it cannot do
+    # while that branch is the one checked out
+    sh("git", "checkout", "main")
+    try:
+        sh("gh", "pr", "merge", branch, "--squash", "--delete-branch")
+    except subprocess.CalledProcessError as e:
+        print(f"opened {url} but could not merge it: {e.stderr.strip()}\n"
+              f"merge it yourself, then: git pull --ff-only origin main")
+        return
+    sh("git", "pull", "--ff-only", "origin", "main")
+    print(f"landed the {tag} point on main via {url}")
 
 
 def main():
@@ -211,7 +237,7 @@ def main():
     ap.add_argument("--add", metavar="TAG", help="measure this git tag and append it")
     ap.add_argument("--render", action="store_true", help="redraw the SVG from stored numbers")
     ap.add_argument("--commit", action="store_true",
-                    help="with --add: commit and push the two chart files to main")
+                    help="with --add: land the two chart files on main through a pull request")
     ap.add_argument("--encoder", default="tiktoken", choices=["tiktoken", "anthropic"])
     args = ap.parse_args()
     if not args.add and not args.render:
@@ -240,7 +266,7 @@ def main():
     render(data)
     print(f"wrote {SVG.relative_to(REPO)}")
     if args.commit:
-        commit_and_push(args.add)
+        land_via_pr(args.add)
 
 
 if __name__ == "__main__":
