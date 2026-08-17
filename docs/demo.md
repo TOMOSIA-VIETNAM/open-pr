@@ -17,6 +17,33 @@ The image below is a real review on a PR in this repository, in the language tha
 
 The same review in [Vietnamese](./vi/demo.md) and [Japanese](./ja/demo.md).
 
+## The same run, on each vendor
+
+A full PR page, top to bottom, on each vendor `open-pr` supports: the overview at the top, the line
+comments sitting on the code they are about, the `suggestion` block ready to apply, and the reply once
+`/open-pr:fix` had pushed. Each capture is in the language that repo's `settings.json` selected.
+
+<details>
+<summary><b>GitHub</b> — pull request, review posted in English</summary>
+
+[![A pull request on GitHub reviewed by open-pr, from the overview down to the replies](./images/preview/github.png)](./images/preview/github.png)
+
+</details>
+
+<details>
+<summary><b>GitLab</b> — merge request, review posted in Vietnamese</summary>
+
+[![A merge request on GitLab reviewed by open-pr, from the overview down to the replies](./images/preview/gitlab.png)](./images/preview/gitlab.png)
+
+</details>
+
+<details>
+<summary><b>Bitbucket Cloud</b> — pull request, review posted in Japanese</summary>
+
+[![A pull request on Bitbucket reviewed by open-pr, from the overview down to the replies](./images/preview/bitbucket.png)](./images/preview/bitbucket.png)
+
+</details>
+
 ## Severity
 
 This is the “contract” between reviewer and author:

@@ -17,6 +17,33 @@ Một lượt review được post mang **ba phần** gắn với nhau:
 
 Cùng một review bằng [English](../demo.md) và [日本語](../ja/demo.md).
 
+## Cùng một lượt chạy, trên từng vendor
+
+Nguyên một trang PR từ đầu đến cuối, trên mỗi vendor mà `open-pr` hỗ trợ: overview ở trên cùng, line
+comment nằm ngay đoạn code nó nói tới, block `suggestion` sẵn sàng apply, và reply sau khi
+`/open-pr:fix` đã push. Mỗi ảnh chụp ở ngôn ngữ mà `settings.json` của repo đó chọn.
+
+<details>
+<summary><b>GitHub</b> — pull request, review post bằng English</summary>
+
+[![Một pull request trên GitHub được open-pr review, từ overview xuống tới các reply](../images/preview/github.png)](../images/preview/github.png)
+
+</details>
+
+<details>
+<summary><b>GitLab</b> — merge request, review post bằng Tiếng Việt</summary>
+
+[![Một merge request trên GitLab được open-pr review, từ overview xuống tới các reply](../images/preview/gitlab.png)](../images/preview/gitlab.png)
+
+</details>
+
+<details>
+<summary><b>Bitbucket Cloud</b> — pull request, review post bằng 日本語</summary>
+
+[![Một pull request trên Bitbucket được open-pr review, từ overview xuống tới các reply](../images/preview/bitbucket.png)](../images/preview/bitbucket.png)
+
+</details>
+
 ## Severity
 
 Đây là “hợp đồng” giữa reviewer và author:

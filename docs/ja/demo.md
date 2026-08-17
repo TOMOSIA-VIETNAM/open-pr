@@ -17,6 +17,33 @@
 
 同じレビューの [English](../demo.md) と [Tiếng Việt](../vi/demo.md) もあります。
 
+## 同じ実行を、各ベンダーで
+
+`open-pr` が対応する各ベンダーでの、PR ページ全体を上から下まで: 先頭の Overview、指摘対象のコードに
+付いた行コメント、そのまま適用できる `suggestion` ブロック、そして `/open-pr:fix` が push した後の返信。
+各キャプチャの言語は、そのリポジトリの `settings.json` が選んだものです。
+
+<details>
+<summary><b>GitHub</b> — pull request、レビューは English で投稿</summary>
+
+[![open-pr がレビューした GitHub の pull request。Overview から返信まで](../images/preview/github.png)](../images/preview/github.png)
+
+</details>
+
+<details>
+<summary><b>GitLab</b> — merge request、レビューは Tiếng Việt で投稿</summary>
+
+[![open-pr がレビューした GitLab の merge request。Overview から返信まで](../images/preview/gitlab.png)](../images/preview/gitlab.png)
+
+</details>
+
+<details>
+<summary><b>Bitbucket Cloud</b> — pull request、レビューは 日本語 で投稿</summary>
+
+[![open-pr がレビューした Bitbucket の pull request。Overview から返信まで](../images/preview/bitbucket.png)](../images/preview/bitbucket.png)
+
+</details>
+
 ## Severity
 
 これがレビュアーと作者のあいだの「契約」です:
