@@ -66,6 +66,23 @@
       ],
       "sample": "takes no url 1 read adapters root md relative to this file root this platform s tool names",
       "reason": "Shim boilerplate. Each platform demands its own entry file, and all four say the same two things: read adapters/root.md, then obey src/commands/<cmd>.md verbatim. The rules themselves have exactly one owner under src/ — collapsing the four shims into one would cost every platform its per-command slash entry."
+    },
+    {
+      "sha": "3b677685fcb8",
+      "files": [
+        "vendors/gitlab/post.md"
+      ],
+      "sample": "glab api x post projects owner 2f repo merge requests pull number",
+      "reason": "A shared URL prefix of two different endpoints (draft_notes and draft_notes/bulk_publish), not a rule stated twice. Shortening it would hide which endpoint each entry calls."
+    },
+    {
+      "sha": "456a878850f6",
+      "files": [
+        "vendors/bitbucket/post.md",
+        "vendors/bitbucket/thread.md"
+      ],
+      "sample": "last line of the body with a blank line before it a definition cannot interrupt a paragraph and",
+      "reason": "The blank-line rule is stated in BOTH marker entries on purpose. A caller loads one group: review.md reads post, fix.md and re-review.md read thread, and the fix scenario in token_report.py proves bb-post is not loaded there. A pointer from one to the other is a rule the reader never sees, which is what the review found; each entry states it and test_a_link_reference_marker_carries_its_blank_line_rule now requires exactly that."
     }
   ]
 }

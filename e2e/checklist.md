@@ -3,6 +3,10 @@
 Run after `/open-pr:review <fixture PR url>` finishes. Assertions are about SHAPE, not wording — the
 review is model output and will never be byte-identical twice.
 
+Every row applies to all three vendors except where it names one. Bitbucket has no draft: with
+`auto_submit_review: false` the review stays in the chat and nothing reaches the PR, so read those rows
+as "not published yet" rather than "pending on the PR".
+
 Each planted defect and the path it exercises:
 
 | planted in | expected | exercises |
@@ -32,7 +36,9 @@ Then check the mechanics:
 - [ ] exactly ONE review posted, not several
 - [ ] `.py` got BOTH `python` and `agent-instructions` criteria applied — i.e. the mutable-default row
       AND at least one prompt-quality row both produced findings on `prompts/agent.py`
-- [ ] every finding ends with `<!-- bot-finding -->`
+- [ ] every finding ends with the finding marker of `src/core/finding-markers.md`, INVISIBLE on the
+      rendered page — a marker you can read on the PR is a defect, not a passing row. Confirm it is
+      there by reading the comment's raw body (the vendor's own comment API, or the UI's Edit box)
 - [ ] severity is emoji only — no "Must fix" wording, no count of N
 - [ ] no heading printed with nothing under it
 - [ ] the overview never repeats a line comment's text

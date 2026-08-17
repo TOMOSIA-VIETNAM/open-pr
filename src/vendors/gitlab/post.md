@@ -45,6 +45,10 @@ draft note on this MR at once; a subset is not possible.
 `[<first 7 of commit_id>](https://<host>/<owner>/<repo>/-/commit/<commit_id>)` — `<host>` = this PR's
 own URL host, so self-hosted instances stay correct.
 
+## Finding marker
+
+`<!-- bot-finding -->` — an HTML comment, dropped from the rendered page here.
+
 ## Post-error notes
 
 - A rejected draft-note POST is usually a bad `position` object (wrong `*_sha` triple, or a

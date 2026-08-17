@@ -39,6 +39,10 @@ event="COMMENT"`
 
 `[<first 7 of commit_id>](https://github.com/<owner>/<repo>/commit/<commit_id>)`
 
+## Finding marker
+
+`<!-- bot-finding -->` — an HTML comment, dropped from the rendered page here.
+
 ## Post-error notes
 
 - The authenticated account IS the PR's author → GitHub's self-review restriction blocks the POST.

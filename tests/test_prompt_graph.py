@@ -220,13 +220,92 @@ def test_overview_headings_carry_emoji_and_label():
 
 
 def test_markers_are_byte_identical_everywhere():
-    """The bot markers are the plugin's cross-run identity — a variant spelling
-    makes past findings invisible to re-review and fix."""
-    for marker in ("<!-- bot-finding -->", "<!-- bot-reply -->"):
-        core = marker.strip("<!- >")
+    """The markers are the plugin's cross-run identity, so each form has exactly one
+    spelling — a variant makes a past finding invisible and it gets posted again."""
+    for label in ("bot-finding", "bot-reply"):
         for name, body in all_text().items():
-            for m in re.finditer(rf"<!--\s*{re.escape(core)}\s*-->", body):
-                assert m.group(0) == marker, f"{name}: {m.group(0)!r} != {marker!r}"
+            for m in re.finditer(rf"<!--\s*{label}\s*-->", body):
+                assert m.group(0) == f"<!-- {label} -->", f"{name}: {m.group(0)!r}"
+            # the destination only, so a marker quoted inline in prose keeps its backtick
+            for m in re.finditer(rf"\[\s*{label}\s*\]:\s*([^\s`]+)", body):
+                assert m.group(0) == f"[{label}]: #", f"{name}: {m.group(0)!r} != [{label}]: #"
+
+
+def test_a_link_reference_marker_carries_its_blank_line_rule():
+    """A link reference definition cannot interrupt a paragraph: pressed against the text above
+    it, the renderer emits a visible broken link instead of dropping it. The rule has to be IN the
+    entry, stated: a caller loads one group, so a pointer from `thread` to `post` is a rule that
+    `/open-pr:fix` never reads."""
+    for v in VENDORS:
+        for group, label in (("post", "bot-finding"), ("thread", "bot-reply")):
+            body = text(SRC / "vendors" / v / f"{group}.md")
+            entry = [p for p in re.split(r"\n(?=## )", body) if f"[{label}]: #" in p]
+            if not entry:
+                continue        # this vendor uses the HTML-comment form
+            flat = " ".join(entry[0].split())
+            assert "BLANK LINE" in flat, \
+                f"{v}/{group}: uses the link-reference form without stating the blank-line rule itself"
+
+
+def test_the_span_walker_survives_any_fence_tag():
+    """`spans()` is tested directly because comparing the two walkers cannot catch this: both go
+    through it, so a parser bug makes them wrong identically and the comparison still passes.
+
+    A fence the regex fails to recognise is left in the text, and the inline-backtick scan then pairs
+    backticks ACROSS it — inventing a span that carries the language tag, and dropping the real command
+    that came after out of sight. The second half is the dangerous one: the lint reports clean on an
+    entry it never looked at."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import vendor_lint  # noqa: E402
+
+    for tag in ("", "bash", "json", "markdown", "sh", "Bash", "yaml"):
+        part = (f"## E\n\n```{tag}\n"
+                'if [ -n "$X" ]; then printf a; else gh api user; fi\n'
+                "```\n\nProse `gh pr view <url>` inline.\n")
+        got = list(vendor_lint.spans(part))
+        assert any("printf a" in s for s in got), f"tag {tag!r}: fenced command lost"
+        assert any(s == "gh pr view <url>" for s in got), f"tag {tag!r}: inline command lost — {got}"
+        assert not any(tag and s.startswith(tag) for s in got), \
+            f"tag {tag!r}: a span carries the language tag — {got}"
+
+
+def test_the_static_lint_sees_every_entry_the_live_lint_runs():
+    """`lint_curl` walks all_entries() while the live mode walks entries(). A stricter rule in
+    one of them hides an entry from the static checks — `--fail-with-body`, `-v`, a credential
+    literal — while it still runs against a real PR."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import vendor_lint  # noqa: E402
+
+    for v in VENDORS:
+        runnable = {h for h, cmd, _ in vendor_lint.entries(v) if cmd}
+        seen = {h for _, h, _ in vendor_lint.all_entries(v)}
+        assert runnable <= seen, f"{v}: static lint cannot see {sorted(runnable - seen)}"
+
+
+def test_scripts_never_point_at_a_prompt_file_that_is_gone():
+    """A script's own docstring is documentation too, and `src/` moves under it — the reference
+    that outlived its file sat in a docstring twice before anything checked it."""
+    dead = []
+    for f in sorted((REPO / "scripts").glob("*.py")) + sorted((REPO / "scripts").glob("*.sh")):
+        for m in re.finditer(r"src/[A-Za-z0-9_./-]+\.md", f.read_text()):
+            ref = m.group(0)
+            if "<" in ref or (REPO / ref).exists():
+                continue
+            dead.append(f"{f.name} → {ref}")
+    assert not dead, f"scripts referencing a file that does not exist: {dead}"
+
+
+def test_the_marker_literal_belongs_to_the_vendor():
+    """What renders to nothing differs per vendor, so the literal is a vendor entry. A caller
+    holding its own copy is how one vendor silently gets the other's form."""
+    bad = []
+    for name, body in all_text().items():
+        if name.startswith("vendors/") or name in ("core/finding-markers.md",
+                                                   "reference/vendor-interface.md"):
+            continue
+        for m in re.finditer(r"<!--\s*bot-(?:finding|reply)\s*-->|\[bot-(?:finding|reply)\]: #", body):
+            bad.append((name, m.group(0)))
+    assert not bad, f"a marker literal outside the vendor files: {bad}"
 
 
 def _axis_names(body):
@@ -522,7 +601,10 @@ def test_diff_fetch_is_size_gated_in_every_vendor():
         entry = [p for p in re.split(r"\n(?=## )", body) if "<max_patch_bytes>" in p]
         assert entry, v
         cmd = " ".join(" ".join(entry[0].split()).split())
-        assert "select" in cmd, f"{v}: the threshold is named but nothing filters on it"
+        # jq filters it, or awk does when the diff arrives as one text blob. What must never
+        # happen is a threshold nothing acts on.
+        assert any(k in cmd for k in ("select", "awk -v m=<max_patch_bytes>")), \
+            f"{v}: the threshold is named but nothing filters on it"
 
 
 # An entry is bounded when its output cannot grow with the PR. Either the command filters
@@ -557,10 +639,43 @@ def test_every_fetch_entry_is_bounded_or_declared():
             if head in BOUNDED_BY_SHAPE or head in UNBOUNDED_BY_DESIGN:
                 continue
             flat = " ".join(part.split())
-            if not any(k in flat for k in ("select", "| jq '{", "--json", "No equivalent")):
+            markers = ("select", "| jq '{", "--json", "fields=", "No equivalent", "<patch_pipe>")
+            if not any(k in flat for k in markers):
                 loose.append((v, head))
     assert not loose, (
         "fetch entry neither filters nor is listed as bounded/unbounded by design: " + str(loose))
+
+
+def test_a_curl_vendor_never_leaks_its_credential():
+    """A vendor with no CLI carries its own token, so the prompt files are what decide whether the
+    VALUE can reach the terminal. `-v`/`-i` print the Authorization header; an interpolated literal
+    would put the token itself in a command line, and from there in the shell history."""
+    bad = []
+    for name, body in all_text().items():
+        for span in re.findall(r"`([^`]+)`", body) + re.findall(r"```(?:bash)?\n(.*?)```", body, re.S):
+            flat = " ".join(span.split())
+            if "curl" not in flat:
+                continue   # prose naming a flag in order to forbid it carries no invocation
+            for flag in (" -v", " -i", " --verbose", " --include"):
+                if flag in f" {flat}":
+                    bad.append((name, f"{flag.strip()} prints the Authorization header", flat[:70]))
+            if re.search(r"(?i)(token|password|api_token)\s*[:=]\s*[A-Za-z0-9]{8,}", flat):
+                bad.append((name, "a credential literal", flat[:70]))
+    assert not bad, f"credential leak in a curl entry: {bad}"
+
+
+def test_a_curl_vendor_reports_http_errors_with_their_body():
+    """`--fail-with-body` is the only curl form that both exits non-zero on an HTTP error and keeps
+    the response body — and the body is where the API says what it rejected. Plain `-f` throws that
+    away; no flag at all makes an error page look like a successful empty answer."""
+    for v in VENDORS:
+        body = text(SRC / "vendors" / v / "fetch.md")
+        if "curl" not in body:
+            continue  # a vendor with a CLI of its own
+        assert "--fail-with-body" in body, \
+            f"{v}: defines a curl shorthand that does not fail loudly with its body"
+        assert not re.search(r"curl (?:-[a-zA-Z]+ )*-f(?: |$)", body), \
+            f"{v}: bare -f discards the error body"
 
 
 def test_size_entry_never_reports_zero_for_a_withheld_patch():
@@ -882,7 +997,10 @@ def test_manifest_descriptions_name_every_vendor():
         texts[f"marketplace.json[{p['name']}]"] = p["description"]
     missing = {}
     for where, text in texts.items():
-        absent = [v for v in VENDORS if v not in text.lower()]
+        # A directory name is one token; prose may spell the same vendor with a space. Compare
+        # on the flattened form so both spellings count as naming it.
+        flat = text.lower().replace("-", " ")
+        absent = [v for v in VENDORS if v.replace("-", " ") not in flat]
         if absent:
             missing[where] = absent
     assert not missing, f"description does not mention every supported vendor: {missing}"

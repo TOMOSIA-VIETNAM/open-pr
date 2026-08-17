@@ -6,7 +6,10 @@
 </p>
 
 <p align="center">
-  <strong>Agent review PR ngay trên GitHub / GitLab</strong><br>
+  <strong>Agent review PR ngay trên
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
+  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
+  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket</strong><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -15,6 +18,7 @@
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr?style=flat-square&color=blue"></a>
   <a href="#cài-đặt"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-supported-181717?style=flat-square&logo=github&logoColor=white"></a>
   <a href="#cài-đặt"><img alt="GitLab" src="https://img.shields.io/badge/GitLab-supported-FC6D26?style=flat-square&logo=gitlab&logoColor=white"></a>
+  <a href="#cài-đặt"><img alt="Bitbucket" src="https://img.shields.io/badge/Bitbucket-supported-0052CC?style=flat-square&logo=bitbucket&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -63,7 +67,7 @@ Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồ
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Hướng dẫn chi tiết: [Cài đặt](./docs/vi/install.md).
+Hướng dẫn chi tiết: [Cài đặt](./docs/vi/install.md) · [Lấy token cho từng vendor](./docs/vi/credentials.md).
 
 ## Kết quả trông như thế nào
 
@@ -71,7 +75,7 @@ Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comme
 
 <a href="./docs/vi/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
 
-[Xem demo](./docs/vi/demo.md) · hỗ trợ GitHub (`.../pull/<n>`) và GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted).
+[Xem demo](./docs/vi/demo.md) · hỗ trợ GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted) và Bitbucket Cloud (`.../pull-requests/<n>`).
 
 ## Khác gì so với skill review phổ thông
 
@@ -112,6 +116,7 @@ Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fi
 | `/open-pr:fix <PR_URL>` | Đọc finding → cân đúng/sai → fix → **1** commit → reply. 🔵 / 📝 luôn ask trước |
 | `/open-pr:upgrade` | Nâng local config lên schema hiện tại — summarize rồi hỏi; chưa đồng ý thì không ghi gì |
 | `/open-pr:clean` | Xóa worktree mà `review` đã checkout (ask trước). Memory / settings không bị đụng |
+| `/open-pr:feedback` | Báo vấn đề của **chính plugin này** lên issue tracker của nó — đã gỡ hết thứ nhận diện repo của bạn, và cho bạn xem trước khi gửi |
 
 > [!WARNING]
 > `fix` sửa **code thật** trong repo (hoặc review worktree). Chỉ chạy khi bạn chủ động muốn nó xử lý comment.

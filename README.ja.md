@@ -6,7 +6,11 @@
 </p>
 
 <p align="center">
-  <strong>エージェントが GitHub / GitLab 上で PR をレビュー</strong><br>
+  <strong>エージェントが
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
+  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
+  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket
+  上で PR をレビュー</strong><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -15,6 +19,7 @@
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr?style=flat-square&color=blue"></a>
   <a href="#インストール"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-supported-181717?style=flat-square&logo=github&logoColor=white"></a>
   <a href="#インストール"><img alt="GitLab" src="https://img.shields.io/badge/GitLab-supported-FC6D26?style=flat-square&logo=gitlab&logoColor=white"></a>
+  <a href="#インストール"><img alt="Bitbucket" src="https://img.shields.io/badge/Bitbucket-supported-0052CC?style=flat-square&logo=bitbucket&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -63,7 +68,7 @@ AI コーディングの時代、PR の出る速さはレビューの速さを�
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-詳細ガイド: [インストール](./docs/ja/install.md)。
+詳細ガイド: [インストール](./docs/ja/install.md) · [ベンダーごとのトークン取得](./docs/ja/credentials.md)。
 
 ## 結果の見え方
 
@@ -71,7 +76,7 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 <a href="./docs/ja/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、fix push 後の返信"></a>
 
-[デモを見る](./docs/ja/demo.md) · GitHub（`.../pull/<n>`）と GitLab（`.../-/merge_requests/<n>`、セルフホスト含む）に対応。
+[デモを見る](./docs/ja/demo.md) · GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`、セルフホスト含む）、Bitbucket Cloud（`.../pull-requests/<n>`）に対応。
 
 ## 汎用レビュースキルとの違い
 
@@ -112,6 +117,7 @@ flowchart LR
 | `/open-pr:fix <PR_URL>` | finding を読む → 正誤を判断 → 修正 → **1** コミット → 返信。🔵 / 📝 は必ず先に確認 |
 | `/open-pr:upgrade` | ローカル設定を現在の schema へ上げる — 要約してから確認; 同意するまで何も書かない |
 | `/open-pr:clean` | `review` がチェックアウトした worktree を削除（先に確認）。memory / settings には触れない |
+| `/open-pr:feedback` | **このプラグイン自体**の問題を issue tracker に報告。あなたのリポジトリを特定できる情報は取り除き、送信前に本文を確認してもらう |
 
 > [!WARNING]
 > `fix` はリポジトリ（またはレビュー worktree）の **実コード** を編集します。コメントを処理させたいと自分で決めたときだけ実行してください。

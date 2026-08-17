@@ -1,0 +1,13 @@
+description = "Report a problem with the open-pr plugin itself, or ask for a change, on its public issue tracker."
+
+prompt = """
+Locate the plugin: `ls -d ~/.gemini/extensions/*/adapters/root.md 2>/dev/null`.
+No output → tell the user open-pr is not installed for Gemini CLI (see its docs/install.md) and STOP.
+More than one → that file's ROOT table says what to do; never pick one silently.
+Read that file → ROOT + this platform's tool names.
+Read ROOT/commands/feedback.md and obey it VERBATIM, every step, in order. `{{args}}` is that file's
+`ARGUMENTS`.
+This command posts in public; what may go into the text and when the user must approve it is stated
+there, and nothing is sent before they answer.
+FORBIDDEN: summarizing, reordering or skipping a step; sending from what this file says.
+"""

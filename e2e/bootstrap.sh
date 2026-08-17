@@ -2,9 +2,12 @@
 # Put a fixture PR/MR full of planted defects on the e2e repo, so a real
 # /open-pr:review run can be checked against e2e/checklist.md.
 #
-#   e2e/bootstrap.sh --pr <n> [--vendor github|gitlab|both] [--repo ns/name] [--clone-dir DIR]
+#   e2e/bootstrap.sh --pr <n> [--vendor github|gitlab|bitbucket|all] [--repo ns/name] [--clone-dir DIR]
 #   e2e/bootstrap.sh --pr <n> --checkout --clone-dir DIR     # working copy only, no writes
 #   e2e/bootstrap.sh --pr <n> --teardown
+#
+# --vendor omitted on a terminal asks which one; omitted in a pipe or a hook takes every
+# vendor whose credentials are present. `all` skips the question.
 #
 # --checkout exists for the /open-pr:fix flow, which must run from inside a clone of the
 # fixture repo standing on the fixture branch. It clones and stops: no commit, no push,
@@ -41,15 +44,48 @@ $CHECKOUT && $TEARDOWN && { echo "--checkout and --teardown are exclusive" >&2; 
 BRANCH="e2e/pr-$PR_NUM"
 case "$BRANCH" in e2e/*) : ;; *) echo "refusing branch '$BRANCH'" >&2; exit 1 ;; esac
 
+ALL_VENDORS="github gitlab bitbucket"
+
+# Bitbucket ships no CLI, so "logged in" there means the env carries a credential —
+# src/vendors/bitbucket/fetch.md owns which variables and what they are for.
 authed() { case "$1" in
   github) command -v gh >/dev/null && gh auth status >/dev/null 2>&1 ;;
   gitlab) command -v glab >/dev/null && glab auth status >/dev/null 2>&1 ;;
+  bitbucket) [ -n "${BITBUCKET_TOKEN:-}" ] ||
+             { [ -n "${BITBUCKET_EMAIL:-}" ] && [ -n "${BITBUCKET_API_TOKEN:-}" ]; } ;;
 esac }
 
-if [ -z "$VENDOR" ]; then
-  for v in github gitlab; do authed "$v" && VENDOR="${VENDOR:+$VENDOR }$v"; done
-  [ -n "$VENDOR" ] || { echo "neither gh nor glab is logged in — see e2e/README.md" >&2; exit 1; }
-elif [ "$VENDOR" = both ]; then VENDOR="github gitlab"; fi
+# `return 0` is load-bearing: a `for` carries the last iteration's status, bitbucket is last, and under
+# `set -e` an unauthenticated bitbucket would kill the script before it could say which vendors it found.
+available() { for v in $ALL_VENDORS; do authed "$v" && printf '%s ' "$v"; done; return 0; }
+
+# Asking beats guessing when a human is watching: one fixture PR per vendor costs a real
+# branch on a real repo, and picking "all" by accident makes three.
+choose_vendor() {
+  local opts; opts=$(available); set -- $opts
+  [ $# -gt 0 ] || { echo "no vendor is authenticated — see e2e/README.md" >&2; exit 1; }
+  [ $# -eq 1 ] && { echo "$1"; return; }
+  { echo "Which vendor should carry the fixture PR?"
+    local i=1; for v in "$@"; do echo "  $i) $v"; i=$((i+1)); done
+    echo "  a) all of them"; printf 'choice: '; } >&2
+  local pick; read -r pick
+  case "$pick" in
+    a|A|all) echo "$@" ;;
+    ''|*[!0-9]*) echo "not a choice: $pick" >&2; exit 2 ;;
+    *) [ "$pick" -ge 1 ] && [ "$pick" -le $# ] || { echo "out of range: $pick" >&2; exit 2; }
+       eval "echo \$$pick" ;;
+  esac
+}
+
+case "$VENDOR" in
+  "")  if [ -t 0 ] && ! $TEARDOWN; then VENDOR=$(choose_vendor); else VENDOR=$(available); fi
+       [ -n "$VENDOR" ] || { echo "no vendor is authenticated — see e2e/README.md" >&2; exit 1; } ;;
+  all) VENDOR="$ALL_VENDORS" ;;
+  # No `both`: it used to mean 2 vendors and there are 3, so an old command line would build a third
+  # fixture PR on a real repo. An unknown name stops here rather than reaching `run_<name>`.
+  *)   for v in $VENDOR; do case " $ALL_VENDORS " in *" $v "*) : ;;
+         *) echo "unknown vendor: $v (want: $ALL_VENDORS, or all)" >&2; exit 2 ;; esac; done ;;
+esac
 
 # Generated, not committed: a 40KB blob belongs in the fixture branch, not in this
 # repo's history.
@@ -155,6 +191,60 @@ run_gitlab() {
   echo "gitlab  → $url"
   echo "          /open-pr:review $url"
   record_link "$url"
+}
+
+# Bitbucket Cloud, over plain HTTP: no CLI exists. Credentials come from the environment and
+# only their NAMES appear here — the same rule the vendor file states for the plugin itself.
+bb() {
+  local auth
+  if [ -n "${BITBUCKET_EMAIL:-}" ] && [ -n "${BITBUCKET_API_TOKEN:-}" ]; then
+    auth=(-u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN")
+  else
+    auth=(-H "Authorization: Bearer $BITBUCKET_TOKEN")
+  fi
+  curl -sS --fail-with-body "${auth[@]}" "$@"
+}
+
+BB_API=https://api.bitbucket.org/2.0
+
+# The open PR whose source is the fixture branch, filtered client-side: Bitbucket's own `q`
+# wants quotes inside the query string, and one mis-encoded quote reads as "no PR" here.
+bb_pr_id() {  # $1 = repo
+  bb "$BB_API/repositories/$1/pullrequests?state=OPEN&pagelen=50&fields=values.id,values.source.branch.name" \
+    | jq -r --arg b "$BRANCH" '.values[] | select(.source.branch.name == $b) | .id' | head -1
+}
+
+run_bitbucket() {
+  local repo="${REPO_OVERRIDE:-$BITBUCKET_REPO}"
+  $CHECKOUT && { checkout_only "git@bitbucket.org:$repo.git" "$repo"; return; }
+  bb "$BB_API/repositories/$repo?fields=full_name" >/dev/null \
+    || { echo "bitbucket: cannot read $repo — check the token's scopes, or pass --repo <your-fork>" >&2; return 1; }
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@bitbucket.org 2>&1 | grep -qi 'logged in as' \
+    || { echo "bitbucket: SSH to git@bitbucket.org is not working — add a key at" >&2
+         echo "        https://bitbucket.org/account/settings/ssh-keys/ (the API token cannot push)" >&2; return 1; }
+  local d; d=$(clone_to "git@bitbucket.org:$repo.git")
+  seed "$d"
+  local id; id=$(bb_pr_id "$repo")
+  if [ -z "$id" ]; then
+    id=$(jq -n --arg t "e2e: planted defects (open-pr #$PR_NUM)" --arg b "$(pr_body)" --arg s "$BRANCH" \
+           '{title:$t, description:$b, source:{branch:{name:$s}}, destination:{branch:{name:"main"}}}' \
+         | bb -X POST -H "Content-Type: application/json" \
+              "$BB_API/repositories/$repo/pullrequests?fields=id" --data @- | jq -r .id)
+  fi
+  local url="https://bitbucket.org/$repo/pull-requests/$id"
+  echo "bitbucket → $url"
+  echo "          /open-pr:review $url"
+  echo "          auto_submit_review=false holds the review in CHAT here — this vendor has no draft"
+  record_link "$url"
+}
+
+teardown_bitbucket() {
+  local repo="${REPO_OVERRIDE:-$BITBUCKET_REPO}"
+  local id; id=$(bb_pr_id "$repo")
+  [ -n "$id" ] || { echo "bitbucket: no open fixture PR on $BRANCH"; return 0; }
+  bb -X POST "$BB_API/repositories/$repo/pullrequests/$id/decline?fields=id" >/dev/null
+  bb -X DELETE "$BB_API/repositories/$repo/refs/branches/$BRANCH" >/dev/null 2>&1 || true
+  echo "bitbucket: declined PR #$id and deleted $BRANCH"
 }
 
 # The project PR keeps the evidence: which fixture PRs its e2e run used. Upserted by

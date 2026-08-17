@@ -6,7 +6,10 @@
 </p>
 
 <p align="center">
-  <strong>Agent reviews PRs right on GitHub / GitLab</strong><br>
+  <strong>Agent reviews PRs right on
+  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
+  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
+  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket</strong><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -15,6 +18,7 @@
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr?style=flat-square&color=blue"></a>
   <a href="#install"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-supported-181717?style=flat-square&logo=github&logoColor=white"></a>
   <a href="#install"><img alt="GitLab" src="https://img.shields.io/badge/GitLab-supported-FC6D26?style=flat-square&logo=gitlab&logoColor=white"></a>
+  <a href="#install"><img alt="Bitbucket" src="https://img.shields.io/badge/Bitbucket-supported-0052CC?style=flat-square&logo=bitbucket&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -63,7 +67,7 @@ A local review is hard to trust. Anyone can say *"I already reviewed it"*. So `o
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Full guide: [Install](./docs/install.md).
+Full guide: [Install](./docs/install.md) · [Getting a token per vendor](./docs/credentials.md).
 
 ## What it looks like
 
@@ -71,7 +75,7 @@ One run produces three parts that belong together: an **overview**, **line comme
 
 <a href="./docs/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="Overview, line comment with a suggested change, and the reply after the fix was pushed"></a>
 
-[See the demo](./docs/demo.md) · supports GitHub (`.../pull/<n>`) and GitLab (`.../-/merge_requests/<n>`, self-hosted included).
+[See the demo](./docs/demo.md) · supports GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, self-hosted included) and Bitbucket Cloud (`.../pull-requests/<n>`).
 
 ## How it differs from a generic review skill
 
@@ -112,6 +116,7 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:fix <PR_URL>` | Reads findings → weighs right/wrong → fixes → **1** commit → replies. 🔵 / 📝 always ask first |
 | `/open-pr:upgrade` | Brings local config up to the current schema — summarises, then asks; nothing written until you agree |
 | `/open-pr:clean` | Removes worktrees that `review` checked out (asks first). Memory / settings untouched |
+| `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |
 
 > [!WARNING]
 > `fix` edits **real code** in the repo (or the review worktree). Run it only when you deliberately want it to handle the comments.

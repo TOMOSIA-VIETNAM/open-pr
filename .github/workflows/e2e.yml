@@ -13,7 +13,7 @@ on:
       vendor:
         description: which vendor to build the fixture on
         type: choice
-        options: [github, gitlab, both]
+        options: [github, gitlab, bitbucket, all]
         default: github
       teardown:
         description: close the fixture PR instead of creating it

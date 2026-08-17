@@ -43,7 +43,7 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
   --uninstall      remove only what this script installed, then exit
   --all            with --uninstall: sweep every platform above
 
-Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean.
+Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean, open-pr-feedback.
 Never overwrites a file this script did not create.
 EOF
 }
@@ -310,7 +310,7 @@ install_one() {
     claude_or_skip || return 0
     claude plugin marketplace add "$MARKETPLACE" || { claude_failed "marketplace add"; return 0; }
     claude plugin install "open-pr@open-pr" || { claude_failed install; return 0; }
-    say '\nInstalled into Claude Code. Commands: /open-pr:review /open-pr:fix /open-pr:upgrade /open-pr:clean\n'
+    say '\nInstalled into Claude Code. Commands: /open-pr:review /open-pr:fix /open-pr:upgrade /open-pr:clean /open-pr:feedback\n'
     say 'Update:    claude plugin update open-pr@open-pr\n'
     return 0
   fi
@@ -456,7 +456,7 @@ fi
 case " $MEMBERS " in
   *" claude "*) ;;
   *)
-    say '\nInvoke as /open-pr-review, /open-pr-fix, /open-pr-upgrade, /open-pr-clean (Codex: $open-pr-review).\n'
+    say '\nInvoke as /open-pr-review, /open-pr-fix, /open-pr-upgrade, /open-pr-clean, /open-pr-feedback (Codex: $open-pr-review).\n'
     if [ "$MODE" = link ]; then
       say 'Update:    %s --update\n' "$0"
     else

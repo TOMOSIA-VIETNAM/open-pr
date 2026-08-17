@@ -15,7 +15,11 @@ Two modes:
     flags   offline. Every flag in every entry of EVERY group must appear in that
             subcommand's own --help. No fixture, no credentials, no network — so this is
             the half that belongs in CI. It also covers post/thread entries, which the
-            live mode must not run.
+            live mode must not run. A vendor reached by `curl` has no subcommand help to
+            check against, so its entries are held to the rules stated in
+            src/vendors/<name>/fetch.md: fail loudly with the body, follow a
+            documented redirect, never print the Authorization header, never carry a
+            credential literal.
     live    the read-only Fetch entries executed against an open fixture PR. Needs a
             fixture and a token, so it stays manual and is preflight for an e2e round.
 
@@ -23,8 +27,9 @@ Seconds and free either way, versus a full e2e round that costs a model call.
 
 Usage:
     python3 scripts/vendor_lint.py                         # flags only, offline
-    python3 scripts/vendor_lint.py --pr 20                 # flags + live, both vendors
+    python3 scripts/vendor_lint.py --pr 20                 # flags + live, every vendor
     python3 scripts/vendor_lint.py --vendor gitlab --pr 20
+    python3 scripts/vendor_lint.py --url https://bitbucket.org/<ws>/<repo>/pull-requests/7
 """
 
 import argparse
@@ -37,6 +42,15 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 TARGETS = REPO / "e2e" / "targets.env"
 TIMEOUT = 30
+VENDORS = sorted(p.name for p in (REPO / "src" / "vendors").iterdir() if p.is_dir())
+
+# The executable each vendor drives. A vendor with no CLI of its own drives `curl`, whose
+# presence is not worth testing separately.
+CLI = {"github": "gh", "gitlab": "glab"}
+
+
+def cli(vendor):
+    return CLI.get(vendor, "curl")
 
 # Caller-supplied bits the entries deliberately leave open. NOT commands — only the
 # values a caller would pass, so this file can never drift into a second copy of them.
@@ -49,11 +63,24 @@ MAY_BE_EMPTY = {
     "Fetch PR review comments (LINE-level findings)",
     "Fetch CI checks",
     "Fetch PR reviews (FILE-level findings + review_id)",
+    # a thread only exists once someone comments, and on a vendor that derives threads from the
+    # comment list an empty answer is the honest one
+    "Fetch review threads (id + isResolved + comment ids)",
 }
 
 # An entry with no command must SAY it has none, or the parse failed and that is a bug
 # in this lint rather than a clean skip. Matched case-insensitively so wording may vary.
 NO_COMMAND_MARKERS = ("no equivalent", "reuse the response")
+
+
+def auth_flag():
+    """`<auth>` is a caller-supplied bit like <fields>: the entries name the env vars, and this
+    picks whichever pair the operator actually exported. Values are never read here."""
+    if os.environ.get("BITBUCKET_EMAIL") and os.environ.get("BITBUCKET_API_TOKEN"):
+        return '-u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN"'
+    if os.environ.get("BITBUCKET_TOKEN"):
+        return '-H "Authorization: Bearer $BITBUCKET_TOKEN"'
+    return ""
 
 
 def sh(cmd, env):
@@ -71,29 +98,82 @@ def targets():
     return out
 
 
+RUNNERS = ("gh", "glab", "git", "curl", "LC_ALL=C", "paged()")
+
+
+def shorthands(vendor):
+    """A CLI-less vendor factors its base URL, its curl invocation and its whole-diff command
+    into a table of `<name>` = value at the top of fetch.md, so entries stay one line. Read that
+    table rather than restating any of it here — a second copy is what drifts."""
+    body = (REPO / "src" / "vendors" / vendor / "fetch.md").read_text()
+    out = {}
+    for row in re.findall(r"^\| `(<[a-z_]+>)` \| (.+?) \|$", body, re.M):
+        name, value = row[0], row[1]
+        m = re.match(r"\s*`([^`]+)`", value)
+        if m:
+            # a table cell escapes the pipes of a shell pipeline; the shell wants them back
+            out[name] = " ".join(m.group(1).replace("\\|", "|").split())
+    for _ in range(3):          # a shorthand may be written in terms of another
+        for k, v in out.items():
+            for k2, v2 in out.items():
+                if k2 != k and k2 in v:
+                    out[k] = v.replace(k2, v2)
+    return out
+
+
+def expand(cmd, subs):
+    for _ in range(3):
+        for k, v in subs.items():
+            cmd = cmd.replace(k, v)
+    return " ".join(cmd.split())
+
+
+def drives(flat, runners=RUNNERS):
+    """Whether this text runs one of the runners — the SOLE test, shared by both walkers below.
+    A second, stricter rule in one of them silently narrows what the static lint can see: an entry
+    opening with `if` is a command to one walker and invisible to the other."""
+    return any(f" {r}" in f" {flat}" for r in runners)
+
+
+FENCE = re.compile(r"```[A-Za-z0-9_+-]*\n(.*?)```", re.S)
+
+
+def spans(part):
+    """Every command-shaped span of an entry, flattened: the fenced blocks, then the inline backticks
+    of what is left. An entry needing a branch or a loop cannot fit in inline backticks, and a fence
+    must be REMOVED before scanning for them, WHATEVER its language tag: a fence left in place makes the
+    inline scan pair backticks across it, which both invents a span carrying the tag (`bash if …`) and
+    drops the real command that followed out of sight."""
+    for span in FENCE.findall(part):
+        yield " ".join(span.split())
+    for span in re.findall(r"`([^`]+)`", FENCE.sub("", part), re.S):
+        yield " ".join(span.split())
+
+
 def entries(vendor):
     """(heading, command | None, body) for every Fetch entry, in file order."""
     body = (REPO / "src" / "vendors" / vendor / "fetch.md").read_text()
+    short = shorthands(vendor)
     for part in re.split(r"\n(?=## )", body)[1:]:
         head = part.splitlines()[0][3:].strip()
         if not head.startswith("Fetch"):
             continue
-        cmds = [" ".join(s.split()) for s in re.findall(r"`([^`]+)`", part, re.S)]
-        cmds = [c for c in cmds if c.split()[:1] and c.split()[0] in ("gh", "glab", "git")]
+        # expand BEFORE testing for a runner: the shorthands are what carry `curl` into an entry
+        cmds = [c for c in (expand(s, short) for s in spans(part)) if drives(c)]
         yield head, (cmds[0] if cmds else None), part
 
 
-def all_entries(vendor):
+def all_entries(vendor, keep=RUNNERS):
     """Every entry of every group, not just Fetch — a flag typo in `Post a review` is
     the same defect and the live mode must never execute that one."""
+    short = shorthands(vendor)
     for group in ("fetch", "worktree", "post", "thread"):
         body = (REPO / "src" / "vendors" / vendor / f"{group}.md").read_text()
         for part in re.split(r"\n(?=## )", body)[1:]:
             head = part.splitlines()[0][3:].strip()
-            for span in re.findall(r"`([^`]+)`", part, re.S) + \
-                        re.findall(r"```(?:bash)?\n(.*?)```", part, re.S):
-                flat = " ".join(span.split())
-                if flat.split()[:1] and flat.split()[0] in ("gh", "glab"):
+            for span in spans(part):
+                flat = expand(span, short)
+                if drives(flat, keep):
                     yield group, head, flat
 
 
@@ -122,6 +202,47 @@ def help_text(subcommand, env):
     return _HELP[subcommand]
 
 
+def lint_curl(vendor):
+    """A `curl` vendor has no subcommand help to check a flag against, so what gets checked is
+    the contract its own fetch.md states: an HTTP error must exit non-zero AND keep its
+    body, the credential must stay a variable name, and no flag may echo the Authorization header.
+    Every rule is read off the vendor's own text, so this never becomes a second copy of it."""
+    print(f"\n=== {vendor}: curl entries vs the raw-HTTP contract")
+    fails, checked = [], 0
+    api = shorthands(vendor).get("<api>", "")
+    host = re.match(r"(<host>|https://[^/]+)", api)
+    host = host.group(1) if host else ""
+    for group, head, cmd in all_entries(vendor):
+        for segment in re.split(r"\|\||\||&&", cmd):
+            segment = segment.strip()
+            if "curl" not in segment:
+                continue   # a pipeline stage, or a shell helper with no request in it
+            checked += 1
+            bad = []
+            if "--fail-with-body" not in segment:
+                bad.append("no --fail-with-body: an HTTP error would read as success")
+            for flag in (" -f ", " -v ", " -i ", " --verbose", " --include"):
+                if flag in f"{segment} ":
+                    bad.append(f"{flag.strip()} discards the error body or prints the auth header")
+            if re.search(r'-u "[^$"]+"', segment) or re.search(r"Bearer [A-Za-z0-9]{8,}", segment):
+                bad.append("a credential literal, not a variable name")
+            for url in re.findall(r'"(https?://[^"]+|<host>[^"]*)"', segment):
+                if host and not url.startswith(host):
+                    bad.append(f"reaches {url.split('/')[2] if '//' in url else url} outside {host}")
+            for why in bad:
+                fails.append((f"{group}: {head}", why))
+                print(f"  FAIL  {group}/{head}  →  {why}")
+    # A shorthand that documents a mandatory flag must carry it — the file's own claim, tested.
+    body = (REPO / "src" / "vendors" / vendor / "fetch.md").read_text()
+    for name, rest in re.findall(r"^\| `(<[a-z_]+>)` \| (.+?) \|$", body, re.M):
+        for flag in re.findall(r"`(-[A-Za-z])` MANDATORY", rest):
+            if flag not in shorthands(vendor).get(name, ""):
+                fails.append((name, f"calls {flag} MANDATORY but does not use it"))
+                print(f"  FAIL  {name}  →  {flag} called mandatory, absent")
+    print(f"  {checked} curl invocation(s) checked, {len(fails)} problem(s)")
+    return fails
+
+
 def lint_flags(vendor, env):
     """A flag absent from its subcommand's help is the defect that hides best: the
     entry reads fine, the suite is green, and it fails on first use."""
@@ -148,6 +269,16 @@ def lint_flags(vendor, env):
 
 def fixture_url(vendor, pr, env, cfg):
     branch = f"e2e/pr-{pr}"
+    if vendor == "bitbucket":
+        # No CLI to ask, and its own `q` syntax needs quotes inside the query string, so the
+        # open PRs come back unfiltered and the branch match happens here.
+        repo = cfg["BITBUCKET_REPO"]
+        rc, out, _ = sh(
+            f'curl -sS --fail-with-body -u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN" '
+            f'"https://api.bitbucket.org/2.0/repositories/{repo}/pullrequests'
+            f'?state=OPEN&pagelen=50&fields=values.id,values.source.branch.name" '
+            f"| jq -r '.values[] | select(.source.branch.name == \"{branch}\") | .id' | head -1", env)
+        return f"https://bitbucket.org/{repo}/pull-requests/{out}" if rc == 0 and out else ""
     if vendor == "github":
         rc, out, _ = sh(f'gh pr list -R "{cfg["GITHUB_REPO"]}" --head "{branch}" '
                         f"--json url --jq '.[0].url'", env)
@@ -159,20 +290,27 @@ def fixture_url(vendor, pr, env, cfg):
     return out if rc == 0 and out else ""
 
 
+# The same shapes as src/core/pr-target.md §1.
+URL_SHAPES = (
+    ("github", r"https://github\.com/([^/]+)/([^/]+)/pull/(\d+)"),
+    ("gitlab", r"https://[^/]+/([^/]+)/([^/]+)/-/merge_requests/(\d+)"),
+    ("bitbucket", r"https://bitbucket\.org/([^/]+)/([^/]+)/pull-requests/(\d+)"),
+)
+
+
 def parse_url(url):
-    m = re.match(r"https://github\.com/([^/]+)/([^/]+)/pull/(\d+)", url)
-    if m:
-        return "github", *m.groups()
-    m = re.match(r"https://[^/]+/([^/]+)/([^/]+)/-/merge_requests/(\d+)", url)
-    if m:
-        return "gitlab", *m.groups()
+    for vendor, shape in URL_SHAPES:
+        m = re.match(shape, url)
+        if m:
+            return vendor, *m.groups()
     raise SystemExit(f"not a PR/MR url: {url}")
 
 
 def lint(vendor, url, env):
     _, owner, repo, num = parse_url(url)
     subs = {"<url>": url, "<owner>": owner, "<repo>": repo, "<pull_number>": num,
-            "<fields>": FIELDS, "<max_patch_bytes>": MAX_PATCH_BYTES}
+            "<fields>": FIELDS, "<max_patch_bytes>": MAX_PATCH_BYTES,
+            "<host>": "https://" + url.split("/")[2], "<auth>": auth_flag()}
     env = {**env, "OWNER": owner, "REPO": repo, "PULL_NUMBER": num}
     print(f"\n=== {vendor}  {url}")
     fails = []
@@ -205,7 +343,7 @@ def lint(vendor, url, env):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--vendor", default="both", choices=["github", "gitlab", "both"])
+    ap.add_argument("--vendor", default="all", choices=[*VENDORS, "all"])
     ap.add_argument("--pr", help="project PR number whose fixture to lint against")
     ap.add_argument("--url", help="fixture PR/MR url, instead of deriving it from --pr")
     args = ap.parse_args()
@@ -214,18 +352,18 @@ def main():
     # for, so ask rtk to step aside.
     env = {**os.environ, "RTK_DISABLED": "1", "NO_COLOR": "1", "GLAB_CHECK_UPDATE": "0"}
     cfg = targets()
-    vendors = ["github", "gitlab"] if args.vendor == "both" else [args.vendor]
+    vendors = VENDORS if args.vendor == "all" else [args.vendor]
     if args.url:
         vendors = [parse_url(args.url)[0]]
 
     all_fails, ran = {}, 0
     for v in vendors:
-        exe = "gh" if v == "github" else "glab"
+        exe = cli(v)
         if subprocess.run(f"command -v {exe}", shell=True, capture_output=True).returncode:
             print(f"\n=== {v}: {exe} not installed, skipped")
             continue
         ran += 1
-        fails = lint_flags(v, env)
+        fails = lint_curl(v) if exe == "curl" else lint_flags(v, env)
         if args.pr or args.url:
             url = args.url or fixture_url(v, args.pr, env, cfg)
             if url:
@@ -239,7 +377,8 @@ def main():
     if not ran:
         raise SystemExit("nothing linted — no CLI available, or no fixture open")
     if not all_fails:
-        scope = "flags, and every Fetch entry ran" if (args.pr or args.url) else "flags"
+        scope = ("static checks, and every Fetch entry ran" if (args.pr or args.url)
+                 else "static checks")
         print(f"clean on {ran} vendor(s): {scope}")
         return 0
     for v, fs in all_fails.items():

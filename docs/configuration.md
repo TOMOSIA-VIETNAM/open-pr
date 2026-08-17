@@ -39,6 +39,7 @@ cd ~/workspace
 | `/open-pr:fix` | in that repo / workspace holding it — but **the repo must be on the PR's branch** | real code in the repo + replies on the PR |
 | `/open-pr:upgrade` | workspace or repo already set up — several repos → lets you pick | `notebooks/review/<repo>/settings.json` |
 | `/open-pr:clean` | anywhere above the `notebooks/review/` to clean | writes nothing — only deletes `notebooks/review/*/worktrees/*` |
+| `/open-pr:feedback` | anywhere | writes nothing locally — one issue on the plugin's own tracker, after you approve the text |
 
 ## Setting
 
@@ -53,7 +54,7 @@ Team rules go into `ALWAYS_RULE.md` as plain prose (empty by default). Everythin
 | --- | --- | --- |
 | `shared.chat_language` | language used in chat | auto-detected |
 | `shared.output_language` | language posted on the PR | asked once, then kept |
-| `review.auto_submit_review` | `true` = post straight away, `false` = keep a draft for you to look over | `false` |
+| `review.auto_submit_review` | `true` = post straight away, `false` = hold it for you to look over first — a draft on the PR where the vendor has drafts, and in the chat on Bitbucket, which has none, leaving the PR empty | `false` |
 | `review.auto_resolve_fixed_findings` | resolve a thread once its finding is fixed | `false` |
 | `review.doctor_schedule` | how often to re-read convention docs: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status` | whether to mention failing CI (warn only, never demand a fix) | CI present ⇒ `true` |

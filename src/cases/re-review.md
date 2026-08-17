@@ -21,7 +21,7 @@ Both sections below work off the SAME "Old comments" data, so they are not indep
 3. For EACH: compare its description against the CURRENT code at that path/region — `Read`
    `<worktree>/<path>`, NOT the path at pwd — judging by actually reading it, no rigid rule.
    - **Fixed** → reply on THAT EXACT thread via `V§"Reply on a PR"` (LINE variant): 1 short
-     confirmation sentence in the output language ("Confirmed fixed, thanks!") + `<!-- bot-reply -->`,
+     confirmation sentence in the output language ("Confirmed fixed, thanks!") + `V§"Reply marker"`,
      in the tone of a REVIEWER confirming, never as if the reviewer had fixed the code itself. The
      reply MUST land BEFORE any resolve is even considered — FORBIDDEN: resolving without a prior
      reply, whatever `auto_resolve_fixed_findings` says, since a silently vanishing thread leaves the
@@ -54,7 +54,7 @@ PR-template item)? any NEW skipped file?
 
 ## Reaction on the dev's reply (optional addition)
 
-A reply on a finding's thread WITHOUT `<!-- bot-reply -->` (so not the bot's own) → MAY get a reaction
+A reply on a finding's thread WITHOUT a reply marker (so not the bot's own) → MAY get a reaction
 via `V§"React to a PR comment"` on THAT reply, never on the original finding comment, as an ADDITION to
 the reply text above and never a replacement:
 

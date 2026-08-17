@@ -59,12 +59,17 @@ ROLES = {
     "gl-worktree": ["vendors/gitlab/worktree.md", "vendors/gitlab.md"],
     "gl-post": ["vendors/gitlab/post.md", "vendors/gitlab.md"],
     "gl-thread": ["vendors/gitlab/thread.md", "vendors/gitlab.md"],
+    "bb-fetch": ["vendors/bitbucket/fetch.md"],
+    "bb-worktree": ["vendors/bitbucket/worktree.md"],
+    "bb-post": ["vendors/bitbucket/post.md"],
+    "bb-thread": ["vendors/bitbucket/thread.md"],
     "guardrails": ["core/guardrails.md"],
     "locate-repo": ["core/locate-repo.md"],
     "upgrades-index": ["core/llm-upgrades-index.md"],
     "reconfigure": ["core/reconfigure.md"],
     "upgrade-cmd": ["commands/upgrade.md"],
     "clean-cmd": ["commands/clean.md"],
+    "feedback-cmd": ["commands/feedback.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
@@ -123,6 +128,22 @@ SCENARIOS = {
     ],
     "clean": [
         "clean-cmd", "guardrails",
+    ],
+    "feedback": [
+        "feedback-cmd", "guardrails",
+    ],
+    "review/known-repo-bitbucket-clean": [
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack",
+        "bb-fetch", "bb-worktree", "bb-post", "criteria", "always-rule", "tpl-rails",
+    ],
+    "review/known-repo-bitbucket-rereview": [
+        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "bb-fetch",
+        "bb-worktree", "bb-post", "bb-thread", "case-re-review", "marker-logic", "criteria",
+        "always-rule", "tpl-vue",
+    ],
+    "fix/known-repo-bitbucket": [
+        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack",
+        "bb-fetch", "bb-thread", "marker-logic", "criteria", "always-rule", "tpl-rails",
     ],
     "fix/known-repo-github": [
         "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",

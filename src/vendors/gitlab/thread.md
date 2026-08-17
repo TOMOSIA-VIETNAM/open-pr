@@ -27,3 +27,7 @@ wrapper for the Emoji Reactions API.
 
 **None exists** for a FILE-level finding: there is no review object to anchor to (see "Fetch PR
 reviews"). A caller references the finding by file path + short description instead.
+
+## Reply marker
+
+`<!-- bot-reply -->` — an HTML comment, dropped from the rendered page here.

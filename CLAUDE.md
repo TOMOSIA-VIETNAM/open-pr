@@ -2,16 +2,18 @@
 
 ## Mission
 
-Claude Code plugin `open-pr`. 4 slash commands, GitHub + GitLab (no Bitbucket yet):
+Claude Code plugin `open-pr`. 5 slash commands, 3 vendors — GitHub, GitLab, Bitbucket:
 
-- `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review via the
-  vendor's own CLI (`gh`/`glab`).
+- `/open-pr:review <PR_URL>` — review a PR/MR, learn that repo's conventions, post 1 review through the
+  vendor's own CLI (`gh`/`glab`) or, where the vendor ships none, its REST API over `curl`.
 - `/open-pr:fix <PR_URL>` — read the findings review left, fix the code, 1 commit, reply on the PR.
   Edits real code at pwd — the repo, or the `review` worktree it was called from.
 - `/open-pr:upgrade` — no PR. Migrate the CURRENT repo's local config to the latest
   `schema_version`, fetching `llm-upgrades/` live from this plugin's GitHub repo.
 - `/open-pr:clean` — no PR. Remove the worktrees review checked code out into, after confirming.
   Never touches memory or config.
+- `/open-pr:feedback` — no PR, no repo of the user's touched. Turn what this chat shows into 1 issue on
+  THIS plugin's own tracker, stripped of anything identifying the user, approved by them before it goes.
 
 Everything is markdown + 1 JSON config. No build, no runtime. "Trying it" = install the plugin and
 call it against a real PR.
@@ -101,8 +103,13 @@ Exceptions, written as plain human prose: `README*.md`, `src/reference/`, `src/s
 **Split a file only when the split-off part is conditional.** An extra `Read` costs ~40-60 tokens;
 splitting an always-loaded file into 2 always-loaded files is a pure loss.
 
-**Callers never name a vendor.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). A new vendor =
-4 new files under `src/vendors/<name>/`, nothing else.
+**Callers never name a vendor to reach a PR.** They use `V§"<entry>"` (`src/core/pr-target.md` §3). Adding one = 4 files
+under `src/vendors/<name>/`, its URL row in `core/pr-target.md` §1, its atoms + scenarios in
+`token_report.py` — no `commands/` or `cases/` file changes. A vendor with NO CLI additionally touches
+`scripts/vendor_lint.py` (its executable, its URL shape, its static-lint branch) and `e2e/bootstrap.sh`
+(its auth check, its `run_`/`teardown_` pair). Whatever its API lacks — a CLI, a draft, a review object, a
+per-PR ref, a marker form that renders to nothing — is described inside its own 4 files, never worked
+around in a caller.
 
 **The adapter layer carries NO behaviour.** `adapters/`, `skills/`, `commands/*.toml` exist so a
 platform other than Claude Code can reach `src/commands/<cmd>.md`; they resolve `ROOT`, map tool names,
@@ -124,7 +131,7 @@ After ANY edit under `src/`. `scripts/check.sh <base-ref>` runs all three checks
 scan, context-cost report — and nothing is done until it passes.
 
 Everything shipped under `src/` has a CI check: the markdown by the suite, the vendor commands by the
-flag lint, the manifests by their own two tests. GitHub Actions is currently DISABLED on this repository
+vendor lint, the manifests by their own two tests. GitHub Actions is currently DISABLED on this repository
 by the organisation, so those run locally until an admin enables it — `scripts/install_hooks.sh` puts
 them on pre-push meanwhile.
 

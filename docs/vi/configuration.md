@@ -39,6 +39,7 @@ cd ~/workspace
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
 | `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
 | `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
+| `/open-pr:feedback` | bất kỳ đâu | không ghi gì ở máy — một issue trên tracker của plugin, sau khi bạn duyệt nội dung |
 
 ## Setting
 
@@ -53,7 +54,7 @@ Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định
 | --- | --- | --- |
 | `shared.chat_language` | ngôn ngữ nói chuyện trong chat | tự nhận |
 | `shared.output_language` | ngôn ngữ post lên PR | hỏi một lần rồi lưu |
-| `review.auto_submit_review` | `true` = post luôn, `false` = draft để bạn xem lại | `false` |
+| `review.auto_submit_review` | `true` = post luôn, `false` = giữ lại cho bạn xem trước — dạng draft trên PR ở vendor có draft, còn Bitbucket không có draft nên review nằm trong chat và PR vẫn trống | `false` |
 | `review.auto_resolve_fixed_findings` | tự resolve thread khi finding đã được sửa | `false` |
 | `review.doctor_schedule` | chu kỳ đọc lại docs quy ước: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status` | có nhắc CI đang fail không (chỉ warn, không bắt sửa) | có CI ⇒ `true` |

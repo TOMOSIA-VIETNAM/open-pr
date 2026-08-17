@@ -2,7 +2,7 @@
 
 [← README](../README.md)
 
-Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — installed and logged in. Reviews post as that account.
+Needs [`gh`](https://cli.github.com/) (GitHub) or [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — installed and logged in. Bitbucket ships no CLI: it reads an API token from `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` in the environment. Either way the review is posted through that account — see [Getting a token per vendor](./credentials.md) for the minimum permissions and a command to check them.
 
 ## Install
 
