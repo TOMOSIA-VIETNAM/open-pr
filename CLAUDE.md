@@ -165,14 +165,17 @@ what deleting a restatement yields in the same file — so work in this order.
    the rule — flatten whitespace, match the clause carrying it. Pinned to a line wrap it reddens on a
    rewrap that changed nothing.
 6. **Run step 3 over what you just wrote, then lock in.** No edit is exempt; explaining a fix is where
-   prose creeps back. Cheaper ⇒ `--update-budgets`. More expensive ⇒ **WARN the user explicitly**: which
-   scenario, by how much, why. Never neutral, and only acceptable once step 3 has nothing left to cut.
+   prose creeps back. Cheaper ⇒ lower each ceiling BY HAND by the delta `token_report.py --base <ref>`
+   reports, keeping its slack; `--update-budgets` only where no ceiling was hand-tightened. More
+   expensive ⇒ **WARN the user explicitly**: which scenario, by how much, why. Never neutral, and only
+   acceptable once step 3 has nothing left to cut.
 
 | want | run |
 |---|---|
 | all three checks | `scripts/check.sh <base-ref>` |
 | where the tokens sit inside a file | `token_report.py --sections 'commands/*.md'` |
-| new ceilings after a win | `token_report.py --base <ref> --update-budgets` |
+| the per-scenario delta to lower ceilings by | `token_report.py --base <ref>` |
+| new ceilings, none of them hand-tightened | `token_report.py --base <ref> --update-budgets` |
 | duplication, harder than the gate | `dup_scan.py --window 10 --all --min-waste 20` |
 | do the vendor flags exist | `vendor_lint.py` — offline, also in CI |
 | do the vendor commands actually run | `vendor_lint.py --pr <n>` — needs an open e2e fixture |

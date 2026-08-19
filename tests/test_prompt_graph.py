@@ -567,7 +567,7 @@ def test_frontmatter_only_in_commands():
 def test_commands_are_never_model_invoked():
     """These commands post a review, commit and push, delete worktrees, or open a public
     issue. `disable-model-invocation: true` keeps the harness from firing one on its own
-    reading of the chat, leaving `/open-pr:<cmd>` the only way in, and keeps each
+    reading of the chat, leaving `/open-pr:<cmd>` the only way in on Claude Code, and keeps each
     description out of every unrelated session's always-loaded context.
     """
     for p in md_files():

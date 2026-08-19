@@ -75,15 +75,23 @@ def rel(p):
 
 
 def strip_frontmatter(body):
-    """Blank out a command file's YAML frontmatter, keeping line numbers intact. Its
-    field names are dictated by the harness and identical across command files by
-    necessity, so a repeat there is not a duplicated rule."""
+    """Blank out YAML frontmatter, keeping line numbers intact — every scope holds files
+    that carry one. Field names and the values the harness dictates repeat across files by
+    necessity, so a match there is not a duplicated rule. `description:` is written by hand
+    and stays in the scan, wrapped lines included."""
     lines = body.splitlines()
     if not lines or lines[0].strip() != "---":
         return body
     for i, line in enumerate(lines[1:], 1):
         if line.strip() == "---":
-            return "\n".join([""] * (i + 1) + lines[i + 1:])
+            kept, in_description = [], False
+            for l in lines[:i + 1]:
+                if l.startswith("description:"):
+                    in_description = True
+                elif re.match(r"\S", l):
+                    in_description = False
+                kept.append(l if in_description else "")
+            return "\n".join(kept + lines[i + 1:])
     return body
 
 
