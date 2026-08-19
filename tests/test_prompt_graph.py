@@ -385,6 +385,17 @@ def test_no_unapproved_duplication_in_adapters():
     assert not found, "unapproved duplication in the adapter layer:\n" + _fmt(found)
 
 
+def test_strip_frontmatter_keeps_handwritten_description():
+    """Harness-dictated fields repeat by necessity; `description:` is authored, so a
+    repeat there IS a duplicated rule and must stay visible to the scan. Every scan
+    returns 0 either way, so only this pins which half gets blanked."""
+    body = ('---\nargument-hint: "[x]"\ndescription: alpha beta\n  gamma delta\n'
+            'disable-model-invocation: true\n---\nbody\n')
+    out = dup_scan.strip_frontmatter(body)
+    assert out.splitlines()[:6] == ["", "", "description: alpha beta", "  gamma delta", "", ""]
+    assert len(out.splitlines()) == len(body.splitlines())
+
+
 def _fmt(found):
     return "\n".join(
         f"  ~{f['waste']} tok  {f['occurrences'][0][0]}:{f['occurrences'][0][1]}"
