@@ -1,6 +1,7 @@
 ---
 argument-hint: "[repo name...]"
 description: Remove the git worktrees review checked PR code out into. Each one is a full checkout on disk; nothing else is touched.
+disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
@@ -37,31 +38,29 @@ du -sh <each worktree>
 ## Step 3 — Show what would go, then ask
 
 ONE CHOICE per `core/guardrails.md`, EXACTLY 2 options. Its body lists every worktree by path with its
-size and the total, so consent covers a list the user has read:
+size and the total ⇒ consent covers a list the user has read:
 
-- `Remove all N (Recommended)` — detail: the reclaimed total; review re-creates a worktree next run, so
-  nothing is lost but disk — unless `/open-pr:fix` committed there and never pushed
+- `Remove all N (Recommended)` — detail: the reclaimed total; review re-creates a worktree next run ⇒
+  only disk is lost, unless `/open-pr:fix` committed there and never pushed
 - `Keep them` — detail: nothing deleted
 
 Subset wanted (free text, or a re-run naming those repos) ⇒ honour it, those only. `Keep them` ⇒ STOP.
 
 ## Step 4 — Remove
 
-Per worktree, in this order — a plain `rm -rf` leaves the reviewed repo registering a worktree that no
-longer exists:
+Per worktree, in this order — a bare `rm -rf` leaves a stale worktree registration behind:
 
 ```bash
 git -C "<worktree>" rev-parse --git-common-dir     # ABSOLUTE <repo>/.git; <repo> = that minus /.git
 git -C "<repo>" worktree remove --force "<worktree>"
 ```
 
-`--force` because the checkout is detached and holds untracked review scratch files.
+`--force`: the checkout is detached + holds untracked review scratch files.
 
-That first command failing (the repo was moved or deleted) ⇒ the registration is already orphaned:
-`rm -rf "<worktree>"` instead.
+That first command failing (repo moved/deleted) ⇒ registration already orphaned: `rm -rf "<worktree>"`
+instead.
 
-Finish with `git -C "<repo>" worktree prune` per distinct repo, which drops any stale registration left
-by an earlier manual delete.
+Finish with `git -C "<repo>" worktree prune` per distinct repo — drops stale registrations.
 
 ## Step 5 — Report
 

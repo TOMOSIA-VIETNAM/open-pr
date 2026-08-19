@@ -74,6 +74,19 @@ def rel(p):
     return str(p.relative_to(SRC)) if SRC in p.parents else str(p.relative_to(REPO))
 
 
+def strip_frontmatter(body):
+    """Blank out a command file's YAML frontmatter, keeping line numbers intact. Its
+    field names are dictated by the harness and identical across command files by
+    necessity, so a repeat there is not a duplicated rule."""
+    lines = body.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return body
+    for i, line in enumerate(lines[1:], 1):
+        if line.strip() == "---":
+            return "\n".join([""] * (i + 1) + lines[i + 1:])
+    return body
+
+
 def strip_fences(body):
     """Blank out fenced blocks, keeping line numbers intact. A fence is verbatim by
     policy (commands, payloads, error text), so a repeat inside one is not a
@@ -118,7 +131,8 @@ def scan(mode="both", window=None, include_approved=False, scope="src"):
     """
     count, allow, findings = _count_tokens(), approved(), []
     modes = ["cross", "intra"] if mode == "both" else [mode]
-    per_file = {rel(p): words_with_lines(strip_fences(p.read_text(encoding="utf-8")))
+    per_file = {rel(p): words_with_lines(strip_fences(strip_frontmatter(
+                   p.read_text(encoding="utf-8"))))
                 for p in md_files(scope)}
     per_file = {k: list(v) for k, v in per_file.items()}
 

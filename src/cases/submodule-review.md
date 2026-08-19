@@ -1,7 +1,7 @@
 # Submodule review — review the submodule PR when a bump is detected
 
-`review.md` Step 1 arrives with the worktree created and NO submodule initialised — each is a full
-checkout on disk, so Step A inits only the bumped paths, at `<worktree>/<submodule-path>/`.
+`review.md` Step 1 arrives with the worktree created and NO submodule initialised. Step A inits ONLY the
+bumped paths, at `<worktree>/<submodule-path>/` — each submodule is a full checkout on disk.
 
 FORBIDDEN: a second `git worktree add`; writing inside a submodule beyond its own checkout — the
 worktree sits beside the project repo, under the invocation directory's `notebooks/review/`, and a
@@ -21,8 +21,7 @@ In the Context "Diff" (already fetched, never refetch), find every file whose hu
 
 `<submodule-path>` (e.g. `vendor/mylib`) = `<path>` after `diff --git a/` on that file's header, which
 `V§"Fetch PR diff — patch, omitting oversized files"` guarantees on every vendor. FORBIDDEN: keying off
-`index <sha>..<sha> 160000` or a `---`/`+++` header — GitLab's patch carries neither, so a detector
-needing them finds no submodule there and silently skips this whole case.
+`index <sha>..<sha> 160000` or a `---`/`+++` header — GitLab's patch carries neither ⇒ silent miss.
 
 Then init THAT path only: `git -C "<worktree>" submodule update --init -- "<submodule-path>"`.
 FORBIDDEN: `--recursive` (nested is out of scope, see "Known limitations"), or dropping `-- <path>` — a

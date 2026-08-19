@@ -541,16 +541,19 @@ def test_no_harness_auto_exec_syntax():
     as exactly that, and the command dies on `command not found` at the step containing
     it — which is how this reached a real PR review.
 
+    A fence opened ```` ```! ```` is the multi-line form of the same feature and runs just
+    as early, so both shapes are banned.
+
     Negation gets spelled out instead. The saving from an operator is a few tokens; the
     cost is the command not running at all.
     """
     bad = []
     for name, body in all_text().items():
-        for m in re.finditer(r"!`", body):
+        for m in re.finditer(r"!`|^ {0,3}```!", body, re.M):
             line = body[:m.start()].count("\n") + 1
             bad.append(f"{name}:{line}")
-    assert not bad, ("`!` immediately before a backtick is auto-exec syntax; write the negation "
-                     f"in words: {bad}")
+    assert not bad, ("`!` before a backtick, or opening a fence, is auto-exec syntax; write the "
+                     f"negation in words: {bad}")
 
 
 def test_frontmatter_only_in_commands():
@@ -559,6 +562,19 @@ def test_frontmatter_only_in_commands():
     for p in md_files():
         has = text(p).startswith("---\n")
         assert has == rel(p).startswith("commands/"), f"{rel(p)}: frontmatter={has}"
+
+
+def test_commands_are_never_model_invoked():
+    """These commands post a review, commit and push, delete worktrees, or open a public
+    issue. `disable-model-invocation: true` keeps the harness from firing one on its own
+    reading of the chat, leaving `/open-pr:<cmd>` the only way in, and keeps each
+    description out of every unrelated session's always-loaded context.
+    """
+    for p in md_files():
+        if not rel(p).startswith("commands/"):
+            continue
+        assert re.search(r"^disable-model-invocation: true$", text(p), re.M), \
+            f"{rel(p)}: missing disable-model-invocation"
 
 
 def test_every_file_is_reachable_from_a_command():

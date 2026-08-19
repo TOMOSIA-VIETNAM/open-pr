@@ -1,6 +1,6 @@
 # Re-review — old findings + thread consensus
 
-Both sections below work off the SAME "Old comments" data, so they are not independent of each other.
+Both sections below work off the SAME "Old comments" data — not independent.
 
 ## Proposing a lesson from thread consensus
 
@@ -24,8 +24,7 @@ Both sections below work off the SAME "Old comments" data, so they are not indep
      confirmation sentence in the output language ("Confirmed fixed, thanks!") + `V§"Reply marker"`,
      in the tone of a REVIEWER confirming, never as if the reviewer had fixed the code itself. The
      reply MUST land BEFORE any resolve is even considered — FORBIDDEN: resolving without a prior
-     reply, whatever `auto_resolve_fixed_findings` says, since a silently vanishing thread leaves the
-     dev with no idea why. Then:
+     reply, whatever `auto_resolve_fixed_findings` says. Then:
      - **`true`** → also `V§"Resolve a review thread"`, matched on `comment_id`. An error there
        (missing permission…) is NOT blocking: the reply already carried the value.
      - **`false`** → reply only. FORBIDDEN: resolving — leave it to the user.

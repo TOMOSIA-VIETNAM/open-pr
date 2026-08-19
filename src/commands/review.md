@@ -1,6 +1,7 @@
 ---
-argument-hint: <PR URL> [other PR URL...] [content]
+argument-hint: "<PR URL> [other PR URL...] [content]"
 description: Review PRs against the conventions learned from each repo — 1 post per PR, findings tagged by severity, code left untouched.
+disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
@@ -51,18 +52,17 @@ Then fetch:
 | "Fetch CI checks" | CI checks |
 
 Fetch the size list BEFORE the patch, in that order. Any path it names that "Diff" then lacks is an
-omitted file → carry that list to Step 7 as **"Oversized paths"**. A whole patch that reaches the
-terminal stays in context for the rest of the run, so the omission MUST happen inside the vendor's own
-call; Step 7's guard fires far too late to help.
+omitted file → carry that list to Step 7 as **"Oversized paths"**. Omission MUST happen inside the
+vendor's own call — a printed patch is permanent context; Step 7's guard is post-hoc.
 
-`big_file_threshold_kb` (`core/repo-settings.md`) — this Context already reads
-`settings.json` for `<git_remote_type>`, so take it from that same read.
+`big_file_threshold_kb` (`core/repo-settings.md`) — from this Context's own `settings.json` read,
+never a 2nd.
 
 "CI checks" MUST stay unfiltered — Step 7 and `setup/bootstrap.md` q6 each read the raw array.
 
 **Filesystem:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` BEFORE Step 1 for `<repo_dir>`.
 FORBIDDEN: `cd`. Everything this command writes — `notebooks/review/<repo>/`, the worktree, `.gitignore`
-— is relative to pwd, so one workspace holds one `notebooks/review/` for every repo reviewed from it.
+— is relative to pwd: 1 workspace ⇒ 1 `notebooks/review/` for every repo reviewed from it.
 `<repo_dir>` ONLY aims git: `git -C "<repo_dir>" …`. Before writing under `notebooks/review/` → state
 pwd + `<repo>` in chat.
 
@@ -76,11 +76,10 @@ PR code on disk, main tree untouched — no branch change, nothing to restore.
    --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
    `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
-2. `git -C "<repo_dir>" fetch origin "<baseRefName>"` — refs are shared across that repo's worktrees.
-3. Try `Read`ing `<worktree>/.gitmodules` — checked directly every run, never cached, so a
-   not-yet-doctored repo still detects a bump on its first PR. Exists && "Diff" contains `Subproject
+2. `git -C "<repo_dir>" fetch origin "<baseRefName>"`.
+3. Try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" contains `Subproject
    commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
-   FORBIDDEN: `submodule update` here — each is a full checkout, and that file inits bumped paths only.
+   FORBIDDEN: `submodule update` here — that file inits bumped paths only.
 
 ## Step 2 — Detect stack
 
@@ -146,8 +145,8 @@ proceed.
 **PR template:** `.review.pr_template_paths` non-empty → `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/cases/pr-template-checklist.md`. Empty → skip.
 
-FORBIDDEN in EVERY finding: naming a role to reconfirm with ("the BA/client/PM/QA…") — the project may
-not have it. Write "reconfirm this requirement/spec".
+FORBIDDEN in EVERY finding: naming a role to reconfirm with ("the BA/client/PM/QA…") — may not exist.
+Write "reconfirm this requirement/spec".
 
 Criteria + precedence: Step 5.
 
@@ -176,8 +175,7 @@ the output language:
 <marker>
 ```
 
-A code fix is a fence on its own line, and the label line then ends at `**<Fix>**` — a dangling `—`
-before a fence reads as cut off.
+A code fix is a fence on its own line, the label line then ending at `**<Fix>**` — no dangling `—`.
 
 `<marker>` = `V§"Finding marker"`, verbatim including any blank line it requires; MUST end EVERY finding,
 FILE and LINE alike.
@@ -204,7 +202,7 @@ that exact value in the overview and in Step 9's payload; never fetch it twice.
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
 
 FORBIDDEN in the overview: the agent's own WORK PROCESS (what was fetched or checked out, which commit
-was compared, API retries, an interruption midway) — the reader wants conclusions only. Also FORBIDDEN:
+was compared, API retries, an interruption midway) — conclusions only. Also FORBIDDEN:
 repeating a `comments[]` finding or its Fix, already inline at its diff line; say ONLY what is NOT in
 LINE. A closing summary ("No new issues found in this round of changes.") → **bold**, same tier as
 **LGTM 🌟**.
@@ -214,9 +212,8 @@ ENTIRE diff was reviewed at that point — never that one commit was. 2 forms, b
 the parenthetical:
 
 - **prose** (the full structure below) → a real sentence, not a translated fragment
-- **bare anchor** → `(commit <link>)`. Reads as "at this commit" in any language, so nothing needs
-  translating. FORBIDDEN: an English connective like "as of" inside it — that is what leaks English into
-  a non-English review.
+- **bare anchor** → `(commit <link>)`, language-neutral already. FORBIDDEN: an English connective like
+  "as of" inside it.
 
 **Body shape** — the 2 reduced shapes:
 
@@ -250,18 +247,14 @@ Only FILE findings get the full Fix + path structure; LINE stays inline-only. Be
 `#### <emoji>` heading: ≥1 FILE finding at EXACTLY that severity? No — even if a LINE finding has it,
 even for 📝 → drop the heading. FORBIDDEN: an empty heading, writing "no issues", or a count of N.
 
-A SEVERITY heading carries emoji + label, verbatim as above — it groups findings for someone skimming
-the PR body, who needs the severity named. An individual finding carries the emoji ALONE (Step 7),
-heading or not: there the emoji sits against a description that already says what the problem is.
-
 The files-skipped section = the content of `<worktree>/.review-skipped.md` (`Read` it again
 while writing this Step, don't rely on context) → ALWAYS last in the overview WHEN that file exists
-non-empty, even under LGTM, so the user knows what to check personally. Missing/empty → drop the
+non-empty, even under LGTM. Missing/empty → drop the
 heading, never write "none".
 
 ## Step 9 — Post (1 composite op, main PR)
 
-Payload: `<commit_id>` from Step 8 (never re-fetched here, never Context's `headRefOid`), `comments[]`
+Payload: `<commit_id>` from Step 8, `comments[]`
 (LINE entries: `path` + `line` + `side` + `body`), and the Step 8 overview (FILE findings + assessment).
 
 `V§"Post a review"` — COMPOSITE, step count and mechanism are the vendor's own; follow EXACTLY.
@@ -271,7 +264,6 @@ none. Invariants on every vendor:
 - exactly 1 review / 1 batch of notes for the main PR, never split. A submodule post is a separate
   result for a DIFFERENT PR and doesn't count here.
 - every LINE finding attached to its correct diff line + side
-- every FILE finding inside the overview body — FORBIDDEN: mixing one into a LINE-level entry
 
 `auto_submit_review`: `true` → carry that entry through to its own submit/publish step; `false` → stop at
 whatever holds the review unpublished there — a server-side draft, or the composed review in chat on a

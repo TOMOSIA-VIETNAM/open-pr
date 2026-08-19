@@ -1,6 +1,7 @@
 ---
 argument-hint: "[repo name...]"
 description: Bring every per-repo config found below pwd up to the schema this build expects. Takes no PR.
+disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
@@ -19,8 +20,8 @@ description: Bring every per-repo config found below pwd up to the schema this b
 
 ## Step 1 — Discover the config sets, read each checkpoint
 
-`<set>` = one `notebooks/review/<repo>/`, sitting wherever `/open-pr:review` ran — a workspace keeps
-every repo's side by side, a repo reviewed from inside keeps its own. Search both, from pwd; FORBIDDEN:
+`<set>` = one `notebooks/review/<repo>/`, sitting wherever `/open-pr:review` ran — side by side in a
+workspace, or inside the repo itself. Search both, from pwd; FORBIDDEN:
 `cd`, deriving `<repo>` from a git remote (a workspace has none):
 
 ```bash
@@ -49,8 +50,8 @@ Every `<set>` dropped ⇒ STOP.
 ## Step 2 — Fetch the index, find versions newer than the checkpoint
 
 `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/llm-upgrades-index.md` for the fetch command + line grammar, run
-it, and collect every `N` strictly greater than the LOWEST checkpoint from Step 1 — 1 union for the run,
-so sets on differing checkpoints still cost 1 fetch.
+it, and collect every `N` strictly greater than the LOWEST checkpoint from Step 1 — 1 union for the run
+⇒ differing checkpoints still cost 1 fetch.
 
 None found → say the config is already current, name each `<set>`'s checkpoint, STOP. FORBIDDEN:
 fetching a `vN.md` to double-check — the index alone answers this.
@@ -69,13 +70,12 @@ that same atom states ⇒ STOP before applying anything:
 ## Step 3 — Fetch every matching `vN.md`
 
 Each collected `N` → `llm-upgrades/vN.md`, same base URL, ALL in ONE batch. FORBIDDEN: fetch, wait,
-fetch — a later `vN` can override an earlier one's field, so nothing is decidable until all are in hand.
+fetch — a later `vN` can override an earlier one's field ⇒ nothing decidable until all are in hand.
 
 ## Step 4 — Summarise, then ask
 
 ONE CHOICE per `core/guardrails.md`, EXACTLY 2 options, no hedging third. Its body NAMES every `<set>` —
-`<repo>`, checkpoint move, path when a `<repo>` repeats — so nothing is written against a repo the user
-never saw listed:
+`<repo>`, checkpoint move, path when a `<repo>` repeats ⇒ nothing written against an unlisted repo:
 
 - `Upgrade all N (Recommended)` — detail: what changes per `ADDED`/`MODIFIED`/`REMOVED`/`RENAMED`, files touched
 - `Not now` — detail: nothing written, every config keeps working
@@ -95,7 +95,7 @@ applied to it.
 
 Per `<set>`: which migration(s) ran and what changed, plainly — e.g. "merged `meta.json` +
 `fix-meta.json` into `settings.json`; config migration checkpoint 0 → 1" — plus any `<set>` dropped as
-never bootstrapped. Say **config migration checkpoint**, never "version": the plugin declares none, so a
-bare number reads as one. FORBIDDEN: dumping raw `vN.md` content or a JSON diff.
+never bootstrapped. Say **config migration checkpoint**, never "version" — the plugin declares none.
+FORBIDDEN: dumping raw `vN.md` content or a JSON diff.
 
 ARGUMENTS: $ARGUMENTS

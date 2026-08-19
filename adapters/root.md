@@ -42,6 +42,7 @@ Files below `ROOT` name Claude Code's tools. What binds is the CAPABILITY, not t
 | `Bash` | your shell tool | — |
 | `AskUserQuestion` | ask in chat: 1 message, plain text, every option + your recommendation, then WAIT | FORBIDDEN: deciding for the user, or continuing unanswered |
 | `Agent` (subagent) | your subagent | do the same work yourself, sequentially, covering EVERY file the step names |
+| 1 tool block (several calls at once) | your parallel-call form | 1 call per turn, same order, every one still issued |
 
 A tool you lack NEVER downgrades to a skipped step: substitute the capability or STOP and say which
 step you cannot perform.
