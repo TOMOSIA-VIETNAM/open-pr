@@ -33,6 +33,13 @@
   <a href="./README.vi-VN.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <strong>简体中文</strong>
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck-zh-dark.svg">
+    <img src="./docs/images/bottleneck-zh.svg" width="760" alt="AI 之前：每天 10 个 PR，评审跟得上。AI 之后：每天 30 个 PR，评审成为瓶颈。AI 之后 + Open-pr：每天 30 个 PR，Open-pr 让评审更快，评审跟得上。">
+  </picture>
+</p>
+
 在 AI 编码的时代，PR 提交的速度远远快过评审的速度。瓶颈已经不在写代码，而在 **评审**。评审者既要检查项目规范 / 安全 / 性能，*还要* 覆盖业务逻辑 —— 以这样的节奏，几乎没有人跟得上。
 
 真正的问题往往不是 *"这段代码对不对？"*，而是：**开发者在发出 PR 之前，自己评审过吗**，还是想着 *"评审者会处理的"*？这样一来，评审者不过是 AI 的一个 *vibecoding* 工具而已。

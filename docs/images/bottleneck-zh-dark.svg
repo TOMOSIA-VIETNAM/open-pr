@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2720 1136" width="2720" height="1136"
+     font-family='system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Segoe UI",Helvetica,Arial,sans-serif' role="img" aria-label="AI 之前：每天 10 个 PR，评审跟得上。AI 之后：每天 30 个 PR，评审成为瓶颈。AI 之后 + Open-pr：每天 30 个 PR，Open-pr 让评审更快，评审跟得上。">
+  <g id="panel-before">
+    <text x="423.5" y="120" font-size="58" font-weight="700" fill="#F0EEE6" text-anchor="middle">AI 之前</text>
+    <text x="423.5" y="198" font-size="57" font-weight="400" fill="#F0EEE6" text-anchor="middle">每天 10 个 PR</text>
+    <rect x="80" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="148" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="216" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="284" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="352" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="420" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="488" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="556" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="624" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <rect x="692" y="320" width="60" height="60" rx="8" fill="#1C3652" stroke="#5FA8E8" stroke-width="2"/>
+    <path d="M423.5 403V550" stroke="#9A978F" stroke-width="6" stroke-linecap="round"/>
+    <path d="M412 536L423.5 550L435 536" fill="none" stroke="#9A978F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="144" y="560" width="560" height="176" rx="31" fill="#223813" stroke="#8FC463" stroke-width="2"/>
+    <text x="229" y="669" font-size="57" font-weight="700" fill="#B8DE92" text-anchor="start">评审</text>
+    <g transform="translate(623.5 647.5)" fill="none" stroke="#8FC463" stroke-width="4">
+      <circle r="36"/>
+      <circle cx="-12" cy="-12" r="4"/>
+      <circle cx="12" cy="-12" r="4"/>
+      <path d="M-15.5 8.5Q0 25.5 15.5 8.5" stroke-linecap="round"/>
+    </g>
+  </g>
+  <g id="panel-after">
+    <text x="1263.5" y="120" font-size="58" font-weight="700" fill="#F0EEE6" text-anchor="middle">AI 之后</text>
+    <text x="1263.5" y="198" font-size="57" font-weight="400" fill="#FF8F6B" text-anchor="middle">每天 30 个 PR</text>
+    <rect x="920" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="988" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1056" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1124" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1192" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1260" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1328" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1396" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1464" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1532" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="920" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="988" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1056" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1124" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1192" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1260" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1328" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1396" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1464" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1532" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="920" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="988" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1056" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1124" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1192" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1260" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1328" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1396" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1464" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1532" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <path d="M1263.5 539V670" stroke="#9A978F" stroke-width="6" stroke-linecap="round"/>
+    <path d="M1252 656L1263.5 670L1275 656" fill="none" stroke="#9A978F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="984" y="680" width="560" height="176" rx="31" fill="#3B1A1A" stroke="#E27A7A" stroke-width="2"/>
+    <text x="1069" y="789" font-size="57" font-weight="700" fill="#F0A8A8" text-anchor="start">评审</text>
+    <g transform="translate(1463.5 765.5)" fill="none" stroke="#E27A7A" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 -27.5L32.5 28H-32.5Z" stroke-width="5"/>
+      <path d="M0 -8.5V4.5" stroke-width="4.5"/>
+      <circle cy="18.5" r="4" stroke-width="4"/>
+    </g>
+  </g>
+  <g id="panel-after-open-pr">
+    <text x="2103.5" y="120" font-size="58" font-weight="700" fill="#F0EEE6" text-anchor="middle">AI 之后 + Open-pr</text>
+    <text x="2103.5" y="198" font-size="57" font-weight="400" fill="#FF8F6B" text-anchor="middle">每天 30 个 PR</text>
+    <rect x="1760" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1828" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1896" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1964" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2032" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2100" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2168" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2236" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2304" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2372" y="320" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1760" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1828" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1896" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1964" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2032" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2100" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2168" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2236" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2304" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2372" y="388" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1760" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1828" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1896" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="1964" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2032" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2100" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2168" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2236" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2304" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <rect x="2372" y="456" width="60" height="60" rx="8" fill="#452114" stroke="#E8794D" stroke-width="2"/>
+    <path d="M2103.5 539V590" stroke="#9A978F" stroke-width="6" stroke-linecap="round"/>
+    <path d="M2092 576L2103.5 590L2115 576" fill="none" stroke="#9A978F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="1824" y="600" width="560" height="136" rx="31" fill="#262747" stroke="#9E97F0" stroke-width="2"/>
+    <text x="2103.5" y="673" font-size="57" font-weight="700" fill="#C4BFFF" text-anchor="middle">Open-pr</text>
+    <text x="2103.5" y="725" font-size="50" font-weight="400" fill="#9E97F0" text-anchor="middle">评审更快</text>
+    <path d="M2103.5 739V790" stroke="#9A978F" stroke-width="6" stroke-linecap="round"/>
+    <path d="M2092 776L2103.5 790L2115 776" fill="none" stroke="#9A978F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="1824" y="800" width="560" height="176" rx="31" fill="#223813" stroke="#8FC463" stroke-width="2"/>
+    <text x="1909" y="909" font-size="57" font-weight="700" fill="#B8DE92" text-anchor="start">评审</text>
+    <g transform="translate(2303.5 887.5)" fill="none" stroke="#8FC463" stroke-width="4">
+      <circle r="36"/>
+      <circle cx="-12" cy="-12" r="4"/>
+      <circle cx="12" cy="-12" r="4"/>
+      <path d="M-15.5 8.5Q0 25.5 15.5 8.5" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

@@ -33,6 +33,13 @@
   <a href="./README.vi-VN.md">Tiếng Việt</a> · <strong>English</strong> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck-en-dark.svg">
+    <img src="./docs/images/bottleneck-en.svg" width="760" alt="Before AI: 10 PRs/day, review keeps up. After AI: 30 PRs/day, review is the bottleneck. After AI plus Open-pr: 30 PRs/day, Open-pr reviews faster and review keeps up.">
+  </picture>
+</p>
+
 In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and at that pace, almost nobody can keep up.
 
 The real question usually isn't *"is this code correct?"*, but: **did the dev self-review the PR before sending it**, or just assume *"the reviewer will handle it"*? That makes the reviewer little more than a *vibecoding* tool for the AI.
