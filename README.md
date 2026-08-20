@@ -35,8 +35,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck-en-dark.svg">
-    <img src="./docs/images/bottleneck-en.svg" width="760" alt="Before AI: 10 PRs/day, review keeps up. After AI: 30 PRs/day, review is the bottleneck. After AI plus Open-pr: 30 PRs/day, Open-pr reviews faster and review keeps up.">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/en-dark.svg">
+    <img src="./docs/images/bottleneck/en.svg" width="760" alt="Before AI: 10 PRs/day, review keeps up. After AI: 30 PRs/day, review is the bottleneck. After AI plus Open-pr: 30 PRs/day, Open-pr reviews faster and review keeps up.">
   </picture>
 </p>
 

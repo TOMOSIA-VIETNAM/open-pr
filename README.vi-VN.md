@@ -35,8 +35,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck-vi-dark.svg">
-    <img src="./docs/images/bottleneck-vi.svg" width="760" alt="Trước AI: 10 PR/ngày, review theo kịp. Sau AI: 30 PR/ngày, review thành điểm nghẽn. Sau AI + Open-pr: 30 PR/ngày, Open-pr review nhanh hơn nên review theo kịp.">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/vi-dark.svg">
+    <img src="./docs/images/bottleneck/vi.svg" width="760" alt="Trước AI: 10 PR/ngày, review theo kịp. Sau AI: 30 PR/ngày, review thành điểm nghẽn. Sau AI + Open-pr: 30 PR/ngày, Open-pr review nhanh hơn nên review theo kịp.">
   </picture>
 </p>
 

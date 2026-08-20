@@ -36,8 +36,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck-ja-dark.svg">
-    <img src="./docs/images/bottleneck-ja.svg" width="760" alt="AI 導入前: 1日 10 PR、レビューは追いつく。AI 導入後: 1日 30 PR、レビューがボトルネックになる。AI 導入後 + Open-pr: 1日 30 PR、Open-pr がレビューを速め、レビューは追いつく。">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/ja-dark.svg">
+    <img src="./docs/images/bottleneck/ja.svg" width="760" alt="AI 導入前: 1日 10 PR、レビューは追いつく。AI 導入後: 1日 30 PR、レビューがボトルネックになる。AI 導入後 + Open-pr: 1日 30 PR、Open-pr がレビューを速め、レビューは追いつく。">
   </picture>
 </p>
 

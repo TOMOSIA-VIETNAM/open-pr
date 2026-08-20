@@ -35,8 +35,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck-zh-dark.svg">
-    <img src="./docs/images/bottleneck-zh.svg" width="760" alt="AI 之前：每天 10 个 PR，评审跟得上。AI 之后：每天 30 个 PR，评审成为瓶颈。AI 之后 + Open-pr：每天 30 个 PR，Open-pr 让评审更快，评审跟得上。">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/zh-dark.svg">
+    <img src="./docs/images/bottleneck/zh.svg" width="760" alt="AI 之前：每天 10 个 PR，评审跟得上。AI 之后：每天 30 个 PR，评审成为瓶颈。AI 之后 + Open-pr：每天 30 个 PR，Open-pr 让评审更快，评审跟得上。">
   </picture>
 </p>
 
