@@ -1,6 +1,6 @@
 # Review những gì
 
-[← README](../../README.vi.md)
+[← README](../../README.vi-VN.md)
 
 Sáu trục. **Team rule luôn thắng** cả sáu.
 

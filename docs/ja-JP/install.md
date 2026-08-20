@@ -1,8 +1,8 @@
-# Cài đặt
+# インストール
 
-[← README](../../README.vi.md)
+[← README](../../README.ja-JP.md)
 
-Cần [`gh`](https://cli.github.com/) (GitHub) hoặc [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — đã cài và đã login. Bitbucket không có CLI, nó đọc API token từ `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` trong biến môi trường. Cách nào thì review cũng post bằng chính account đó — quyền tối thiểu và lệnh tự kiểm tra xem [Lấy token cho từng vendor](./credentials.md).
+[`gh`](https://cli.github.com/)（GitHub）または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）がインストール済み・ログイン済みであること。Bitbucket には CLI がなく、環境変数 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` の API token を読みます。いずれの場合もレビューはそのアカウントで投稿されます — 最小権限と確認コマンドは[ベンダーごとのトークン取得](./credentials.md)を参照してください。
 
 ## Install
 
@@ -12,9 +12,9 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 [![Install](../images/install.png)](../images/install.png)
 
-Hoặc:
+または:
 
-| Platform | Install | Use |
+| プラットフォーム | インストール | 使い方 |
 | -------- | ------- | --- |
 | Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
 | Codex | `codex plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`codex plugin add open-pr@open-pr` | `$open-pr-review <PR_URL>` |
@@ -28,7 +28,7 @@ Hoặc:
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
 ```
 
-Sau khi reload plugin, nếu bản mới đổi nhiều **schema** thì chạy `/open-pr:upgrade` để cập nhật settings của repo.
+プラグインを reload したあと、新しいビルドで **schema** が大きく変わっていれば `/open-pr:upgrade` でそのリポジトリの settings を更新します。
 
 ## Uninstall
 
@@ -40,4 +40,4 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 ---
 
-[Flow re-review / fix](./how-it-works.md) · [Cấu hình](./configuration.md)
+[再レビュー / fix のフロー](./how-it-works.md) · [設定](./configuration.md)

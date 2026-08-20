@@ -27,9 +27,9 @@ report. It proves the graph still holds, not that the agent behaves — for that
 - [ ] `tests/token-history.json` and `token-history.svg` untouched — the chart takes one frozen
   point per release (`/release-now`), never one per PR
 - [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly
-- [ ] Anything a user sees — a command, the flow, a default, what setup asks — → all 3 README
-  versions (`README.md`/`.vi`/`.ja`) and the page that owns the detail in `docs/`, `docs/vi/`,
-  `docs/ja/`. No page left describing the old behavior
+- [ ] Anything a user sees — a command, the flow, a default, what setup asks — → every README
+  version (`README.md` and each `README.<lang>.md`) and the page that owns the detail in `docs/`
+  and each `docs/<lang>/`. No page left describing the old behavior
 - [ ] Added a config field → classified in `src/reference/settings-schema.md`, read-time default in
   `src/core/repo-settings.md`, asked in `src/setup/bootstrap.md`
 - [ ] Changed the config shape an EXISTING repo already has (renamed, removed, restructured) →

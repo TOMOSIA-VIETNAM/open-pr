@@ -15,7 +15,7 @@ The image below is a real review on a PR in this repository, in the language tha
 > [!NOTE]
 > Language follows the **repo**, not the user. `shared.output_language` decides what gets **POSTED** on the PR — independent of the language the agent talks to you in chat.
 
-The same review in [Vietnamese](./vi/demo.md) and [Japanese](./ja/demo.md).
+The same review in [Vietnamese](./vi-VN/demo.md), [Japanese](./ja-JP/demo.md) and [Simplified Chinese](./zh-Hans/demo.md).
 
 ## The same run, on each vendor
 

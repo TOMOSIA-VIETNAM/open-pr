@@ -1,20 +1,20 @@
-# インストール
+# 安装
 
-[← README](../../README.ja.md)
+[← README](../../README.zh-Hans.md)
 
-[`gh`](https://cli.github.com/)（GitHub）または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）がインストール済み・ログイン済みであること。Bitbucket には CLI がなく、環境変数 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` の API token を読みます。いずれの場合もレビューはそのアカウントで投稿されます — 最小権限と確認コマンドは[ベンダーごとのトークン取得](./credentials.md)を参照してください。
+需要 [`gh`](https://cli.github.com/)（GitHub）或 [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）—— 已安装并已登录。Bitbucket 没有官方 CLI：它从环境变量 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` 读取 API token。无论哪种方式，评审都会以该账号的身份发布 —— 最小权限以及检查权限的命令见 [各平台如何取得 token](./credentials.md)。
 
-## Install
+## 安装
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-[![Install](../images/install.png)](../images/install.png)
+[![安装](../images/install.png)](../images/install.png)
 
-または:
+或者：
 
-| プラットフォーム | インストール | 使い方 |
+| 平台 | 安装 | 使用 |
 | -------- | ------- | --- |
 | Claude Code | `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`/plugin install open-pr@open-pr` | `/open-pr:review <PR_URL>` |
 | Codex | `codex plugin marketplace add TOMOSIA-VIETNAM/open-pr`<br>`codex plugin add open-pr@open-pr` | `$open-pr-review <PR_URL>` |
@@ -22,22 +22,22 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 | Cursor | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform cursor` | `/open-pr-review <PR_URL>` |
 | Antigravity | `curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh \| bash -s -- --platform antigravity` | `/open-pr-review <PR_URL>` |
 
-## Update
+## 更新
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
 ```
 
-プラグインを reload したあと、新しいビルドで **schema** が大きく変わっていれば `/open-pr:upgrade` でそのリポジトリの settings を更新します。
+重新加载插件之后，如果新版本对 **schema** 改动较大，运行 `/open-pr:upgrade` 把该仓库的设置更新到最新。
 
-## Uninstall
+## 卸载
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --uninstall
 ```
 
-[![Uninstall](../images/uninstall.png)](../images/uninstall.png)
+[![卸载](../images/uninstall.png)](../images/uninstall.png)
 
 ---
 
-[再レビュー / fix のフロー](./how-it-works.md) · [設定](./configuration.md)
+[重复评审 / fix 流程](./how-it-works.md) · [配置](./configuration.md)

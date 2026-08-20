@@ -1,6 +1,6 @@
 # Cấu hình
 
-[← README](../../README.vi.md)
+[← README](../../README.vi-VN.md)
 
 Những gì plugin ghi nhớ cho từng repo, và chỗ bạn sửa khi cần.
 

@@ -27,7 +27,7 @@ Upgrading the file is `/open-pr:upgrade`'s sole job, never inline.
 | `decline_needs_confirmation` | `.fix` | `true` |
 | `auto_push` | `.fix` | `false` |
 | `git_remote_type` | `.shared` | `core/pr-target.md` §2 |
-| `output_language` | `.shared` | none — ask once, then store (the language findings/replies get posted in) |
+| `output_language` | `.shared` | none — ask once, then store |
 
 `doctor_due` ⇔ `.review.doctored` != `true` (true even when `doctor_schedule: "never"`) ||
 `now > doctored_at + doctor_schedule`. `doctor_schedule` = `{N} days`|`{N} weeks`|`{N} months`|
@@ -42,9 +42,9 @@ and any domain term this project defines ONLY as an identifier, is reproduced ch
 backticks — ex. `UserChildDivision` stays `UserChildDivision`, never what it means.
 
 Set → use it, no announcement. Missing → detect, stop at first hit: free-form `ARGUMENTS` text →
-language already used earlier this session → this project's Claude Code memory → OS locale
-(`$LANG`/`locale`) → ask (choice: English/Vietnamese/Japanese + Other free text). Write to
-`.shared.chat_language` ONLY. Whichever command detects it first wins, the other never re-detects.
+language already used earlier this session → Claude Code memory, this project's || the user's → OS
+locale (`$LANG`/`locale`) → ask per `cases/language-choice.md`. Write to `.shared.chat_language` ONLY.
+Whichever command detects it first wins, the other never re-detects.
 
 ## Fresh file → `schema_version`
 

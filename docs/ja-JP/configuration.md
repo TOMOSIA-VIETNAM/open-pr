@@ -1,6 +1,6 @@
 # 設定
 
-[← README](../../README.ja.md)
+[← README](../../README.ja-JP.md)
 
 リポジトリごとにプラグインが保持するもの、そしてそれを変える場所。
 

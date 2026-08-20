@@ -1,6 +1,6 @@
 # Kết quả trông như thế nào
 
-[← README](../../README.vi.md)
+[← README](../../README.vi-VN.md)
 
 Một lượt review được post mang **ba phần** gắn với nhau:
 
@@ -15,7 +15,7 @@ Một lượt review được post mang **ba phần** gắn với nhau:
 > [!NOTE]
 > Ngôn ngữ theo **repo**, không theo user. `shared.output_language` quyết định cái gì được **POST** lên PR — độc lập với ngôn ngữ agent nói chuyện với bạn trong chat.
 
-Cùng một review bằng [English](../demo.md) và [日本語](../ja/demo.md).
+Cùng một review bằng [English](../demo.md), [日本語](../ja-JP/demo.md) và [简体中文](../zh-Hans/demo.md).
 
 ## Cùng một lượt chạy, trên từng vendor
 

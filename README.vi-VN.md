@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja.md">日本語</a>
+  <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
 Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
@@ -67,15 +67,15 @@ Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồ
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash
 ```
 
-Hướng dẫn chi tiết: [Cài đặt](./docs/vi/install.md) · [Lấy token cho từng vendor](./docs/vi/credentials.md).
+Hướng dẫn chi tiết: [Cài đặt](./docs/vi-VN/install.md) · [Lấy token cho từng vendor](./docs/vi-VN/credentials.md).
 
 ## Kết quả trông như thế nào
 
 Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push.
 
-<a href="./docs/vi/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
+<a href="./docs/vi-VN/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
 
-[Xem demo](./docs/vi/demo.md) · hỗ trợ GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted) và Bitbucket Cloud (`.../pull-requests/<n>`).
+[Xem demo](./docs/vi-VN/demo.md) · hỗ trợ GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted) và Bitbucket Cloud (`.../pull-requests/<n>`).
 
 ## Khác gì so với skill review phổ thông
 
@@ -106,7 +106,7 @@ flowchart LR
   H --> I[Round 3 · human review domain]
 ```
 
-Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fix](./docs/vi/how-it-works.md).
+Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fix](./docs/vi-VN/how-it-works.md).
 
 ## Commands
 
@@ -121,7 +121,7 @@ Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fi
 > [!WARNING]
 > `fix` sửa **code thật** trong repo (hoặc review worktree). Chỉ chạy khi bạn chủ động muốn nó xử lý comment.
 
-Full configuration: [Cấu hình](./docs/vi/configuration.md).
+Full configuration: [Cấu hình](./docs/vi-VN/configuration.md).
 
 ## Review những gì
 
@@ -132,7 +132,7 @@ Full configuration: [Cấu hình](./docs/vi/configuration.md).
 5. **Maintainability & readability**
 6. **Framework / language-specific** — theo template của stack đó
 
-Chi tiết tiêu chí và thứ tự ưu tiên khi conflict: [Nó review những gì](./docs/vi/review-criteria.md).
+Chi tiết tiêu chí và thứ tự ưu tiên khi conflict: [Nó review những gì](./docs/vi-VN/review-criteria.md).
 
 ## Biểu đồ prompt token
 

@@ -83,12 +83,16 @@ def test_backtick_file_refs_exist():
 
 
 def test_section_refs_resolve():
-    """`core/pr-target.md` §2 must point at a real numbered heading."""
+    """A ref addresses a section either by number (`core/pr-target.md` §2) or by heading
+    (`core/repo-settings.md` "Fresh file"); both must land on a heading that exists, so
+    renaming one reddens here instead of leaving a dangling ref."""
     bad = []
     for name, body in all_text().items():
-        for m in re.finditer(r"`((?:core/)?[a-z-]+\.md)` §(\d)", body):
+        for m in re.finditer(r'`((?:[a-z-]+/)?[a-z-]+\.md)` (?:§(\d)|"([^"]+)")', body):
             target = SRC / m.group(1)
-            if not target.exists() or not re.search(rf"^## {m.group(2)}\.", text(target), re.M):
+            num, heading = m.group(2), m.group(3)
+            wanted = rf"^## {num}\." if num else rf"^## {re.escape(heading)}"
+            if not target.exists() or not re.search(wanted, text(target), re.M):
                 bad.append((name, m.group(0)))
     assert not bad, f"unresolvable section refs: {bad}"
 
@@ -859,15 +863,22 @@ def test_clean_deletes_worktrees_and_nothing_else():
 def test_docs_exist_in_every_language_and_their_links_resolve():
     """The READMEs hand their reference material to docs/, one tree per language. A page
     translated in one language and not another leaves that reader at a 404, and a relative
-    link written at the wrong depth (docs/vi/ is two levels down, docs/ is one) breaks
-    silently — GitHub renders the text and only the click fails."""
+    link written at the wrong depth (a translated tree is two levels down, docs/ is one)
+    breaks silently — GitHub renders the text and only the click fails."""
     en = sorted(p.name for p in (REPO / "docs").glob("*.md"))
     assert en, "docs/ holds no English page"
-    for lang in ("vi", "ja"):
+    # every translated tree is discovered, so adding a language cannot skip the check
+    langs = sorted(d.name for d in (REPO / "docs").iterdir()
+                   if d.is_dir() and d.name != "images")
+    assert langs, "docs/ holds no translated tree"
+    for lang in langs:
         got = sorted(p.name for p in (REPO / "docs" / lang).glob("*.md"))
         assert got == en, f"docs/{lang} has {got}, English has {en}"
 
-    pages = [REPO / f for f in ("README.md", "README.vi.md", "README.ja.md")]
+    readmes = sorted(p.name for p in REPO.glob("README*.md"))
+    assert len(readmes) == len(langs) + 1, \
+        f"{readmes} does not pair with docs trees {langs} plus English"
+    pages = [REPO / f for f in readmes]
     pages += sorted((REPO / "docs").rglob("*.md"))
     dead = []
     for page in pages:
