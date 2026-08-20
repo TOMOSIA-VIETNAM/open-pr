@@ -13,7 +13,7 @@ user runs `/open-pr:upgrade` once, then re-invokes. Bootstrapping over it re-ask
 
 - `cp "${CLAUDE_PLUGIN_ROOT}/seeds/memory.md" "notebooks/review/<repo>/memory.md"` — an empty index
   whose own comment defines the entry format every later write follows.
-- `memories/.gitkeep`, `templates/.gitkeep` — empty files, so git tracks both dirs.
+- `memories/.gitkeep`, `templates/.gitkeep` — empty.
 - `notebooks/review/.gitignore` MUST contain the line `worktrees/` (`Write` it when absent, `Edit` to
   append when the file exists without it). This is the NESTED repo's ignore file, separate from the
   reviewed repo's own `.gitignore` (`core/repo-settings.md`): it keeps the ephemeral worktree

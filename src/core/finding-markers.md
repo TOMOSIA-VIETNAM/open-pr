@@ -2,8 +2,7 @@
 
 A marker ends every finding and reply this plugin posts — its identity across runs, independent of prose
 shape (emoji, layout, length all drift). Match `bot-finding`/`bot-reply` inside EITHER an HTML comment or
-a link reference definition: the literal is the vendor's, a long-lived PR spans a change of form, and a
-marker not recognized is a finding posted again as new.
+a link reference definition — the literal is the vendor's, and a long-lived PR spans a change of form.
 
 ## A past LINE finding
 

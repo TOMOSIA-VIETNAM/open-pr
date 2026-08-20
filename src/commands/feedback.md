@@ -1,12 +1,13 @@
 ---
 argument-hint: "[what should be better]"
 description: Report a problem with the open-pr plugin itself, or ask for a change, on its public issue tracker. Reads no PR; writes nothing in your repo.
+disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
 > here. On top of those:
 > - Destination is FIXED: `TOMOSIA-VIETNAM/open-pr`, the plugin's own tracker. FORBIDDEN: any other
->   repo, and any write to the user's repo, config, memory or worktrees — this run only reads the chat.
+>   repo, and any write to the user's repo, config, memory or worktrees.
 > - The issue is PUBLIC and cannot be unposted. FORBIDDEN: creating or commenting before the user
 >   approves the exact text at Step 4.
 > - Carries the PROBLEM, never the user's work — Step 2.
@@ -17,13 +18,13 @@ description: Report a problem with the open-pr plugin itself, or ask for a chang
 
 Sources, in order: `ARGUMENTS`, then what THIS chat session shows — which `/open-pr:` command the user
 ran, what it did, what they wanted instead. FORBIDDEN: reading the reviewed repo, its diff, its
-`notebooks/review/`, its settings or memory to enrich the report.
+`notebooks/review/`, its settings or memory.
 
 Both empty ⇒ ONE free-text question — what should change, and what prompted it — then WAIT.
 
 ## Step 2 — Strip what identifies the user
 
-A reader of the issue MUST NOT be able to tell which repo, company or person it came from.
+Anonymise: a reader MUST NOT be able to tell which repo, company or person it came from.
 
 | in the report | goes in as |
 |---|---|
@@ -32,7 +33,7 @@ A reader of the issue MUST NOT be able to tell which repo, company or person it 
 | code, diff, log or error text quoting the user's content | the behaviour, in your own words |
 | person name, email, handle | drop |
 | token, key, password, internal hostname, IP | drop — never echoed, not even masked |
-| vendor (GitHub/GitLab/Bitbucket), stack, language, command name, plugin's own message text | KEEP — the plugin's behaviour depends on these |
+| vendor (GitHub/GitLab/Bitbucket), stack, language, command name, plugin's own message text | KEEP |
 
 Unsure whether a detail identifies ⇒ drop it.
 
@@ -46,8 +47,8 @@ English whatever the chat language. Title ≤ 70 chars, states the problem. The 
 | misbehaved, crashed, reviewed wrongly | `bug_report.yml` | `bug` | `description` ← what it did + what was expected · `steps` ← the sequence that reached it · `version` ← below · `env` ← OS, vendor, stack |
 | lacks something, could be better | `feature_request.yml` | `enhancement` | `problem` ← the situation hit · `solution` ← the wish · `alternatives` ← what was tried instead, omitted when nothing was |
 
-FORBIDDEN to fill: `pr_url`, `evidence` — Step 2 removes exactly what they ask for. They stay empty;
-only the user, in the browser, may add them.
+FORBIDDEN to fill: `pr_url`, `evidence` — Step 2 strips exactly what they ask for. Only the user, in
+the browser, may add them.
 
 Each field: 1-3 sentences. FORBIDDEN in any of them: the chat transcript, your own reasoning or steps,
 a proposed diff, apologies.
@@ -81,7 +82,7 @@ it goes to. Then ONE CHOICE per `core/guardrails.md`, at most 4 options:
 
 ## Step 5 — Send it
 
-`Write` both files first — a multi-line body does not survive shell quoting. `$T` ≡ `"${TMPDIR:-/tmp}"`:
+`Write` both files first — a multi-line body is not shell-quotable. `$T` ≡ `"${TMPDIR:-/tmp}"`:
 
 | file | holds |
 |---|---|
@@ -97,7 +98,7 @@ it goes to. Then ONE CHOICE per `core/guardrails.md`, at most 4 options:
 `--label` rejected (the label was renamed) ⇒ run it again without that flag; nothing else changes.
 
 Path B goes through the form: a blank issue is refused there, and the form is what carries the label.
-Print the URL on its own line, so it is clickable:
+Print the URL on its own line, clickable:
 
 ```bash
 python3 -c 'import json,os,urllib.parse as u;d=json.load(open(os.environ.get("TMPDIR","/tmp")+"/open-pr-feedback.json"));print("https://github.com/TOMOSIA-VIETNAM/open-pr/issues/new?"+u.urlencode(d))'

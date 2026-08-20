@@ -23,7 +23,7 @@ Upgrading the file is `/open-pr:upgrade`'s sole job, never inline.
 | `review_ci_status` | `.review` | this run's "CI checks" non-empty ⇒ `true`, empty ⇒ `false` |
 | `many_files_threshold` | `.review` | `30` |
 | `big_file_threshold_kb` | `.review` | `20` (≈5,000 tokens @ ~4 chars/token) |
-| `project_docs_found`, `templates_copied`, `pr_template_paths` | `.review` | `[]` — doctor-detected, heals itself on the next doctor run |
+| `project_docs_found`, `templates_copied`, `pr_template_paths` | `.review` | `[]` — doctor-detected |
 | `decline_needs_confirmation` | `.fix` | `true` |
 | `auto_push` | `.fix` | `false` |
 | `git_remote_type` | `.shared` | `core/pr-target.md` §2 |
@@ -36,10 +36,10 @@ Missing/unparsable `doctored_at` while `doctored: true` ⇒ due.
 
 ## `chat_language` (`.shared`, detected once)
 
-The language the agent TALKS to the user in — independent of `output_language`, the language it POSTS
-in. Do not conflate them. BOTH govern PROSE only: every name the code carries, quoted error/log text,
-and any domain term this project defines ONLY as an identifier, is reproduced character for character in
-backticks — ex. `UserChildDivision` stays `UserChildDivision`, never what it means.
+The language the agent TALKS to the user in; `output_language` = the language it POSTS in. Never
+conflate them. BOTH govern PROSE only ⇒ identifiers, quoted error/log text and any domain term this
+project defines only as an identifier stay VERBATIM in backticks — `UserChildDivision` stays
+`UserChildDivision`, never what it means.
 
 Set → use it, no announcement. Missing → detect, stop at first hit: free-form `ARGUMENTS` text →
 language already used earlier this session → Claude Code memory, this project's || the user's → OS
@@ -54,5 +54,4 @@ File already exists → keep `schema_version` + every foreign node untouched, ad
 
 ## `.gitignore` at pwd
 
-No `notebooks/review/` line → `Edit`/`Write` to add exactly that line, so the memory folder never
-shows up in the reviewed repo's own `git status`.
+No `notebooks/review/` line → `Edit`/`Write` to add exactly that line.

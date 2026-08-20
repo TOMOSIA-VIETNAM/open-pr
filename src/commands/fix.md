@@ -1,13 +1,14 @@
 ---
 argument-hint: "[PR URL] [content]"
 description: Act on the findings a review left on a PR — takes or declines each by severity, edits code at pwd to match the project, 1 commit, replies once pushed.
+disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
 > here. On top of those:
 > - This command EDITS REAL CODE at pwd, then commits/pushes — higher risk than the
->   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action and STOP IMMEDIATELY on
->   failure. FORBIDDEN: "helpfully" fixing the remote/branch just to pass it.
+>   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action. FORBIDDEN: "helpfully"
+>   fixing the remote/branch just to pass it.
 > - FORBIDDEN: `git commit --amend`, `git push --force`/`--force-with-lease`, `git add -A`/`git add .`,
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
 >   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, checking
@@ -48,7 +49,7 @@ Fetch:
 | "Fetch account running the command" | Account running this command |
 | "Fetch review threads (id + isResolved + comment ids)" | Review threads |
 
-Plus 2 plain `git` commands, identical on any vendor so not in a vendor file — label "Git remote +
+Plus 2 plain `git` commands, vendor-independent ⇒ no vendor file — label "Git remote +
 current branch": `git remote -v` && `git branch --show-current`.
 
 A vendor whose "Fetch PR reviews" entry has no equivalent returns nothing here; Step 3 item 2 then
@@ -59,12 +60,12 @@ does not apply, while LINE-level handling continues normally.
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
 **1a.** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` for `<repo_dir>`, then `cd` into it — this
-command EDITS that repo's files, so unlike `review.md` it works from inside. Everything below runs there,
+command EDITS that repo's files ⇒ works from inside. Everything below runs there,
 `notebooks/review/<repo>/` included — `<repo_dir>` = a `review` worktree
 (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory is at `../../`.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
-fixing the branch yourself, touching any file, proceeding to Step 2.
+touching any file, proceeding to Step 2.
 
 1. the current branch matches `headRefName` EXACTLY, || `<repo_dir>` = the 1a worktree (DETACHED,
    already at THIS PR's head). `<current branch>` = `detached` when none. Mismatch:
@@ -96,8 +97,7 @@ Resolve `chat_language` per that file.
 
 1. **LINE-level** (from "Comments") → drop a finding when EITHER holds: its `id` (databaseId) belongs to
    a thread in "Review threads" with `isResolved: true`, || that same thread is already handled
-   (`core/finding-markers.md`). That is what stops a duplicate commit/reply while the thread is still
-   unresolved — this command never resolves threads (Step 10).
+   (`core/finding-markers.md`).
 2. **FILE-level / OVERVIEW-level** (from "Reviews") → an individual bullet has no resolve concept and no
    readable reply history, so EVERY FILE-level finding in the most recent review is ALWAYS treated as
    still open and re-handled every run. Accepted limitation: a repeat run after that part is already
@@ -143,9 +143,9 @@ Nothing to ask → straight to Step 7.
 
 ## Step 8 — Commit
 
-`git add` ONLY the exact files `Edit`-ed at Step 7, each path listed explicitly. FORBIDDEN: `git add
--A`/`git add .`. EXACTLY 1 commit covering every finding fixed this run; message follows the
-convention from Step 4 when there's a clear signal (e.g. the repo's recent `git log`), else
+`git add` ONLY the exact files `Edit`-ed at Step 7, each path listed explicitly. EXACTLY 1 commit
+covering every finding fixed this run; message follows the convention from Step 4 when there's a clear
+signal (e.g. the repo's recent `git log`), else
 `fix: address review comments (PR #<pull_number>)` + a bullet per finding fixed.
 
 ## Step 9 — Push
@@ -159,7 +159,7 @@ convention from Step 4 when there's a clear signal (e.g. the repo's recent `git 
 
 ## Step 10 — Reply on the PR
 
-ONLY after the code has actually reached the remote. FORBIDDEN: replying while the commit is local.
+ONLY after the code has actually reached the remote.
 
 For EACH finding decided (fixed or declined), `V§"Reply on a PR"`:
 
@@ -170,8 +170,7 @@ For EACH finding decided (fixed or declined), `V§"Reply on a PR"`:
   the vendor has an addressable one; otherwise reference it by file path + short description.
   FORBIDDEN: blockquoting the whole review verbatim.
 
-Content MUST end with `V§"Reply marker"`, exactly as that entry states it — the stable thing Step 3 reads
-back, independent of prose shape.
+Content MUST end with `V§"Reply marker"`, exactly as that entry states it — Step 3 reads it back.
 
 FORBIDDEN: resolving a thread — this command has no auto-resolve setting, unlike `re-review.md`.
 

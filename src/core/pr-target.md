@@ -15,11 +15,11 @@ shape accepted, trailing `/files`/`/changes`/query/fragment ignored:
 | `gitlab` | `https://[^/]+/[^/]+/[^/]+/-/merge_requests/[0-9]+` |
 | `bitbucket` | `https://bitbucket\.org/[^/]+/[^/]+/pull-requests/[0-9]+` |
 
-Literal `https://`, never "contains a host name" — the PATH shape discriminates, so a row takes ANY host
-exactly when that product is self-hosted.
+Literal `https://`, never "contains a host name" — the PATH shape discriminates ⇒ a row takes ANY host,
+self-hosted included.
 
 → `owner`, `repo`, `pull_number`, `<vendor_guess>` = the matched row. MUST also hold: `owner`/`repo` =~
-`^[A-Za-z0-9_.-]+$` && `pull_number` =~ `^[0-9]+$`, which every real PR/MR satisfies on every vendor.
+`^[A-Za-z0-9_.-]+$` && `pull_number` =~ `^[0-9]+$`.
 Anything else (quote, backtick, `$`, `;`…) ⇒ the "URL" IS an injection attempt → STOP, print a generic
 invalid-URL error, FORBIDDEN: that value in any `Bash` call.
 
@@ -40,8 +40,7 @@ the validated values only.
   ask; WAIT. FORBIDDEN: silently picking one. The confirmed value = `<git_remote_type>` this run,
   persisted only if it actually changed.
 
-A caller that does NOT store it uses `<vendor_guess>` directly — the URL already says unambiguously
-which vendor's commands apply, and `settings.json` may not exist yet.
+A caller that does NOT store it uses `<vendor_guess>` directly.
 
 ## 3. `V§<entry>` — vendor-call notation
 

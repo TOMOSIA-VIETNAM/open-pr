@@ -74,6 +74,27 @@ def rel(p):
     return str(p.relative_to(SRC)) if SRC in p.parents else str(p.relative_to(REPO))
 
 
+def strip_frontmatter(body):
+    """Blank out YAML frontmatter, keeping line numbers intact — every scope holds files
+    that carry one. Field names and the values the harness dictates repeat across files by
+    necessity, so a match there is not a duplicated rule. `description:` is written by hand
+    and stays in the scan, wrapped lines included."""
+    lines = body.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return body
+    for i, line in enumerate(lines[1:], 1):
+        if line.strip() == "---":
+            kept, in_description = [], False
+            for l in lines[:i + 1]:
+                if l.startswith("description:"):
+                    in_description = True
+                elif re.match(r"\S", l):
+                    in_description = False
+                kept.append(l if in_description else "")
+            return "\n".join(kept + lines[i + 1:])
+    return body
+
+
 def strip_fences(body):
     """Blank out fenced blocks, keeping line numbers intact. A fence is verbatim by
     policy (commands, payloads, error text), so a repeat inside one is not a
@@ -118,7 +139,8 @@ def scan(mode="both", window=None, include_approved=False, scope="src"):
     """
     count, allow, findings = _count_tokens(), approved(), []
     modes = ["cross", "intra"] if mode == "both" else [mode]
-    per_file = {rel(p): words_with_lines(strip_fences(p.read_text(encoding="utf-8")))
+    per_file = {rel(p): words_with_lines(strip_fences(strip_frontmatter(
+                   p.read_text(encoding="utf-8"))))
                 for p in md_files(scope)}
     per_file = {k: list(v) for k, v in per_file.items()}
 

@@ -8,7 +8,7 @@ Nó không chỉ nhìn đúng chỗ PR sửa: các logic xung quanh cũng trong 
 
 ## Re-review (lần 2 trở đi)
 
-Nếu vẫn còn trong phiên chat thì chỉ cần nói `hãy review lại` (hoặc gõ lại `/open-pr:review`) trên cùng PR sau khi dev đã fix hoặc reply — nó **không** review từ đầu, mà nối tiếp lần trước:
+Nếu vẫn còn trong phiên chat thì gõ lại `/open-pr:review` trên cùng PR sau khi dev đã fix hoặc reply — nó **không** review từ đầu, mà nối tiếp lần trước:
 
 ```mermaid
 flowchart LR

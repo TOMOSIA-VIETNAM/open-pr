@@ -20,7 +20,7 @@ scoped to the current PR's stack or feature.
 3. FORBIDDEN: copying that content into memory. Each clear, non-conflicting source → 1 REFERENCE line
    in `memory.md`, format per its own index comment, e.g.
    `- [rails] [Controllers](app/controllers/AGENTS.md) — thin, no params.permit`. The reviewing agent
-   re-reads that path when needed, so a stale copy can never mislead it.
+   re-reads that path when needed — never a cached copy.
 4. **Conflict** (2 sources disagree, || 1 source contradicts itself, || a source contradicts
    the baseline in `core/review-criteria.md` or a stack template) → reconcile with your own judgment: prefer a source written
    for convention/AI agents (`CLAUDE.md`/`AGENTS.md`) over a general `README.md`, and specific over

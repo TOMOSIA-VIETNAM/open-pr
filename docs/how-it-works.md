@@ -8,7 +8,7 @@ It doesn't only look at what the PR changed: the logic around it is in scope too
 
 ## Re-review (2nd run onward)
 
-If you're still in the same chat session, just say `please review again` (or type `/open-pr:review` again) on the same PR after the dev has fixed or replied — it does **not** review from scratch; it picks up where the last run left off:
+If you're still in the same chat session, type `/open-pr:review` again on the same PR after the dev has fixed or replied — it does **not** review from scratch; it picks up where the last run left off:
 
 ```mermaid
 flowchart LR
