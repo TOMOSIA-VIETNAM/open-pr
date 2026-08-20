@@ -65,6 +65,7 @@ PR_BODY = (
 W, H = 720, 260
 PAD_L, PAD_R, PAD_T, PAD_B = 62, 18, 38, 46
 GREY = "#8b949e"
+LEGEND_CHAR, LEGEND_DOT, LEGEND_GAP, LEGEND_ROW = 7.0, 13, 13, 17
 
 
 def sh(*args):
@@ -120,13 +121,42 @@ def y_ceiling(values):
     return ((top // step) + 1) * step
 
 
+def legend_rows(points):
+    """Legend entries as rows of (x, colour, text), wrapped so no entry crosses W - PAD_R.
+
+    A command with no released point yet gets no entry: the image is redrawn only when a release
+    adds data, never when code changes. Text width is estimated at LEGEND_CHAR per character,
+    which overshoots the proportional font it is drawn in, so the fit has slack rather than
+    depending on a measurement the script cannot take."""
+    rows, row, lx = [], [], PAD_L
+    for line in LINES:
+        last = next((p[line["key"]] for p in reversed(points) if p.get(line["key"]) is not None), None)
+        if last is None:
+            continue
+        text = f'{line["label"]} {last:,}'
+        span = LEGEND_DOT + LEGEND_CHAR * len(text)
+        if row and lx + span > W - PAD_R:
+            rows.append(row)
+            row, lx = [], PAD_L
+        row.append((lx, line["colour"], text))
+        lx += span + LEGEND_GAP
+    if row:
+        rows.append(row)
+    return rows
+
+
 def render(data):
     points = data["points"]
     if not points:
         raise SystemExit("no points yet — run --add <tag> first")
     values = [v for p in points for v in (p.get(l["key"]) for l in LINES) if v is not None]
     ymax = y_ceiling(values)
-    plot_w, plot_h = W - PAD_L - PAD_R, H - PAD_T - PAD_B
+
+    # every legend row past the first grows the canvas instead of eating into the plot
+    rows = legend_rows(points)
+    extra = (len(rows) - 1) * LEGEND_ROW
+    height, top = H + extra, PAD_T + extra
+    plot_w, plot_h = W - PAD_L - PAD_R, height - top - PAD_B
 
     inset = 16  # keeps the first and last dot off the axis and off the right edge
     span = plot_w - 2 * inset
@@ -137,9 +167,9 @@ def render(data):
         return PAD_L + inset + i * span / (len(points) - 1)
 
     def y(v):
-        return PAD_T + plot_h - (v / ymax) * plot_h
+        return top + plot_h - (v / ymax) * plot_h
 
-    s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}"'
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {height}" width="{W}" height="{height}"'
          f' font-family="system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif"'
          f' role="img" aria-label="Context cost per release, one line per command">']
 
@@ -153,7 +183,7 @@ def render(data):
 
     # x labels
     for i, p in enumerate(points):
-        s.append(f'<text x="{x(i):.1f}" y="{H - PAD_B + 18:.1f}" text-anchor="middle"'
+        s.append(f'<text x="{x(i):.1f}" y="{height - PAD_B + 18:.1f}" text-anchor="middle"'
                  f' font-size="10" fill="{GREY}">{p["tag"]}</text>')
 
     # one polyline + dots per command, skipping the tags where it did not exist
@@ -166,19 +196,16 @@ def render(data):
         for px, py in seq:
             s.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3" fill="{line["colour"]}"/>')
 
-    # legend, and the value each line ends on. A command with no released point yet gets no
-    # legend entry: the image is redrawn only when a release adds data, never when code changes.
-    lx = PAD_L
-    for line in LINES:
-        last = next((p[line["key"]] for p in reversed(points) if p.get(line["key"]) is not None), None)
-        if last is None:
-            continue
-        text = f'{line["label"]} {last:,}'
-        s.append(f'<circle cx="{lx + 4}" cy="{PAD_T - 20}" r="3.5" fill="{line["colour"]}"/>')
-        s.append(f'<text x="{lx + 13}" y="{PAD_T - 16.5}" font-size="11" fill="{GREY}">{text}</text>')
-        lx += 26 + 7.0 * len(text)
+    # legend, and the value each line ends on. The last row keeps its 20px gap above the plot,
+    # so earlier rows stack upward into the space the taller canvas opened.
+    for r, row in enumerate(rows):
+        cy = top - 20 - (len(rows) - 1 - r) * LEGEND_ROW
+        for lx, colour, text in row:
+            s.append(f'<circle cx="{lx + 4}" cy="{cy}" r="3.5" fill="{colour}"/>')
+            s.append(f'<text x="{lx + LEGEND_DOT}" y="{cy + 3.5}" font-size="11"'
+                     f' fill="{GREY}">{text}</text>')
 
-    s.append(f'<text x="{PAD_L}" y="{H - 8}" font-size="9" fill="{GREY}"'
+    s.append(f'<text x="{PAD_L}" y="{height - 8}" font-size="9" fill="{GREY}"'
              f' fill-opacity="0.85">{STAMP}</text>')
     s.append("</svg>")
     SVG.write_text("\n".join(s) + "\n", encoding="utf-8")
