@@ -33,6 +33,13 @@
   <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/vi-dark.svg">
+    <img src="./docs/images/bottleneck/vi.svg" width="760" alt="Trước AI: 10 PR/ngày, review theo kịp. Sau AI: 30 PR/ngày, review thành điểm nghẽn. Sau AI + Open-pr: 30 PR/ngày, Open-pr review nhanh hơn nên review theo kịp.">
+  </picture>
+</p>
+
 Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
 
 Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*? Điều này không khác gì reviewer chính là công cụ *vibecoding* cho AI.
