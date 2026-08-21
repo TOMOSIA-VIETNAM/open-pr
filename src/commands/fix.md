@@ -75,8 +75,7 @@ touching any file, proceeding to Step 2.
 ## Step 2 — Settings
 
 `<op> settings --dir <memory-dir>` (`core/repo-settings.md` names what each field means),
-`<memory-dir>` = `notebooks/review/<repo>` at the Step 1a directory — `<repo_dir>` = a `review`
-worktree ⇒ `../../`. Resolve `chat_language` per that file.
+`<memory-dir>` = the `notebooks/review/<repo>` Step 1a resolved. Resolve `chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
 - absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
