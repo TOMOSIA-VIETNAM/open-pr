@@ -914,6 +914,25 @@ def test_every_reviewed_tree_is_gated_against_its_own_head_sha():
         "a submodule tree that stays mismatched drops its own pass, never the main PR's review"
 
 
+def test_the_submodule_pass_reads_its_own_tree():
+    """The reapplied Steps name `<worktree>/<path>` and `git -C "<worktree>"` — the PARENT repo, where
+    the same path holds a different file. A submodule pass reading there would confirm line numbers and
+    compare old findings against code from another repository, so its differences list carries the
+    redirect, and the count that list states has to match what it holds."""
+    sub = text(SRC / "cases" / "submodule-review.md")
+    flat = " ".join(sub.split())
+    assert "<worktree>/<submodule-path>/<path>" in flat, \
+        "the submodule pass must name its own read root"
+    assert 'git -C "<worktree>/<submodule-path>"' in flat, \
+        "a git call in the submodule pass must be aimed at the submodule's checkout"
+
+    m = re.search(r"with exactly (\d+) differences:\n\n(.*?)\n\n", sub, re.S)
+    assert m, "the reapply instruction must state how many differences it lists"
+    listed = len(re.findall(r"^- ", m.group(2), re.M))
+    assert int(m.group(1)) == listed, \
+        f"the list says {m.group(1)} differences and holds {listed}"
+
+
 def test_clean_deletes_worktrees_and_nothing_else():
     """This is the only command whose job is `rm`, standing in a directory that also holds the
     one thing here nobody can regenerate: what the repo taught it. A worktree comes back on the
