@@ -201,6 +201,8 @@ def test_feedback_carries_every_issue_form_heading():
         blocks = re.split(r"\n\s*- type:", form.read_text())[1:]
         assert blocks, f"{form.name} exposes no field block"
         for block in blocks:
+            if re.match(r"\s*markdown\b", block):   # informational: carries value, no id/label
+                continue
             fid = re.search(r"\bid:\s*[\"']?([\w-]+)", block)
             lab = re.search(r"\blabel:\s*(.+)", block)
             assert fid and lab, f"{form.name} has a field block with no id/label"
