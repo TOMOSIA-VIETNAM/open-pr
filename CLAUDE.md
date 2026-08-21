@@ -48,7 +48,7 @@ backlogs/         historical, not ops
 
 **State what is true now**, once, where it belongs. No bolting a new clause beside the old one. No history ("used to…", "this broke when…").
 
-**Short and clear.** In agent-read files (`src/commands/`, `core/`, `setup/`, `cases/`, `vendors/`, `templates/`, and this file): cut filler; prefer tables/maps over repeated sentence shapes. Cryptic text that the agent misreads costs more than the tokens you saved — two readings possible ⇒ write enough. Human prose stays in `README*.md`, `src/reference/`, `src/seeds/`.
+**Short and clear.** In agent-read files (`src/commands/`, `core/`, `setup/`, `cases/`, `vendors/`, `templates/`, and this file): cut filler; prefer tables/maps over repeated sentence shapes. Cryptic text that the agent misreads costs more than the tokens you saved — two readings possible ⇒ write enough. Verbatim material is never compressed: command lines, fences, payload shapes, markers, printed error text. Human prose stays in `README*.md`, `src/reference/`, `src/seeds/`.
 
 **Tokens are a priority, not a wall.** When cutting, prefer: drop a restatement (keep the owner) → move conditionals out of always-loaded files → table over repeated sentences → tighten prose. An extra `Read` is ~40–60 tokens; splitting an always-loaded file into two always-loaded files loses. Savings where every run loads beat occasional `cases/`. Deduping `review.md`↔`fix.md` is ownership hygiene, not a per-run win — only one loads each run.
 

@@ -208,8 +208,9 @@ code is writable.
 Output language = `.shared.output_language` (`core/repo-settings.md`), or Step 0's override.
 
 `V§"Fetch PR head commit SHA"` RIGHT NOW is a CHECK value, never an anchor. == "Head SHA" ⇒ `<commit_id>`
-= it. ≠ ⇒ the head moved mid-review ⇒ `<commit_id>` = "Head SHA", the commit every Step read, and the
-overview says a newer commit is unreviewed. FORBIDDEN: anchoring to the checked value — no finding
+= it. ≠ ⇒ the head moved mid-review ⇒ `<commit_id>` = "Head SHA", the commit every Step read, plus 1
+sentence beside the anchor — WHATEVER shape the body takes, the LGTM line included — saying a newer
+commit is unreviewed. FORBIDDEN: anchoring to the checked value — no finding
 describes that tree. Reuse `<commit_id>` in the overview and in Step 9's payload; never fetch it twice.
 
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
@@ -275,7 +276,8 @@ Every `line` CONFIRMED against the file, never counted off the hunk header: `RIG
 origin/<baseRefName> HEAD`, then `git -C "<worktree>" show "<that SHA>:<path>" | sed -n "<line>p"` — the
 LEFT side is the MERGE BASE, never the base tip, a DIFFERENT blob once that branch moved. 3 outcomes:
 matches ⇒ post; mismatch ⇒ fix the number BEFORE posting, an off-by-N is a VALID payload on unrelated
-code; NO merge base (a shallow clone has none) ⇒ unconfirmable → the finding becomes FILE. FORBIDDEN: an
+code; NO merge base || `origin/<baseRefName>` unresolvable (a shallow clone) ⇒ unconfirmable → the
+finding becomes FILE. FORBIDDEN: an
 empty SHA in `show` — `:<path>` is the INDEX, returns the head blob, passes silently.
 
 `V§"Post a review"` — COMPOSITE, step count and mechanism are the vendor's own; follow EXACTLY.

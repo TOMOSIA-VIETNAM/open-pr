@@ -71,8 +71,11 @@ Reapply `review.md` Step 2 → Step 8 against the Step D data, with exactly 3 di
 - every tree access aims at the SUBMODULE's checkout: `<worktree>/<submodule-path>/<path>` for each
   `<worktree>/<path>` those Steps name, `git -C "<worktree>/<submodule-path>"` for each `git -C
   "<worktree>"` — Step 7's reads, Step 6's check of an old finding against current code, and the line
-  confirmation Step F inherits from `review.md` Step 9, its merge base included. FORBIDDEN: the MAIN
-  repo's tree, which holds a different file at the same path.
+  confirmation Step F inherits from `review.md` Step 9, its merge base included. That confirmation needs
+  Step 1.3's counterpart FIRST: `git -C "<worktree>/<submodule-path>" fetch origin
+  "+<baseRefName>:refs/remotes/origin/<baseRefName>"` (`<baseRefName>` = Step D's own) — the ref Step
+  A's init left is stale or absent. FORBIDDEN: the MAIN repo's tree, which holds a
+  different file at the same path.
 - its own stack detection over the submodule's diff files, independent of the main PR's
 - memory/templates SHARE the MAIN repo's directory, `notebooks/review/<repo>/` (`<repo>` = from the
   ORIGINAL PR URL). FORBIDDEN: a separate `notebooks/review/<repo-submodule>/` — bootstrap, doctor and
