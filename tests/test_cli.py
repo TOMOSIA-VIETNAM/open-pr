@@ -290,6 +290,13 @@ def test_settings_applies_read_time_defaults(tmp_path):
     assert out["doctor_due"] is False, '"never" is never due on a schedule'
     fresh = json.loads(run("settings", "--repo", "ghost", cwd=tmp_path, check=True).stdout)
     assert fresh["doctor_due"] is True, "an unbootstrapped repo is always due"
+    # --dir reads the memory directory itself — the fix flow stands INSIDE a review
+    # worktree, where a cwd-relative notebooks/review/<repo> resolves into the
+    # reviewed tree and read defaults would silently re-trigger fix-bootstrap
+    elsewhere = tmp_path / "worktree-standin"
+    elsewhere.mkdir()
+    byd = json.loads(run("settings", "--dir", str(d), cwd=elsewhere, check=True).stdout)
+    assert byd["shared"]["output_language"] == "English", "--dir did not read the real file"
 
 
 def test_stacks_maps_extensions_and_overlays(tmp_path):

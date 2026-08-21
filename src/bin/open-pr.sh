@@ -556,8 +556,11 @@ cmd_marker() {
 # the computed doctor_due. Never writes anything.
 cmd_settings() {
     parse_args "$@"
-    R=$(req repo)
-    f="notebooks/review/$R/settings.json"
+    # --dir wins: a caller standing inside a review worktree passes the memory
+    # directory it located (../../ from the worktree), where a cwd-relative
+    # notebooks/review/<repo> would resolve inside the reviewed tree instead.
+    d=$(arg dir)
+    if [ -n "$d" ]; then f="$d/settings.json"; else f="notebooks/review/$(req repo)/settings.json"; fi
     if [ -s "$f" ]; then raw=$(cat "$f"); else raw='{}'; fi
     now=$(date +%s)
     d_at=$(printf '%s' "$raw" | jq -r '.review.doctored_at // empty')
