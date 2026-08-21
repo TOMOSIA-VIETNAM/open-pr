@@ -159,5 +159,5 @@ Enjoy reviewing 🥰
 </p>
 
 <p align="center">
-  <sub>Bộ logo: <a href="./docs/brand.md">docs/brand.md</a></sub>
+  <sub>Bộ logo: <a href="./docs/vi-VN/logo.md">docs/vi-VN/logo.md</a></sub>
 </p>
