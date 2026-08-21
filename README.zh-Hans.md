@@ -6,10 +6,8 @@
 </p>
 
 <p align="center">
-  <strong>Agent 直接在
-  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
-  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
-  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket 上评审 PR</strong><br>
+  <strong>评审直接发布在 PR 上</strong><br>
+  <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -152,3 +150,14 @@ flowchart LR
 想参与贡献？[CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 评审愉快 🥰
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo/logo-dark.svg?v=moth1">
+    <img src="./docs/images/logo/logo.svg?v=moth1" alt="" width="44">
+  </picture>
+</p>
+
+<p align="center">
+  <sub>Logo 文件: <a href="./docs/brand.md">docs/brand.md</a></sub>
+</p>

@@ -6,10 +6,8 @@
 </p>
 
 <p align="center">
-  <strong>Agent review PR ngay trên
-  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
-  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
-  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket</strong><br>
+  <strong>Review đăng thẳng lên chính PR.</strong><br>
+  <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -152,3 +150,14 @@ Số token bình quân mỗi lần chạy — gồm cả *happy-case* và *bad-c
 Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 Enjoy reviewing 🥰
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo/logo-dark.svg?v=moth1">
+    <img src="./docs/images/logo/logo.svg?v=moth1" alt="" width="44">
+  </picture>
+</p>
+
+<p align="center">
+  <sub>Bộ logo: <a href="./docs/brand.md">docs/brand.md</a></sub>
+</p>

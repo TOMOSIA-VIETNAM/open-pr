@@ -80,6 +80,64 @@ def reduced_mark(t):
     ])
 
 
+# --- contact sheet -----------------------------------------------------------
+# One image showing every variant on both grounds, so the brand page is a single
+# look rather than a folder of files to open one by one. Each panel paints its
+# own background, so the sheet reads correctly whatever theme the viewer is in.
+
+SHEET_W, PANEL_H = 1040, 300
+PANEL = [
+    dict(name="On light", bg="#FFFFFF", label="#57534E", tones=LIGHT_BG, ink=WORDMARK_INK["light"]),
+    dict(name="On dark",  bg="#17130F", label="#A8A29E", tones=DARK_BG,  ink=WORDMARK_INK["dark"]),
+]
+
+
+def _label(x, y, text, fill, size=13, weight="500"):
+    return (f'<text x="{x}" y="{y}" font-family="{FONT}" font-size="{size}" '
+            f'font-weight="{weight}" fill="{fill}" letter-spacing=".02em">{text}</text>')
+
+
+def _panel(p, dy):
+    t, out = p["tones"], [f'<rect x="0" y="{dy}" width="{SHEET_W}" height="{PANEL_H}" fill="{p["bg"]}"/>']
+    out.append(_label(48, dy + 44, p["name"].upper(), p["label"], 11, "600"))
+
+    # the mark, at its native 128
+    out.append(f'<g transform="translate(64 {dy + 92})">{full_mark(t)}</g>')
+    out.append(_label(64, dy + 254, "mark · 128px", p["label"]))
+
+    # the lockup, scaled to 360 wide
+    k = 360 / 356
+    out.append(f'<g transform="translate(268 {dy + 92}) scale({k:.4f})">'
+               f'{full_mark(t)}<text x="138" y="86" font-family="{FONT}" font-size="56" '
+               f'font-weight="600" fill="{p["ink"]}" letter-spacing="-1.2">open-pr</text></g>')
+    out.append(_label(268, dy + 254, "lockup · 360px wide", p["label"]))
+
+    # the favicon drawing at the sizes it actually gets used at
+    x = 700
+    for size in (32, 24, 16):
+        k = size / 128
+        out.append(f'<g transform="translate({x} {dy + 160 - size}) scale({k:.4f})">'
+                   f'{reduced_mark(t)}</g>')
+        x += size + 22
+    out.append(_label(700, dy + 254, "favicon · 32 / 24 / 16px", p["label"]))
+
+    # the four tones, named
+    for i, key in enumerate(("deep", "mid", "light", "pale")):
+        y = dy + 100 + i * 34
+        out.append(f'<rect x="860" y="{y}" width="24" height="24" rx="3" fill="{t[key]}"/>')
+        out.append(_label(896, y + 17, f'{key} &#183; {t[key]}', p["label"], 12, "400"))
+    out.append(_label(860, dy + 254, "tones", p["label"]))
+    return "".join(out)
+
+
+def sheet_svg():
+    panels = "".join(_panel(p, i * PANEL_H) for i, p in enumerate(PANEL))
+    return ('<svg xmlns="http://www.w3.org/2000/svg" '
+            f'viewBox="0 0 {SHEET_W} {PANEL_H * len(PANEL)}" role="img" '
+            'aria-label="open-pr logo variants on light and dark grounds">\n'
+            f'  {panels}\n</svg>\n')
+
+
 def icon_svg(body):
     return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" '
             f'role="img" aria-label="open-pr">\n  {body}\n</svg>\n')
@@ -101,6 +159,7 @@ for name, content in {
     "favicon.svg":           icon_svg(reduced_mark(LIGHT_BG)),
     "logo-lockup.svg":       lockup_svg(full_mark(LIGHT_BG), WORDMARK_INK["light"]),
     "logo-lockup-dark.svg":  lockup_svg(full_mark(DARK_BG), WORDMARK_INK["dark"]),
+    "brand-sheet.svg":       sheet_svg(),
 }.items():
     (OUT / name).write_text(content)
     print("wrote", name)
