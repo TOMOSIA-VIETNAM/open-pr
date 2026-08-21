@@ -29,7 +29,7 @@ Only `src/` ships to users. Everything else is repo-side.
   live in `tests/duplication_allowlist.json` with a reason.
 - **Split a file only when the split-off part is conditional.** An extra read costs tokens; splitting
   something that always loads is a loss.
-- **Callers never name a vendor.** They write `V§"<entry>"` and the entry resolves per vendor.
+- **Prompts never name a vendor mechanic.** They call an `<op>` subcommand per `src/core/cli.md`; the vendor branch lives inside `src/bin/open-pr.sh`.
 - **Context cost is tracked.** Every scenario has a ceiling in `tests/budgets.json`. Cheaper →
   lower ceilings; costlier for a correct fix → explain on the PR. Do not strip behaviour for budget.
 - **Files must be self-contained.** No pointers to task ids, plan phases or docs that get deleted.

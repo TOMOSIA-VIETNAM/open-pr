@@ -18,8 +18,6 @@
 # Dependencies: git, jq, curl, and the vendor CLI the target uses (gh or glab).
 set -eu
 
-VERSION="1.0.0"
-
 err() { printf '%s\n' "$*" >&2; }
 die() { code="$1"; shift; err "$*"; exit "$code"; }
 need() { command -v "$1" >/dev/null 2>&1 || die 1 "open-pr.sh: required tool missing: $1"; }
@@ -52,21 +50,20 @@ BB_AUTH_KIND=""
 bb_init() {
     o="$1"; r="$2"
     BB_API="https://api.bitbucket.org/2.0/repositories/$o/$r"
+    umask 077
     if [ -n "${BITBUCKET_EMAIL:-}" ] && [ -n "${BITBUCKET_API_TOKEN:-}" ]; then
+        printf 'user = "%s:%s"\n' "$BITBUCKET_EMAIL" "$BITBUCKET_API_TOKEN" > "$TMPD/bb.curlrc"
         BB_AUTH_KIND=user
     elif [ -n "${BITBUCKET_TOKEN:-}" ]; then
+        printf 'header = "Authorization: Bearer %s"\n' "$BITBUCKET_TOKEN" > "$TMPD/bb.curlrc"
         BB_AUTH_KIND=bearer
     else
         die 6 "Bitbucket credentials missing. Set BITBUCKET_EMAIL + BITBUCKET_API_TOKEN (an Atlassian API token from account settings -> Security -> API tokens, app: Bitbucket, scopes read:pullrequest:bitbucket + write:pullrequest:bitbucket + read:account), or BITBUCKET_TOKEN (a repository/workspace access token). Put them in the env block of ~/.claude/settings.json. Never paste a token into chat."
     fi
 }
-bb_curl() {
-    if [ "$BB_AUTH_KIND" = user ]; then
-        curl -sS --fail-with-body -u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN" "$@"
-    else
-        curl -sS --fail-with-body -H "Authorization: Bearer $BITBUCKET_TOKEN" "$@"
-    fi
-}
+# The credential travels via curl's own config file, never argv — argv is readable
+# through `ps` by any user on the machine.
+bb_curl() { curl -sS --fail-with-body --config "$TMPD/bb.curlrc" "$@"; }
 # Walk every page of {values,next}. $1=url $2=jq program (run per page, raw out).
 bb_paged() {
     next="$1"
@@ -206,9 +203,9 @@ ctx_comments() {
 ctx_ci() {
     case "$V" in
         github) gh pr checks "$URL" -R "$OWNER/$REPO" --json bucket,name,link --jq '.[] | "\(.bucket) \(.name) — \(.link)"' || true ;;
-        gitlab) glab api "projects/$GL_PROJ/merge_requests/$N/pipelines" | jq -r '.[] | "\(if .status == "failed" or .status == "canceled" then "fail" elif .status == "success" then "pass" else "pending" end) pipeline #\(.id) — \(.web_url)"' ;;
+        gitlab) glab api "projects/$GL_PROJ/merge_requests/$N/pipelines" | jq -r '.[] | "\(if .status == "failed" or .status == "canceled" then "fail" elif .status == "success" then "pass" else "pending" end) pipeline #\(.id) — \(.web_url)"' || true ;;
         bitbucket) bb_paged "$BB_API/pullrequests/$N/statuses?pagelen=100&fields=next,values.state,values.name,values.url" \
-                  '.values[] | "\(if .state == "SUCCESSFUL" then "pass" elif .state == "FAILED" or .state == "STOPPED" then "fail" else "pending" end) \(.name) — \(.url)"' ;;
+                  '.values[] | "\(if .state == "SUCCESSFUL" then "pass" elif .state == "FAILED" or .state == "STOPPED" then "fail" else "pending" end) \(.name) — \(.url)"' || true ;;
     esac
 }
 # FILE-level findings live in a review object on GitHub only.
@@ -234,7 +231,7 @@ ctx_threads() {
         gitlab) gl_discussions_cached "$N" | jq -c '.[] | {thread_id: .id, resolved: (.resolved // false), comment_ids: [.notes[].id]}' ;;
         bitbucket) bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.parent.id,values.resolution,values.deleted" \
                   '.values[] | select(.deleted != true) | {id, parent: (.parent.id // null), resolved: (.resolution != null)} | @json' \
-                  | jq -c -s 'map(select(.parent == null) as $r | {thread_id: $r.id, resolved: $r.resolved, comment_ids: ([$r.id] + [.[] | select(.parent == $r.id) | .id])}) | .[]' ;;
+                  | jq -c -s '. as $all | $all[] | select(.parent == null) as $r | {thread_id: $r.id, resolved: $r.resolved, comment_ids: ([$r.id] + [$all[] | select(.parent == $r.id) | .id])}' ;;
     esac
 }
 
@@ -281,7 +278,7 @@ cmd_locate_repo() {
     }
     if matches_remote .; then printf '.\n'; return 0; fi
     found=""
-    for d in $(find . -maxdepth 4 -type d -iname "$REPO" 2>/dev/null | grep -Ev '/node_modules/' || true); do
+    for d in $(find . -maxdepth 4 -type d -iname "$REPO" 2>/dev/null | grep -Ev '/(node_modules|notebooks/review)/' || true); do
         if matches_remote "$d"; then found="$found$d\n"; fi
     done
     count=$(printf '%b' "$found" | grep -c . || true)
@@ -347,7 +344,6 @@ cmd_checkout() {
     for attempt in 1 2; do
         have=$(git -C "$target" rev-parse HEAD 2>/dev/null || printf 'NONE')
         case "$have" in "$HEAD_SHA"*) gate_ok=1; break ;; esac
-        case "$HEAD_SHA" in "$have"*) gate_ok=1; break ;; esac
         [ "$attempt" = 1 ] && vendor_checkout "$target" >&2 || true
     done
     if [ -z "$gate_ok" ]; then
@@ -373,14 +369,18 @@ cmd_verify_line() {
     case "$SIDE" in
         RIGHT)
             [ -f "$W/$P" ] || { printf 'UNCONFIRMABLE no such file in the worktree\n'; return 0; }
-            sed -n "${L}p" "$W/$P" ;;
+            out=$(sed -n "${L}p" "$W/$P") ;;
         LEFT)
             mb=$(git -C "$W" merge-base "origin/$BASE" HEAD 2>/dev/null || true)
             if [ -z "$mb" ]; then printf 'UNCONFIRMABLE no merge base (shallow clone or unresolvable origin/%s)\n' "$BASE"; return 0; fi
-            git -C "$W" show "$mb:$P" 2>/dev/null | sed -n "${L}p" \
-                || printf 'UNCONFIRMABLE path not in the merge-base tree\n' ;;
+            blob=$(git -C "$W" show "$mb:$P" 2>/dev/null) \
+                || { printf 'UNCONFIRMABLE path not in the merge-base tree\n'; return 0; }
+            out=$(printf '%s\n' "$blob" | sed -n "${L}p") ;;
         *) die 1 "open-pr.sh verify-line: --side must be LEFT or RIGHT" ;;
     esac
+    # An empty line result is the off-by-N this check exists to catch, not a match.
+    [ -n "$out" ] || { printf 'UNCONFIRMABLE line %s is past the end of the file\n' "$L"; return 0; }
+    printf '%s\n' "$out"
 }
 
 # ---------------------------------------------------------------- post ----
@@ -496,10 +496,13 @@ cmd_reply() {
                 jq -Rs '{body: .}' "$F" | gh api -X POST "repos/$OWNER/$REPO/issues/$N/comments" --input - --jq '.id'
             fi ;;
         gitlab)
-            # glab's --reply takes a DISCUSSION id, not a note id — the caller maps
-            # the comment to its thread via the "Review threads" section.
+            # The reply lands in the DISCUSSION (not on a note id) — the caller maps
+            # the comment to its thread via the "Review threads" section. Body via
+            # --input: argv is readable through `ps`, and the text quotes the PR.
             T=$(req thread_id)
-            glab mr note create "$N" -R "$OWNER/$REPO" --reply "$T" -m "$(cat "$F")" ;;
+            jq -Rs '{body: .}' "$F" > "$TMPD/gl.reply.json"
+            glab api -X POST -H "Content-Type: application/json" \
+                "projects/$GL_PROJ/merge_requests/$N/discussions/$T/notes" --input "$TMPD/gl.reply.json" | jq -r '.id' ;;
         bitbucket)
             check_ident '^[0-9]+$' "$CID"
             jq -Rs -c '{content: {raw: .}, parent: {id: '"$CID"'}}' "$F" > "$TMPD/bb.reply.json"
@@ -567,6 +570,7 @@ cmd_settings() {
     d_ep=""
     if [ -n "$d_at" ]; then
         d_ep=$(date -j -f '%Y-%m-%dT%H:%M:%S' "$(printf '%.19s' "$d_at")" +%s 2>/dev/null \
+            || date -j -f '%Y-%m-%d' "$(printf '%.10s' "$d_at")" +%s 2>/dev/null \
             || date -d "$d_at" +%s 2>/dev/null || true)
     fi
     printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" '
@@ -605,13 +609,15 @@ cmd_settings() {
 # judgment call (is this .md instructing an agent?) is printed as a question
 # for the caller to decide, never guessed here.
 cmd_stacks() {
-    parse_args "$@"
-    D=$(arg repo_dir); [ -n "$D" ] || D=.
+    # Paths stay in "$@" — flattening them into one string splits on spaces and
+    # globs against the current tree. Only --repo-dir is an option here.
+    D=.
+    if [ "${1:-}" = "--repo-dir" ]; then D="$2"; shift 2; fi
     has() { [ -e "$D/$1" ]; }
     lambda_repo=""; { has serverless.yml || has template.yaml || has sam.yaml; } && lambda_repo=1
     laravel_repo=""; { has artisan || { [ -f "$D/composer.json" ] && grep -q 'laravel/framework' "$D/composer.json"; }; } && laravel_repo=1
     wp_repo=""; has wp-config.php && wp_repo=1
-    for p in ${POSITIONAL:-}; do
+    for p in "$@"; do
         base=$(basename "$p")
         stack=""
         case "$base" in
@@ -623,7 +629,7 @@ cmd_stacks() {
             *.sh|*.bash) stack=shell ;;
             Makefile|makefile|*.mk) stack=makefile ;;
             *.php) stack=php ;;
-            *.md) stack='markdown(judge: agent-instructions if it instructs an AI agent)' ;;
+            *.md) stack='-(judge: agent-instructions if the content instructs an AI agent)' ;;
             *) stack=- ;;
         esac
         case "$stack" in
@@ -649,7 +655,6 @@ trap 'rm -rf "$TMPD"' EXIT INT TERM
 POSITIONAL=""
 sub="${1:-}"; [ -n "$sub" ] && shift || die 1 "open-pr.sh: no subcommand"
 case "$sub" in
-    version)      printf '%s\n' "$VERSION" ;;
     target)       cmd_target "$@" ;;
     context)      cmd_context "$@" ;;
     locate-repo)  cmd_locate_repo "$@" ;;

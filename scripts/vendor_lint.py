@@ -56,11 +56,9 @@ def check_flags():
         key = (cli, *sub)
         if key not in help_cache:
             try:
-                help_cache[key] = subprocess.run(
-                    [cli, *sub, "--help"], capture_output=True, text=True, timeout=TIMEOUT
-                ).stdout + subprocess.run(
-                    [cli, *sub, "--help"], capture_output=True, text=True, timeout=TIMEOUT
-                ).stderr
+                h = subprocess.run([cli, *sub, "--help"], capture_output=True,
+                                   text=True, timeout=TIMEOUT)
+                help_cache[key] = h.stdout + h.stderr
             except FileNotFoundError:
                 help_cache[key] = None  # CLI not installed here — skip, CI installs both
         text = help_cache[key]

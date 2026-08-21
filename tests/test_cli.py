@@ -145,6 +145,11 @@ def test_verify_line_right_prints_the_worktree_line(fixture_repo):
     gone = run("verify-line", "--worktree", wt, "--path", "nope.txt", "--line", "1",
                "--side", "RIGHT", "--base", "main", check=True)
     assert gone.stdout.startswith("UNCONFIRMABLE")
+    for side in ("RIGHT", "LEFT"):
+        eof = run("verify-line", "--worktree", wt, "--path", "a.txt", "--line", "99",
+                  "--side", side, "--base", "main", check=True)
+        assert eof.stdout.startswith("UNCONFIRMABLE"), \
+            f"{side}: a line past EOF is the off-by-N this check exists to catch"
 
 
 def test_verify_line_left_is_unconfirmable_without_a_merge_base(fixture_repo, tmp_path):
@@ -188,6 +193,7 @@ esac
 case "$*" in
   *merge_requests/9\\ *|*merge_requests/9) printf '{{"iid": 9, "diff_refs": {{"base_sha": "b1", "start_sha": "s1", "head_sha": "h1"}}}}\\n' ;;
   *draft_notes*) cat > /dev/null; printf '{{}}\\n' ;;
+  *discussions/*) cat > /dev/null; printf '{{"id": 55}}\\n' ;;
   *) printf '[]\\n' ;;
 esac
 ''')
@@ -250,6 +256,18 @@ def test_reply_bodies_travel_by_file_never_argv(shims, tmp_path):
     assert json.loads(sent)["parent"] == {"id": 3}, "a reply without parent lands top-level"
 
 
+def test_gitlab_reply_body_travels_by_file_and_lands_in_the_discussion(shims, tmp_path):
+    body = tmp_path / "b.md"
+    body.write_text("thanks `$(reboot)`")
+    run("reply", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "9",
+        "--comment-id", "3", "--thread-id", "abc123", "--body-file", str(body),
+        env_extra=env_for(shims), check=True)
+    calls = shims["log"].read_text()
+    assert "reboot" not in calls, "reply text reached glab's argv"
+    assert "discussions/abc123/notes --input" in calls, \
+        "a GitLab reply lands in the DISCUSSION, via --input"
+
+
 def test_bitbucket_without_credentials_stops_with_setup_help(shims, tmp_path):
     env = {"PATH": shims["path"] + os.pathsep + os.environ["PATH"]}
     for var in ("BITBUCKET_TOKEN", "BITBUCKET_EMAIL", "BITBUCKET_API_TOKEN"):
@@ -310,7 +328,11 @@ def test_stacks_maps_extensions_and_overlays(tmp_path):
     assert rows["a/b.tsx"] == "react"
     assert rows["functions/f/index.js"] == "nodejs,lambda-common"
     assert rows["app/Http/Controllers/A.php"] == "laravel"
+    assert rows["notes.md"].startswith("-"), "a human .md carries NO stack (v1 behaviour)"
     assert "judge" in rows["notes.md"], "an .md is the caller's judgment, never guessed"
+    spaced = run("stacks", "--repo-dir", str(tmp_path), "a dir/with space.rb", check=True)
+    assert spaced.stdout.split("\t")[0] == "a dir/with space.rb", \
+        "a path with a space must survive as ONE argument"
 
 
 def test_markers_and_commit_urls_stay_vendor_true():
@@ -321,3 +343,20 @@ def test_markers_and_commit_urls_stay_vendor_true():
     url = run("commit-url", "--vendor", "bitbucket", "--owner", "w", "--repo", "r",
               "--sha", "a" * 40, check=True).stdout
     assert "/commits/" in url, "bitbucket's commit path is /commits/ plural — /commit/ 404s"
+
+
+def test_bitbucket_threads_group_replies_under_their_root(shims, tmp_path):
+    """The first shipped jq iterated the ELEMENT inside map(f), indexing numbers with
+    "parent" — exit 5 on any PR with one comment, which broke fix.md Step 3 and
+    re-review on Bitbucket entirely."""
+    page = json.dumps({"values": [
+        {"id": 1, "parent": None, "resolution": None, "deleted": False},
+        {"id": 2, "parent": {"id": 1}, "resolution": None, "deleted": False},
+        {"id": 3, "parent": None, "resolution": {"type": "x"}, "deleted": False},
+    ], "next": None})
+    make_shim(Path(shims["path"]), "curl", f"printf '%s\\n' '{page}'\n")
+    r = run("context", "--vendor", "bitbucket", "--owner", "w", "--repo", "r", "--pr", "7",
+            "--sections", "threads", env_extra=env_for(shims), check=True)
+    rows = [json.loads(l) for l in r.stdout.splitlines() if l.startswith("{")]
+    assert {"thread_id": 1, "resolved": False, "comment_ids": [1, 2]} in rows
+    assert {"thread_id": 3, "resolved": True, "comment_ids": [3]} in rows

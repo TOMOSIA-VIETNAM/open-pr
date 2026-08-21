@@ -628,9 +628,15 @@ def test_the_script_never_leaks_a_credential():
         if "curl" in line:
             assert not re.search(r"\s-(v|i)\b", line), f"curl dumps headers: {line.strip()}"
     assert not re.search(r"https://[^\"'\s]*\$BITBUCKET", body), "a credential inside a URL"
-    assert not re.search(r"(echo|printf)[^\n]*\$BITBUCKET_(API_)?TOKEN", body), \
-        "the script prints a credential variable"
     assert "--fail-with-body" in body, "curl must fail loudly WITH the response body"
+    # argv is readable via `ps` by any user on the machine — a credential may reach
+    # curl only through its own config file, written by the printf BUILTIN
+    for line in body.splitlines():
+        # a curl INVOCATION — "curl " with a boundary; the printf writing bb.curlrc
+        # uses the shell builtin, which never becomes an argv another user can read
+        if re.search(r"\bcurl\s", line):
+            assert "$BITBUCKET" not in line, f"a credential variable on a curl line: {line.strip()}"
+    assert re.search(r"--config \"\$TMPD/", body), "curl no longer reads its credential from a config file"
 
 
 def test_paged_walks_every_bitbucket_page():
