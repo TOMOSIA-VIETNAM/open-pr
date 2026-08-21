@@ -192,18 +192,25 @@ def test_feedback_carries_every_issue_form_heading():
     invented ones the form cannot match. pr_url/evidence stay out: Step 2 strips what
     they ask for."""
     body = (SRC / "commands" / "feedback.md").read_text()
-    forms = sorted((REPO / ".github" / "ISSUE_TEMPLATE").glob("*_*.yml"))
+    # a form is what carries `body:`; picking by filename shape silently skips a new one
+    forms = [f for f in sorted((REPO / ".github" / "ISSUE_TEMPLATE").glob("*.yml"))
+             if re.search(r"^body:", f.read_text(), re.M)]
     assert forms, ".github/ISSUE_TEMPLATE holds no issue form"
     for form in forms:
-        pairs = re.findall(r"id:\s*(\S+)\s*\n\s*attributes:\s*\n\s*label:\s*(.+)",
-                           form.read_text())
-        assert pairs, f"{form.name} exposes no id/label pair"
-        for field_id, label in pairs:
-            label = label.strip()
+        # per field block, since a YAML mapping puts id/label in any order
+        blocks = re.split(r"\n\s*- type:", form.read_text())[1:]
+        assert blocks, f"{form.name} exposes no field block"
+        for block in blocks:
+            fid = re.search(r"\bid:\s*[\"']?([\w-]+)", block)
+            lab = re.search(r"\blabel:\s*(.+)", block)
+            assert fid and lab, f"{form.name} has a field block with no id/label"
+            field_id, label = fid.group(1), lab.group(1).strip()
             if field_id in ("pr_url", "evidence"):
                 assert label not in body, f"{form.name}:{field_id} is never filled by the command"
             else:
-                assert label in body, f"{form.name}:{field_id} heading '{label}' missing from feedback.md"
+                # adjacent, so a heading cannot pass while sitting against the wrong field
+                assert re.search(rf"`{re.escape(field_id)}`\s*\W\s*{re.escape(label)}", body), \
+                    f"{form.name}:{field_id} heading '{label}' is not next to its id in feedback.md"
 
 
 def test_glab_api_never_uses_the_gh_only_jq_flag():
