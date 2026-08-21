@@ -150,6 +150,12 @@ def test_verify_line_right_prints_the_worktree_line(fixture_repo):
                   "--side", side, "--base", "main", check=True)
         assert eof.stdout.startswith("UNCONFIRMABLE"), \
             f"{side}: a line past EOF is the off-by-N this check exists to catch"
+    # a 0-byte file: grep -c exits 1 on zero lines, which set -e once turned into a
+    # silent death with no UNCONFIRMABLE and nothing on stderr
+    (Path(wt) / "empty.txt").write_text("")
+    empty = run("verify-line", "--worktree", wt, "--path", "empty.txt", "--line", "1",
+                "--side", "RIGHT", "--base", "main", check=True)
+    assert empty.stdout.startswith("UNCONFIRMABLE"), "an empty file must report, never die silently"
     # a BLANK line inside the file is a valid anchor, not an EOF miss
     (Path(wt) / "b.txt").write_text("x\n\ny\n")
     blank = run("verify-line", "--worktree", wt, "--path", "b.txt", "--line", "2",

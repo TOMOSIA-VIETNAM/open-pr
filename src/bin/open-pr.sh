@@ -369,7 +369,8 @@ cmd_verify_line() {
     case "$SIDE" in
         RIGHT)
             [ -f "$W/$P" ] || { printf 'UNCONFIRMABLE no such file in the worktree\n'; return 0; }
-            total=$(grep -c '' < "$W/$P"); out=$(sed -n "${L}p" "$W/$P") ;;
+            total=$(grep -c '' < "$W/$P") || total=0
+            out=$(sed -n "${L}p" "$W/$P") ;;
         LEFT)
             mb=$(git -C "$W" merge-base "origin/$BASE" HEAD 2>/dev/null || true)
             if [ -z "$mb" ]; then printf 'UNCONFIRMABLE no merge base (shallow clone or unresolvable origin/%s)\n' "$BASE"; return 0; fi
