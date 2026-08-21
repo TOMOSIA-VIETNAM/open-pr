@@ -45,8 +45,9 @@ Step 7 and `setup/bootstrap.md` q6 each read the raw list.
 **Filesystem:** `<op> locate-repo` → `<repo_dir>`; exit 5 → ask with a CHOICE in plain language —
 name the N directories found and why each might be it — STOP if unresolved. FORBIDDEN: `cd`.
 Everything this command writes — `notebooks/review/<repo>/`, the worktree, `.gitignore` — is
-relative to pwd: 1 workspace ⇒ 1 `notebooks/review/` for every repo reviewed from it. Before writing under `notebooks/review/` → state pwd + `<repo>` in chat. No
-`notebooks/review/` line in `.gitignore` at pwd → add exactly that line.
+relative to pwd: 1 workspace ⇒ 1 `notebooks/review/` for every repo reviewed from it. Before
+writing under `notebooks/review/` → state pwd + `<repo>` in chat. No `notebooks/review/` line in
+`.gitignore` at pwd → add exactly that line.
 
 ## Step 1 — Ephemeral worktree
 
