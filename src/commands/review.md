@@ -81,7 +81,9 @@ PR code on disk, main tree untouched — no branch change, nothing to restore.
    Born on the main clone's HEAD, the worktree reviews a tree that is NOT the PR whenever the checkout
    errored. Mismatch ⇒ STOP, print both SHAs + `<worktree>` and that `/open-pr:clean` removes it.
    FORBIDDEN: retrying the checkout.
-3. `git -C "<repo_dir>" fetch origin "<baseRefName>"`.
+3. `git -C "<repo_dir>" fetch origin "+<baseRefName>:refs/remotes/origin/<baseRefName>"` — the refspec
+   is what creates `origin/<baseRefName>`; a single-branch clone (`--depth` implies one) otherwise lands
+   `FETCH_HEAD` alone and that ref dies on `invalid object name`.
 4. Try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" contains `Subproject
    commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
    FORBIDDEN: `submodule update` here — that file inits bumped paths only.
@@ -266,9 +268,10 @@ Payload: `<commit_id>` from Step 8, `comments[]`
 (LINE entries: `path` + `line` + `side` + `body`), and the Step 8 overview (FILE findings + assessment).
 
 Every `line` CONFIRMED against the file, never counted off the hunk header: `RIGHT` ⇒ `Read`
-`<worktree>/<path>` at that `offset`, `limit: 2`; `LEFT` ⇒ `git -C "<worktree>" show
-"origin/<baseRefName>:<path>" | sed -n "<line>p"`. Mismatch ⇒ fix it BEFORE posting; an off-by-N is a
-VALID payload on unrelated code.
+`<worktree>/<path>` at that `offset`, `limit: 2`; `LEFT` ⇒ `git -C "<worktree>" show "$(git -C
+"<worktree>" merge-base origin/<baseRefName> HEAD):<path>" | sed -n "<line>p"` — the LEFT side is the
+MERGE BASE, never the base tip, which is a DIFFERENT blob once that branch moved. Mismatch ⇒ fix it
+BEFORE posting; an off-by-N is a VALID payload on unrelated code.
 
 `V§"Post a review"` — COMPOSITE, step count and mechanism are the vendor's own; follow EXACTLY.
 FORBIDDEN: forcing one vendor through another's shape, e.g. inventing a review id for a vendor with
