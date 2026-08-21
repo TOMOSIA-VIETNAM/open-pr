@@ -2,14 +2,13 @@
 
 ## Check out the PR head into a worktree
 
-`(cd "<worktree>" && gh pr checkout <pull_number> -R "<owner>/<repo>" && git checkout --detach)` — the
-`git checkout --detach` MUST follow immediately: `gh pr checkout` leaves the PR's tracking branch
-checked out, which git then locks against deletion in the user's own root repo (`cannot delete branch …
-checked out at <path>`) until the worktree goes away. Detaching releases that lock without depending on
-the user cleaning up.
+`(cd "<worktree>" && git fetch origin "refs/pull/<pull_number>/head" && git checkout --detach
+FETCH_HEAD)` — GitHub exposes that ref for every PR, fork included; detached by construction.
+FORBIDDEN: `gh pr checkout`, which creates the PR's tracking branch and exits 128 (`already checked out
+at <path>`) when the user's own clone sits on it.
 
 ## Checkout a PR into an already-existing worktree subdirectory
 
-`(cd "<worktree>/<submodule-path>" && gh pr checkout <n-submodule> -R
-"<owner-submodule>/<repo-submodule>")` — reuses what `git submodule update --init -- <path>` already
-put on disk; creates no worktree.
+`(cd "<worktree>/<submodule-path>" && git fetch origin "refs/pull/<n-submodule>/head" && git checkout
+--detach FETCH_HEAD)` — `origin` = the SUBMODULE's remote. Reuses what `git submodule update --init --
+<path>` already put on disk; creates no worktree.

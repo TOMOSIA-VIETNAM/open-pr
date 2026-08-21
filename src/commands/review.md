@@ -76,8 +76,12 @@ PR code on disk, main tree untouched — no branch change, nothing to restore.
    --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
    `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
-2. `git -C "<repo_dir>" fetch origin "<baseRefName>"`.
-3. Try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" contains `Subproject
+2. `git -C "<worktree>" rev-parse HEAD` MUST prefix-match the PR head SHA — that entry's own value,
+   else `V§"Fetch PR head commit SHA"`. Born on the main clone's HEAD, the worktree reviews a tree that
+   is NOT the PR whenever the checkout errored. Mismatch ⇒ STOP, print both SHAs. FORBIDDEN: retrying
+   the checkout.
+3. `git -C "<repo_dir>" fetch origin "<baseRefName>"`.
+4. Try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" contains `Subproject
    commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
    FORBIDDEN: `submodule update` here — that file inits bumped paths only.
 
@@ -196,8 +200,8 @@ code is writable.
 
 Output language = `.shared.output_language` (`core/repo-settings.md`), or Step 0's override.
 
-`<commit_id>` = `V§"Fetch PR head commit SHA"` RIGHT NOW, never Context's older `headRefOid`. Reuse
-that exact value in the overview and in Step 9's payload; never fetch it twice.
+`<commit_id>` = `V§"Fetch PR head commit SHA"` RIGHT NOW, never a value fetched earlier in this run
+(Step 1's gate). Reuse that exact value in the overview and in Step 9's payload; never fetch it twice.
 
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
 
