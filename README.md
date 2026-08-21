@@ -6,10 +6,8 @@
 </p>
 
 <p align="center">
-  <strong>Agent reviews PRs right on
-  <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="16"></picture> GitHub |
-  <img src="./docs/images/icon/gitlab.png" alt="" height="16"> GitLab |
-  <img src="./docs/images/icon/bitbucket.png" alt="" height="16"> Bitbucket</strong><br>
+  <strong>The review lands on the PR itself.</strong><br>
+  <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
