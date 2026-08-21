@@ -42,10 +42,10 @@ Unsure whether a detail identifies ⇒ drop it.
 English whatever the chat language. Title ≤ 70 chars, states the problem. The tracker answers 2 forms
 — pick by what is reported, fill that form's fields, nothing else:
 
-| the plugin | form | label | field → content |
+| the plugin | form | label | field = its heading ← content |
 |---|---|---|---|
-| misbehaved, crashed, reviewed wrongly | `bug_report.yml` | `bug` | `description` ← what it did + what was expected · `steps` ← the sequence that reached it · `version` ← below · `env` ← OS, vendor, stack |
-| lacks something, could be better | `feature_request.yml` | `enhancement` | `problem` ← the situation hit · `solution` ← the wish · `alternatives` ← what was tried instead, omitted when nothing was |
+| misbehaved, crashed, reviewed wrongly | `bug_report.yml` | `bug` | `description` = Bug description ← what it did + what was expected · `steps` = Steps to reproduce ← the sequence that reached it · `version` = Plugin version in use ← below · `env` = Environment ← OS, vendor, stack |
+| lacks something, could be better | `feature_request.yml` | `enhancement` | `problem` = Problem you're facing ← the situation hit · `solution` = Proposed solution ← the wish · `alternatives` = Alternatives considered (if any) ← what was tried instead, omitted when nothing was |
 
 FORBIDDEN to fill: `pr_url`, `evidence` — Step 2 strips exactly what they ask for. Only the user, in
 the browser, may add them.
@@ -87,7 +87,7 @@ it goes to. Then ONE CHOICE per `core/guardrails.md`, at most 4 options:
 | file | holds |
 |---|---|
 | `$T/open-pr-feedback.json` | 1 flat object: `template` = the form's filename, `title`, 1 key per field ID filled at Step 3 |
-| `$T/open-pr-feedback.md` | same fields, each `### <the form's label for it>` + content, in the form's order |
+| `$T/open-pr-feedback.md` | same fields, each `### <that field's heading, Step 3>` + content, in the form's order. FORBIDDEN: guessing it from the field ID, or reading the form files — the plugin ships without them |
 
 | path | when | run |
 |---|---|---|

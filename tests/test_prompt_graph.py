@@ -185,6 +185,36 @@ def test_config_defaults_have_one_source():
         assert found <= allowed, f"{literal} also appears in {found - allowed}"
 
 
+def test_feedback_carries_every_issue_form_heading():
+    """The feedback command composes an issue body under `### <the form's heading>`, and
+    the forms do not ship with the plugin — only src/ does. So the headings must be
+    written into the command itself, byte-exact, or the body reaches the tracker with
+    invented ones the form cannot match. pr_url/evidence stay out: Step 2 strips what
+    they ask for."""
+    body = (SRC / "commands" / "feedback.md").read_text()
+    # a form is what carries `body:`; picking by filename shape silently skips a new one
+    forms = [f for f in sorted((REPO / ".github" / "ISSUE_TEMPLATE").glob("*.yml"))
+             if re.search(r"^body:", f.read_text(), re.M)]
+    assert forms, ".github/ISSUE_TEMPLATE holds no issue form"
+    for form in forms:
+        # per field block, since a YAML mapping puts id/label in any order
+        blocks = re.split(r"\n\s*- type:", form.read_text())[1:]
+        assert blocks, f"{form.name} exposes no field block"
+        for block in blocks:
+            if re.match(r"\s*markdown\b", block):   # informational: carries value, no id/label
+                continue
+            fid = re.search(r"\bid:\s*[\"']?([\w-]+)", block)
+            lab = re.search(r"\blabel:\s*(.+)", block)
+            assert fid and lab, f"{form.name} has a field block with no id/label"
+            field_id, label = fid.group(1), lab.group(1).strip()
+            if field_id in ("pr_url", "evidence"):
+                assert label not in body, f"{form.name}:{field_id} is never filled by the command"
+            else:
+                # adjacent, so a heading cannot pass while sitting against the wrong field
+                assert re.search(rf"`{re.escape(field_id)}`\s*\W\s*{re.escape(label)}", body), \
+                    f"{form.name}:{field_id} heading '{label}' is not next to its id in feedback.md"
+
+
 def test_glab_api_never_uses_the_gh_only_jq_flag():
     """`gh api` accepts --jq; `glab api` does not — its own help tells you to pipe to
     jq. The flag is easy to copy across while porting an entry, and it fails at the
