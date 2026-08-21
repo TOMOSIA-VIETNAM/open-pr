@@ -80,10 +80,10 @@ PR code on disk, main tree untouched — no branch change, nothing to restore.
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
 2. `git -C "<worktree>" rev-parse HEAD` MUST prefix-match "Head SHA" — the commit the Context "Diff" was
    read at; NEVER a SHA fetched here, which would match a newer tree and hide the stale diff. Mismatch ⇒
-   re-run `V§"Check out the PR head into a worktree"` ONCE, compare again: a ref still serving the
-   previous commit resolves on the 2nd fetch, an errored checkout stays on the main clone's HEAD. Still
-   mismatched ⇒ STOP, print both SHAs + `<worktree>` and that `/open-pr:clean` removes it. FORBIDDEN: a
-   3rd attempt.
+   re-run `V§"Check out the PR head into a worktree"` ONCE, compare again: a re-run resolves a source that
+   had not caught up, an errored checkout stays on the main clone's HEAD. That entry's own STOP ends the
+   run immediately and does NOT consume this retry. Still mismatched ⇒ STOP, print both SHAs +
+   `<worktree>` and that `/open-pr:clean` removes it. FORBIDDEN: a 3rd attempt.
 3. `git -C "<repo_dir>" fetch origin "+<baseRefName>:refs/remotes/origin/<baseRefName>"` — the refspec
    is what creates `origin/<baseRefName>`; a single-branch clone (`--depth` implies one) otherwise lands
    `FETCH_HEAD` alone and that ref dies on `invalid object name`.
@@ -207,11 +207,10 @@ code is writable.
 
 Output language = `.shared.output_language` (`core/repo-settings.md`), or Step 0's override.
 
-`<commit_id>` = `V§"Fetch PR head commit SHA"` RIGHT NOW, never Context's "Head SHA". ≠ that value ⇒ the
-head moved mid-review ⇒ `<commit_id>` = "Head SHA" instead, and the overview says a newer commit is
-unreviewed. FORBIDDEN: anchoring to the SHA fetched here — no finding describes that tree. "Head SHA"
-unreachable (force-push) ⇒ nothing valid to anchor to: STOP, print both SHAs, say the run must be called
-again. Reuse `<commit_id>` in the overview and in Step 9's payload; never fetch it twice.
+`V§"Fetch PR head commit SHA"` RIGHT NOW is a CHECK value, never an anchor. == "Head SHA" ⇒ `<commit_id>`
+= it. ≠ ⇒ the head moved mid-review ⇒ `<commit_id>` = "Head SHA", the commit every Step read, and the
+overview says a newer commit is unreviewed. FORBIDDEN: anchoring to the checked value — no finding
+describes that tree. Reuse `<commit_id>` in the overview and in Step 9's payload; never fetch it twice.
 
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
 
