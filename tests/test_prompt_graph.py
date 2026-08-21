@@ -185,6 +185,27 @@ def test_config_defaults_have_one_source():
         assert found <= allowed, f"{literal} also appears in {found - allowed}"
 
 
+def test_feedback_carries_every_issue_form_heading():
+    """The feedback command composes an issue body under `### <the form's heading>`, and
+    the forms do not ship with the plugin — only src/ does. So the headings must be
+    written into the command itself, byte-exact, or the body reaches the tracker with
+    invented ones the form cannot match. pr_url/evidence stay out: Step 2 strips what
+    they ask for."""
+    body = (SRC / "commands" / "feedback.md").read_text()
+    forms = sorted((REPO / ".github" / "ISSUE_TEMPLATE").glob("*_*.yml"))
+    assert forms, ".github/ISSUE_TEMPLATE holds no issue form"
+    for form in forms:
+        pairs = re.findall(r"id:\s*(\S+)\s*\n\s*attributes:\s*\n\s*label:\s*(.+)",
+                           form.read_text())
+        assert pairs, f"{form.name} exposes no id/label pair"
+        for field_id, label in pairs:
+            label = label.strip()
+            if field_id in ("pr_url", "evidence"):
+                assert label not in body, f"{form.name}:{field_id} is never filled by the command"
+            else:
+                assert label in body, f"{form.name}:{field_id} heading '{label}' missing from feedback.md"
+
+
 def test_glab_api_never_uses_the_gh_only_jq_flag():
     """`gh api` accepts --jq; `glab api` does not — its own help tells you to pipe to
     jq. The flag is easy to copy across while porting an entry, and it fails at the
