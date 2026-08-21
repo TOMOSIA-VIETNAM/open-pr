@@ -52,9 +52,12 @@ Then fetch:
 | "Fetch PR review comments (LINE-level findings)" | Old comments |
 | "Fetch CI checks" | CI checks |
 
-Fetch the size list BEFORE the patch, in that order. Any path it names that "Diff" then lacks is an
-omitted file → carry that list to Step 7 as **"Oversized paths"**. Omission MUST happen inside the
-vendor's own call — a printed patch is permanent context; Step 7's guard is post-hoc.
+Fetch "Head SHA" BEFORE "Diff", and the size list BEFORE the patch, in that order — the rest of the table
+is 1 tool block. Taken AFTER "Diff", a "Head SHA" matches a push landing between the two and Step 1's
+gate passes on a stale diff; taken before, that push costs 1 extra STOP. Any path the size list names
+that "Diff" then lacks is an omitted file → carry that list to Step 7 as **"Oversized paths"**. Omission
+MUST happen inside the vendor's own call — a printed patch is permanent context; Step 7's guard is
+post-hoc.
 
 `big_file_threshold_kb` (`core/repo-settings.md`) — from this Context's own `settings.json` read,
 never a 2nd.
