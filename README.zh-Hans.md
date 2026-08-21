@@ -152,3 +152,14 @@ flowchart LR
 想参与贡献？[CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 评审愉快 🥰
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo/logo-dark.svg?v=moth1">
+    <img src="./docs/images/logo/logo.svg?v=moth1" alt="" width="44">
+  </picture>
+</p>
+
+<p align="center">
+  <sub>Logo 文件: <a href="./docs/images/logo/">docs/images/logo</a></sub>
+</p>

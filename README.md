@@ -152,3 +152,14 @@ Mean tokens per run — covering both *happy-case* and *bad-case*:
 Contributing? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 Enjoy reviewing 🥰
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo/logo-dark.svg?v=moth1">
+    <img src="./docs/images/logo/logo.svg?v=moth1" alt="" width="44">
+  </picture>
+</p>
+
+<p align="center">
+  <sub>Logo files: <a href="./docs/images/logo/">docs/images/logo</a></sub>
+</p>
