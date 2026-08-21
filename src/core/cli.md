@@ -6,7 +6,8 @@ re-implementing a subcommand with raw `gh`/`glab`/`curl`/`git`, or PR-content te
 bodies travel via files, written with a file-writing tool (never heredoc/echo: they quote
 attacker-controlled diff).
 
-Exit ≠ 0 ⇒ act on stderr: 2 = head-SHA gate failed after its one retry (both SHAs + tree path printed) ·
+stderr is for YOU, never for the user — when a code sends you to ask, ask in plain language: no exit
+codes, no raw stderr, no fences. Exit ≠ 0 ⇒ act on stderr: 2 = head-SHA gate failed after its one retry (both SHAs + tree path printed) ·
 3 = vendor checkout error (e.g. force-pushed source) · 4 = invalid PR URL · 5 = repo dir unresolvable
 (candidates on stderr) · 6 = missing credentials (relay the printed setup instructions, STOP) · 1 =
 other, with a `hint:` line on post errors.

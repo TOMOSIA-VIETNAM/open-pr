@@ -136,6 +136,18 @@ def test_every_vendor_branches_in_every_api_subcommand():
                 f"{fn}: no {v} branch and no catch-all"
 
 
+def test_the_scripts_internals_never_reach_the_user():
+    """Exit codes and stderr are the agent's interface, not the user's. A locate-repo
+    ambiguity once surfaced as a fenced stderr dump with "exit 5" in a user-facing
+    question; the rule lives in cli.md and both exit-5 call sites ask in plain language."""
+    assert "stderr is for YOU, never for the user" in text(SRC / "core" / "cli.md")
+    for cmd in ("review", "fix"):
+        flat = " ".join(text(SRC / "commands" / f"{cmd}.md").split())
+        assert "exit 5 → ask with a CHOICE in plain language" in flat, \
+            f"{cmd}.md's exit-5 branch must ask in plain language, never relay stderr"
+        assert "relay stderr" not in flat
+
+
 def test_prompts_never_read_or_reimplement_the_cli():
     """The script is code, not context: a prompt Reading it pays its whole size per run, and a
     prompt carrying its own gh/glab/curl call is a second owner for a mechanic the script owns."""
