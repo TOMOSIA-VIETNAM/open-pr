@@ -2,7 +2,7 @@
 
 [← README](../../README.ja-JP.md)
 
-[`gh`](https://cli.github.com/)（GitHub）または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）がインストール済み・ログイン済みであること。Bitbucket には CLI がなく、環境変数 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` の API token を読みます。いずれの場合もレビューはそのアカウントで投稿されます — 最小権限と確認コマンドは[ベンダーごとのトークン取得](./credentials.md)を参照してください。
+`git`、[`jq`](https://jqlang.org/)、および [`gh`](https://cli.github.com/)（GitHub）または [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）がインストール済み・ログイン済みであること。Bitbucket には CLI がなく、環境変数 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` の API token を読みます。いずれの場合もレビューはそのアカウントで投稿されます — 最小権限と確認コマンドは[ベンダーごとのトークン取得](./credentials.md)を参照してください。
 
 ## Install
 

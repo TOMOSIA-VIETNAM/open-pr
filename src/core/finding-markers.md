@@ -6,8 +6,7 @@ a link reference definition — the literal is the vendor's, and a long-lived PR
 
 ## A past LINE finding
 
-A TOP-LEVEL comment (no `in_reply_to_id`) whose author == "Fetch account running the command" — that
-entry answering `UNKNOWN` means there is no author to test, so the Marker branch below is the ONLY test
+A TOP-LEVEL comment (`in_reply_to: null`) whose `user` == the "Account" section — `UNKNOWN` there means there is no author to test, so the Marker branch below is the ONLY test
 and the Fallback is FORBIDDEN, or a human's severity-emoji comment gets claimed as ours. Otherwise test
 the marker first, fall back only when it misses, never require both:
 

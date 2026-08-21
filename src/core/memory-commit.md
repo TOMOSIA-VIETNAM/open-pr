@@ -1,6 +1,6 @@
 # Commit into the review-memory repo
 
-Every write under `notebooks/review/` ends here, inside the repo `core/locate-repo.md` established.
+Every write under `notebooks/review/` ends here, inside the repo `<op> locate-repo` established.
 `notebooks/review/.git` = 1 nested repo, local only — FORBIDDEN: adding a remote, pushing.
 
 1. `notebooks/review/.git` absent (try `Read` `notebooks/review/.git/HEAD`)? Caller is

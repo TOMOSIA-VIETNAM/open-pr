@@ -2,7 +2,7 @@
 
 [← README](../../README.zh-Hans.md)
 
-需要 [`gh`](https://cli.github.com/)（GitHub）或 [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）—— 已安装并已登录。Bitbucket 没有官方 CLI：它从环境变量 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` 读取 API token。无论哪种方式，评审都会以该账号的身份发布 —— 最小权限以及检查权限的命令见 [各平台如何取得 token](./credentials.md)。
+需要 `git`、[`jq`](https://jqlang.org/)，以及 [`gh`](https://cli.github.com/)（GitHub）或 [`glab`](https://gitlab.com/gitlab-org/cli)（GitLab）—— 已安装并已登录。Bitbucket 没有官方 CLI：它从环境变量 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` 读取 API token。无论哪种方式，评审都会以该账号的身份发布 —— 最小权限以及检查权限的命令见 [各平台如何取得 token](./credentials.md)。
 
 ## 安装
 

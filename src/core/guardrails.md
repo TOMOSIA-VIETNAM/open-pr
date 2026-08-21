@@ -21,5 +21,5 @@ specific to what IT may touch; nothing below is repeated there.
   the next, never crammed. Every question carries a pre-marked recommendation — that
   option's label ends `(Recommended)` — even an unanticipated one: the defined default, or your judgment
   of the safer/more common choice; genuinely tied options ⇒ leave it blank.
-- **Independent calls go in 1 tool block** — a `Context` fetch table, the `Read`s one Step names. One
-  at a time only where a Step names an order or needs an earlier call's output.
+- **Independent calls go in 1 tool block** — the `Read`s one Step names. One at a time only where a
+  Step names an order or needs an earlier call's output.

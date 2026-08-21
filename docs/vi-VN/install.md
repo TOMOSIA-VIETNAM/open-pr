@@ -2,7 +2,7 @@
 
 [← README](../../README.vi-VN.md)
 
-Cần [`gh`](https://cli.github.com/) (GitHub) hoặc [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — đã cài và đã login. Bitbucket không có CLI, nó đọc API token từ `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` trong biến môi trường. Cách nào thì review cũng post bằng chính account đó — quyền tối thiểu và lệnh tự kiểm tra xem [Lấy token cho từng vendor](./credentials.md).
+Cần `git`, [`jq`](https://jqlang.org/) và [`gh`](https://cli.github.com/) (GitHub) hoặc [`glab`](https://gitlab.com/gitlab-org/cli) (GitLab) — đã cài và đã login. Bitbucket không có CLI, nó đọc API token từ `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` trong biến môi trường. Cách nào thì review cũng post bằng chính account đó — quyền tối thiểu và lệnh tự kiểm tra xem [Lấy token cho từng vendor](./credentials.md).
 
 ## Install
 

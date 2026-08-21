@@ -4,24 +4,24 @@ description: Act on the findings a review left on a PR — takes or declines eac
 disable-model-invocation: true
 ---
 
-> **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
-> here. On top of those:
+> **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST, and `core/cli.md` with it —
+> they carry the shared rules and the `<op>` runtime. On top of those:
 > - This command EDITS REAL CODE at pwd, then commits/pushes — higher risk than the
 >   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action. FORBIDDEN: "helpfully"
 >   fixing the remote/branch just to pass it.
 > - FORBIDDEN: `git commit --amend`, `git push --force`/`--force-with-lease`, `git add -A`/`git add .`,
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
 >   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, checking
->   out the PR/MR, `git worktree add`/`remove`, close/merge/reopen, creating a
->   review/draft-note batch (this command only replies; posting is `review.md`'s job). `cd`/`find` are
->   allowed ONLY to self-locate the project directory (Step 1a), and only once `git remote` proves the
->   match — never by directory name. This bullet + the one above are the SOLE enforcement layer — no
->   `allowed-tools` backs them (deliberate).
+>   out the PR/MR, `git worktree add`/`remove`, close/merge/reopen, `<op> post`/`publish` (this command
+>   only replies; posting is `review.md`'s job). `cd` is allowed ONLY into the Step 1a directory, and
+>   only once its git remote proves the match — never by directory name. This bullet + the one above
+>   are the SOLE enforcement layer — no `allowed-tools` backs them (deliberate).
 
 ## Step 0 — Target
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md`, taking its no-store branch (§2): this command never
-persists `git_remote_type`, it uses `<vendor_guess>` as-is. `Usage:` block:
+`<op> target <url>`; exit 4 or no URL → the block below. `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md`, taking its no-store branch (§2): this command never
+persists `git_remote_type`, it uses the parsed vendor as-is.
 
 ```
 ❌ Error: No PR URL provided.
@@ -39,28 +39,18 @@ FORBIDDEN: guessing past it.
 
 ## Context
 
-Fetch:
+`<op> context --sections info,comments,reviews,account,threads` — labels "PR info", "Old comments",
+"Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git remote + current
+branch": `git remote -v` && `git branch --show-current`.
 
-| `V§` entry | label |
-|---|---|
-| "Fetch PR basic info", fields `number,headRefName,baseRefName` | PR info |
-| "Fetch PR review comments (LINE-level findings)" | Comments |
-| "Fetch PR reviews (FILE-level findings + review_id)" | Reviews |
-| "Fetch account running the command" | Account running this command |
-| "Fetch review threads (id + isResolved + comment ids)" | Review threads |
-
-Plus 2 plain `git` commands, vendor-independent ⇒ no vendor file — label "Git remote +
-current branch": `git remote -v` && `git branch --show-current`.
-
-A vendor whose "Fetch PR reviews" entry has no equivalent returns nothing here; Step 3 item 2 then
-does not apply, while LINE-level handling continues normally.
+"Reviews" = `NO-EQUIVALENT` ⇒ Step 3 item 2 does not apply; LINE-level handling continues normally.
 
 `core/pr-target.md` §4-5 give `<repo>` and the empty-"PR info" stop.
 
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
-**1a.** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` for `<repo_dir>`, then `cd` into it — this
-command EDITS that repo's files ⇒ works from inside. Everything below runs there,
+**1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → relay stderr, ask, STOP if unresolved), then `cd`
+into it — this command EDITS that repo's files ⇒ works from inside. Everything below runs there,
 `notebooks/review/<repo>/` included — `<repo_dir>` = a `review` worktree
 (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory is at `../../`.
 
@@ -83,10 +73,10 @@ touching any file, proceeding to Step 2.
 
 ## Step 2 — Settings
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/repo-settings.md`, then `notebooks/review/<repo>/settings.json`.
-Resolve `chat_language` per that file.
+`<op> settings --repo <repo>` (`core/repo-settings.md` names what each field means). Resolve
+`chat_language` per that file.
 
-- `.fix` present → use its values, do NOT ask again
+- the FILE carries a `.fix` node → use its values, do NOT ask again
 - absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle
@@ -95,8 +85,8 @@ Resolve `chat_language` per that file.
 
 `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md` — it defines how both kinds are recognized.
 
-1. **LINE-level** (from "Comments") → drop a finding when EITHER holds: its `id` (databaseId) belongs to
-   a thread in "Review threads" with `isResolved: true`, || that same thread is already handled
+1. **LINE-level** (from "Old comments") → drop a finding when EITHER holds: its `id` belongs to a
+   thread in "Review threads" with `resolved: true`, || that same thread is already handled
    (`core/finding-markers.md`).
 2. **FILE-level / OVERVIEW-level** (from "Reviews") → an individual bullet has no resolve concept and no
    readable reply history, so EVERY FILE-level finding in the most recent review is ALWAYS treated as
@@ -111,8 +101,7 @@ Resolve `chat_language` per that file.
 `notebooks/review/<repo>/` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at
 Step 7. FORBIDDEN: blocking or erroring on this.
 
-Present → map each finding's file to its stack via
-`"${CLAUDE_PLUGIN_ROOT}"/core/stack-detection.md`, then `Read`
+Present → `<op> stacks --repo-dir . <each finding's file>`, then `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md` and load the layers it names for those stacks. A layer
 whose file doesn't exist yet → skip it; FORBIDDEN: creating one here (`setup/template.md`'s job).
 
@@ -161,18 +150,17 @@ signal (e.g. the repo's recent `git log`), else
 
 ONLY after the code has actually reached the remote.
 
-For EACH finding decided (fixed or declined), `V§"Reply on a PR"`:
+For EACH finding decided (fixed or declined), body written to a file, then `<op> reply`:
 
-- **LINE-level** — `comment_id` = the ORIGINAL finding comment's id. Content SHORT: fixed → a short
-  confirmation ("Fixed, thanks!"); declined → a short reason. FORBIDDEN: recounting the process ("read
-  file X then checked Y").
-- **FILE-level / OVERVIEW-level** — link to that finding's location via `V§"Finding permalink"` when
-  the vendor has an addressable one; otherwise reference it by file path + short description.
-  FORBIDDEN: blockquoting the whole review verbatim.
+- **LINE-level** — `--comment-id` = the ORIGINAL finding comment's id, `--kind line`. Content SHORT:
+  fixed → a short confirmation ("Fixed, thanks!"); declined → a short reason. FORBIDDEN: recounting the
+  process ("read file X then checked Y").
+- **FILE-level / OVERVIEW-level** — `--kind top`, referencing the finding by file path + short
+  description. FORBIDDEN: blockquoting the whole review verbatim.
 
-Content MUST end with `V§"Reply marker"`, exactly as that entry states it — Step 3 reads it back.
+Content MUST end with `<op> marker --kind reply`, exactly as printed — Step 3 reads it back.
 
-FORBIDDEN: resolving a thread — this command has no auto-resolve setting, unlike `re-review.md`.
+FORBIDDEN: `<op> resolve` — this command has no auto-resolve setting, unlike `re-review.md`.
 
 ## Step 11 — Lesson-saving
 

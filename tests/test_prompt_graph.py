@@ -24,8 +24,8 @@ sys.path.insert(0, str(REPO / "scripts"))
 import dup_scan  # noqa: E402
 from token_report import ROLES, SCENARIOS, scenario_totals  # noqa: E402
 
-VENDORS = sorted(p.name for p in (SRC / "vendors").iterdir() if p.is_dir())
-GROUPS = ("fetch", "worktree", "post", "thread")
+CLI = SRC / "bin" / "open-pr.sh"
+VENDORS = ("bitbucket", "github", "gitlab")
 
 # Files no scenario can put a number on. reference/ is for humans and a run must
 # never pay for it. seeds/memory.md is `cp`-ed into the reviewed repo and read back
@@ -50,9 +50,8 @@ def all_text():
     return {rel(p): text(p) for p in md_files()}
 
 
-def vendor_headings(vendor, group):
-    f = SRC / "vendors" / vendor / f"{group}.md"
-    return [h.strip() for h in re.findall(r"^## (.+)$", text(f), re.M)]
+def cli_text():
+    return CLI.read_text(encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #
@@ -109,61 +108,51 @@ def test_reference_dir_is_never_read_at_run_time():
 # vendor interface
 # --------------------------------------------------------------------------- #
 
-def test_vendor_entry_parity():
-    """Each group file exposes the SAME entries on every vendor, same order.
-
-    This is the test that fails when someone adds an entry to one vendor and
-    forgets the other — the failure mode that silently breaks the other vendor
-    at run time, since callers address entries by name only.
-    """
-    for group in GROUPS:
-        per_vendor = {v: vendor_headings(v, group) for v in VENDORS}
-        first = per_vendor[VENDORS[0]]
-        for v in VENDORS[1:]:
-            assert per_vendor[v] == first, (
-                f"{group}: {v} entries differ from {VENDORS[0]}\n"
-                f"  only in {VENDORS[0]}: {set(first) - set(per_vendor[v])}\n"
-                f"  only in {v}: {set(per_vendor[v]) - set(first)}"
-            )
+def test_cli_contract_names_only_real_subcommands():
+    """core/cli.md is the runtime contract: every subcommand its table names must exist in the
+    script's dispatch, and every dispatched subcommand must be documented — an undocumented one
+    is dead weight, a documented ghost sends the agent into exit 1."""
+    doc = text(SRC / "core" / "cli.md")
+    documented = set(re.findall(r"^\| `([a-z-]+)[ <`]", doc, re.M))
+    dispatched = set(re.findall(r"^    ([a-z-]+)\)\s+cmd_", cli_text(), re.M))
+    dispatched.discard("version")
+    assert documented == dispatched, (
+        f"doc-only: {documented - dispatched}, script-only: {dispatched - documented}")
 
 
-def test_v_notation_resolves():
-    """Every V§"entry" a caller uses exists in exactly 1 group of every vendor."""
-    index = {}
-    for v in VENDORS:
-        for g in GROUPS:
-            for h in vendor_headings(v, g):
-                index.setdefault(h, set()).add((v, g))
-    used = set()
-    for body in all_text().values():
-        used |= {m.group(1) for m in re.finditer(r'V§"([^"<]+)"', body)}
-    bad = {}
-    for entry in used:
-        where = index.get(entry, set())
-        if {v for v, _ in where} != set(VENDORS) or len({g for _, g in where}) != 1:
-            bad[entry] = sorted(where)
-    assert not bad, f"V§ entries not uniformly resolvable: {bad}"
+def test_every_vendor_branches_in_every_api_subcommand():
+    """The script is where vendor differences live, so each API-facing function must decide by
+    $V for all three vendors — a missing branch is the old cross-vendor parity failure, now in
+    one file instead of twelve."""
+    body = cli_text()
+    for fn in ("ctx_info", "ctx_head", "ctx_files", "ctx_sizes", "ctx_diff", "ctx_commits",
+               "ctx_comments", "ctx_ci", "ctx_reviews", "ctx_account", "ctx_threads",
+               "vendor_checkout", "cmd_post", "cmd_publish", "cmd_post_verify", "cmd_reply",
+               "cmd_resolve", "cmd_react", "cmd_marker", "cmd_commit_url", "post_error_hint"):
+        m = re.search(rf"^{fn}\(\)" + r" \{[^\n]*\n(.*?)^\}", body, re.M | re.S)
+        assert m, f"function missing from the script: {fn}"
+        for v in VENDORS:
+            assert re.search(rf"\b{v}[/)|]", m.group(1)) or "*)" in m.group(1), \
+                f"{fn}: no {v} branch and no catch-all"
 
 
-def test_every_vendor_entry_has_a_caller():
-    """An entry nobody calls is dead weight shipped to every user."""
-    entries = {h for v in VENDORS for g in GROUPS for h in vendor_headings(v, g)}
-    callers = "".join(
-        body for name, body in all_text().items()
-        if not name.startswith("vendors/") and name not in NEVER_LOADED
-    )
-    orphans = [e for e in sorted(entries) if f'"{e}"' not in callers]
-    assert not orphans, f"vendor entries never referenced by a caller: {orphans}"
-
-
-def test_interface_doc_matches_vendor_files():
-    doc = text(SRC / "reference/vendor-interface.md")
-    documented = {(m.group(1), m.group(2).strip())
-                  for m in re.finditer(r"^\| (fetch|worktree|post|thread) \| ([^|]+) \|", doc, re.M)}
-    actual = {(g, h) for g in GROUPS for h in vendor_headings(VENDORS[0], g)}
-    assert documented == actual, (
-        f"interface doc drifted\n  doc-only: {documented - actual}\n  file-only: {actual - documented}"
-    )
+def test_prompts_never_read_or_reimplement_the_cli():
+    """The script is code, not context: a prompt Reading it pays its whole size per run, and a
+    prompt carrying its own gh/glab/curl call is a second owner for a mechanic the script owns."""
+    for name, body in all_text().items():
+        assert not re.search(r"Read[^\n]*bin/open-pr", body), f"{name} Reads the script"
+        if name in ("reference/vendor-interface.md",
+                    # the upgrade path is vendor-CLI-free BY DESIGN: it fetches migration
+                    # files over plain curl, which is its mechanism, not a vendor API call
+                    "core/llm-upgrades-index.md", "commands/upgrade.md"):
+            continue
+        for m in re.finditer(r"`([^`]+)`|```[a-z]*\n(.*?)```", body, re.S):
+            snippet = m.group(1) or m.group(2) or ""
+            flat = " ".join(snippet.split())
+            assert not re.search(r"\b(gh|glab) (api|pr|mr) ", flat), \
+                f"{name}: a raw vendor call outside the script: {flat[:80]}"
+            assert not re.search(r"\bcurl\s+-", flat), \
+                f"{name}: a raw curl call outside the script: {flat[:80]}"
 
 
 # --------------------------------------------------------------------------- #
@@ -221,17 +210,11 @@ def test_glab_api_never_uses_the_gh_only_jq_flag():
     jq. The flag is easy to copy across while porting an entry, and it fails at the
     FIRST fetch on the vendor half that gets exercised least."""
     bad = []
-    for name, body in all_text().items():
-        # Only real command text counts: prose may name the flag to warn against it.
-        snippets = re.findall(r"`([^`]+)`", body) + re.findall(r"```[a-z]*\n(.*?)```", body, re.S)
-        for s in snippets:
-            flat = " ".join(s.split())
-            if "glab api" in flat and "--jq" in flat:
-                bad.append((name, "glab api + --jq", flat[:80]))
-            # Verified against glab 1.110: `mr view --jq` alone errors with
-            # "Using --jq requires --output=json".
-            if "glab mr view" in flat and "--jq" in flat and "--output json" not in flat:
-                bad.append((name, "mr view --jq without --output json", flat[:80]))
+    for line in cli_text().splitlines():
+        if "glab api" in line and "--jq" in line:
+            bad.append(("glab api + --jq", line.strip()[:80]))
+        if "glab mr view" in line and "--jq" in line and "--output json" not in line:
+            bad.append(("mr view --jq without --output json", line.strip()[:80]))
     assert not bad, f"invalid glab flag combination: {bad}"
 
 
@@ -257,64 +240,39 @@ def test_overview_headings_carry_emoji_and_label():
 def test_markers_are_byte_identical_everywhere():
     """The markers are the plugin's cross-run identity, so each form has exactly one
     spelling — a variant makes a past finding invisible and it gets posted again."""
+    pool = dict(all_text())
+    pool["bin/open-pr.sh"] = cli_text()
     for label in ("bot-finding", "bot-reply"):
-        for name, body in all_text().items():
+        for name, body in pool.items():
             for m in re.finditer(rf"<!--\s*{label}\s*-->", body):
                 assert m.group(0) == f"<!-- {label} -->", f"{name}: {m.group(0)!r}"
             # the destination only, so a marker quoted inline in prose keeps its backtick
-            for m in re.finditer(rf"\[\s*{label}\s*\]:\s*([^\s`]+)", body):
-                assert m.group(0) == f"[{label}]: #", f"{name}: {m.group(0)!r} != [{label}]: #"
+            for m in re.finditer(rf"\[\s*{label}\s*\]:\s*(\S{{1,2}})", body):
+                assert m.group(0).startswith(f"[{label}]: #"), \
+                    f"{name}: {m.group(0)!r} != [{label}]: #"
 
 
-def test_a_link_reference_marker_carries_its_blank_line_rule():
-    """A link reference definition cannot interrupt a paragraph: pressed against the text above
-    it, the renderer emits a visible broken link instead of dropping it. The rule has to be IN the
-    entry, stated: a caller loads one group, so a pointer from `thread` to `post` is a rule that
-    `/open-pr:fix` never reads."""
-    for v in VENDORS:
-        for group, label in (("post", "bot-finding"), ("thread", "bot-reply")):
-            body = text(SRC / "vendors" / v / f"{group}.md")
-            entry = [p for p in re.split(r"\n(?=## )", body) if f"[{label}]: #" in p]
-            if not entry:
-                continue        # this vendor uses the HTML-comment form
-            flat = " ".join(entry[0].split())
-            assert "BLANK LINE" in flat, \
-                f"{v}/{group}: uses the link-reference form without stating the blank-line rule itself"
+def test_the_marker_rule_carries_its_blank_line():
+    """Bitbucket's marker is a link reference definition, which cannot interrupt a paragraph —
+    pressed against the text above it renders as a visible broken link. The one finding-format
+    rule (review.md) must therefore demand the blank line for every vendor's marker."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "on its own line after a blank line" in flat, \
+        "review.md's finding format lost the marker blank-line rule"
 
 
-def test_the_span_walker_survives_any_fence_tag():
-    """`spans()` is tested directly because comparing the two walkers cannot catch this: both go
-    through it, so a parser bug makes them wrong identically and the comparison still passes.
+def test_the_flag_lint_sees_nested_subcommands():
+    """vendor_lint checks each flag against the real CLI's --help. Its extractor once cut
+    subcommands at two words, asking `glab mr note --help` about a flag that only
+    `glab mr note create` documents — reporting a real flag as unknown and training people to
+    ignore the lint."""
+    import vendor_lint
 
-    A fence the regex fails to recognise is left in the text, and the inline-backtick scan then pairs
-    backticks ACROSS it — inventing a span that carries the language tag, and dropping the real command
-    that came after out of sight. The second half is the dangerous one: the lint reports clean on an
-    entry it never looked at."""
-    sys.path.insert(0, str(REPO / "scripts"))
-    import vendor_lint  # noqa: E402
-
-    for tag in ("", "bash", "json", "markdown", "sh", "Bash", "yaml"):
-        part = (f"## E\n\n```{tag}\n"
-                'if [ -n "$X" ]; then printf a; else gh api user; fi\n'
-                "```\n\nProse `gh pr view <url>` inline.\n")
-        got = list(vendor_lint.spans(part))
-        assert any("printf a" in s for s in got), f"tag {tag!r}: fenced command lost"
-        assert any(s == "gh pr view <url>" for s in got), f"tag {tag!r}: inline command lost — {got}"
-        assert not any(tag and s.startswith(tag) for s in got), \
-            f"tag {tag!r}: a span carries the language tag — {got}"
-
-
-def test_the_static_lint_sees_every_entry_the_live_lint_runs():
-    """`lint_curl` walks all_entries() while the live mode walks entries(). A stricter rule in
-    one of them hides an entry from the static checks — `--fail-with-body`, `-v`, a credential
-    literal — while it still runs against a real PR."""
-    sys.path.insert(0, str(REPO / "scripts"))
-    import vendor_lint  # noqa: E402
-
-    for v in VENDORS:
-        runnable = {h for h, cmd, _ in vendor_lint.entries(v) if cmd}
-        seen = {h for _, h, _ in vendor_lint.all_entries(v)}
-        assert runnable <= seen, f"{v}: static lint cannot see {sorted(runnable - seen)}"
+    rows = list(vendor_lint.cli_invocations(
+        'glab mr note create "$N" -R "$OWNER/$REPO" --reply "$T" -m "$(cat "$F")"\n'
+        'gh api --paginate "repos/x/y/pulls/1/comments"\n'))
+    assert (["mr", "note", "create"], ["--reply"]) in [(s, f) for _, s, f in rows if f]
+    assert any(c == "gh" and f == ["--paginate"] for c, s, f in rows)
 
 
 def test_scripts_never_point_at_a_prompt_file_that_is_gone():
@@ -330,17 +288,16 @@ def test_scripts_never_point_at_a_prompt_file_that_is_gone():
     assert not dead, f"scripts referencing a file that does not exist: {dead}"
 
 
-def test_the_marker_literal_belongs_to_the_vendor():
-    """What renders to nothing differs per vendor, so the literal is a vendor entry. A caller
-    holding its own copy is how one vendor silently gets the other's form."""
+def test_the_marker_literal_belongs_to_the_script():
+    """What renders to nothing differs per vendor, so the literal lives in `marker` alone. A
+    prompt holding its own copy is how one vendor silently gets the other's form."""
     bad = []
     for name, body in all_text().items():
-        if name.startswith("vendors/") or name in ("core/finding-markers.md",
-                                                   "reference/vendor-interface.md"):
+        if name in ("core/finding-markers.md", "reference/vendor-interface.md"):
             continue
         for m in re.finditer(r"<!--\s*bot-(?:finding|reply)\s*-->|\[bot-(?:finding|reply)\]: #", body):
             bad.append((name, m.group(0)))
-    assert not bad, f"a marker literal outside the vendor files: {bad}"
+    assert not bad, f"a marker literal outside the script: {bad}"
 
 
 def _axis_names(body):
@@ -500,26 +457,18 @@ def test_emoji_in_output_are_single_codepoint():
 
 
 def test_review_writes_at_the_invocation_directory():
-    """Standing in a workspace and reviewing three repos must leave ONE
-    notebooks/review/ there holding all three. A version of this that `cd`-ed into the
-    repo put the memory inside the repo instead, which is both a behaviour change and a
-    split from where a later fix looks.
-
-    So review.md may not `cd`, and its git calls against the reviewed repo must be aimed
-    with -C. locate-repo.md yields the directory and decides nothing, because fix.md needs
-    the opposite — it edits that repo's files and works from inside it.
-    """
-    atom = text(SRC / "core" / "locate-repo.md")
-    assert "`<repo_dir>`" in atom, "locate-repo.md must yield a named directory"
-    assert "cd` into" not in atom, "locate-repo.md decides for its callers; it must not"
-
+    """Standing in a workspace and reviewing three repos must leave ONE notebooks/review/
+    there holding all three. A version of this that `cd`-ed into the repo put the memory
+    inside the repo instead. So review.md may not `cd`; locate-repo yields a directory and
+    decides nothing (fix.md needs the opposite); and the script aims its git calls with -C
+    while rooting the worktree at $PWD — the invocation directory."""
     review = text(SRC / "commands" / "review.md")
     assert "FORBIDDEN: `cd`" in review, "review.md must forbid cd — it writes at pwd"
-    # the aimed forms must be the ones Step 1 issues; a bare form would run against pwd,
-    # which in a workspace is not a repo at all
-    for cmd in ('git -C "<repo_dir>" worktree add', 'git -C "<repo_dir>" fetch origin'):
-        assert cmd in review, f"review.md does not aim: {cmd}"
-    assert 'git worktree add "notebooks' not in review, "review.md still has an un-aimed worktree add"
+    body = cli_text()
+    assert 'git -C "$repo_dir" worktree add' in body, "the worktree add is not aimed with -C"
+    assert 'target="$PWD/notebooks/review/' in body, "the worktree must root at the invocation directory"
+    locate = re.search(r"^cmd_locate_repo\(\) \{\n(.*?)^\}", body, re.M | re.S).group(1)
+    assert "cd " not in locate, "locate-repo decides for its callers; it must not cd"
 
 
 def test_fix_suggestions_prefer_a_code_fence():
@@ -631,8 +580,6 @@ def test_every_file_is_reachable_from_a_command():
             out.add(ref)
         for m in re.finditer(r"`((?:core|cases|setup|commands|reference)/[a-z-]+\.md)`", body):
             out.add(m.group(1))
-        if "V§" in body:  # vendor group files are addressed by entry name, not path
-            out |= {f"vendors/{v}/{g}.md" for v in VENDORS for g in GROUPS}
         if "templates/<stack>.md" in body or "${CLAUDE_PLUGIN_ROOT}/templates/" in body:
             out |= {f for f in files if f.startswith("templates/")}
         graph[name] = out & files
@@ -649,107 +596,51 @@ def test_every_file_is_reachable_from_a_command():
 
 
 def test_diff_fetch_is_size_gated_in_every_vendor():
-    """A patch that reaches the terminal is in context for the rest of the run, and the
-    Step 7 guard fires long after Context has already paid for it. So the omission has to
-    live inside the fetch command itself.
-
-    Measured on the e2e fixture: an ungated fetch pulled 30,517 tokens for one 86KB dump,
-    against 8,833 tokens for every prompt file a review loads. The data half of a run's
-    cost dwarfs the prompt half, and only this makes it bounded.
-    """
-    for v in VENDORS:
-        body = text(SRC / "vendors" / v / "fetch.md")
-        assert "<max_patch_bytes>" in body, f"{v}: the diff entry takes no size threshold"
-        entry = [p for p in re.split(r"\n(?=## )", body) if "<max_patch_bytes>" in p]
-        assert entry, v
-        cmd = " ".join(" ".join(entry[0].split()).split())
-        # jq filters it, or awk does when the diff arrives as one text blob. What must never
-        # happen is a threshold nothing acts on.
-        assert any(k in cmd for k in ("select", "awk -v m=<max_patch_bytes>")), \
-            f"{v}: the threshold is named but nothing filters on it"
-
-
-# An entry is bounded when its output cannot grow with the PR. Either the command filters
-# or projects, or its shape caps it: one value, one line per file, one line per commit.
-# Anything else has to say what bounds it, in the entry, so a reader can check the claim.
-BOUNDED_BY_SHAPE = {
-    "Fetch PR head commit SHA", "Fetch account running the command",
-    "Fetch PR diff — file list", "Fetch PR diff size per file",
-    "Fetch PR commits headlines",
-}
-# Entries that legitimately return everything, because the caller filters on content it
-# cannot predict. Each is a deliberate cost, so each is named here rather than assumed.
-UNBOUNDED_BY_DESIGN = {
-    "Fetch PR review comments (LINE-level findings)",  # every past finding must be matched
-    "Fetch review threads (id + isResolved + comment ids)",
-    "Fetch PR reviews (FILE-level findings + review_id)",
-    "Fetch CI checks",  # the caller filters bucket==fail itself, and bootstrap counts them
-}
-
-
-def test_every_fetch_entry_is_bounded_or_declared():
-    """The diff entry pulled 30,517 tokens on a 5-file fixture because nothing said a fetch
-    must bound its output. This makes that explicit for every entry, so the next unbounded
-    one is a deliberate, listed decision instead of an oversight."""
-    loose = []
-    for v in VENDORS:
-        body = text(SRC / "vendors" / v / "fetch.md")
-        for part in re.split(r"\n(?=## )", body)[1:]:
-            head = part.splitlines()[0][3:].strip()
-            if not head.startswith("Fetch"):
-                continue
-            if head in BOUNDED_BY_SHAPE or head in UNBOUNDED_BY_DESIGN:
-                continue
-            flat = " ".join(part.split())
-            markers = ("select", "| jq '{", "--json", "fields=", "No equivalent", "<patch_pipe>")
-            if not any(k in flat for k in markers):
-                loose.append((v, head))
-    assert not loose, (
-        "fetch entry neither filters nor is listed as bounded/unbounded by design: " + str(loose))
-
-
-def test_a_curl_vendor_never_leaks_its_credential():
-    """A vendor with no CLI carries its own token, so the prompt files are what decide whether the
-    VALUE can reach the terminal. `-v`/`-i` print the Authorization header; an interpolated literal
-    would put the token itself in a command line, and from there in the shell history."""
-    bad = []
-    for name, body in all_text().items():
-        for span in re.findall(r"`([^`]+)`", body) + re.findall(r"```(?:bash)?\n(.*?)```", body, re.S):
-            flat = " ".join(span.split())
-            if "curl" not in flat:
-                continue   # prose naming a flag in order to forbid it carries no invocation
-            for flag in (" -v", " -i", " --verbose", " --include"):
-                if flag in f" {flat}":
-                    bad.append((name, f"{flag.strip()} prints the Authorization header", flat[:70]))
-            if re.search(r"(?i)(token|password|api_token)\s*[:=]\s*[A-Za-z0-9]{8,}", flat):
-                bad.append((name, "a credential literal", flat[:70]))
-    assert not bad, f"credential leak in a curl entry: {bad}"
-
-
-def test_a_curl_vendor_reports_http_errors_with_their_body():
-    """`--fail-with-body` is the only curl form that both exits non-zero on an HTTP error and keeps
-    the response body — and the body is where the API says what it rejected. Plain `-f` throws that
-    away; no flag at all makes an error page look like a successful empty answer."""
-    for v in VENDORS:
-        body = text(SRC / "vendors" / v / "fetch.md")
-        if "curl" not in body:
-            continue  # a vendor with a CLI of its own
-        assert "--fail-with-body" in body, \
-            f"{v}: defines a curl shorthand that does not fail loudly with its body"
-        assert not re.search(r"curl (?:-[a-zA-Z]+ )*-f(?: |$)", body), \
-            f"{v}: bare -f discards the error body"
+    """A patch that reaches the terminal is in context for the rest of the run, and the Step 7
+    guard fires long after Context has already paid for it — so the omission lives inside
+    ctx_diff itself, per vendor. Measured once: an ungated fetch pulled 30,517 tokens for one
+    86KB dump."""
+    body = re.search(r"^ctx_diff\(\) \{\n(.*?)^\}", cli_text(), re.M | re.S).group(1)
+    assert 'm="$MAXPATCH"' in body, "ctx_diff takes no size threshold"
+    for v, marker in (("github", "length) < $m"), ("gitlab", "length) < $m"),
+                      ("bitbucket", "awk -v m=")):
+        line = next(l for l in body.splitlines() if f"{v})" in l or f"{v}) " in l or v in l.split(")")[0])
+        section = body[body.index(v):]
+        assert marker in section.split(";;")[0], f"{v}: the threshold is named but nothing filters on it"
 
 
 def test_size_entry_never_reports_zero_for_a_withheld_patch():
-    """GitLab collapses a large diff and returns diff: "", whose length reads 0 — which
-    would place the biggest file in the PR under every threshold, so it is neither
-    reviewed nor listed as skipped. Whatever a vendor calls that state, the size entry
-    must map it to UNKNOWN."""
+    """A vendor that withholds a patch (too large, binary, collapsed) must surface UNKNOWN —
+    a 0 would slip the biggest file in the PR under every threshold, so it is neither reviewed
+    nor listed as skipped."""
+    body = re.search(r"^ctx_sizes\(\) \{\n(.*?)^\}", cli_text(), re.M | re.S).group(1)
     for v in VENDORS:
-        body = text(SRC / "vendors" / v / "fetch.md")
-        entry = [p for p in re.split(r"\n(?=## )", body) if p.startswith("## Fetch PR diff size")]
-        assert entry, f"{v} has no size entry"
-        assert "UNKNOWN" in entry[0], f"{v}: size entry has no UNKNOWN branch"
+        section = body[body.index(v):].split(";;")[0]
+        assert "UNKNOWN" in section, f"{v}: size branch has no UNKNOWN case"
+
+
+def test_the_script_never_leaks_a_credential():
+    """The Bitbucket token is the script's to protect: -v/-i dump the Authorization header into
+    context, a token in a URL reaches the access log and the shell history, and echoing either
+    variable prints it. vendor_lint covers the flag half offline; this pins the rest in CI."""
+    body = cli_text()
+    for line in body.splitlines():
+        if "curl" in line:
+            assert not re.search(r"\s-(v|i)\b", line), f"curl dumps headers: {line.strip()}"
+    assert not re.search(r"https://[^\"'\s]*\$BITBUCKET", body), "a credential inside a URL"
+    assert not re.search(r"(echo|printf)[^\n]*\$BITBUCKET_(API_)?TOKEN", body), \
+        "the script prints a credential variable"
+    assert "--fail-with-body" in body, "curl must fail loudly WITH the response body"
+
+
+def test_paged_walks_every_bitbucket_page():
+    """A list endpoint caps a page at 100 and hands back `next`; stopping at page 1 silently
+    loses every finding past it, which reads as \"nothing there\"."""
+    body = cli_text()
+    assert re.search(r"bb_paged\(\) \{", body), "the pagination walker is gone"
+    walker = re.search(r"bb_paged\(\) \{\n(.*?)^\}", body, re.M | re.S).group(1)
+    assert ".next // empty" in walker and "while" in walker, "the walker no longer follows .next"
+    assert "return 1" in walker, "an HTTP error must abort, not end the loop as success"
 
 
 # --------------------------------------------------------------------------- #
@@ -874,43 +765,36 @@ def test_manifests_are_valid_and_agree():
 
 def test_submodules_are_checked_out_only_when_bumped():
     """Every submodule is a full checkout on disk. Initialising all of them on every review
-    multiplies the worktree's cost by the ones the PR never touched, and a bare or recursive
-    `--init` does exactly that — so the only `submodule update` lives where the bumped paths
-    are known, and names one."""
-    review = " ".join(text(SRC / "commands" / "review.md").split())
-    assert "submodule update" not in review.replace("FORBIDDEN: `submodule update` here", ""), \
-        "review.md must not check out submodules — it does not yet know which are bumped"
-
-    sub = text(SRC / "cases" / "submodule-review.md")
-    flat = " ".join(sub.split())
-    cmds = list(re.finditer(r"submodule update[^`\n]*", flat))
+    multiplies the worktree's cost by the ones the PR never touched — so the only
+    `submodule update` lives in the script's submodule checkout path, names ONE path, and is
+    never recursive; no prompt runs one at all."""
+    for name, body in all_text().items():
+        assert "submodule update" not in body, f"{name} runs a submodule checkout itself"
+    body = cli_text()
+    cmds = [l for l in body.splitlines() if "submodule update" in l]
     assert cmds, "the bumped path has to be checked out somewhere"
-    for m in cmds:
-        c = m.group(0)
-        if "FORBIDDEN" in flat[max(0, m.start() - 30):m.start()]:
-            continue
+    for c in cmds:
         assert "--recursive" not in c, f"nested submodules are out of scope: {c}"
-        assert "-- \"<submodule-path>\"" in c or "-- <path>" in c, \
-            f"a bare --init checks out every submodule: {c}"
-    assert "never gets a `notebooks/` of its own" in flat, \
+        assert '-- "$sub"' in c, f"a bare --init checks out every submodule: {c}"
+    sub = " ".join(text(SRC / "cases" / "submodule-review.md").split())
+    assert "never gets a `notebooks/` of its own" in sub, \
         "the worktree sits beside the project repo; a submodule holds no memory directory"
 
 
 def test_every_reviewed_tree_is_gated_against_its_own_head_sha():
-    """A tree on disk can be one the PR does not describe: the checkout errored, or the ref still
-    served the previous commit. Findings read there would be reported against the PR's real head,
-    so every tree a review reads is compared to the head SHA fetched for THAT PR before any
-    finding is written — the main worktree and a submodule's subdirectory alike."""
-    for f, tree in (
-        (SRC / "commands" / "review.md", '"<worktree>"'),
-        (SRC / "cases" / "submodule-review.md", '"<worktree>/<submodule-path>"'),
-    ):
-        flat = " ".join(text(f).split())
-        assert f"git -C {tree} rev-parse HEAD` MUST prefix-match" in flat, \
-            f"{f.name} must compare {tree} to the head SHA it fetched for that PR"
-
+    """A tree on disk can be one the PR does not describe: the checkout errored, or the ref
+    still served the previous commit. The script compares every tree it prepares to the head
+    SHA fetched for THAT PR (one retry, then exit 2), and each caller states what exit 2 means
+    for it — the main pass STOPs, a submodule pass is skipped while the main review continues."""
+    body = cli_text()
+    checkout = re.search(r"^cmd_checkout\(\) \{\n(.*?)^\}", body, re.M | re.S).group(1)
+    assert "rev-parse HEAD" in checkout and "for attempt in 1 2" in checkout, \
+        "the gate or its single retry is gone"
+    assert "exit 2" in checkout, "a failed gate must exit 2"
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "Exit 2 ⇒ STOP" in review, "review.md no longer stops on a failed gate"
     sub = " ".join(text(SRC / "cases" / "submodule-review.md").split())
-    assert "SKIP Step E + Step F" in sub and "MAIN PR's review continues unblocked" in sub, \
+    assert "Exit 2 ⇒ SKIP Step E + Step F" in sub and "MAIN PR's review continues unblocked" in sub, \
         "a submodule tree that stays mismatched drops its own pass, never the main PR's review"
 
 
@@ -923,8 +807,8 @@ def test_the_submodule_pass_reads_its_own_tree():
     flat = " ".join(sub.split())
     assert "<worktree>/<submodule-path>/<path>" in flat, \
         "the submodule pass must name its own read root"
-    assert 'git -C "<worktree>/<submodule-path>"' in flat, \
-        "a git call in the submodule pass must be aimed at the submodule's checkout"
+    assert "--worktree <worktree>/<submodule-path>" in flat, \
+        "verify-line in the submodule pass must be aimed at the submodule's checkout"
 
     m = re.search(r"with exactly (\d+) differences:\n\n(.*?)\n\n", sub, re.S)
     assert m, "the reapply instruction must state how many differences it lists"
@@ -1139,8 +1023,11 @@ def test_scenario_token_budgets():
 def test_every_scenario_role_resolves():
     """A role pointing at nothing means the scenario silently measures less than
     the run really loads."""
+    legacy = {"stack", "locate-repo"} | {
+        f"{v}-{g}" for v in ("gh", "gl", "bb") for g in ("fetch", "worktree", "post", "thread")}
     per_file = {rel(p): 1 for p in md_files()}
-    absent = {n: v["absent"] for n, v in scenario_totals(per_file).items() if v["absent"]}
+    absent = {n: set(v["absent"]) - legacy
+              for n, v in scenario_totals(per_file).items() if set(v["absent"]) - legacy}
     assert not absent, f"roles resolving to no file: {absent}"
 
 
