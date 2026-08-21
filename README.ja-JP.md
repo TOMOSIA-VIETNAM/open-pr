@@ -159,5 +159,5 @@ Enjoy reviewing 🥰
 </p>
 
 <p align="center">
-  <sub>ロゴ一式: <a href="./docs/brand.md">docs/brand.md</a></sub>
+  <sub>ロゴ一式: <a href="./docs/ja-JP/logo.md">docs/ja-JP/logo.md</a></sub>
 </p>
