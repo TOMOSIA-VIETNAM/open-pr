@@ -61,6 +61,11 @@ Re-run `review.md`'s Context fetch table against the submodule PR — same order
 
 ## Step E — Fully review the submodule PR
 
+`git -C "<worktree>/<submodule-path>" rev-parse HEAD` MUST prefix-match Step D's "Head SHA" BEFORE
+anything below — `review.md` Step 1's head-SHA gate, its single retry included, re-running Step C in
+place of that Step's checkout. Still mismatched ⇒ SKIP Step E + Step F, print both SHAs +
+`<submodule-path>`, state this submodule was left unreviewed, MAIN PR's review continues unblocked.
+
 Reapply `review.md` Step 2 → Step 8 against the Step D data, with exactly 2 differences:
 
 - its own stack detection over the submodule's diff files, independent of the main PR's
