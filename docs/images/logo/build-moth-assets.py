@@ -8,14 +8,13 @@ the forewings double as the eyes doing the reviewing.
 
 Run this script to regenerate every asset after editing the geometry below:
     python3 build-moth-assets.py
-Outputs land in docs/images/logo/ (mark, dark variant, lockups, favicon).
+Outputs land beside this script (mark, dark variant, lockups, favicon).
 Everything is flat polygons in one 128x128 coordinate system, four tones of a
 single hue, no gradients and no strokes.
 """
 import pathlib
 
-OUT = pathlib.Path(__file__).resolve().parents[2] / "logo"
-OUT.mkdir(parents=True, exist_ok=True)
+OUT = pathlib.Path(__file__).resolve().parent
 
 # Four tones of one hue. The dark-background variant lifts the darkest tone so
 # the body does not sink into a near-black page.
@@ -104,4 +103,4 @@ for name, content in {
     "logo-lockup-dark.svg":  lockup_svg(full_mark(DARK_BG), WORDMARK_INK["dark"]),
 }.items():
     (OUT / name).write_text(content)
-    print("wrote", (OUT / name).relative_to(OUT.parents[2]))
+    print("wrote", name)
