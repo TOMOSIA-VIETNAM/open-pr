@@ -61,23 +61,34 @@ Re-run `review.md`'s Context fetch table against the submodule PR — same order
 
 ## Step E — Fully review the submodule PR
 
-Reapply `review.md` Step 2 → Step 8 against the Step D data, with exactly 2 differences:
+`git -C "<worktree>/<submodule-path>" rev-parse HEAD` MUST prefix-match Step D's "Head SHA" BEFORE
+anything below — `review.md` Step 1's head-SHA gate, its single retry re-running Step C. Still
+mismatched ⇒ SKIP Step E + Step F, report both SHAs + `<submodule-path>` as left unreviewed, MAIN
+PR's review continues unblocked.
 
+Reapply `review.md` Step 2 → Step 8 against the Step D data, with exactly 3 differences:
+
+- every tree access aims at the SUBMODULE's checkout: `<worktree>/<submodule-path>/<path>` for each
+  `<worktree>/<path>` those Steps name, `git -C "<worktree>/<submodule-path>"` for each `git -C
+  "<worktree>"` — Step 7's reads, Step 6's check of an old finding against current code, and the line
+  confirmation Step F inherits from `review.md` Step 9, its merge base included. FORBIDDEN: the MAIN
+  repo's tree, which holds a different file at the same path.
 - its own stack detection over the submodule's diff files, independent of the main PR's
 - memory/templates SHARE the MAIN repo's directory, `notebooks/review/<repo>/` (`<repo>` = from the
   ORIGINAL PR URL). FORBIDDEN: a separate `notebooks/review/<repo-submodule>/` — bootstrap, doctor and
   `.review` exist once, for the main repo. A submodule stack missing from `templates_copied` still gets
   its template copied/authored as usual, into that same directory.
 
-Step 6 for this pass uses the SUBMODULE PR's own comments from Step D, not the main PR's.
+Step 6 for this pass uses the SUBMODULE PR's own comments from Step D, not the main PR's;
+`re-review.md`'s early-stop gate reads `Step 8/9` as this pass's Step 8 + Step F.
 
 ## Step F — Post the submodule PR's result
 
 Exactly 1 composite result, via the same `V§"Post a review"` → `V§"Verify a posted review's state"` →
 `V§"Publish the pending review"` flow and the same invariants as `review.md` Step 9, with 2 differences:
 
-- `<commit_id>` = `V§"Fetch PR head commit SHA"` for the SUBMODULE PR, re-fetched right before posting
-  (same staleness reasoning as Step 9) — never Step D's value, never the main PR's.
+- `<commit_id>` = what Step E's Step 8 pass resolved for the SUBMODULE PR, by that Step's own rule
+  against Step D's "Head SHA" — never the main PR's, never re-fetched here.
 - `auto_submit_review`/`auto_resolve_fixed_findings` come from the MAIN repo's `.review` node, already
   read at `review.md` Step 3 — never asked again; submodules have no separate config.
 

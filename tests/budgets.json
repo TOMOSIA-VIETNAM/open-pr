@@ -4,7 +4,7 @@
     "review/known-repo-github-clean": 10474,
     "review/known-repo-gitlab-rereview": 14396,
     "review/large-diff-multistack": 12339,
-    "review/submodule-bump": 12279,
+    "review/submodule-bump": 12522,
     "review/agent-instructions-repo": 11179,
     "review/post-error-github": 10883,
     "chat/reconfigure-review": 8000,
