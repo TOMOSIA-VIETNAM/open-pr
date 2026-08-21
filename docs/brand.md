@@ -1,5 +1,7 @@
 # Brand
 
+[← README](../README.md)
+
 The mark is a moth. In September 1947 the team running the Harvard Mark II pulled one out of a
 relay and taped it into the logbook as the *"first actual case of bug being found"*. A tool that
 hunts bugs takes the bug as its mark, and the eyespots on the forewings double as the eyes doing

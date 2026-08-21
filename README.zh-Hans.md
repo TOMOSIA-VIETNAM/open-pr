@@ -159,5 +159,5 @@ flowchart LR
 </p>
 
 <p align="center">
-  <sub>Logo 文件: <a href="./docs/brand.md">docs/brand.md</a></sub>
+  <sub>Logo 文件: <a href="./docs/zh-Hans/brand.md">docs/zh-Hans/brand.md</a></sub>
 </p>
