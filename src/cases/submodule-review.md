@@ -81,8 +81,8 @@ Step 6 for this pass uses the SUBMODULE PR's own comments from Step D, not the m
 Exactly 1 composite result, via the same `V§"Post a review"` → `V§"Verify a posted review's state"` →
 `V§"Publish the pending review"` flow and the same invariants as `review.md` Step 9, with 2 differences:
 
-- `<commit_id>` = `V§"Fetch PR head commit SHA"` for the SUBMODULE PR, re-fetched right before posting
-  (same staleness reasoning as Step 9) — never Step D's value, never the main PR's.
+- `<commit_id>` = what Step E's Step 8 pass resolved for the SUBMODULE PR, by that Step's own rule
+  against Step D's "Head SHA" — never the main PR's, never re-fetched here.
 - `auto_submit_review`/`auto_resolve_fixed_findings` come from the MAIN repo's `.review` node, already
   read at `review.md` Step 3 — never asked again; submodules have no separate config.
 
