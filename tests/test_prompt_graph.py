@@ -210,8 +210,9 @@ def test_feedback_carries_every_issue_form_heading():
             if field_id in ("pr_url", "evidence"):
                 assert label not in body, f"{form.name}:{field_id} is never filled by the command"
             else:
-                # adjacent, so a heading cannot pass while sitting against the wrong field
-                assert re.search(rf"`{re.escape(field_id)}`\s*\W\s*{re.escape(label)}", body), \
+                # adjacent, bounded by the backtick that would open the next field, so a heading
+                # cannot pass while sitting against the wrong one — and any separator width is fine
+                assert re.search(rf"`{re.escape(field_id)}`[^`]{{0,6}}{re.escape(label)}", body), \
                     f"{form.name}:{field_id} heading '{label}' is not next to its id in feedback.md"
 
 

@@ -78,12 +78,12 @@ PR code on disk, main tree untouched — no branch change, nothing to restore.
    --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
    `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
-2. `git -C "<worktree>" rev-parse HEAD` MUST prefix-match "Head SHA" — the commit the Context "Diff"
-   was read at, NEVER a SHA fetched here. Born on the main clone's HEAD, the worktree reviews a tree
-   that is NOT the PR whenever the checkout errored; a push between that fetch and this checkout leaves
-   the "Diff" stale instead, and re-fetching the SHA now would MATCH the new tree and hide it.
-   Mismatch ⇒ STOP, print both SHAs + `<worktree>` and that `/open-pr:clean` removes it. FORBIDDEN:
-   retrying the checkout.
+2. `git -C "<worktree>" rev-parse HEAD` MUST prefix-match "Head SHA" — the commit the Context "Diff" was
+   read at; NEVER a SHA fetched here, which would match a newer tree and hide the stale diff. Mismatch ⇒
+   re-run `V§"Check out the PR head into a worktree"` ONCE, compare again: a ref still serving the
+   previous commit resolves on the 2nd fetch, an errored checkout stays on the main clone's HEAD. Still
+   mismatched ⇒ STOP, print both SHAs + `<worktree>` and that `/open-pr:clean` removes it. FORBIDDEN: a
+   3rd attempt.
 3. `git -C "<repo_dir>" fetch origin "+<baseRefName>:refs/remotes/origin/<baseRefName>"` — the refspec
    is what creates `origin/<baseRefName>`; a single-branch clone (`--depth` implies one) otherwise lands
    `FETCH_HEAD` alone and that ref dies on `invalid object name`.
@@ -208,8 +208,10 @@ code is writable.
 Output language = `.shared.output_language` (`core/repo-settings.md`), or Step 0's override.
 
 `<commit_id>` = `V§"Fetch PR head commit SHA"` RIGHT NOW, never Context's "Head SHA". ≠ that value ⇒ the
-head moved mid-review and every Step read the older tree: STOP, print both SHAs, say the run must be
-called again. Reuse it in the overview and in Step 9's payload; never fetch it twice.
+head moved mid-review ⇒ `<commit_id>` = "Head SHA" instead, and the overview says a newer commit is
+unreviewed. FORBIDDEN: anchoring to the SHA fetched here — no finding describes that tree. "Head SHA"
+unreachable (force-push) ⇒ nothing valid to anchor to: STOP, print both SHAs, say the run must be called
+again. Reuse `<commit_id>` in the overview and in Step 9's payload; never fetch it twice.
 
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
 
@@ -243,8 +245,8 @@ Anything else — ≥1 FILE finding || ≥1 overview-exclusive item — → the 
 Open with a bare thanks + 🙏, ITSELF IN THE OUTPUT LANGUAGE like all prose here (no embellishment like
 "for submitting this PR"/"for the effort"), then state that the ENTIRE SET OF CHANGES WAS REVIEWED AT
 that commit (link per above), then 1 sentence of reply instructions, addressing the reader as "you",
-then the title/prefix note if any. Assessment prose is OPTIONAL, ≤3 sentences: include it ONLY to carry
-a conclusion no finding below does. Nothing such ⇒ stop at the title/prefix note.
+then the title/prefix note if any. Assessment prose is OPTIONAL, ≤3 sentences, 1 conclusion per sentence
+— never one multi-clause sentence: include it ONLY to carry a conclusion no finding below does. Nothing such ⇒ stop at the title/prefix note.
 
 #### 🔴 MUST FIX
 #### 🟠 SHOULD FIX
@@ -270,10 +272,12 @@ Payload: `<commit_id>` from Step 8, `comments[]`
 (LINE entries: `path` + `line` + `side` + `body`), and the Step 8 overview (FILE findings + assessment).
 
 Every `line` CONFIRMED against the file, never counted off the hunk header: `RIGHT` ⇒ `Read`
-`<worktree>/<path>` at that `offset`, `limit: 2`; `LEFT` ⇒ `git -C "<worktree>" show "$(git -C
-"<worktree>" merge-base origin/<baseRefName> HEAD):<path>" | sed -n "<line>p"` — the LEFT side is the
-MERGE BASE, never the base tip, which is a DIFFERENT blob once that branch moved. Mismatch ⇒ fix it
-BEFORE posting; an off-by-N is a VALID payload on unrelated code.
+`<worktree>/<path>` at that `offset`, `limit: 2`; `LEFT` ⇒ `git -C "<worktree>" merge-base
+origin/<baseRefName> HEAD`, then `git -C "<worktree>" show "<that SHA>:<path>" | sed -n "<line>p"` — the
+LEFT side is the MERGE BASE, never the base tip, a DIFFERENT blob once that branch moved. 3 outcomes:
+matches ⇒ post; mismatch ⇒ fix the number BEFORE posting, an off-by-N is a VALID payload on unrelated
+code; NO merge base (a shallow clone has none) ⇒ unconfirmable → the finding becomes FILE. FORBIDDEN: an
+empty SHA in `show` — `:<path>` is the INDEX, returns the head blob, passes silently.
 
 `V§"Post a review"` — COMPOSITE, step count and mechanism are the vendor's own; follow EXACTLY.
 FORBIDDEN: forcing one vendor through another's shape, e.g. inventing a review id for a vendor with
