@@ -159,5 +159,5 @@ Enjoy reviewing 🥰
 </p>
 
 <p align="center">
-  <sub>Logo files: <a href="./docs/brand.md">docs/brand.md</a></sub>
+  <sub>Logo files: <a href="./docs/logo.md">docs/logo.md</a></sub>
 </p>
