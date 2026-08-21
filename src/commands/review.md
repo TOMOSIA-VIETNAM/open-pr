@@ -154,9 +154,10 @@ Write "reconfirm this requirement/spec".
 
 Criteria + precedence: Step 5.
 
-**FILE vs LINE** = contextual judgment, no enum. LINE: `-` line ⇒ `side: "LEFT"` (base), `+`/context
-line ⇒ `side: "RIGHT"` (head). FILE → Step 8 body; LINE → Step 9 `comments[]`. FORBIDDEN: a FILE
-finding inside `comments[]`.
+**FILE vs LINE** = contextual judgment, no enum, BOUNDED by the diff: LINE only where the target line
+sits INSIDE a hunk — an unchanged region of a touched file is FILE by force. LINE:
+`-` line ⇒ `side: "LEFT"` (base), `+`/context line ⇒ `side: "RIGHT"` (head). FILE → Step 8 body; LINE →
+Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
 
 **Scope:**
 
@@ -260,6 +261,11 @@ heading, never write "none".
 
 Payload: `<commit_id>` from Step 8, `comments[]`
 (LINE entries: `path` + `line` + `side` + `body`), and the Step 8 overview (FILE findings + assessment).
+
+Every `line` CONFIRMED against the file, never counted off the hunk header: `RIGHT` ⇒ `Read`
+`<worktree>/<path>` at that `offset`, `limit: 2`; `LEFT` ⇒ `git -C "<worktree>" show
+"origin/<baseRefName>:<path>" | sed -n "<line>p"`. Mismatch ⇒ fix it BEFORE posting; an off-by-N is a
+VALID payload on unrelated code.
 
 `V§"Post a review"` — COMPOSITE, step count and mechanism are the vendor's own; follow EXACTLY.
 FORBIDDEN: forcing one vendor through another's shape, e.g. inventing a review id for a vendor with

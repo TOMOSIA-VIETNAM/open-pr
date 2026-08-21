@@ -1,22 +1,22 @@
 {
   "scenarios": {
-    "review/new-repo-github": 12585,
-    "review/known-repo-github-clean": 9888,
+    "review/new-repo-github": 12813,
+    "review/known-repo-github-clean": 10116,
     "review/known-repo-gitlab-rereview": 13833,
     "review/large-diff-multistack": 11753,
-    "review/submodule-bump": 11693,
-    "review/agent-instructions-repo": 10593,
-    "review/post-error-github": 10297,
-    "chat/reconfigure-review": 7531,
+    "review/submodule-bump": 11921,
+    "review/agent-instructions-repo": 10821,
+    "review/post-error-github": 10525,
+    "chat/reconfigure-review": 7663,
     "upgrade": 2231,
     "clean": 1318,
     "review/known-repo-bitbucket-clean": 12650,
-    "review/known-repo-bitbucket-rereview": 14705,
+    "review/known-repo-bitbucket-rereview": 14837,
     "fix/known-repo-bitbucket": 10782,
     "fix/known-repo-github": 8403,
     "fix/first-run-gitlab": 9367,
     "feedback": 2117
   },
-  "mean": 9306,
+  "mean": 9448,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy); some are tightened by hand below that. --update-budgets rewrites EVERY ceiling to measured +2%, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }
