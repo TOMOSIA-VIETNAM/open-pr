@@ -896,6 +896,24 @@ def test_submodules_are_checked_out_only_when_bumped():
         "the worktree sits beside the project repo; a submodule holds no memory directory"
 
 
+def test_every_reviewed_tree_is_gated_against_its_own_head_sha():
+    """A tree on disk can be one the PR does not describe: the checkout errored, or the ref still
+    served the previous commit. Findings read there would be reported against the PR's real head,
+    so every tree a review reads is compared to the head SHA fetched for THAT PR before any
+    finding is written — the main worktree and a submodule's subdirectory alike."""
+    for f, tree in (
+        (SRC / "commands" / "review.md", '"<worktree>"'),
+        (SRC / "cases" / "submodule-review.md", '"<worktree>/<submodule-path>"'),
+    ):
+        flat = " ".join(text(f).split())
+        assert f"git -C {tree} rev-parse HEAD` MUST prefix-match" in flat, \
+            f"{f.name} must compare {tree} to the head SHA it fetched for that PR"
+
+    sub = " ".join(text(SRC / "cases" / "submodule-review.md").split())
+    assert "SKIP Step E + Step F" in sub and "MAIN PR's review continues unblocked" in sub, \
+        "a submodule tree that stays mismatched drops its own pass, never the main PR's review"
+
+
 def test_clean_deletes_worktrees_and_nothing_else():
     """This is the only command whose job is `rm`, standing in a directory that also holds the
     one thing here nobody can regenerate: what the repo taught it. A worktree comes back on the
