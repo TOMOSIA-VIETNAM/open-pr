@@ -161,5 +161,5 @@ Enjoy reviewing 🥰
 </p>
 
 <p align="center">
-  <sub>Bộ logo: <a href="./docs/images/logo/">docs/images/logo</a></sub>
+  <sub>Bộ logo: <a href="./docs/brand.md">docs/brand.md</a></sub>
 </p>
