@@ -150,6 +150,12 @@ def test_verify_line_right_prints_the_worktree_line(fixture_repo):
                   "--side", side, "--base", "main", check=True)
         assert eof.stdout.startswith("UNCONFIRMABLE"), \
             f"{side}: a line past EOF is the off-by-N this check exists to catch"
+    # a BLANK line inside the file is a valid anchor, not an EOF miss
+    (Path(wt) / "b.txt").write_text("x\n\ny\n")
+    blank = run("verify-line", "--worktree", wt, "--path", "b.txt", "--line", "2",
+                "--side", "RIGHT", "--base", "main", check=True)
+    assert blank.stdout == "\n" and "UNCONFIRMABLE" not in blank.stdout, \
+        "a blank line in range must verify as blank content, never as past-EOF"
 
 
 def test_verify_line_left_is_unconfirmable_without_a_merge_base(fixture_repo, tmp_path):

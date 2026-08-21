@@ -140,7 +140,8 @@ def test_the_scripts_internals_never_reach_the_user():
     """Exit codes and stderr are the agent's interface, not the user's. A locate-repo
     ambiguity once surfaced as a fenced stderr dump with "exit 5" in a user-facing
     question; the rule lives in cli.md and both exit-5 call sites ask in plain language."""
-    assert "stderr is for YOU, never for the user" in text(SRC / "core" / "cli.md")
+    assert "stderr is for YOU: never quote it raw" in text(SRC / "core" / "cli.md")
+    assert "The exception is text the script wrote FOR the user" in text(SRC / "core" / "cli.md")
     for cmd in ("review", "fix"):
         flat = " ".join(text(SRC / "commands" / f"{cmd}.md").split())
         assert "exit 5 → ask with a CHOICE in plain language" in flat, \
@@ -648,6 +649,11 @@ def test_the_script_never_leaks_a_credential():
         # uses the shell builtin, which never becomes an argv another user can read
         if re.search(r"\bcurl\s", line):
             assert "$BITBUCKET" not in line, f"a credential variable on a curl line: {line.strip()}"
+        # printing a credential is legal ONLY into the temp-dir config file — anything
+        # else lands in the agent's context or the shell history
+        if re.search(r"\b(echo|printf)\b", line) and "$BITBUCKET" in line:
+            assert '> "$TMPD/' in line, \
+                f"a credential may only be written into the temp dir, never printed: {line.strip()}"
     assert re.search(r"--config \"\$TMPD/", body), "curl no longer reads its credential from a config file"
 
 

@@ -34,7 +34,7 @@ parse_args() {
                 [ $# -ge 2 ] || die 1 "open-pr.sh: $1 needs a value"
                 eval "ARG_${key}=\$2"
                 shift 2 ;;
-            *) POSITIONAL="${POSITIONAL:-} $1"; shift ;;
+            *) die 1 "open-pr.sh: unexpected argument: $1" ;;
         esac
     done
 }
@@ -369,17 +369,19 @@ cmd_verify_line() {
     case "$SIDE" in
         RIGHT)
             [ -f "$W/$P" ] || { printf 'UNCONFIRMABLE no such file in the worktree\n'; return 0; }
-            out=$(sed -n "${L}p" "$W/$P") ;;
+            total=$(grep -c '' < "$W/$P"); out=$(sed -n "${L}p" "$W/$P") ;;
         LEFT)
             mb=$(git -C "$W" merge-base "origin/$BASE" HEAD 2>/dev/null || true)
             if [ -z "$mb" ]; then printf 'UNCONFIRMABLE no merge base (shallow clone or unresolvable origin/%s)\n' "$BASE"; return 0; fi
             blob=$(git -C "$W" show "$mb:$P" 2>/dev/null) \
                 || { printf 'UNCONFIRMABLE path not in the merge-base tree\n'; return 0; }
+            total=$(printf '%s\n' "$blob" | grep -c '')
             out=$(printf '%s\n' "$blob" | sed -n "${L}p") ;;
         *) die 1 "open-pr.sh verify-line: --side must be LEFT or RIGHT" ;;
     esac
-    # An empty line result is the off-by-N this check exists to catch, not a match.
-    [ -n "$out" ] || { printf 'UNCONFIRMABLE line %s is past the end of the file\n' "$L"; return 0; }
+    # Judged by the real line count — an empty result alone cannot distinguish a
+    # blank line inside the file (a valid anchor) from a line past EOF.
+    [ "$L" -le "$total" ] || { printf 'UNCONFIRMABLE line %s is past the end of the file (%s lines)\n' "$L" "$total"; return 0; }
     printf '%s\n' "$out"
 }
 
@@ -652,7 +654,6 @@ cmd_stacks() {
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr.XXXXXX")
 trap 'rm -rf "$TMPD"' EXIT INT TERM
 
-POSITIONAL=""
 sub="${1:-}"; [ -n "$sub" ] && shift || die 1 "open-pr.sh: no subcommand"
 case "$sub" in
     target)       cmd_target "$@" ;;

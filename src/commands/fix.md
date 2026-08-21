@@ -50,10 +50,9 @@ branch": `git remote -v` && `git branch --show-current`.
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
 **1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → ask with a CHOICE in plain language, STOP if
-unresolved), then `cd`
-into it — this command EDITS that repo's files ⇒ works from inside. Everything below runs there,
-`notebooks/review/<repo>/` included — `<repo_dir>` = a `review` worktree
-(`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory is at `../../`.
+unresolved), then `cd` into it — this command EDITS that repo's files ⇒ works from inside.
+Everything below runs there, `notebooks/review/<repo>/` included — `<repo_dir>` = a `review`
+worktree (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory is at `../../`.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 touching any file, proceeding to Step 2.
