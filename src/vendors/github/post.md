@@ -45,8 +45,6 @@ event="COMMENT"`
 
 ## Post-error notes
 
-- The authenticated account IS the PR's author → GitHub's self-review restriction blocks the POST.
-  Inform the user, no workaround exists.
 - A 422 usually means the payload's `comments[]` shape is wrong (missing `line`, `line` outside every
   hunk, or `line`/`side` pointing at the wrong side of the diff).
 - FORBIDDEN as a substitute for "Post a review": `gh pr review --comment`, or a standalone POST to

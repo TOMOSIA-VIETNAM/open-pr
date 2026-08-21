@@ -44,6 +44,7 @@ Then fetch:
 | `V§` entry | label |
 |---|---|
 | "Fetch PR basic info", fields `number,title,body,author,baseRefName,headRefName` | PR info |
+| "Fetch PR head commit SHA" | Head SHA |
 | "Fetch PR diff — file list" | Files |
 | "Fetch PR diff size per file" | Diff size per file |
 | "Fetch PR diff — patch, omitting oversized files", `<max_patch_bytes>` = `big_file_threshold_kb` × 1024 | Diff |
@@ -76,11 +77,12 @@ PR code on disk, main tree untouched — no branch change, nothing to restore.
    --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
    `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
    working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
-2. `git -C "<worktree>" rev-parse HEAD` MUST prefix-match the PR head SHA — the value
-   `V§"Check out the PR head into a worktree"` itself yields, else `V§"Fetch PR head commit SHA"`.
-   Born on the main clone's HEAD, the worktree reviews a tree that is NOT the PR whenever the checkout
-   errored. Mismatch ⇒ STOP, print both SHAs + `<worktree>` and that `/open-pr:clean` removes it.
-   FORBIDDEN: retrying the checkout.
+2. `git -C "<worktree>" rev-parse HEAD` MUST prefix-match "Head SHA" — the commit the Context "Diff"
+   was read at, NEVER a SHA fetched here. Born on the main clone's HEAD, the worktree reviews a tree
+   that is NOT the PR whenever the checkout errored; a push between that fetch and this checkout leaves
+   the "Diff" stale instead, and re-fetching the SHA now would MATCH the new tree and hide it.
+   Mismatch ⇒ STOP, print both SHAs + `<worktree>` and that `/open-pr:clean` removes it. FORBIDDEN:
+   retrying the checkout.
 3. `git -C "<repo_dir>" fetch origin "+<baseRefName>:refs/remotes/origin/<baseRefName>"` — the refspec
    is what creates `origin/<baseRefName>`; a single-branch clone (`--depth` implies one) otherwise lands
    `FETCH_HEAD` alone and that ref dies on `invalid object name`.
@@ -204,10 +206,9 @@ code is writable.
 
 Output language = `.shared.output_language` (`core/repo-settings.md`), or Step 0's override.
 
-`<commit_id>` = `V§"Fetch PR head commit SHA"` RIGHT NOW, never a value fetched earlier in this run.
-≠ Step 1's gate value ⇒ the head moved mid-review and every Step read the older tree: STOP, print both
-SHAs, say the run must be called again. Reuse it in the overview and in Step 9's payload; never fetch it
-twice.
+`<commit_id>` = `V§"Fetch PR head commit SHA"` RIGHT NOW, never Context's "Head SHA". ≠ that value ⇒ the
+head moved mid-review and every Step read the older tree: STOP, print both SHAs, say the run must be
+called again. Reuse it in the overview and in Step 9's payload; never fetch it twice.
 
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
 
