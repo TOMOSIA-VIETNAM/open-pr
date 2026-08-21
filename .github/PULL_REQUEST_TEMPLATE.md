@@ -22,9 +22,9 @@ report. It proves the graph still holds, not that the agent behaves — for that
 ## Checklist
 
 - [ ] `scripts/check.sh <base-ref>` passes — suite, duplication scan, context cost
-- [ ] Context cost: cheaper → each ceiling lowered by hand by its measured delta, keeping the slack
-  (`--update-budgets` only where no ceiling was hand-tightened — it rewrites every one to measured +2%);
-  more expensive → this PR says which scenario, by how much, and why compression had nothing left
+- [ ] Context cost: cheaper → lower ceilings; costlier for a correct fix → PR says which
+  scenario, by how much, and why. Never strip behaviour for budget
+  (`--update-budgets` rewrites every ceiling to measured +2% — fine when none were hand-tightened)
 - [ ] `tests/token-history.json` and `token-history.svg` untouched — the chart takes one frozen
   point per release (`/release-now`), never one per PR
 - [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly

@@ -4,8 +4,8 @@ This plugin is markdown, not code. There is no build and no runtime — the "pro
 an agent reads in order. So the conventions below are about **what a file is allowed to contain** and
 **how much context a run costs**.
 
-`CLAUDE.md` holds the full rule set (it is what the agent itself follows). This page is the short
-version for a human. Every interaction here follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
+`CLAUDE.md` is the agent guide for this repo. This page is the short version for a human.
+Every interaction here follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Where things go
 
@@ -30,7 +30,8 @@ Only `src/` ships to users. Everything else is repo-side.
 - **Split a file only when the split-off part is conditional.** An extra read costs tokens; splitting
   something that always loads is a loss.
 - **Callers never name a vendor.** They write `V§"<entry>"` and the entry resolves per vendor.
-- **Context cost may not grow.** Every scenario has a ceiling in `tests/budgets.json`.
+- **Context cost is tracked.** Every scenario has a ceiling in `tests/budgets.json`. Cheaper →
+  lower ceilings; costlier for a correct fix → explain on the PR. Do not strip behaviour for budget.
 - **Files must be self-contained.** No pointers to task ids, plan phases or docs that get deleted.
 
 ## Setup, once
@@ -48,8 +49,9 @@ Actions is disabled on this repo by the org — `.github/workflows/` does not ru
 scripts/check.sh main
 ```
 
-- cheaper → `python3 scripts/token_report.py --base main --update-budgets`
-- more expensive → state which scenario and why, in the PR
+- cheaper → lower ceilings (`token_report.py --base main --update-budgets`, or by hand if
+  you had tightened them)
+- more expensive → state which scenario and why in the PR; do not strip behaviour for budget
 
 ## Touched `src/vendors/`
 
