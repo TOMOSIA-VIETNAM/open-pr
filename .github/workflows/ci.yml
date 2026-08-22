@@ -1,16 +1,24 @@
 name: CI
 
-# Runs when a pull request enters the merge queue, not on every commit pushed to it.
-# A queued entry is what the ruleset requires to be green, so the gate is still the gate
-# — it just fires once, on the tree that is actually about to land.
+# A merge queue cannot replace this. GitHub only makes the queue wait on checks the
+# ruleset marks required, and it refuses to queue a pull request whose required checks
+# have not already passed on the pull request itself — so a required check has to run
+# here, on pull_request, or it never runs at all.
 on:
-  merge_group:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 
+# Three commits pushed in a row spend one run, on the last of them. Runs on main are
+# never cancelled: each one records a distinct commit that landed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   checks:
@@ -58,18 +66,16 @@ jobs:
         run: python3 scripts/vendor_lint.py
 
       - name: Context cost vs base
-        if: github.event_name == 'merge_group'
-        env:
-          BASE_REF: ${{ github.event.merge_group.base_ref }}
+        if: github.event_name == 'pull_request'
         run: |
-          set -euo pipefail
-          python3 scripts/token_report.py --base "origin/${BASE_REF#refs/heads/}" | tee token-report.txt
+          python3 scripts/token_report.py --base "origin/${{ github.base_ref }}" | tee token-report.txt
 
-      - name: Report the cost
-        if: github.event_name == 'merge_group'
-        # A merge_group event has no pull request to comment on, so the numbers land in
-        # the job summary of the queue entry — reachable from the pull request's own
-        # checks list.
+      - name: Report the cost on the PR
+        if: github.event_name == 'pull_request'
         env:
-          CAN_COMMENT: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # A fork PR gets a read-only token, so the comment step is skipped there and
+          # the job summary carries the numbers instead.
+          CAN_COMMENT: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: bash scripts/ci_token_comment.sh token-report.txt
