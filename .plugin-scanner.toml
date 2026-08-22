@@ -1,0 +1,12 @@
+# Config for the HOL plugin scanner run by .github/workflows/hol-plugin-scanner.yml.
+
+[scanner]
+# The credential guides show a reader what to type into their own shell, so they carry
+# export lines whose value is a stand-in phrase telling the reader to paste their token
+# there. The secret detector reads those stand-ins as real token material — twelve
+# high-severity findings, one per translation. The rule stays on everywhere else: this
+# ignores the four guides by path rather than switching HARDCODED_SECRET off.
+ignore_paths = [
+  "docs/credentials.md",
+  "docs/*/credentials.md",
+]

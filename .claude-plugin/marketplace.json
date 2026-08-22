@@ -4,6 +4,7 @@
   "owner": {
     "name": "Minh Tang Q."
   },
+  "strict": true,
   "plugins": [
     {
       "name": "open-pr",
