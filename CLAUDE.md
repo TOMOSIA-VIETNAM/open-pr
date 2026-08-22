@@ -36,7 +36,7 @@ scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py �
 tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
-.github/workflows ci.yml on PRs · e2e.yml manual (org disables Actions → local / pre-push)
+.github/workflows ci.yml + hol-plugin-scanner.yml on PRs (both blocked at startup)
 backlogs/         historical, not ops
 ```
 
@@ -86,4 +86,8 @@ Cheaper → lower affected ceilings (by hand by the measured delta if you had ti
 
 Numbers move the wrong way: suspect the measurement first (missing path in base, a `cp`'d seed counted as a load). Fix the model, then judge the content.
 
-Actions disabled by org → `scripts/install_hooks.sh` wires pre-push.
+The org restricts Actions to repositories it owns, so every workflow here fails at startup —
+`actions/checkout` included, whatever the ref. Checks run locally; `scripts/install_hooks.sh`
+wires them to pre-push. The workflows are still kept correct and their `uses:` SHA-pinned:
+`hol-plugin-scanner.yml` exists because the awesome-ai-plugins listing gate reads the file,
+and the scanner scores an unpinned `uses:` as an operational-security finding.

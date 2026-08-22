@@ -1293,20 +1293,28 @@ def test_manifests_agree_on_name_and_declare_one_version():
         f"a version belongs in gemini-extension.json alone, found in: {versioned}"
 
 
-def test_the_declared_version_keeps_up_with_the_release_tags():
+PUBLIC_RELEASE_TAG = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+"""A tag names a public release only when it is exactly vX.Y.Z. Anything after the patch number —
+-rc1, -beta, a build suffix — is a release still being cut, and nothing outside the branch cutting it
+is expected to carry that number yet."""
+
+
+def test_the_declared_version_keeps_up_with_the_public_releases():
     """The one declared version is the one nobody thinks to bump. Tags are what say which release a
-    checkout is, so the manifest may equal the newest tag or run ahead of it (a bump prepared for the
-    next release) — never behind, which is what shipping a stale number looks like."""
+    checkout is, so the manifest may equal the newest public release or run ahead of it (a bump
+    prepared for the next one) — never behind, which is what shipping a stale number looks like."""
     tags = subprocess.run(["git", "tag", "--list", "v[0-9]*"], cwd=REPO,
                           capture_output=True, text=True).stdout.split()
-    if not tags:
-        return  # a shallow clone with no tags cannot judge this
-    def parts(v):
-        return tuple(int(x) for x in re.match(r"v?(\d+)\.(\d+)\.(\d+)", v).groups())
-    newest = max(parts(t) for t in tags if re.match(r"v?\d+\.\d+\.\d+", t))
-    declared = parts(json.loads((REPO / "gemini-extension.json").read_text(encoding="utf-8"))["version"])
-    assert declared >= newest, (
-        f"gemini-extension.json says {declared}, newest release tag is {newest} — bump it")
+    released = [m for m in (PUBLIC_RELEASE_TAG.match(t) for t in tags) if m]
+    if not released:
+        return  # a shallow clone, or a checkout with only pre-release tags, cannot judge this
+    newest = max(tuple(int(g) for g in m.groups()) for m in released)
+    declared = PUBLIC_RELEASE_TAG.match(
+        json.loads((REPO / "gemini-extension.json").read_text(encoding="utf-8"))["version"])
+    assert declared, "gemini-extension.json must declare a plain X.Y.Z version"
+    assert tuple(int(g) for g in declared.groups()) >= newest, (
+        f"gemini-extension.json says {declared.group(0)}, newest public release is "
+        f"v{'.'.join(str(n) for n in newest)} — bump it")
 
 
 def test_install_paths_have_one_owner():
