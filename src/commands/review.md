@@ -5,7 +5,8 @@ disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` and `core/cli.md` FIRST — shared
-> rules + the `<op>` runtime, not repeated here. On top of those:
+> rules + the `<op>` runtime, not repeated here. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`
+> — THIS line carries the absolute path; the env var does not exist inside the shell. On top of those:
 > - Read-only on the reviewed repo; the only write is Step 9's 1 review (+ 1 more on a submodule PR
 >   when Step 1 detects a bump). FORBIDDEN: close/merge/reopen, create/delete/switch a branch, push,
 >   edit code → mention it in the review instead.

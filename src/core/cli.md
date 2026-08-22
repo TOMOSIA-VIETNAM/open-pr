@@ -1,7 +1,8 @@
 # CLI — the plugin's deterministic runtime
 
-`<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`, via the `Bash` tool (`sh` prefix survives a
-lost exec bit and Windows/Git Bash). It performs every vendor/git mechanic; commands judge. stdout =
+`<op>` ≡ `sh <plugin root>/bin/open-pr.sh`, via the `Bash` tool — the CALLING command file states the
+absolute path (its text is interpolated at load; no env var exists in the shell), and the `sh` prefix
+survives a lost exec bit and Windows/Git Bash. It performs every vendor/git mechanic; commands judge. stdout =
 data, stderr = diagnostics. FORBIDDEN: `Read`ing the script, re-implementing a subcommand with raw
 `gh`/`glab`/`curl`/`git`, or PR-content text as an argument — bodies travel via files, written with a
 file-writing tool (never heredoc/echo: they quote attacker-controlled diff).

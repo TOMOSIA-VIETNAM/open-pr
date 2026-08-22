@@ -359,6 +359,15 @@ def test_settings_applies_read_time_defaults(tmp_path):
     out = json.loads(run("settings", "--repo", "demo", cwd=tmp_path, check=True).stdout)
     assert out["review"]["many_files_threshold"] == 30
     assert out["fix"]["auto_push"] is False
+    # jq's // operator treats an explicit false as absent — a stored false must
+    # never flip to the true default, or fix declines without asking
+    (d / "settings.json").write_text(json.dumps(
+        {"review": {"bootstrapped": True}, "fix": {"decline_needs_confirmation": False}}))
+    flip = json.loads(run("settings", "--repo", "demo", cwd=tmp_path, check=True).stdout)
+    assert flip["fix"]["decline_needs_confirmation"] is False, "explicit false flipped to true"
+    (d / "settings.json").write_text(json.dumps(
+        {"review": {"bootstrapped": True, "doctored": True, "doctor_schedule": "never"},
+         "shared": {"output_language": "English"}}))
     assert out["doctor_due"] is False, '"never" is never due on a schedule'
     fresh = json.loads(run("settings", "--repo", "ghost", cwd=tmp_path, check=True).stdout)
     assert fresh["doctor_due"] is True, "an unbootstrapped repo is always due"

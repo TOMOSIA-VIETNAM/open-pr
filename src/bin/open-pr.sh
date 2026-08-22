@@ -624,7 +624,9 @@ cmd_settings() {
                 pr_template_paths: (.review.pr_template_paths // [])
             }),
             fix: ((.fix // {}) + {
-                decline_needs_confirmation: (.fix.decline_needs_confirmation // true),
+                # // treats an explicit false as absent; has() keeps a stored
+                # false from flipping to the true default
+                decline_needs_confirmation: (if (.fix // {}) | has("decline_needs_confirmation") then .fix.decline_needs_confirmation else true end),
                 auto_push: (.fix.auto_push // false)
             }),
             shared: (.shared // {}),
