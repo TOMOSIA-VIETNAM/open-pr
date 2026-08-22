@@ -153,13 +153,19 @@ def lockup_svg(body, ink):
         '</svg>\n')
 
 
-for name, content in {
-    "logo.svg":              icon_svg(full_mark(LIGHT_BG)),
-    "logo-dark.svg":         icon_svg(full_mark(DARK_BG)),
-    "favicon.svg":           icon_svg(reduced_mark(LIGHT_BG)),
-    "logo-lockup.svg":       lockup_svg(full_mark(LIGHT_BG), WORDMARK_INK["light"]),
-    "logo-lockup-dark.svg":  lockup_svg(full_mark(DARK_BG), WORDMARK_INK["dark"]),
-    "brand-sheet.svg":       sheet_svg(),
-}.items():
-    (OUT / name).write_text(content)
-    print("wrote", name)
+def main():
+    """Write every asset. Guarded so other build scripts can import the geometry."""
+    for name, content in {
+        "logo.svg":              icon_svg(full_mark(LIGHT_BG)),
+        "logo-dark.svg":         icon_svg(full_mark(DARK_BG)),
+        "favicon.svg":           icon_svg(reduced_mark(LIGHT_BG)),
+        "logo-lockup.svg":       lockup_svg(full_mark(LIGHT_BG), WORDMARK_INK["light"]),
+        "logo-lockup-dark.svg":  lockup_svg(full_mark(DARK_BG), WORDMARK_INK["dark"]),
+        "brand-sheet.svg":       sheet_svg(),
+    }.items():
+        (OUT / name).write_text(content)
+        print("wrote", name)
+
+
+if __name__ == "__main__":
+    main()
