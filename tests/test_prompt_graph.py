@@ -1324,6 +1324,35 @@ def test_install_paths_have_one_owner():
     assert not missing, f"the ROOT fallback cannot find installs in: {missing}"
 
 
+def test_the_platform_question_is_asked_once_per_run():
+    """--update replaces install-local.sh and hands over to the new copy, and the answer to the
+    platform question does not survive that hand-over. Asked before the update, it is asked again
+    after — the same menu twice for one install. Two things keep it to one: the update runs before
+    anything is asked, and install.sh, which has already moved the clone itself, does not pass
+    --update down to a second mover."""
+    script = (REPO / "scripts" / "install-local.sh").read_text(encoding="utf-8")
+    update = script.index('if [ "$ACTION" = update ]')
+    ask = script.index("say 'Which platform?")
+    assert update < ask, "install-local.sh asks which platform before the update hands over"
+
+    bootstrap = (REPO / "install.sh").read_text(encoding="utf-8")
+    assert re.search(r"^\s*--update\) shift ;;", bootstrap, re.M), (
+        "install.sh forwards --update to install-local.sh, which then updates and re-execs a "
+        "second time")
+
+
+def test_an_install_off_the_release_channel_stays_there():
+    """--ref installs a branch so a big change can be tried before it merges. Both scripts then have
+    to read back what this clone follows, or the next update pulls the user onto a release and the
+    branch they were testing is gone without a word."""
+    for name in ("install.sh", "scripts/install-local.sh"):
+        script = (REPO / name).read_text(encoding="utf-8")
+        assert "config --get open-pr.ref" in script, f"{name} never reads back the ref it follows"
+        assert re.search(r"config open-pr\.ref", script), f"{name} never records the ref it follows"
+        assert "config --unset open-pr.ref" in script, (
+            f"{name} offers no way back to the release channel")
+
+
 def test_local_installer_covers_every_shim():
     """It discovers skills by glob, but its closing message names them. A fifth command must
     show up there too, or users never learn it exists."""

@@ -30,6 +30,16 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 Sau khi reload plugin, nếu bản mới đổi nhiều **schema** thì chạy `/open-pr:upgrade` để cập nhật settings của repo.
 
+## Install a branch
+
+Cài một branch hoặc tag bất kỳ thay cho release mới nhất. `--update` sau đó vẫn ở trên nó.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --ref <branch-or-tag>
+```
+
+`--ref latest` để về lại release mới nhất.
+
 ## Uninstall
 
 ```bash

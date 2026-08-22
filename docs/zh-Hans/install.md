@@ -30,6 +30,16 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 重新加载插件之后，如果新版本对 **schema** 改动较大，运行 `/open-pr:upgrade` 把该仓库的设置更新到最新。
 
+## 安装某个分支
+
+安装任意分支或 tag，而不是最新发布版。之后的 `--update` 也留在上面。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --ref <branch-or-tag>
+```
+
+`--ref latest` 回到最新发布版。
+
 ## 卸载
 
 ```bash
