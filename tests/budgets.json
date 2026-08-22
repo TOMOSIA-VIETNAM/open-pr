@@ -1,22 +1,22 @@
 {
   "scenarios": {
-    "review/new-repo-github": 13171,
-    "review/known-repo-github-clean": 10474,
-    "review/known-repo-gitlab-rereview": 14396,
-    "review/large-diff-multistack": 12339,
-    "review/submodule-bump": 12522,
-    "review/agent-instructions-repo": 11179,
-    "review/post-error-github": 10883,
-    "chat/reconfigure-review": 8000,
-    "upgrade": 2231,
-    "clean": 1318,
-    "review/known-repo-bitbucket-clean": 13213,
-    "review/known-repo-bitbucket-rereview": 15174,
-    "fix/known-repo-bitbucket": 10782,
-    "fix/known-repo-github": 8403,
-    "fix/first-run-gitlab": 9367,
-    "feedback": 2175
+    "review/new-repo-github": 10372,
+    "review/known-repo-github-clean": 7645,
+    "review/known-repo-gitlab-rereview": 10387,
+    "review/large-diff-multistack": 9456,
+    "review/submodule-bump": 9505,
+    "review/agent-instructions-repo": 8294,
+    "review/post-error-github": 8041,
+    "chat/reconfigure-review": 7328,
+    "upgrade": 2209,
+    "clean": 1277,
+    "feedback": 2131,
+    "review/known-repo-bitbucket-clean": 7645,
+    "review/known-repo-bitbucket-rereview": 9452,
+    "fix/known-repo-bitbucket": 7022,
+    "fix/known-repo-github": 7022,
+    "fix/first-run-gitlab": 7309
   },
-  "mean": 9670,
-  "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy); some are tightened by hand below that. --update-budgets rewrites EVERY ceiling to measured +2%, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
+  "mean": 7193,
+  "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }

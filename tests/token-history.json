@@ -103,6 +103,15 @@
       "upgrade": 2209,
       "clean": 1295,
       "feedback": 2133
+    },
+    {
+      "tag": "v2.0.0-rc1",
+      "date": "2026-08-22",
+      "review": 8640,
+      "fix": 7006,
+      "upgrade": 2166,
+      "clean": 1252,
+      "feedback": 2090
     }
   ]
 }

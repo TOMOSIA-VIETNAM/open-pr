@@ -4,19 +4,18 @@ description: Review PRs against the conventions learned from each repo — 1 pos
 disable-model-invocation: true
 ---
 
-> **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
-> here. On top of those:
+> **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` and `core/cli.md` FIRST — shared
+> rules + the `<op>` runtime, not repeated here. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
+> exactly as THIS line spells it — no env var exists in the shell. On top of those:
 > - Read-only on the reviewed repo; the only write is Step 9's 1 review (+ 1 more on a submodule PR
 >   when Step 1 detects a bump). FORBIDDEN: close/merge/reopen, create/delete/switch a branch, push,
 >   edit code → mention it in the review instead.
-> - `git worktree add` confined to `notebooks/review/*/worktrees/*`.
-> - `Read`/`Grep` in the worktree may surface the REVIEWED repo's own `.claude/skills/` — its dev
->   workflow, not a review tool. FORBIDDEN: invoking it, even when listed as available.
+> - The worktree may surface the REVIEWED repo's own `.claude/skills/` — its dev workflow, not a
+>   review tool. FORBIDDEN: invoking it, even when listed as available.
 
 ## Step 0 — Target
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md`; it names what every later Step reuses. `Usage:`
-block for this command:
+`<op> target <url>` → `vendor/owner/repo/pull_number/host`; exit 4 or no URL → print:
 
 ```
 ❌ Error: No PR URL provided.
@@ -25,88 +24,56 @@ Example (GitHub): /open-pr:review https://github.com/org/repo/pull/123
 Example (GitLab): /open-pr:review https://gitlab.com/org/repo/-/merge_requests/123
 ```
 
-A language instruction in `ARGUMENTS`/chat overrides `.shared.output_language`, this run only.
+`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md` — vendor reconciliation, `<repo>`, free-form-text
+rule, empty-"PR info" stop. A language instruction in `ARGUMENTS`/chat overrides
+`.shared.output_language`, this run only.
 
 **≥2 valid PR URLs** && the intent isn't already clear from `ARGUMENTS`/chat → ask "Found N PRs —
 review all N or just the first?", WAIT (extras may be reference-only). Confirmed multi-PR → run Step 0
-→ Step 9 to COMPLETION per URL, in order, SEQUENTIALLY, each with its own worktree/memory/post.
-FORBIDDEN: parallel, subagent. `[content]` applies to every PR. All done → 1 chat summary, 1 line per
-PR, shaped by Step 9's reporting rule; nothing further posted.
+→ Step 9 to COMPLETION per URL, SEQUENTIALLY, each with its own worktree/memory/post. FORBIDDEN:
+parallel, subagent. `[content]` applies to every PR. All done → 1 chat summary, 1 line per PR, shaped
+by Step 9's reporting rule; nothing further posted.
 
 ## Context
 
-`<git_remote_type>` MUST be resolved (`core/pr-target.md` §2) BEFORE the first fetch, which needs
-`.shared.git_remote_type` → try `Read`ing `notebooks/review/<repo>/settings.json` now (Step 3
-re-`Read`s it for the rest of its content).
+`<op> settings --repo <repo>` → this run's resolved config (`core/repo-settings.md` names what each
+field means). `<vendor>` MUST be reconciled (`core/pr-target.md` §2) BEFORE the next call. Then ONE
+call fetches everything — `<op> context` with `--max-patch-bytes` = `big_file_threshold_kb` × 1024;
+its `## <label>` sections are what later Steps name. Any path "Diff size per file" lists that "Diff"
+lacks is an omitted file → carry to Step 7 as **"Oversized paths"**. "CI checks" stays unfiltered —
+Step 7 and `setup/bootstrap.md` q6 each read the raw list.
 
-Then fetch:
-
-| `V§` entry | label |
-|---|---|
-| "Fetch PR basic info", fields `number,title,body,author,baseRefName,headRefName` | PR info |
-| "Fetch PR head commit SHA" | Head SHA |
-| "Fetch PR diff — file list" | Files |
-| "Fetch PR diff size per file" | Diff size per file |
-| "Fetch PR diff — patch, omitting oversized files", `<max_patch_bytes>` = `big_file_threshold_kb` × 1024 | Diff |
-| "Fetch PR commits headlines" | Commits |
-| "Fetch PR review comments (LINE-level findings)" | Old comments |
-| "Fetch CI checks" | CI checks |
-
-Fetch "Head SHA" BEFORE "Diff", and the size list BEFORE the patch, in that order — the rest of the table
-is 1 tool block. Any path the size list names that "Diff" then lacks is an omitted file → carry that list
-to Step 7 as **"Oversized paths"**. Omission MUST happen inside the vendor's own call — a printed patch is
-permanent context; Step 7's guard is post-hoc.
-
-`big_file_threshold_kb` (`core/repo-settings.md`) — from this Context's own `settings.json` read,
-never a 2nd.
-
-"CI checks" MUST stay unfiltered — Step 7 and `setup/bootstrap.md` q6 each read the raw array.
-
-**Filesystem:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` BEFORE Step 1 for `<repo_dir>`.
-FORBIDDEN: `cd`. Everything this command writes — `notebooks/review/<repo>/`, the worktree, `.gitignore`
-— is relative to pwd: 1 workspace ⇒ 1 `notebooks/review/` for every repo reviewed from it.
-`<repo_dir>` ONLY aims git: `git -C "<repo_dir>" …`. Before writing under `notebooks/review/` → state
-pwd + `<repo>` in chat.
-
-`core/pr-target.md` §5 gates entry into Step 1.
+**Filesystem:** `<op> locate-repo` → `<repo_dir>`; exit 5 → ask with a CHOICE in plain language —
+name the N directories found and why each might be it — STOP if unresolved. FORBIDDEN: `cd`.
+Everything this command writes — `notebooks/review/<repo>/`, the worktree, `.gitignore` — is
+relative to pwd: 1 workspace ⇒ 1 `notebooks/review/` for every repo reviewed from it. Before
+writing under `notebooks/review/` → state pwd + `<repo>` in chat. No `notebooks/review/` line in
+`.gitignore` at pwd → add exactly that line.
 
 ## Step 1 — Ephemeral worktree
 
-PR code on disk, main tree untouched — no branch change, nothing to restore.
+`<op> checkout` with `--head-sha` = "Head SHA", `--base` = `baseRefName`, `--repo-dir <repo_dir>` →
+`worktree=<path>`; PR code on disk, main tree untouched, gated to the commit the "Diff" was read at.
+`Read`/`Grep` at `<worktree>/<path>`. Exit 2 ⇒ STOP, print both SHAs + `<worktree>` and that
+`/open-pr:clean` removes it. Exit 3 ⇒ STOP with its stderr. FORBIDDEN: retrying past the script's own
+retry, or comparing against a freshly fetched SHA — that hides the stale diff.
 
-1. `git -C "<repo_dir>" worktree add "$PWD/notebooks/review/<repo>/worktrees/pr<pull_number>-$RANDOM"
-   --detach` — random name, never reused; the ABSOLUTE path is what lets pwd be no repo at all. Then
-   `V§"Check out the PR head into a worktree"`, DETACHED, in a subshell pinned to the worktree so the
-   working directory never moves. `Read`/`Grep` at `<worktree>/<path>`.
-2. `git -C "<worktree>" rev-parse HEAD` MUST prefix-match "Head SHA" — the commit the Context "Diff" was
-   read at; NEVER a SHA fetched here, which would match a newer tree and hide the stale diff. Mismatch ⇒
-   re-run `V§"Check out the PR head into a worktree"` ONCE, compare again: a re-run resolves a source that
-   had not caught up, an errored checkout stays on the main clone's HEAD. That entry's own STOP ends the
-   run immediately and does NOT consume this retry. Still mismatched ⇒ STOP, print both SHAs +
-   `<worktree>` and that `/open-pr:clean` removes it. FORBIDDEN: a 3rd attempt.
-3. `git -C "<repo_dir>" fetch origin "+<baseRefName>:refs/remotes/origin/<baseRefName>"` — the refspec
-   is what creates `origin/<baseRefName>`; a single-branch clone (`--depth` implies one) otherwise lands
-   `FETCH_HEAD` alone and that ref dies on `invalid object name`.
-4. Try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" contains `Subproject
-   commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
-   FORBIDDEN: `submodule update` here — that file inits bumped paths only.
+Then try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" carries
+`Subproject commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`.
 
 ## Step 2 — Detect stack
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/stack-detection.md`; keep the `(file, [stacks])` mapping for Steps 4-7.
+`<op> stacks --repo-dir <repo_dir> <every "Files" path>` → keep the `(file, stacks)` mapping for
+Steps 4-7; judge `.md` lines per `core/cli.md`.
 
 ## Step 3 — Setup / doctor
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/repo-settings.md`, then `Read` `notebooks/review/<repo>/settings.json`
-in full (Context read it only to resolve `<git_remote_type>`). Resolve `chat_language` and
-`doctor_due` per that file.
-
-`<git_remote_type>` is already resolved, never re-asked. Persisting it:
+From the Context `settings` call: resolve `chat_language` per `core/repo-settings.md`; `doctor_due` is
+already computed. `<vendor>` is already reconciled, never re-asked. Persisting it:
 
 - about to bootstrap → q1's pre-marked default, `setup/bootstrap.md` writes it
-- bootstrapped, field predates this schema → read-time fallback only. FORBIDDEN: writing it back
-  (`/open-pr:upgrade` owns that backfill)
-- `core/pr-target.md` §2's mismatch confirmed a DIFFERENT value → `Edit` `.shared.git_remote_type` here
+- bootstrapped, field predates this schema → read-time value only. FORBIDDEN: writing it back
+  (`/open-pr:upgrade` owns that backfill); a confirmed mismatch was already persisted at §2
 
 Branch:
 
@@ -126,8 +93,7 @@ Each Step 2 stack absent from `.review.templates_copied` → `Read`
 
 ## Step 5 — Load the criteria
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md` and load every layer it names, for the stacks
-from Step 2.
+`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md`; load every layer it names for Step 2's stacks.
 
 ## Step 6 — Re-review
 
@@ -138,9 +104,8 @@ Step 8/9 post at all. Empty (brand-new PR) → skip to Step 7.
 
 **Large-diff guard, before anything else here:** count("Files") > `many_files_threshold` || "Oversized
 paths" (Context) non-empty || any "Diff size per file" entry > `big_file_threshold_kb` KB or `UNKNOWN` →
-`Read`
-`"${CLAUDE_PLUGIN_ROOT}"/cases/large-diff-guards.md`, follow it (it may STOP the command). Neither →
-proceed.
+`Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/large-diff-guards.md`, follow it (it may STOP the command).
+Neither → proceed.
 
 **Overview items** — never counted toward N, never entered into `comments[]`:
 
@@ -148,7 +113,7 @@ proceed.
   FORBIDDEN: writing it for them.
 - `headRefName` carries a ticket code but the title lacks a matching prefix → note it. No ticket in the
   branch → skip.
-- "CI checks" has ≥1 `bucket==fail` && `review_ci_status` != `false` → 1 warning sentence (check name +
+- "CI checks" has ≥1 `fail` line && `review_ci_status` != `false` → 1 warning sentence (check name +
   link). WARNING ONLY: no severity, forces no fix (it may be flaky). No `fail` line, no CI, or
   `review_ci_status: false` → completely silent.
 
@@ -168,9 +133,9 @@ Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
 **Scope:**
 
 - in-scope first; a 📝 puts no pressure to fix and counts toward nothing
-- reading further at `<worktree>/<path>` is optional, but MUST use `Read`'s `offset`/`limit` around the
-  changed region (hunk header `@@ -a,b +c,d @@` ± ~20-30 lines). FORBIDDEN: a bare `Read` of a file
-  whose change is localized, i.e. not a new file or wholesale rewrite
+- reading further at `<worktree>/<path>` is optional, but MUST use `Read`'s `offset`/`limit` around
+  the changed region (hunk header `@@ -a,b +c,d @@` ± ~20-30 lines). FORBIDDEN: a bare `Read` of a
+  file whose change is localized — i.e. not a new file or wholesale rewrite
 - the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
   paths" file is absent BY DESIGN; the guard above owns how it gets read
 - never read library source unless genuinely unsure
@@ -188,8 +153,8 @@ the output language:
 
 A code fix is a fence on its own line, the label line then ending at `**<Fix>**` — no dangling `—`.
 
-`<marker>` = `V§"Finding marker"`, verbatim including any blank line it requires; MUST end EVERY finding,
-FILE and LINE alike.
+`<marker>` = `<op> marker --kind finding`, verbatim, on its own line after a blank line; MUST end EVERY
+finding, FILE and LINE alike.
 
 FORBIDDEN: a text label before the description ("Vấn đề"/"Issue") — in a finding the emoji IS the label,
 unlike a Step 8 grouping heading, which names the severity too. Severity: 🔴 MUST FIX / 🟠 SHOULD FIX /
@@ -205,23 +170,22 @@ code is writable.
 
 ## Step 8 — Formatting
 
-Output language = `.shared.output_language` (`core/repo-settings.md`), or Step 0's override.
+Output language = `.shared.output_language`, or Step 0's override.
 
-`V§"Fetch PR head commit SHA"` RIGHT NOW is a CHECK value, never an anchor. == "Head SHA" ⇒ `<commit_id>`
-= it. ≠ ⇒ the head moved mid-review ⇒ `<commit_id>` = "Head SHA", the commit every Step read, plus 1
-sentence beside the anchor — WHATEVER shape the body takes, the LGTM line included — saying a newer
-commit is unreviewed. FORBIDDEN: anchoring to the checked value — no finding
-describes that tree. Reuse `<commit_id>` in the overview and in Step 9's payload; never fetch it twice.
+`<op> context --sections head` RIGHT NOW is a CHECK value, never an anchor. == "Head SHA" ⇒
+`<commit_id>` = it. ≠ ⇒ the head moved mid-review ⇒ `<commit_id>` = "Head SHA", the commit every Step
+read, plus 1 sentence beside the anchor — WHATEVER shape the body takes, the LGTM line included —
+saying a newer commit is unreviewed. FORBIDDEN: anchoring to the checked value — no finding describes
+that tree. Reuse `<commit_id>` in the overview and in Step 9's payload; never fetch it twice.
 
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
 
-FORBIDDEN in the overview: the agent's own WORK PROCESS (what was fetched or checked out, which commit
-was compared, API retries, an interruption midway) — conclusions only. Also FORBIDDEN:
-repeating a `comments[]` finding or its Fix, already inline at its diff line; say ONLY what is NOT in
-LINE. A closing summary ("No new issues found in this round of changes.") → **bold**, same tier as
-**LGTM 🌟**.
+FORBIDDEN in the overview: the agent's own WORK PROCESS (fetches, checkouts, compared commits, API
+retries, an interruption midway) — conclusions only. Also FORBIDDEN: repeating a `comments[]` finding
+or its Fix, already inline at its diff line; say ONLY what is NOT in LINE. A closing summary ("No new
+issues found in this round of changes.") → **bold**, same tier as **LGTM 🌟**.
 
-Every body anchors itself to `<commit_id>`, linked per `V§"Commit URL"`, and MUST convey that the
+Every body anchors itself to `<commit_id>`, linked per `<op> commit-url`, and MUST convey that the
 ENTIRE diff was reviewed at that point — never that one commit was. 2 forms, both language-neutral in
 the parenthetical:
 
@@ -268,43 +232,34 @@ heading, never write "none".
 
 ## Step 9 — Post (1 composite op, main PR)
 
-Payload: `<commit_id>` from Step 8, `comments[]`
-(LINE entries: `path` + `line` + `side` + `body`), and the Step 8 overview (FILE findings + assessment).
+Write the payload — `core/cli.md`'s ONE shape, `<commit_id>` from Step 8 — with a file-writing tool.
 
-Every `line` CONFIRMED against the file, never counted off the hunk header: `RIGHT` ⇒ `Read`
-`<worktree>/<path>` at that `offset`, `limit: 2`; `LEFT` ⇒ `git -C "<worktree>" merge-base
-origin/<baseRefName> HEAD`, then `git -C "<worktree>" show "<that SHA>:<path>" | sed -n "<line>p"` — the
-LEFT side is the MERGE BASE, never the base tip, a DIFFERENT blob once that branch moved. 3 outcomes:
-matches ⇒ post; mismatch ⇒ fix the number BEFORE posting, an off-by-N is a VALID payload on unrelated
-code; NO merge base || `origin/<baseRefName>` unresolvable (a shallow clone) ⇒ unconfirmable → the
-finding becomes FILE. FORBIDDEN: an
-empty SHA in `show` — `:<path>` is the INDEX, returns the head blob, passes silently.
+Every `line` CONFIRMED first: `<op> verify-line` per LINE finding prints the line's REAL content —
+matches the finding ⇒ keep; different code ⇒ fix the number BEFORE posting, an off-by-N is a VALID
+payload on unrelated code; `UNCONFIRMABLE` ⇒ the finding becomes FILE.
 
-`V§"Post a review"` — COMPOSITE, step count and mechanism are the vendor's own; follow EXACTLY.
-FORBIDDEN: forcing one vendor through another's shape, e.g. inventing a review id for a vendor with
-none. Invariants on every vendor:
+Then `<op> post`. Invariants on every vendor:
 
-- exactly 1 review / 1 batch of notes for the main PR, never split. A submodule post is a separate
-  result for a DIFFERENT PR and doesn't count here.
+- exactly 1 review / 1 batch for the main PR, never split. A submodule post is a separate result for a
+  DIFFERENT PR and doesn't count here.
 - every LINE finding attached to its correct diff line + side
 
-`auto_submit_review`: `true` → carry that entry through to its own submit/publish step; `false` → stop at
-whatever holds the review unpublished there — a server-side draft, or the composed review in chat on a
-vendor with none — and say it isn't published, FORBIDDEN: publishing on the user's behalf. That entry may
-also describe how to verify the post landed — follow it if present.
+`auto_submit_review`: `true` → `<op> publish`, then `<op> post-verify` confirms it landed; `false` →
+stop at whatever `post` left unpublished — a server-side draft, or (Bitbucket, which has no draft) the
+payload file itself with nothing on the PR — and say it isn't published. FORBIDDEN: publishing on the
+user's behalf.
 
-Post/publish error || that verify reports a mismatch → `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/cases/post-review.md`. Happy path → skip that file.
+Post/publish error || post-verify mismatch → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/post-review.md`.
+Happy path → skip that file.
 
 **Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, plus
 the worktree path and that `/open-pr:clean` removes it. FORBIDDEN: repeating a finding's description or
-its Fix — the PR carries that text. FORBIDDEN: removing the worktree or asking to — the user's later call.
+its Fix — the PR carries that text; removing the worktree, or asking to — the user's later call.
 
 ## Step 10 — Asked for something outside the review flow
 
 User asks about memory, a re-scan, or the config — this run or a later PR-less chat → `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/cases/chat-requests.md`. Nothing asked → skip; the scheduled doctor is Step
-3's job.
+`"${CLAUDE_PLUGIN_ROOT}"/cases/chat-requests.md`. Nothing asked → skip.
 
 ---
 

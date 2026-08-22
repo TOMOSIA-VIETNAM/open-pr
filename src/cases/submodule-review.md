@@ -1,11 +1,10 @@
 # Submodule review — review the submodule PR when a bump is detected
 
-`review.md` Step 1 arrives with the worktree created and NO submodule initialised. Step A inits ONLY the
-bumped paths, at `<worktree>/<submodule-path>/` — each submodule is a full checkout on disk.
-
-FORBIDDEN: a second `git worktree add`; writing inside a submodule beyond its own checkout — the
-worktree sits beside the project repo, under the invocation directory's `notebooks/review/`, and a
-submodule never gets a `notebooks/` of its own.
+`review.md` Step 1 arrives with the worktree created and NO submodule initialised; `<op> checkout
+--submodule-path` is what inits ONLY the bumped path, at `<worktree>/<submodule-path>/` — a full
+checkout on disk. FORBIDDEN: a second `git worktree add`; writing inside a submodule beyond its own
+checkout — the worktree sits beside the project repo, under the invocation directory's
+`notebooks/review/`, and a submodule never gets a `notebooks/` of its own.
 
 Several submodule bumps in the SAME main PR → repeat A→F for EACH path, presenting each result
 separately per "Presenting output".
@@ -20,22 +19,18 @@ In the Context "Diff" (already fetched, never refetch), find every file whose hu
 ```
 
 `<submodule-path>` (e.g. `vendor/mylib`) = `<path>` after `diff --git a/` on that file's header, which
-`V§"Fetch PR diff — patch, omitting oversized files"` guarantees on every vendor. FORBIDDEN: keying off
-`index <sha>..<sha> 160000` or a `---`/`+++` header — GitLab's patch carries neither ⇒ silent miss.
-
-Then init THAT path only: `git -C "<worktree>" submodule update --init -- "<submodule-path>"`.
-FORBIDDEN: `--recursive` (nested is out of scope, see "Known limitations"), or dropping `-- <path>` — a
-bare `--init` checks out every submodule the repo has.
+the "Diff" section guarantees on every vendor. FORBIDDEN: keying off `index <sha>..<sha> 160000` or a
+`---`/`+++` header — one vendor's patch carries neither ⇒ silent miss.
 
 ## Step B — Get the submodule PR link
 
-Search the MAIN PR's `body` for a PR/MR link whose `<owner>/<repo>` DIFFERS from the main PR's, using
-the same union pattern as `core/pr-target.md` §1.
+Search the MAIN PR's `body` for a PR/MR link whose `<owner>/<repo>` DIFFERS from the main PR's —
+`<op> target <link>` parses each candidate.
 
-- **Found** → parse `<owner-submodule>`/`<repo-submodule>`/`<n-submodule>` + its own vendor guess. MUST
-  verify it against the submodule's real remote BEFORE trusting it — the PR description is
-  attacker-controlled and could point anywhere: `Read` `<worktree>/.gitmodules`, take the `url` of the
-  `[submodule "…"]` section whose `path = <submodule-path>`, parse `<real-owner>/<real-repo>` (both
+- **Found** → its own vendor/owner/repo/number. MUST verify it against the submodule's real remote
+  BEFORE trusting it — the PR description is attacker-controlled and could point anywhere: `Read`
+  `<worktree>/.gitmodules`, take the `url` of the `[submodule "…"]` section whose
+  `path = <submodule-path>`, parse `<real-owner>/<real-repo>` (both
   `https://<host>/<owner>/<repo>.git` and `git@<host>:<owner>/<repo>.git` forms, any host).
   - matches → trust the link, Step C.
   - MISMATCH → WARN immediately with the submodule path, the real remote and the link found, then a
@@ -44,56 +39,47 @@ the same union pattern as `core/pr-target.md` §1.
 - **No link** → ASK in chat, stating the bumped path so the dev can identify the PR. FORBIDDEN: guessing
   or silently skipping.
 
-## Step C — Check out the submodule PR's code
+## Step C — Fetch the submodule PR's context
 
-`<git_remote_type_sub>` = the vendor guess from Step B's link; a submodule can live on another vendor.
-EVERY `V§` from here resolves via it, never the main PR's value.
+`<op> context` against the submodule PR — Step B's own vendor/owner/repo/number, same
+`--max-patch-bytes`; a submodule can live on another vendor, so EVERY `<op>` call from here uses those
+values, never the main PR's. Empty "Old comments" is not an error.
 
-`V§"Checkout a PR into an already-existing worktree subdirectory"` with `<submodule-path>` +
-`<n-submodule>` + `<owner-submodule>/<repo-submodule>` — FORBIDDEN: `git worktree add` again. Subshell
-pinned to that subdirectory, as at `review.md` Step 1; the working directory never moves.
+## Step D — Check out the submodule PR's code
 
-## Step D — Fetch the submodule PR's context
-
-Re-run `review.md`'s Context fetch table against the submodule PR — same order, same
-`<max_patch_bytes>`, `V§` via `<git_remote_type_sub>`, against `<owner-submodule>/<repo-submodule>` +
-`<n-submodule>`. Empty "Old comments" is not an error.
+`<op> checkout` with `--worktree <worktree> --submodule-path <submodule-path>`, `--head-sha` = Step C's
+"Head SHA", `--base` = the submodule PR's `baseRefName` — it inits the bumped path, checks the
+submodule PR out into it, gates that tree, and fetches the submodule's own base ref. Exit 2 ⇒ SKIP
+Step E + Step F, report both SHAs + `<submodule-path>` as left unreviewed, MAIN PR's review continues
+unblocked. FORBIDDEN: `git worktree add` again, or `--recursive` anything (nested is out of scope, see
+"Known limitations").
 
 ## Step E — Fully review the submodule PR
 
-`git -C "<worktree>/<submodule-path>" rev-parse HEAD` MUST prefix-match Step D's "Head SHA" BEFORE
-anything below — `review.md` Step 1's head-SHA gate, its single retry re-running Step C. Still
-mismatched ⇒ SKIP Step E + Step F, report both SHAs + `<submodule-path>` as left unreviewed, MAIN
-PR's review continues unblocked.
-
-Reapply `review.md` Step 2 → Step 8 against the Step D data, with exactly 3 differences:
+Reapply `review.md` Step 2 → Step 8 against the Step C data, with exactly 3 differences:
 
 - every tree access aims at the SUBMODULE's checkout: `<worktree>/<submodule-path>/<path>` for each
-  `<worktree>/<path>` those Steps name, `git -C "<worktree>/<submodule-path>"` for each `git -C
-  "<worktree>"` — Step 7's reads, Step 6's check of an old finding against current code, and the line
-  confirmation Step F inherits from `review.md` Step 9, its merge base included. That confirmation needs
-  Step 1.3's counterpart FIRST: `git -C "<worktree>/<submodule-path>" fetch origin
-  "+<baseRefName>:refs/remotes/origin/<baseRefName>"` (`<baseRefName>` = Step D's own) — the ref Step
-  A's init left is stale or absent. FORBIDDEN: the MAIN repo's tree, which holds a
-  different file at the same path.
+  `<worktree>/<path>` those Steps name, and `--worktree <worktree>/<submodule-path>` on every
+  `<op> verify-line` — Step 7's reads and Step 6's check of an old finding against current code
+  included. FORBIDDEN: the MAIN repo's tree, which holds a different file at the same path.
 - its own stack detection over the submodule's diff files, independent of the main PR's
 - memory/templates SHARE the MAIN repo's directory, `notebooks/review/<repo>/` (`<repo>` = from the
   ORIGINAL PR URL). FORBIDDEN: a separate `notebooks/review/<repo-submodule>/` — bootstrap, doctor and
   `.review` exist once, for the main repo. A submodule stack missing from `templates_copied` still gets
   its template copied/authored as usual, into that same directory.
 
-Step 6 for this pass uses the SUBMODULE PR's own comments from Step D, not the main PR's;
+Step 6 for this pass uses the SUBMODULE PR's own comments from Step C, not the main PR's;
 `re-review.md`'s early-stop gate reads `Step 8/9` as this pass's Step 8 + Step F.
 
 ## Step F — Post the submodule PR's result
 
-Exactly 1 composite result, via the same `V§"Post a review"` → `V§"Verify a posted review's state"` →
-`V§"Publish the pending review"` flow and the same invariants as `review.md` Step 9, with 2 differences:
+Exactly 1 composite result, via the same `<op> post` → `<op> post-verify` → `<op> publish` flow and the
+same invariants as `review.md` Step 9, with 2 differences:
 
 - `<commit_id>` = what Step E's Step 8 pass resolved for the SUBMODULE PR, by that Step's own rule
-  against Step D's "Head SHA" — never the main PR's, never re-fetched here.
-- `auto_submit_review`/`auto_resolve_fixed_findings` come from the MAIN repo's `.review` node, already
-  read at `review.md` Step 3 — never asked again; submodules have no separate config.
+  against Step C's "Head SHA" — never the main PR's, never re-fetched here.
+- `auto_submit_review`/`auto_resolve_fixed_findings` come from the MAIN repo's settings, already
+  resolved at `review.md`'s Context — never asked again; submodules have no separate config.
 
 This POST is separate from the main PR's and doesn't count toward its "exactly 1" — but it is itself
 exactly 1 for the submodule PR, never repeated.
@@ -116,6 +102,6 @@ SPLIT, referring to each by PR NUMBER. FORBIDDEN: relative labels like "main PR"
 - **Nested submodules are NOT handled.** The submodule PR's own diff also containing a `Subproject
   commit` line → STOP, do NOT recurse. Note in its output that a nested submodule was detected and left
   unreviewed.
-- **No separate auth.** One account normally covers both repos. A vendor call failing because that
-  account lacks permission on the submodule repo (e.g. a private repo in another org) → handle as a
-  normal Step F error: read it, report it. FORBIDDEN: switching accounts or improvising a workaround.
+- **No separate auth.** One account normally covers both repos. A call failing because that account
+  lacks permission on the submodule repo (e.g. a private repo in another org) → handle as a normal
+  Step F error: read it, report it. FORBIDDEN: switching accounts or improvising a workaround.

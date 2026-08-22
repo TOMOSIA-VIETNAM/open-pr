@@ -139,6 +139,8 @@ The plugin also reads `BITBUCKET_TOKEN`, for a repository or workspace access to
 a repo rather than a person, so `/user` answers 401 and the review appears under the token's name — good
 for automation, while day-to-day reviews are better off with the API token above.
 
+**Git over HTTPS with the same token:** the username is the literal `x-bitbucket-api-token-auth`, not your email — the email works for the REST API only.
+
 ## Pushing needs SSH, not a token
 
 `/open-pr:review` only reads. `/open-pr:fix` commits and pushes, and on all three vendors a token cannot
