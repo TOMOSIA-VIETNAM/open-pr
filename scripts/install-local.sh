@@ -106,6 +106,8 @@ while [ $# -gt 0 ]; do
     --ref) [ $# -ge 2 ] && [ -n "$2" ] || {
              printf 'install-local.sh: --ref needs a branch or tag name, or `latest`\n' >&2; exit 2; }
            REF="$2"; shift 2 ;;
+    --ref=?*) REF="${1#--ref=}"; shift ;;
+    --ref=) printf 'install-local.sh: --ref needs a branch or tag name, or `latest`\n' >&2; exit 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'install-local.sh: unexpected argument %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
@@ -165,6 +167,7 @@ if [ "$ACTION" = update ]; then
     case "$arg" in
       --update) ;;
       --ref) drop_value=yes ;;
+      --ref=*) ;;
       *) rest+=("$arg") ;;
     esac
   done

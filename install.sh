@@ -8,7 +8,8 @@
 # platform's directories. Read it there afterwards; it is the code that ran.
 #
 # Args: --ref <branch-or-tag> installs that ref instead of the newest release, and every later run
-# stays on it; `--ref latest` returns to releases. Everything else is passed to install-local.sh.
+# stays on it; `--ref latest` returns to releases. `--update` stops here; everything else is
+# passed to install-local.sh.
 #
 # Env: OPEN_PR_HOME (default ~/.open-pr) · OPEN_PR_REF (same as --ref) · OPEN_PR_REPO (default: this
 # project on GitHub).
@@ -64,8 +65,8 @@ main() {
       --ref=?*) ref="${1#--ref=}"; pinned="$ref"; named=yes; shift ;;
       --ref=) printf 'install.sh: --ref needs a branch or tag name, or `latest`\n' >&2; exit 2 ;;
       # The clone below is already moved onto the wanted ref before install-local.sh runs. Passing
-      # --update on would have it fetch a second time and re-exec itself, and that second run is
-      # what asked the platform question twice.
+      # --update on makes it fetch a second time and re-exec itself, and that second run asks the
+      # platform question again.
       --update) shift ;;
       *) pass+=("$1"); shift ;;
     esac

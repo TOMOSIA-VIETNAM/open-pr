@@ -1349,7 +1349,8 @@ def test_an_install_off_the_release_channel_stays_there():
         script = (REPO / name).read_text(encoding="utf-8")
         assert "config --get open-pr.ref" in script, f"{name} never reads back the ref it follows"
         assert re.search(r"config open-pr\.ref", script), f"{name} never records the ref it follows"
-        assert "latest" in script, f"{name} offers no way back to the release channel"
+        assert "config --unset open-pr.ref" in script, (
+            f"{name} offers no way back to the release channel")
 
 
 def test_local_installer_covers_every_shim():
