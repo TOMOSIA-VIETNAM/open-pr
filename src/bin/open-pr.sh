@@ -645,9 +645,16 @@ cmd_settings() {
 # for the caller to decide, never guessed here.
 cmd_stacks() {
     # Paths stay in "$@" — flattening them into one string splits on spaces and
-    # globs against the current tree. Only --repo-dir is an option here.
+    # globs against the current tree. Only --repo-dir is an option here; any other
+    # option must die loudly instead of being fed to basename as a path.
     D=.
-    if [ "${1:-}" = "--repo-dir" ]; then D="$2"; shift 2; fi
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --repo-dir) D="$2"; shift 2 ;;
+            --*) die 1 "open-pr.sh stacks: unknown option $1 — stacks takes only --repo-dir" ;;
+            *) break ;;
+        esac
+    done
     has() { [ -e "$D/$1" ]; }
     lambda_repo=""; { has serverless.yml || has template.yaml || has sam.yaml; } && lambda_repo=1
     laravel_repo=""; { has artisan || { [ -f "$D/composer.json" ] && grep -q 'laravel/framework' "$D/composer.json"; }; } && laravel_repo=1

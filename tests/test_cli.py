@@ -384,6 +384,9 @@ def test_stacks_maps_extensions_and_overlays(tmp_path):
     assert rows["app/Http/Controllers/A.php"] == "laravel"
     assert rows["notes.md"].startswith("-"), "a human .md carries NO stack (v1 behaviour)"
     assert "judge" in rows["notes.md"], "an .md is the caller's judgment, never guessed"
+    bad = run("stacks", "--vendor", "gitlab", "x.py")
+    assert bad.returncode == 1 and "takes only --repo-dir" in bad.stderr, \
+        "an unknown option must die loudly, never reach basename as a path"
     spaced = run("stacks", "--repo-dir", str(tmp_path), "a dir/with space.rb", check=True)
     assert spaced.stdout.split("\t")[0] == "a dir/with space.rb", \
         "a path with a space must survive as ONE argument"
