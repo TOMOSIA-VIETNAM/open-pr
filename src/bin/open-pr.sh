@@ -356,7 +356,14 @@ cmd_checkout() {
         REMOTE=$(find_remote "$repo_dir" "$HOST" "$OWNER/$REPO")
     fi
 
-    vendor_checkout "$target" >&2 || true
+    # The head SHA is content-addressed: already present locally (any earlier
+    # fetch) ⇒ detach straight to it — the checkout must not depend on a
+    # git-network credential the API path never needed.
+    if git -C "$target" rev-parse --verify --quiet "$HEAD_SHA^{commit}" >/dev/null 2>&1; then
+        git -C "$target" checkout --detach "$HEAD_SHA" >&2
+    else
+        vendor_checkout "$target" >&2 || true
+    fi
     # Head-SHA gate: the tree on disk must be the commit the diff was read at.
     # One retry re-runs the checkout (a ref that had not caught up resolves on
     # the second fetch; an errored checkout stays put). A third attempt would

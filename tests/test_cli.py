@@ -137,6 +137,22 @@ def test_checkout_fetches_from_the_remote_matching_the_pr_host(fixture_repo):
     assert "bitbucket.org" not in r.stderr, "the wrong-vendor origin was still contacted"
 
 
+def test_checkout_detaches_locally_when_the_head_sha_is_already_present(fixture_repo):
+    """API credentials and git-over-SSH credentials are different things: a machine can
+    fetch PR data over the API while every git remote is SSH-denied. The head SHA is
+    content-addressed, so when an earlier fetch already brought the commit, checkout
+    detaches straight to it with zero network instead of dying on the fetch."""
+    clone = fixture_repo["clone"]
+    # every remote is now unreachable; the feature commit is in the clone already
+    subprocess.run(["git", "-C", str(clone), "remote", "set-url", "origin",
+                    "git@gitlab.example.invalid:x/y.git"], check=True)
+    r = run("checkout", "--vendor", "gitlab", "--owner", "x", "--repo", "y", "--pr", "4",
+            "--host", "gitlab.example.invalid", "--repo-dir", str(clone),
+            "--head-sha", fixture_repo["head"], "--base", "main",
+            cwd=fixture_repo["tmp"], check=True)
+    assert dict(l.split("=", 1) for l in r.stdout.splitlines())["head"] == fixture_repo["head"]
+
+
 def test_checkout_exits_2_when_the_tree_cannot_match(fixture_repo):
     r = run("checkout", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5",
             "--repo-dir", str(fixture_repo["clone"]),
