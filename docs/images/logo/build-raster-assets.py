@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Render PNG avatars from the moth geometry defined in build-moth-assets.py.
+"""Render the raster assets a hosting site needs, from the moth geometry.
 
-GitHub (and most other profile hosts) accept only raster avatars and crop them
-to a circle, so the SVG assets cannot be uploaded as-is: the wing tips of the
-mark reach into the corners of its 128x128 box and would be sliced off.
+Every shape and colour comes from build-moth-assets.py; nothing here restates a
+coordinate. The SVG assets it writes cannot be uploaded to a hosting site
+directly, because each upload slot imposes its own frame:
 
-This script solves both problems from the same single geometry source:
-  * it measures how far the ink actually reaches from its own centre and scales
-    the mark so every point lands inside the circle, with margin to spare;
-  * it renders square PNGs at the sizes a profile picture is served at.
+  avatar        square, cropped to a circle. The wing tips of the mark reach
+                into the corners of its 128x128 box and the crop would slice
+                them off, so the mark is scaled to fit inside the circle.
+  social card   2:1 (1280x640), used as the link preview when the repository is
+                shared. A square avatar dropped in this slot leaves the frame
+                mostly empty ground, so the card is its own composition, laid
+                out inside the 40pt safe border the host recommends.
 
 Run after editing the geometry in build-moth-assets.py:
-    python3 build-avatar-png.py            # the avatars themselves
-    python3 build-avatar-png.py --preview  # plus a circle-cropped render to eyeball
+    python3 build-raster-assets.py            # every asset
+    python3 build-raster-assets.py --preview  # plus a circle-cropped avatar to eyeball
 Outputs land in ./png/ beside this script.
 """
 import argparse
@@ -85,11 +88,58 @@ def avatar_svg(body, bg, circle_mask=False):
             f'{group}{body}</g></svg>')
 
 
-def write_png(name, svg, size):
+# --- social card -------------------------------------------------------------
+# The host serves this slot at 1280x640, so the 40pt safe border it recommends
+# on the logical 640x320 card is 80px here. Nothing may cross that band: each
+# surface sharing the link crops the outside differently.
+
+CARD_W, CARD_H, SAFE = 1280, 640, 80
+TAGLINE = "The review lands on the PR itself."
+VENDORS = "GitHub \u00b7 GitLab \u00b7 Bitbucket"
+COMMANDS = "/open-pr:review \u00b7 /open-pr:fix"
+
+CARD_GROUNDS = {
+    "light": dict(bg="#FFFFFF", tones=moth.LIGHT_BG,
+                  ink=moth.WORDMARK_INK["light"], muted="#57534E"),
+    "dark":  dict(bg="#17130F", tones=moth.DARK_BG,
+                  ink=moth.WORDMARK_INK["dark"], muted="#A8A29E"),
+}
+
+
+def _centred_text(y, text, fill, size, weight="500", spacing=".01em"):
+    return (f'<text x="{CARD_W / 2}" y="{y}" text-anchor="middle" '
+            f'font-family="{moth.FONT}" font-size="{size}" font-weight="{weight}" '
+            f'fill="{fill}" letter-spacing="{spacing}">{text}</text>')
+
+
+def social_svg(g):
+    """A stacked lockup over tagline and meta lines, centred in the safe area.
+
+    Stacked rather than side-by-side so every element centres by text anchor
+    alone: no text width has to be guessed to keep the composition balanced.
+    """
+    mark_h = 156
+    k = mark_h / BOX
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CARD_W} {CARD_H}" '
+        f'role="img" aria-label="open-pr \u2014 {TAGLINE}">'
+        f'<rect width="{CARD_W}" height="{CARD_H}" fill="{g["bg"]}"/>'
+        f'<g transform="translate({(CARD_W - mark_h) / 2} 122) scale({k:.4f})">'
+        f'{moth.full_mark(g["tones"])}</g>'
+        + _centred_text(360, "open-pr", g["ink"], 88, "600", "-2.2")
+        + _centred_text(414, TAGLINE, g["ink"], 32, "500")
+        + _centred_text(474, VENDORS, g["muted"], 23, "400", ".04em")
+        + _centred_text(508, COMMANDS, g["muted"], 23, "400", ".02em")
+        + '</svg>')
+
+
+def write_png(name, svg, size, height=None):
     OUT.mkdir(exist_ok=True)
-    path = OUT / f"{name}-{size}.png"
+    height = height or size
+    stem = f"{name}-{size}" if height == size else f"{name}-{size}x{height}"
+    path = OUT / f"{stem}.png"
     cairosvg.svg2png(bytestring=svg.encode(), write_to=str(path),
-                     output_width=size, output_height=size)
+                     output_width=size, output_height=height)
     print(f"wrote {path.relative_to(HERE)}  {path.stat().st_size / 1024:.0f} KB")
 
 
@@ -110,6 +160,9 @@ def main():
         if args.preview:
             write_png(f"avatar-{ground}-circle-preview",
                       avatar_svg(body, g["bg"], circle_mask=True), 512)
+
+    for ground, g in CARD_GROUNDS.items():
+        write_png(f"social-card-{ground}", social_svg(g), CARD_W, CARD_H)
 
 
 if __name__ == "__main__":
