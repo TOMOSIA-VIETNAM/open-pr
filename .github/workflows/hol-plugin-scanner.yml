@@ -1,0 +1,52 @@
+name: HOL Plugin Scanner
+
+# Self-scan against the HOL AI Plugin Scanner, the quality gate for listing Open
+# PullRequest on hashgraph-online/awesome-ai-plugins: score >= 80 and no high or
+# critical findings.
+#
+# This file exists to be read, not to run. The listing gate
+# (scripts/validate-contribution.py in that catalog) fetches this repository's
+# .github/workflows over the contents API and requires a step whose `uses:` names
+# hashgraph-online/ai-plugin-scanner-action, in a workflow triggered by push or
+# pull_request. It never looks at whether the run succeeded — and it cannot succeed
+# here: the organisation restricts Actions to repositories it owns, so a step naming
+# any other owner fails the whole workflow at startup. The catalog runs the same scan
+# itself, cloning this repository's default branch on its own runner, and that run is
+# what actually decides the score. Keep `.plugin-scanner.toml` accurate for its sake.
+#
+# Every `uses:` is pinned to a full commit SHA, here and in ci.yml: the scanner scores
+# an unpinned reference as an operational-security finding.
+#
+# Read-only and no SARIF upload: the listing needs the score, nothing more, so this
+# keeps `contents: read` and never asks for `security-events: write`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: HOL Plugin Scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run HOL AI Plugin Scanner
+        uses: hashgraph-online/ai-plugin-scanner-action@b402d3b3aaa8f59df8e8aa427dc97694a0af2819 # v1.2.528
+        with:
+          plugin_dir: '.'
+          mode: scan
+          min_score: 80
+          fail_on_severity: high
+          format: text
+          upload_sarif: false
+          write_step_summary: true

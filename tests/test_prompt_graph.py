@@ -1215,20 +1215,28 @@ def test_manifests_agree_on_name_and_declare_one_version():
         f"a version belongs in gemini-extension.json alone, found in: {versioned}"
 
 
-def test_the_declared_version_keeps_up_with_the_release_tags():
+PUBLIC_RELEASE_TAG = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+"""A tag names a public release only when it is exactly vX.Y.Z. Anything after the patch number —
+-rc1, -beta, a build suffix — is a release still being cut, and nothing outside the branch cutting it
+is expected to carry that number yet."""
+
+
+def test_the_declared_version_keeps_up_with_the_public_releases():
     """The one declared version is the one nobody thinks to bump. Tags are what say which release a
-    checkout is, so the manifest may equal the newest tag or run ahead of it (a bump prepared for the
-    next release) — never behind, which is what shipping a stale number looks like."""
+    checkout is, so the manifest may equal the newest public release or run ahead of it (a bump
+    prepared for the next one) — never behind, which is what shipping a stale number looks like."""
     tags = subprocess.run(["git", "tag", "--list", "v[0-9]*"], cwd=REPO,
                           capture_output=True, text=True).stdout.split()
-    if not tags:
-        return  # a shallow clone with no tags cannot judge this
-    def parts(v):
-        return tuple(int(x) for x in re.match(r"v?(\d+)\.(\d+)\.(\d+)", v).groups())
-    newest = max(parts(t) for t in tags if re.match(r"v?\d+\.\d+\.\d+", t))
-    declared = parts(json.loads((REPO / "gemini-extension.json").read_text(encoding="utf-8"))["version"])
-    assert declared >= newest, (
-        f"gemini-extension.json says {declared}, newest release tag is {newest} — bump it")
+    released = [m for m in (PUBLIC_RELEASE_TAG.match(t) for t in tags) if m]
+    if not released:
+        return  # a shallow clone, or a checkout with only pre-release tags, cannot judge this
+    newest = max(tuple(int(g) for g in m.groups()) for m in released)
+    declared = PUBLIC_RELEASE_TAG.match(
+        json.loads((REPO / "gemini-extension.json").read_text(encoding="utf-8"))["version"])
+    assert declared, "gemini-extension.json must declare a plain X.Y.Z version"
+    assert tuple(int(g) for g in declared.groups()) >= newest, (
+        f"gemini-extension.json says {declared.group(0)}, newest public release is "
+        f"v{'.'.join(str(n) for n in newest)} — bump it")
 
 
 def test_install_paths_have_one_owner():
@@ -1244,6 +1252,35 @@ def test_install_paths_have_one_owner():
     assert len(row) == 1, "adapters/root.md has no single last-resort ROOT search"
     missing = [t for t in targets if t not in row[0]]
     assert not missing, f"the ROOT fallback cannot find installs in: {missing}"
+
+
+def test_the_platform_question_is_asked_once_per_run():
+    """--update replaces install-local.sh and hands over to the new copy, and the answer to the
+    platform question does not survive that hand-over. Asked before the update, it is asked again
+    after — the same menu twice for one install. Two things keep it to one: the update runs before
+    anything is asked, and install.sh, which has already moved the clone itself, does not pass
+    --update down to a second mover."""
+    script = (REPO / "scripts" / "install-local.sh").read_text(encoding="utf-8")
+    update = script.index('if [ "$ACTION" = update ]')
+    ask = script.index("say 'Which platform?")
+    assert update < ask, "install-local.sh asks which platform before the update hands over"
+
+    bootstrap = (REPO / "install.sh").read_text(encoding="utf-8")
+    assert re.search(r"^\s*--update\) shift ;;", bootstrap, re.M), (
+        "install.sh forwards --update to install-local.sh, which then updates and re-execs a "
+        "second time")
+
+
+def test_an_install_off_the_release_channel_stays_there():
+    """--ref installs a branch so a big change can be tried before it merges. Both scripts then have
+    to read back what this clone follows, or the next update pulls the user onto a release and the
+    branch they were testing is gone without a word."""
+    for name in ("install.sh", "scripts/install-local.sh"):
+        script = (REPO / name).read_text(encoding="utf-8")
+        assert "config --get open-pr.ref" in script, f"{name} never reads back the ref it follows"
+        assert re.search(r"config open-pr\.ref", script), f"{name} never records the ref it follows"
+        assert "config --unset open-pr.ref" in script, (
+            f"{name} offers no way back to the release channel")
 
 
 def test_local_installer_covers_every_shim():

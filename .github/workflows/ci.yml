@@ -1,9 +1,20 @@
 name: CI
 
+# A merge queue cannot replace this. GitHub only makes the queue wait on checks the
+# ruleset marks required, and it refuses to queue a pull request whose required checks
+# have not already passed on the pull request itself — so a required check has to run
+# here, on pull_request, or it never runs at all.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+
+# Three commits pushed in a row spend one run, on the last of them. Runs on main are
+# never cancelled: each one records a distinct commit that landed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -13,14 +24,18 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # token_report needs the base branch to diff against
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           cache: pip
+          # The only dependency file in the repo is requirements-dev.txt; the cache
+          # default globs requirements.txt/pyproject.toml and errors out when neither
+          # exists, which failed the job before a single check had run.
+          cache-dependency-path: requirements-dev.txt
 
       - run: pip install -r requirements-dev.txt
 

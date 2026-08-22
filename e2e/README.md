@@ -53,7 +53,8 @@ with a message. No write access to a fixture repo → fork it and pass `--repo <
   empty, so read the draft rows as "not published yet".
 - **A visible marker is a defect** — whatever form this vendor uses must render to nothing. Confirm it is
   there by reading a comment's raw body, not by looking at the page.
-- **CI never runs this**: real model call, real vendor. `.github/workflows/e2e.yml` drives it by hand.
+- **CI never runs this**: real model call, real vendor, and a fork PR is given no secrets. There is
+  no workflow for it — drive it from your own machine with `e2e/bootstrap.sh` and your own PAT.
 
 `fixtures/base/` is `main`, `fixtures/pr/` overwrites it on the branch, and that difference is the diff
 under review — 9 planted defects, listed in `checklist.md`. The 40KB dump is generated, never committed.

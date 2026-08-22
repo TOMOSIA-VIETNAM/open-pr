@@ -23,7 +23,7 @@ MARKETPLACE='TOMOSIA-VIETNAM/open-pr'
 usage() {
   cat <<'EOF'
 Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
-                                [--update | --uninstall [--all]]
+                                [--update [--ref NAME] | --uninstall [--all]]
 
   --platform NAME  repeatable, or comma-separated: --platform cursor,shared
                    all          every platform below, Claude Code included
@@ -39,7 +39,10 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
   --target DIR     install somewhere else; one platform at a time, wins over its path
   --copy           copy instead of linking (needed if your platform will not follow symlinks);
                    afterwards a `git pull` requires re-running this script
-  --update         git pull in this clone, then reinstall with the same options
+  --update         move this clone to the ref it follows, then reinstall with the same options.
+                   That ref is whatever the last --ref named, else the newest release
+  --ref NAME       with --update: move to this branch or tag and follow it. `--ref latest` returns
+                   to releases
   --uninstall      remove only what this script installed, then exit
   --all            with --uninstall: sweep every platform above
 
@@ -89,6 +92,7 @@ SWEEP=no
 TARGET=
 MODE=link
 ACTION=install
+REF=
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -99,6 +103,11 @@ while [ $# -gt 0 ]; do
     --uninstall) ACTION=uninstall; shift ;;
     --all) SWEEP=yes; shift ;;
     --update) ACTION=update; shift ;;
+    --ref) [ $# -ge 2 ] && [ -n "$2" ] || {
+             printf 'install-local.sh: --ref needs a branch or tag name, or `latest`\n' >&2; exit 2; }
+           REF="$2"; shift 2 ;;
+    --ref=?*) REF="${1#--ref=}"; shift ;;
+    --ref=) printf 'install-local.sh: --ref needs a branch or tag name, or `latest`\n' >&2; exit 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'install-local.sh: unexpected argument %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
@@ -107,6 +116,64 @@ done
 if [ "$SWEEP" = yes ]; then
   [ "$ACTION" = uninstall ] || { printf 'install-local.sh: --all only applies to --uninstall\n' >&2; exit 2; }
   [ -z "$TARGET" ] || { printf 'install-local.sh: --all and --target are mutually exclusive\n' >&2; exit 2; }
+fi
+if [ -n "$REF" ] && [ "$ACTION" != update ]; then
+  printf 'install-local.sh: --ref only applies to --update; a ref is checked out by install.sh --ref\n' >&2
+  exit 2
+fi
+
+# Before anything is asked about platforms: the update replaces this file and hands over to the new
+# copy, and a question answered here would be lost across that hand-over and asked again.
+if [ "$ACTION" = update ]; then
+  say 'updating %s\n' "$REPO"
+  # A ref this clone follows — named by install.sh --ref, or by --ref on an earlier update — is where
+  # it belongs. `latest` gives that up and asks for the release channel again, and a clone following
+  # nothing is already on it.
+  release=no
+  if [ "$REF" = latest ]; then
+    git -C "$REPO" config --unset open-pr.ref 2>/dev/null || true
+    REF=; release=yes
+  else
+    [ -n "$REF" ] || REF="$(git -C "$REPO" config --get open-pr.ref 2>/dev/null || true)"
+  fi
+  if [ -n "$REF" ]; then
+    up="$REF"
+    git -C "$REPO" fetch --quiet --depth 1 origin "$up" \
+      || { printf 'install-local.sh: origin has no ref named %s\n' "$up" >&2; exit 1; }
+    git -C "$REPO" checkout --quiet --detach FETCH_HEAD
+    git -C "$REPO" config open-pr.ref "$up"
+    say 'now at %s — following it, --ref latest returns to releases\n' "$up"
+  elif [ "$release" = no ] && git -C "$REPO" symbolic-ref -q HEAD >/dev/null; then
+    up="$(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
+    git -C "$REPO" pull --ff-only
+  else
+    # Installed at a release tag, so the clone's fetch refspec is that one tag and `git pull` can
+    # only ever report itself up to date. Ask the remote which release is newest and move onto it.
+    up="$(git -C "$REPO" ls-remote --tags --refs origin 'v[0-9]*' 2>/dev/null \
+          | awk -F/ '{print $NF}' | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -1)"
+    [ -n "$up" ] || up=HEAD
+    git -C "$REPO" fetch --quiet --depth 1 origin "$up" \
+      || { printf 'install-local.sh: could not fetch %s from origin\n' "$up" >&2; exit 1; }
+    git -C "$REPO" checkout --quiet --detach FETCH_HEAD
+    say 'now at %s\n' "$up"
+  fi
+  # The update just rewrote this file while bash is part way through reading it. Hand over to the
+  # new copy rather than run the rest of the old one from shifted byte offsets. The flags that got it
+  # here are spent: the move is done and the ref is recorded.
+  rest=()
+  drop_value=no
+  for arg in ${ORIG_ARGS+"${ORIG_ARGS[@]}"}; do
+    if [ "$drop_value" = yes ]; then drop_value=no; continue; fi
+    case "$arg" in
+      --update) ;;
+      --ref) drop_value=yes ;;
+      --ref=*) ;;
+      *) rest+=("$arg") ;;
+    esac
+  done
+  [ -x "$REPO/scripts/install-local.sh" ] || {
+    printf 'install-local.sh: %s has no installer — nothing was reinstalled\n' "$up" >&2; exit 1; }
+  exec "$REPO/scripts/install-local.sh" ${rest+"${rest[@]}"}
 fi
 
 # No platform given: ask, rather than guess on the user's behalf which agent they run. Piped into a
@@ -166,32 +233,6 @@ resolve_members() {
     exit 2
   fi
 }
-
-if [ "$ACTION" = update ]; then
-  say 'updating %s\n' "$REPO"
-  if git -C "$REPO" symbolic-ref -q HEAD >/dev/null; then
-    git -C "$REPO" pull --ff-only
-  else
-    # Installed at a release tag, so the clone's fetch refspec is that one tag and `git pull` can
-    # only ever report itself up to date. Ask the remote which release is newest and move onto it.
-    up="$(git -C "$REPO" ls-remote --tags --refs origin 'v[0-9]*' 2>/dev/null \
-          | awk -F/ '{print $NF}' | sort -t. -k1.2,1n -k2,2n -k3,3n | tail -1)"
-    [ -n "$up" ] || up=HEAD
-    git -C "$REPO" fetch --quiet --depth 1 origin "$up" \
-      || { printf 'install-local.sh: could not fetch %s from origin\n' "$up" >&2; exit 1; }
-    git -C "$REPO" checkout --quiet --detach FETCH_HEAD
-    say 'now at %s\n' "$up"
-  fi
-  # The update just rewrote this file while bash is part way through reading it. Hand over to the
-  # new copy rather than run the rest of the old one from shifted byte offsets.
-  rest=()
-  for arg in ${ORIG_ARGS+"${ORIG_ARGS[@]}"}; do
-    [ "$arg" = --update ] || rest+=("$arg")
-  done
-  [ -x "$REPO/scripts/install-local.sh" ] || {
-    printf 'install-local.sh: %s has no installer — nothing was reinstalled\n' "$up" >&2; exit 1; }
-  exec "$REPO/scripts/install-local.sh" ${rest+"${rest[@]}"}
-fi
 
 SKILLS=()
 for dir in "$REPO"/skills/open-pr-*; do

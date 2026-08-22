@@ -36,7 +36,7 @@ scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py �
 tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
-.github/workflows ci.yml on PRs · e2e.yml manual (org disables Actions → local / pre-push)
+.github/workflows ci.yml on PRs and main · hol-plugin-scanner.yml read by the listing gate
 backlogs/         historical, not ops
 ```
 
@@ -82,9 +82,24 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | harder dup hunt | `dup_scan.py --window 10 --all --min-waste 20` |
 | vendor flags offline | `vendor_lint.py` |
 | vendor commands live | `vendor_lint.py --url <fixture PR URL>` |
+| the CI suite on a branch with no open PR | `gh workflow run ci.yml --ref <branch>` |
 
 Cheaper → lower affected ceilings (by hand by the measured delta if you had tightened them; otherwise `--update-budgets` is fine). Costlier because the fix is correct → say which scenario / by how much / why on the PR. Never strip behaviour for budget.
 
 Numbers move the wrong way: suspect the measurement first (missing path in base, a `cp`'d seed counted as a load). Fix the model, then judge the content.
 
-Actions disabled by org → `scripts/install_hooks.sh` wires pre-push.
+Actions are restricted to what the org owns, what GitHub authored, and Marketplace verified
+creators. `actions/*` is fine; anything else needs an entry in the repository's allowlist or
+the whole workflow fails at startup, before a step runs and without producing a check — a
+failure that is invisible on the pull request, so read the Actions tab when a run goes missing.
+`hol-plugin-scanner.yml` names a vendor action that is not verified: it exists for the
+awesome-ai-plugins listing gate, which reads the file and never the run, and the catalog scans
+this repository from its own runner. Keep every `uses:` SHA-pinned — the scanner scores an
+unpinned one as a finding.
+
+CI runs on every pull request, and a new push cancels the run still going for that same pull
+request. A merge queue cannot take its place: GitHub makes the queue wait only on checks the
+ruleset marks required, and refuses to queue a pull request whose required checks have not
+already passed on the pull request — so the check runs on `pull_request` or nowhere. Running
+`scripts/check.sh` before pushing is still what catches a break early; `scripts/install_hooks.sh`
+wires it to pre-push.
