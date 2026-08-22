@@ -111,6 +111,32 @@ def test_checkout_gates_and_fetches_the_base_ref(fixture_repo):
     assert mb.returncode == 0 and mb.stdout.strip(), "origin/<base> was not created"
 
 
+def test_checkout_fetches_from_the_remote_matching_the_pr_host(fixture_repo):
+    """A workspace clone can carry one remote per vendor with `origin` pointing at the
+    WRONG one — a blind `origin` fetch lands the wrong tree and the gate then rejects a
+    perfectly reviewable PR. The remote is picked by matching host + owner/repo against
+    the EFFECTIVE url (remote -v, insteadOf applied) — the endpoint fetch will really hit."""
+    clone = fixture_repo["clone"]
+    origin_url = subprocess.run(["git", "-C", str(clone), "remote", "get-url", "origin"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+    # the matching remote: a local bare mirror whose PATH ends in github.com/o/r
+    mirror = fixture_repo["tmp"] / "mirrors" / "github.com" / "o" / "r"
+    mirror.parent.mkdir(parents=True)
+    subprocess.run(["git", "clone", "--bare", "--mirror", origin_url, str(mirror)],
+                   capture_output=True, check=True)
+    # origin now impersonates another vendor over SSH — a blind origin fetch would die
+    subprocess.run(["git", "-C", str(clone), "remote", "set-url", "origin",
+                    "git@bitbucket.org:other/elsewhere.git"], check=True)
+    subprocess.run(["git", "-C", str(clone), "remote", "add", "gh", str(mirror)], check=True)
+    r = run("checkout", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5",
+            "--host", "github.com", "--repo-dir", str(clone),
+            "--head-sha", fixture_repo["head"], "--base", "main",
+            cwd=fixture_repo["tmp"], check=True)
+    assert dict(l.split("=", 1) for l in r.stdout.splitlines())["head"] == fixture_repo["head"], \
+        "checkout must fetch from the remote whose URL matches the PR's host+owner/repo"
+    assert "bitbucket.org" not in r.stderr, "the wrong-vendor origin was still contacted"
+
+
 def test_checkout_exits_2_when_the_tree_cannot_match(fixture_repo):
     r = run("checkout", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5",
             "--repo-dir", str(fixture_repo["clone"]),

@@ -293,22 +293,32 @@ cmd_locate_repo() {
 }
 
 # ------------------------------------------------------------ checkout ----
+# The remote whose URL matches the PR's host + owner/repo; falls back to origin.
+# A clone can carry one remote per vendor — fetching the PR ref or the base from
+# a blind `origin` hits the wrong host there, and the gate then rejects the tree.
+find_remote() {   # $1 = git dir, $2 = host, $3 = owner/repo
+    pat=$(printf '%s/%s' "$2" "$3" | tr 'A-Z' 'a-z')
+    git -C "$1" remote -v 2>/dev/null | tr 'A-Z' 'a-z' \
+        | awk -v p="$pat" '$2 ~ ("(https://" p "|[@/]" p ")(\\.git)?$") {print $1; exit}' \
+        | grep . || printf 'origin'
+}
+
 # Vendor checkout into an existing directory (worktree or submodule checkout).
 vendor_checkout() {   # $1 = directory
     d="$1"
     case "$V" in
         github)
-            git -C "$d" fetch origin "refs/pull/$N/head" && git -C "$d" checkout --detach FETCH_HEAD ;;
+            git -C "$d" fetch "$REMOTE" "refs/pull/$N/head" && git -C "$d" checkout --detach FETCH_HEAD ;;
         gitlab)
-            git -C "$d" fetch origin "refs/merge-requests/$N/head:refs/remotes/origin/merge-requests/$N" \
-                && git -C "$d" checkout --detach "refs/remotes/origin/merge-requests/$N" ;;
+            git -C "$d" fetch "$REMOTE" "refs/merge-requests/$N/head:refs/remotes/$REMOTE/merge-requests/$N" \
+                && git -C "$d" checkout --detach "refs/remotes/$REMOTE/merge-requests/$N" ;;
         bitbucket)
             src=$(bb_curl "$BB_API/pullrequests/$N?fields=source.repository.full_name,source.branch.name,source.commit.hash")
             s_repo=$(printf '%s' "$src" | jq -r '.source.repository.full_name')
             s_branch=$(printf '%s' "$src" | jq -r '.source.branch.name')
             s_commit=$(printf '%s' "$src" | jq -r '.source.commit.hash')
             if [ "$(printf '%s' "$s_repo" | tr 'A-Z' 'a-z')" = "$(printf '%s/%s' "$OWNER" "$REPO" | tr 'A-Z' 'a-z')" ]; then
-                git -C "$d" fetch origin "$s_branch"
+                git -C "$d" fetch "$REMOTE" "$s_branch"
             else
                 git -C "$d" fetch "https://bitbucket.org/$s_repo.git" "$s_branch"
             fi
@@ -325,6 +335,10 @@ cmd_checkout() {
     check_ident '^[0-9a-fA-F]+$' "$HEAD_SHA"
     case "$V" in github) need gh ;; gitlab) : ;; bitbucket) bb_init "$OWNER" "$REPO" ;; esac
 
+    HOST=$(arg host)
+    if [ -z "$HOST" ]; then
+        case "$V" in github) HOST=github.com ;; gitlab) HOST=gitlab.com ;; bitbucket) HOST=bitbucket.org ;; esac
+    fi
     sub=$(arg submodule_path)
     if [ -n "$sub" ]; then
         # Submodule variant: init the bumped path, check the submodule PR out
@@ -332,10 +346,12 @@ cmd_checkout() {
         W=$(req worktree)
         git -C "$W" submodule update --init -- "$sub"
         target="$W/$sub"
+        REMOTE=$(find_remote "$target" "$HOST" "$OWNER/$REPO")
     else
         repo_dir=$(req repo_dir)
         target="$PWD/notebooks/review/$REPO/worktrees/pr$N-$$$(awk 'BEGIN{srand();printf "%d", rand()*32768}')"
         git -C "$repo_dir" worktree add "$target" --detach >&2
+        REMOTE=$(find_remote "$repo_dir" "$HOST" "$OWNER/$REPO")
     fi
 
     vendor_checkout "$target" >&2 || true
@@ -358,8 +374,8 @@ cmd_checkout() {
     # shallow clone otherwise lands FETCH_HEAD alone and merge-base dies later.
     # A failure (e.g. an SSH remote with no key) must not kill the gated tree,
     # but it may not stay silent either: LEFT confirmation degrades without it.
-    git -C "$target" fetch origin "+$BASE:refs/remotes/origin/$BASE" >&2 \
-        || err "warning: could not fetch origin/$BASE — LEFT line confirmation will be UNCONFIRMABLE"
+    git -C "$target" fetch "$REMOTE" "+$BASE:refs/remotes/origin/$BASE" >&2 \
+        || err "warning: could not fetch $REMOTE/$BASE — LEFT line confirmation will be UNCONFIRMABLE"
     printf 'worktree=%s\nhead=%s\n' "$target" "$(git -C "$target" rev-parse HEAD)"
 }
 

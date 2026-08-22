@@ -14,8 +14,9 @@ reconcile BEFORE its first fetch:
 - not stored → the parsed vendor; it also becomes bootstrap's pre-marked default (never asked twice)
 - stored == parsed → stored, nothing to confirm
 - stored ≠ parsed → STOP before any fetch; state both values + what the URL's shape indicates; ask;
-  WAIT. FORBIDDEN: silently picking one. The confirmed value = `<vendor>` this run, persisted only if
-  it actually changed.
+  WAIT. FORBIDDEN: silently picking one. The confirmed value = `<vendor>` this run; if it changed,
+  `Edit` `.shared.git_remote_type` NOW — the file exists, it held the stale value — so a later Step
+  failing cannot lose the user's answer.
 
 A caller that does NOT store it uses the parsed vendor directly.
 

@@ -72,8 +72,7 @@ already computed. `<vendor>` is already reconciled, never re-asked. Persisting i
 
 - about to bootstrap → q1's pre-marked default, `setup/bootstrap.md` writes it
 - bootstrapped, field predates this schema → read-time value only. FORBIDDEN: writing it back
-  (`/open-pr:upgrade` owns that backfill)
-- `core/pr-target.md` §2's mismatch confirmed a DIFFERENT value → `Edit` `.shared.git_remote_type` here
+  (`/open-pr:upgrade` owns that backfill); a confirmed mismatch was already persisted at §2
 
 Branch:
 
