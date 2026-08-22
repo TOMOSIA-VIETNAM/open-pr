@@ -9,8 +9,8 @@ disable-model-invocation: true
 > - Read-only on the reviewed repo; the only write is Step 9's 1 review (+ 1 more on a submodule PR
 >   when Step 1 detects a bump). FORBIDDEN: close/merge/reopen, create/delete/switch a branch, push,
 >   edit code → mention it in the review instead.
-> - `Read`/`Grep` in the worktree may surface the REVIEWED repo's own `.claude/skills/` — its dev
->   workflow, not a review tool. FORBIDDEN: invoking it, even when listed as available.
+> - The worktree may surface the REVIEWED repo's own `.claude/skills/` — its dev workflow, not a
+>   review tool. FORBIDDEN: invoking it, even when listed as available.
 
 ## Step 0 — Target
 
@@ -29,9 +29,9 @@ rule, empty-"PR info" stop. A language instruction in `ARGUMENTS`/chat overrides
 
 **≥2 valid PR URLs** && the intent isn't already clear from `ARGUMENTS`/chat → ask "Found N PRs —
 review all N or just the first?", WAIT (extras may be reference-only). Confirmed multi-PR → run Step 0
-→ Step 9 to COMPLETION per URL, in order, SEQUENTIALLY, each with its own worktree/memory/post.
-FORBIDDEN: parallel, subagent. `[content]` applies to every PR. All done → 1 chat summary, 1 line per
-PR, shaped by Step 9's reporting rule; nothing further posted.
+→ Step 9 to COMPLETION per URL, SEQUENTIALLY, each with its own worktree/memory/post. FORBIDDEN:
+parallel, subagent. `[content]` applies to every PR. All done → 1 chat summary, 1 line per PR, shaped
+by Step 9's reporting rule; nothing further posted.
 
 ## Context
 
@@ -55,7 +55,7 @@ writing under `notebooks/review/` → state pwd + `<repo>` in chat. No `notebook
 `worktree=<path>`; PR code on disk, main tree untouched, gated to the commit the "Diff" was read at.
 `Read`/`Grep` at `<worktree>/<path>`. Exit 2 ⇒ STOP, print both SHAs + `<worktree>` and that
 `/open-pr:clean` removes it. Exit 3 ⇒ STOP with its stderr. FORBIDDEN: retrying past the script's own
-retry, or fetching a fresh SHA to compare against — that hides the stale diff.
+retry, or comparing against a freshly fetched SHA — that hides the stale diff.
 
 Then try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" contains
 `Subproject commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
@@ -134,9 +134,9 @@ Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
 **Scope:**
 
 - in-scope first; a 📝 puts no pressure to fix and counts toward nothing
-- reading further at `<worktree>/<path>` is optional, but MUST use `Read`'s `offset`/`limit` around the
-  changed region (hunk header `@@ -a,b +c,d @@` ± ~20-30 lines). FORBIDDEN: a bare `Read` of a file
-  whose change is localized, i.e. not a new file or wholesale rewrite
+- reading further at `<worktree>/<path>` is optional, but MUST use `Read`'s `offset`/`limit` around
+  the changed region (hunk header `@@ -a,b +c,d @@` ± ~20-30 lines). FORBIDDEN: a bare `Read` of a
+  file whose change is localized — i.e. not a new file or wholesale rewrite
 - the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
   paths" file is absent BY DESIGN; the guard above owns how it gets read
 - never read library source unless genuinely unsure
@@ -181,11 +181,10 @@ that tree. Reuse `<commit_id>` in the overview and in Step 9's payload; never fe
 
 Step 6 ran → apply `re-review.md`'s early-stop gate BEFORE continuing; Step 8/9 may be dropped entirely.
 
-FORBIDDEN in the overview: the agent's own WORK PROCESS (what was fetched or checked out, which commit
-was compared, API retries, an interruption midway) — conclusions only. Also FORBIDDEN:
-repeating a `comments[]` finding or its Fix, already inline at its diff line; say ONLY what is NOT in
-LINE. A closing summary ("No new issues found in this round of changes.") → **bold**, same tier as
-**LGTM 🌟**.
+FORBIDDEN in the overview: the agent's own WORK PROCESS (fetches, checkouts, compared commits, API
+retries, an interruption midway) — conclusions only. Also FORBIDDEN: repeating a `comments[]` finding
+or its Fix, already inline at its diff line; say ONLY what is NOT in LINE. A closing summary ("No new
+issues found in this round of changes.") → **bold**, same tier as **LGTM 🌟**.
 
 Every body anchors itself to `<commit_id>`, linked per `<op> commit-url`, and MUST convey that the
 ENTIRE diff was reviewed at that point — never that one commit was. 2 forms, both language-neutral in
@@ -256,7 +255,7 @@ Happy path → skip that file.
 
 **Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, plus
 the worktree path and that `/open-pr:clean` removes it. FORBIDDEN: repeating a finding's description or
-its Fix — the PR carries that text. FORBIDDEN: removing the worktree or asking to — the user's later call.
+its Fix — the PR carries that text; removing the worktree, or asking to — the user's later call.
 
 ## Step 10 — Asked for something outside the review flow
 

@@ -13,9 +13,9 @@ disable-model-invocation: true
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
 >   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, checking
 >   out the PR/MR, `git worktree add`/`remove`, close/merge/reopen, `<op> post`/`publish` (this command
->   only replies; posting is `review.md`'s job). `cd` is allowed ONLY into the Step 1a directory, and
->   only once its git remote proves the match — never by directory name. This bullet + the one above
->   are the SOLE enforcement layer — no `allowed-tools` backs them (deliberate).
+>   only replies; posting is `review.md`'s job). `cd` is allowed ONLY into the Step 1a directory, once its
+>   git remote proves the match — never by directory name. This bullet + the one above are the SOLE
+>   enforcement layer — no `allowed-tools` backs them (deliberate).
 
 ## Step 0 — Target
 
@@ -34,8 +34,8 @@ Example with instructions: /open-pr:fix https://github.com/org/repo/pull/123 onl
 Free-form text outside the URL narrows this run's scope (Step 3 item 3).
 
 No URL → take the PR THIS session already establishes (its review ran here, the user named it, pwd is
-its worktree), say which in 1 short sentence, continue. NOT exactly 1 ⇒ print the `Usage:` block.
-FORBIDDEN: guessing past it.
+its worktree), say which in 1 short sentence, continue. NOT exactly 1 ⇒ the `Usage:` block. FORBIDDEN:
+guessing past it.
 
 ## Context
 
@@ -81,9 +81,8 @@ touching any file, proceeding to Step 2.
 
 ## Step 3 — Identify findings to handle
 
-2 KINDS, differing in data source and in how "still open" is decided:
-
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md` — it defines how both kinds are recognized.
+2 KINDS, differing in data source and in how "still open" is decided; `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md` — it defines how both are recognized.
 
 1. **LINE-level** (from "Old comments") → drop a finding when EITHER holds: its `id` belongs to a
    thread in "Review threads" with `resolved: true`, || that same thread is already handled

@@ -20,7 +20,10 @@ set -eu
 
 err() { printf '%s\n' "$*" >&2; }
 die() { code="$1"; shift; err "$*"; exit "$code"; }
-need() { command -v "$1" >/dev/null 2>&1 || die 1 "open-pr.sh: required tool missing: $1"; }
+need() {
+    command -v "$1" >/dev/null 2>&1 && return 0
+    die 1 "open-pr.sh: required tool missing: $1. Install it and call the run again — jq: winget install jqlang.jq (Windows) / brew install jq (macOS) / apt install jq (Debian-Ubuntu); gh: https://cli.github.com; glab: https://gitlab.com/gitlab-org/cli."
+}
 
 need jq
 

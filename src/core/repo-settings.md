@@ -15,9 +15,8 @@ needs it.
 ## Write AS-IS
 
 FORBIDDEN: `Edit`-ing the FILE to backfill a field `<op> settings` defaulted — the default exists at
-read time only. Upgrading the file is `/open-pr:upgrade`'s sole job, never inline. Field meanings a run
-judges by: `review_ci_status` defaults to whether this run's "CI checks" is non-empty;
-`output_language` has no default — ask once, then store.
+read time only; upgrading the file is `/open-pr:upgrade`'s sole job. `review_ci_status` defaults to
+whether this run's "CI checks" is non-empty; `output_language` has no default — ask once, then store.
 
 ## `chat_language` (`.shared`, detected once)
 
@@ -32,6 +31,6 @@ wins.
 
 ## Fresh file → `schema_version`
 
-Never a literal written in any prompt file: `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/llm-upgrades-index.md` and take the checkpoint it states.
-File already exists → keep `schema_version` + every foreign node untouched, add only your own node.
+Never a literal in any prompt file: `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/llm-upgrades-index.md`, take
+the checkpoint it states. File already exists → keep `schema_version` + every foreign node untouched,
+add only your own node.

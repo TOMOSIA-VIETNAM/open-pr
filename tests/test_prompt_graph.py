@@ -141,7 +141,7 @@ def test_the_scripts_internals_never_reach_the_user():
     ambiguity once surfaced as a fenced stderr dump with "exit 5" in a user-facing
     question; the rule lives in cli.md and both exit-5 call sites ask in plain language."""
     assert "stderr is for YOU: never quote it raw" in text(SRC / "core" / "cli.md")
-    assert "The exception is text the script wrote FOR the user" in text(SRC / "core" / "cli.md")
+    assert "Exception: text the script wrote FOR the user" in text(SRC / "core" / "cli.md")
     for cmd in ("review", "fix"):
         flat = " ".join(text(SRC / "commands" / f"{cmd}.md").split())
         assert "exit 5 → ask with a CHOICE in plain language" in flat, \
@@ -859,7 +859,7 @@ def test_clean_deletes_worktrees_and_nothing_else():
     # review.md points at it and must not do the deleting itself
     r = " ".join(text(SRC / "commands" / "review.md").split())
     assert "/open-pr:clean" in r, "the run that creates a worktree must say what removes it"
-    assert "removing the worktree or asking to" in r, \
+    assert "removing the worktree, or asking to" in r, \
         "review must leave the decision to the user, not prompt for it every run"
 
 
