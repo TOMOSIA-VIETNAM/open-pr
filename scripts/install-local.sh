@@ -18,7 +18,15 @@ say() { printf "$@" 2>/dev/null || true; }
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 MARKER='<!-- installed by open-pr scripts/install-local.sh — safe to delete -->'
 STAMP=".open-pr-local-install"
-MARKETPLACE='TOMOSIA-VIETNAM/open-pr'
+# The marketplace is THIS checkout when it carries the manifest — an install.sh
+# --ref pinned ~/.open-pr to a tag/branch, and adding the GitHub slug instead
+# would silently resolve to main, undoing the pin. The slug is only the fallback
+# for a copy that somehow lacks the manifest.
+if [ -f "$REPO/.claude-plugin/marketplace.json" ]; then
+  MARKETPLACE="$REPO"
+else
+  MARKETPLACE='TOMOSIA-VIETNAM/open-pr'
+fi
 
 usage() {
   cat <<'EOF'
