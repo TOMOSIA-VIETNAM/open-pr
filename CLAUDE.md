@@ -36,7 +36,7 @@ scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py �
 tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
-.github/workflows ci.yml on the merge queue · hol-plugin-scanner.yml read by the listing gate
+.github/workflows ci.yml on PRs and main · hol-plugin-scanner.yml read by the listing gate
 backlogs/         historical, not ops
 ```
 
@@ -81,7 +81,7 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | harder dup hunt | `dup_scan.py --window 10 --all --min-waste 20` |
 | vendor flags offline | `vendor_lint.py` |
 | vendor commands live | `vendor_lint.py --pr <n>` |
-| the CI suite on a branch, without a queue entry | `gh workflow run ci.yml --ref <branch>` |
+| the CI suite on a branch with no open PR | `gh workflow run ci.yml --ref <branch>` |
 
 Cheaper → lower affected ceilings (by hand by the measured delta if you had tightened them; otherwise `--update-budgets` is fine). Costlier because the fix is correct → say which scenario / by how much / why on the PR. Never strip behaviour for budget.
 
@@ -96,6 +96,9 @@ awesome-ai-plugins listing gate, which reads the file and never the run, and the
 this repository from its own runner. Keep every `uses:` SHA-pinned — the scanner scores an
 unpinned one as a finding.
 
-CI fires on the merge queue, not on each commit pushed to a pull request, so a pull request
-shows its checks only once queued. `scripts/check.sh` before pushing is what catches a break
-early; `scripts/install_hooks.sh` wires it to pre-push.
+CI runs on every pull request, and a new push cancels the run still going for that same pull
+request. A merge queue cannot take its place: GitHub makes the queue wait only on checks the
+ruleset marks required, and refuses to queue a pull request whose required checks have not
+already passed on the pull request — so the check runs on `pull_request` or nowhere. Running
+`scripts/check.sh` before pushing is still what catches a break early; `scripts/install_hooks.sh`
+wires it to pre-push.
