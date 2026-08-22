@@ -1296,14 +1296,19 @@ def test_manifests_agree_on_name_and_declare_one_version():
 def test_the_declared_version_keeps_up_with_the_release_tags():
     """The one declared version is the one nobody thinks to bump. Tags are what say which release a
     checkout is, so the manifest may equal the newest tag or run ahead of it (a bump prepared for the
-    next release) — never behind, which is what shipping a stale number looks like."""
+    next release) — never behind, which is what shipping a stale number looks like.
+
+    Only a plain vX.Y.Z tag counts. A tag carrying a pre-release suffix marks a release still being
+    built, so requiring the manifest to already carry that number would fail every branch except the
+    one preparing it."""
     tags = subprocess.run(["git", "tag", "--list", "v[0-9]*"], cwd=REPO,
                           capture_output=True, text=True).stdout.split()
-    if not tags:
+    releases = [t for t in tags if re.fullmatch(r"v?\d+\.\d+\.\d+", t)]
+    if not releases:
         return  # a shallow clone with no tags cannot judge this
     def parts(v):
         return tuple(int(x) for x in re.match(r"v?(\d+)\.(\d+)\.(\d+)", v).groups())
-    newest = max(parts(t) for t in tags if re.match(r"v?\d+\.\d+\.\d+", t))
+    newest = max(parts(t) for t in releases)
     declared = parts(json.loads((REPO / "gemini-extension.json").read_text(encoding="utf-8"))["version"])
     assert declared >= newest, (
         f"gemini-extension.json says {declared}, newest release tag is {newest} — bump it")

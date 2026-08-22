@@ -21,6 +21,10 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+          # The only dependency file in the repo is requirements-dev.txt; the cache
+          # default globs requirements.txt/pyproject.toml and errors out when neither
+          # exists, which failed the job before a single check had run.
+          cache-dependency-path: requirements-dev.txt
 
       - run: pip install -r requirements-dev.txt
 
