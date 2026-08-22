@@ -428,6 +428,24 @@ def test_bitbucket_threads_group_replies_under_their_root(shims, tmp_path):
     assert {"thread_id": 3, "resolved": True, "comment_ids": [3]} in rows
 
 
+def test_bitbucket_reviews_carry_the_top_level_overview(shims, tmp_path):
+    """Bitbucket has no review object: the overview — and every FILE finding inside it —
+    is a top-level comment. Before this, "Reviews" said NO-EQUIVALENT and fix.md could
+    never see a FILE finding on Bitbucket."""
+    page = json.dumps({"values": [
+        {"id": 9, "parent": None, "inline": None, "deleted": False,
+         "content": {"raw": "overview [bot-finding]: #"}, "user": {"nickname": "bot"}},
+        {"id": 10, "parent": None, "inline": {"path": "a", "to": 1}, "deleted": False,
+         "content": {"raw": "line"}, "user": {"nickname": "bot"}},
+    ], "next": None})
+    make_shim(Path(shims["path"]), "curl", f"printf '%s\\n' '{page}'\n")
+    r = run("context", "--vendor", "bitbucket", "--owner", "w", "--repo", "r", "--pr", "7",
+            "--sections", "reviews", env_extra=env_for(shims), check=True)
+    rows = [json.loads(l) for l in r.stdout.splitlines() if l.startswith("{")]
+    assert rows == [{"id": 9, "body": "overview [bot-finding]: #", "user": "bot", "state": "COMMENTED"}], \
+        "only the top-level non-inline comment is a review row"
+
+
 def test_push_targets_the_remote_matching_the_pr_host(fixture_repo):
     """fix once said `git push origin HEAD:<branch>` — on a clone with one remote per
     vendor that pushes a GitHub PR's commits to Bitbucket. push resolves the remote by

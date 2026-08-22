@@ -41,10 +41,11 @@ guessing past it.
 ## Context
 
 `<op> context --sections info,head,comments,reviews,account,threads` — labels "PR info", "Head SHA",
-"Old comments", "Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git remote + current
-branch": `git remote -v` && `git branch --show-current`.
+"Old comments", "Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git
+remote + current branch": `git remote -v` && `git branch --show-current` — pwd may be no repo (exit
+128) or the wrong one; not fatal, Step 1 re-checks everything at the 1a directory.
 
-"Reviews" = `NO-EQUIVALENT` ⇒ Step 3 item 2 does not apply; LINE-level handling continues normally.
+"Reviews" empty ⇒ Step 3 item 2 does not apply; LINE-level handling continues normally.
 
 `core/pr-target.md` §4-5 give `<repo>` and the empty-"PR info" stop.
 
@@ -58,9 +59,11 @@ worktree (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory i
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 touching any file, proceeding to Step 2.
 
-1. the current branch matches `headRefName` EXACTLY ⇒ fix in place. Else `<repo_dir>` = a review
-   worktree whose `git rev-parse HEAD` prefix-matches "Head SHA" ⇒ fix there (DETACHED is normal; a
-   stale worktree is a mismatch). Anything else ⇒ ONE CHOICE per `core/guardrails.md`:
+1. the current branch matches `headRefName` EXACTLY **and its tip prefix-matches "Head SHA"** ⇒ fix
+   in place — a matching name on a stale tip edits a tree the findings do not describe and the push
+   cannot fast-forward. Else `<repo_dir>` = a review worktree whose `git rev-parse HEAD`
+   prefix-matches "Head SHA" ⇒ fix there (DETACHED is normal). Anything else — wrong branch, stale
+   tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`:
    `Fix in a fresh worktree (Recommended)` — `<op> checkout` gates it to "Head SHA" and the user's own
    branch/tree stays untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout
    yourself, printing:
@@ -132,7 +135,9 @@ Nothing to ask → straight to Step 7.
 ## Step 7 — Fix
 
 `Edit` the code for EVERY finding decided as FIX, matching the layers loaded at Step 4; nothing readable
-→ ordinary judgment, favouring the surrounding style. Directly at `<repo_dir>`.
+→ ordinary judgment, favouring the surrounding style. Directly at `<repo_dir>`. Decisions may OVERLAP
+(one edit settles several findings, or one accepted finding erases another's target) — plan the edits
+jointly; Step 10 still replies to EACH finding with its own outcome.
 
 ## Step 8 — Commit
 

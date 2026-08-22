@@ -39,5 +39,6 @@ on every networked one; `--host H` where self-hostable.
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line
 `{id, body, user, path, line, side, in_reply_to}`; "Review threads" =
-`{thread_id, resolved, comment_ids}`; "Reviews" = `NO-EQUIVALENT` where the vendor has no FILE-level
-review object — that category then does not apply, LINE handling unaffected.
+`{thread_id, resolved, comment_ids}`; "Reviews" = `{id, body, user, state}` — GitHub's review
+objects; on GitLab/Bitbucket the TOP-LEVEL notes/comments, which is where an overview (and its FILE
+findings) lives there.

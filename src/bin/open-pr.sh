@@ -211,11 +211,15 @@ ctx_ci() {
                   '.values[] | "\(if .state == "SUCCESSFUL" then "pass" elif .state == "FAILED" or .state == "STOPPED" then "fail" else "pending" end) \(.name) — \(.url)"' || true ;;
     esac
 }
-# FILE-level findings live in a review object on GitHub only.
+# FILE-level findings live in a review object on GitHub; on GitLab/Bitbucket the
+# overview is a TOP-LEVEL note/comment — returned here in the same row shape, or
+# fix.md could never see a FILE finding on those vendors.
 ctx_reviews() {
     case "$V" in
         github) gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews" | jq -c '.[] | {id, body, user: .user.login, state}' ;;
-        *) printf 'NO-EQUIVALENT\n' ;;
+        gitlab) gl_discussions_cached "$N" | jq -c '.[] | .notes[0] | select(.position == null and .system != true) | {id, body, user: .author.username, state: "COMMENTED"}' ;;
+        bitbucket) bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.inline,values.parent.id,values.deleted" \
+                  '.values[] | select(.deleted != true and .inline == null and .parent == null) | {id, body: .content.raw, user: .user.nickname, state: "COMMENTED"} | @json' ;;
     esac
 }
 ctx_account() {
@@ -706,7 +710,7 @@ cmd_push() {
     fi
     REMOTE=$(find_remote "$D" "$HOST" "$OWNER/$REPO")
     git -C "$D" push "$REMOTE" "HEAD:$BRANCH" \
-        || die 1 "push to $REMOTE failed — surface this to the user as printed; the plugin never works around credentials or forces."
+        || die 1 "push to remote '$REMOTE' ($(git -C "$D" remote get-url "$REMOTE" 2>/dev/null)) failed — surface this to the user as printed; the plugin never works around credentials or forces."
 }
 
 # ---------------------------------------------------------------- main ----
