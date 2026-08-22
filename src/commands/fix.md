@@ -167,8 +167,9 @@ ONLY after the code has actually reached the remote.
 For EACH finding decided (fixed or declined), body written to a file, then `<op> reply`:
 
 - **LINE-level** — `--comment-id` = the ORIGINAL finding comment's id, `--kind line`. Content SHORT:
-  fixed → a short confirmation ("Fixed, thanks!"); declined → a short reason. FORBIDDEN: recounting the
-  process ("read file X then checked Y").
+  fixed → a short confirmation ("Fixed, thanks!"); declined → a short reason; settled by ANOTHER
+  finding's decision (its target removed/rewritten) → name what happened and why the code is gone.
+  FORBIDDEN: recounting the process ("read file X then checked Y").
 - **FILE-level / OVERVIEW-level** — `--kind top`, referencing the finding by file path + short
   description. FORBIDDEN: blockquoting the whole review verbatim.
 
