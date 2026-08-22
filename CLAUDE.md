@@ -81,6 +81,7 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | harder dup hunt | `dup_scan.py --window 10 --all --min-waste 20` |
 | vendor flags offline | `vendor_lint.py` |
 | vendor commands live | `vendor_lint.py --pr <n>` |
+| the CI suite on a branch, without a queue entry | `gh workflow run ci.yml --ref <branch>` |
 
 Cheaper → lower affected ceilings (by hand by the measured delta if you had tightened them; otherwise `--update-budgets` is fine). Costlier because the fix is correct → say which scenario / by how much / why on the PR. Never strip behaviour for budget.
 
