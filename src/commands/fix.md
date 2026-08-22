@@ -14,8 +14,9 @@ disable-model-invocation: true
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
 >   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, RAW-git
 >   branch checkouts or worktree add/remove (Step 1b's `<op> checkout` is the ONLY sanctioned one),
->   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s job). `cd` is allowed ONLY into the Step 1a directory, once its
->   git remote proves the match — never by directory name. This bullet + the one above are the SOLE
+>   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s job). `cd` is allowed ONLY between the invocation
+>   directory, the 1a directory (once its git remote proves the match — never by name), and the
+>   Step 1b worktree. This bullet + the one above are the SOLE
 >   enforcement layer — no `allowed-tools` backs them (deliberate).
 
 ## Step 0 — Target
@@ -52,9 +53,11 @@ remote + current branch": `git remote -v` && `git branch --show-current` — pwd
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
 **1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → ask with a CHOICE in plain language, STOP if
-unresolved), then `cd` into it — this command EDITS that repo's files ⇒ works from inside.
-Everything below runs there, `notebooks/review/<repo>/` included — `<repo_dir>` = a `review`
-worktree (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory is at `../../`.
+unresolved). `<memory-dir>` = `notebooks/review/<repo>` at THIS invocation directory, ABSOLUTE — the
+place review.md writes from its own pwd; `<repo_dir>` = a `review` worktree
+(`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ its `../../`. FORBIDDEN: resolving memory inside
+`<repo_dir>` — a repo that is a subdirectory of the workspace grows a second, drifting copy. Then
+`cd` into `<repo_dir>` — this command EDITS that repo's files ⇒ works from inside.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 touching any file, proceeding to Step 2.
@@ -64,9 +67,9 @@ touching any file, proceeding to Step 2.
    cannot fast-forward. Else `<repo_dir>` = a review worktree whose `git rev-parse HEAD`
    prefix-matches "Head SHA" ⇒ fix there (DETACHED is normal). Anything else — wrong branch, stale
    tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`:
-   `Fix in a fresh worktree (Recommended)` — `<op> checkout` gates it to "Head SHA" and the user's own
-   branch/tree stays untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout
-   yourself, printing:
+   `Fix in a fresh worktree (Recommended)` — `<op> checkout`, run FROM the invocation directory so
+   the worktree lands under `<memory-dir>`, gates it to "Head SHA"; the user's own branch/tree stays
+   untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout yourself, printing:
    ```
    ❌ Current branch (`<current branch>`) doesn't match the PR's branch (`<headRefName>`). Check
       out the correct branch `<headRefName>` and call this again.
@@ -81,8 +84,8 @@ touching any file, proceeding to Step 2.
 
 ## Step 2 — Settings
 
-`<op> settings --dir <memory-dir>` (`core/repo-settings.md` names what each field means),
-`<memory-dir>` = the `notebooks/review/<repo>` Step 1a resolved. Resolve `chat_language` per that file.
+`<op> settings --dir <memory-dir>` (`core/repo-settings.md` names what each field means). Resolve
+`chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
 - absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
@@ -105,8 +108,8 @@ touching any file, proceeding to Step 2.
 
 ## Step 4 — Read the project's convention
 
-`notebooks/review/<repo>/` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at
-Step 7. FORBIDDEN: blocking or erroring on this.
+`<memory-dir>` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at Step 7.
+FORBIDDEN: blocking or erroring on this.
 
 Present → `<op> stacks --repo-dir . <each finding's file>`, then `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md` and load the layers it names for those stacks. A layer

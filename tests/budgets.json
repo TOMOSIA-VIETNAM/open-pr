@@ -13,10 +13,10 @@
     "feedback": 2131,
     "review/known-repo-bitbucket-clean": 7645,
     "review/known-repo-bitbucket-rereview": 9452,
-    "fix/known-repo-bitbucket": 6968,
-    "fix/known-repo-github": 6968,
-    "fix/first-run-gitlab": 7255
+    "fix/known-repo-bitbucket": 7022,
+    "fix/known-repo-github": 7022,
+    "fix/first-run-gitlab": 7309
   },
-  "mean": 7183,
+  "mean": 7193,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }

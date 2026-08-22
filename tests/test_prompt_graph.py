@@ -484,6 +484,17 @@ def test_review_writes_at_the_invocation_directory():
     assert "cd " not in locate, "locate-repo decides for its callers; it must not cd"
 
 
+def test_fix_reads_the_memory_review_wrote():
+    """review.md writes notebooks/review/<repo> at ITS pwd (the invocation directory); fix.md
+    cd's into the repo — resolving memory relative to the repo there grew a second, drifting
+    settings.json inside the reviewed tree (seen live: the two copies disagreed on
+    git_remote_type). fix must resolve memory at the invocation directory, absolutely."""
+    flat = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "at THIS invocation directory, ABSOLUTE" in flat
+    assert "FORBIDDEN: resolving memory inside `<repo_dir>`" in flat
+    assert "run FROM the invocation directory so the worktree lands under `<memory-dir>`" in flat
+
+
 def test_fix_suggestions_prefer_a_code_fence():
     """A finding whose Fix is prose makes the dev reconstruct the intended logic. The
     fence is the default; prose is for fixes with no code form."""
