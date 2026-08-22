@@ -1,13 +1,16 @@
 name: CI
 
+# Runs when a pull request enters the merge queue, not on every commit pushed to it.
+# A queued entry is what the ruleset requires to be green, so the gate is still the gate
+# — it just fires once, on the tree that is actually about to land.
 on:
-  pull_request:
+  merge_group:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   checks:
@@ -55,16 +58,18 @@ jobs:
         run: python3 scripts/vendor_lint.py
 
       - name: Context cost vs base
-        if: github.event_name == 'pull_request'
-        run: |
-          python3 scripts/token_report.py --base "origin/${{ github.base_ref }}" | tee token-report.txt
-
-      - name: Report the cost on the PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'merge_group'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          # A fork PR gets a read-only token, so the comment step is skipped there and
-          # the job summary carries the numbers instead.
-          CAN_COMMENT: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          BASE_REF: ${{ github.event.merge_group.base_ref }}
+        run: |
+          set -euo pipefail
+          python3 scripts/token_report.py --base "origin/${BASE_REF#refs/heads/}" | tee token-report.txt
+
+      - name: Report the cost
+        if: github.event_name == 'merge_group'
+        # A merge_group event has no pull request to comment on, so the numbers land in
+        # the job summary of the queue entry — reachable from the pull request's own
+        # checks list.
+        env:
+          CAN_COMMENT: 'false'
         run: bash scripts/ci_token_comment.sh token-report.txt
