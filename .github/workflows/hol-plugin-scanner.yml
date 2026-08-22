@@ -14,8 +14,8 @@ name: HOL Plugin Scanner
 # itself, cloning this repository's default branch on its own runner, and that run is
 # what actually decides the score. Keep `.plugin-scanner.toml` accurate for its sake.
 #
-# Every `uses:` is pinned to a full commit SHA, here and in ci.yml and e2e.yml: the
-# scanner scores an unpinned reference as an operational-security finding.
+# Every `uses:` is pinned to a full commit SHA, here and in ci.yml: the scanner scores
+# an unpinned reference as an operational-security finding.
 #
 # Read-only and no SARIF upload: the listing needs the score, nothing more, so this
 # keeps `contents: read` and never asks for `security-events: write`.

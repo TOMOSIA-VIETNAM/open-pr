@@ -36,7 +36,7 @@ scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py �
 tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
-.github/workflows ci.yml + hol-plugin-scanner.yml on PRs · e2e.yml manual (all blocked at startup)
+.github/workflows ci.yml + hol-plugin-scanner.yml on PRs (both blocked at startup)
 backlogs/         historical, not ops
 ```
 
