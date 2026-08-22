@@ -12,8 +12,8 @@ printed, exit 2's two SHAs + worktree path named plainly. Exit ≠ 0 ⇒ act on 
 failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 =
 repo dir unresolvable · 6 = missing credentials (relay, STOP) · 1 = other, `hint:` line on post errors.
 
-Elided from the table: `--vendor V --owner O --repo R --pr N` on every networked subcommand;
-`--host H` where self-hostable.
+Elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url`
+included); `--owner O --repo R --pr N` on every networked one; `--host H` where self-hostable.
 
 | subcommand | does |
 |---|---|

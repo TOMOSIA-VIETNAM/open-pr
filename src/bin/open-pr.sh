@@ -356,7 +356,10 @@ cmd_checkout() {
     fi
     # The explicit refspec is what creates origin/<base> — a single-branch or
     # shallow clone otherwise lands FETCH_HEAD alone and merge-base dies later.
-    git -C "$target" fetch origin "+$BASE:refs/remotes/origin/$BASE" >&2 || true
+    # A failure (e.g. an SSH remote with no key) must not kill the gated tree,
+    # but it may not stay silent either: LEFT confirmation degrades without it.
+    git -C "$target" fetch origin "+$BASE:refs/remotes/origin/$BASE" >&2 \
+        || err "warning: could not fetch origin/$BASE — LEFT line confirmation will be UNCONFIRMABLE"
     printf 'worktree=%s\nhead=%s\n' "$target" "$(git -C "$target" rev-parse HEAD)"
 }
 
@@ -483,8 +486,9 @@ cmd_post_verify() {
             if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi ;;
         bitbucket)
             M=$(req marker)
-            bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.inline,values.deleted" \
-                ".values[] | select(.deleted != true and (.content.raw | contains(\"$M\"))) | {id, path: .inline.path, line: .inline.to} | @json" ;;
+            found=$(bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.inline,values.deleted" \
+                ".values[] | select(.deleted != true and (.content.raw | contains(\"$M\"))) | {id, path: .inline.path, line: .inline.to} | @json")
+            if [ -n "$found" ]; then printf '%s\n' "$found"; else printf 'NOTHING-POSTED (no comment carries the marker)\n'; fi ;;
     esac
 }
 
