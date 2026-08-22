@@ -1,5 +1,10 @@
 name: CI
 
+# No `uses:` in this workflow. The org allows Actions only from repositories it owns, so
+# actions/checkout and actions/setup-python failed the whole run at startup and not one
+# check ever executed. A local composite action cannot stand in for the checkout either:
+# `uses: ./...` needs the repository on disk before it can resolve.
+
 on:
   pull_request:
   push:
@@ -13,20 +18,31 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0   # token_report needs the base branch to diff against
+      # Full history and every tag: token_report diffs against the base branch, and the
+      # declared-version test reads the release tags. The repository is public, so this
+      # needs no token — GITHUB_REF is refs/pull/<n>/merge on a pull request and
+      # refs/heads/main on a push, and both are fetchable anonymously.
+      - name: Check out the ref under test
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY"
+          git fetch -q --tags origin \
+            "+refs/heads/*:refs/remotes/origin/*" "+$GITHUB_REF:refs/ci/head"
+          git checkout -q --detach refs/ci/head
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.12'
-          cache: pip
-          # The only dependency file in the repo is requirements-dev.txt; the cache
-          # default globs requirements.txt/pyproject.toml and errors out when neither
-          # exists, which failed the job before a single check had run.
-          cache-dependency-path: requirements-dev.txt
-
-      - run: pip install -r requirements-dev.txt
+      # setup-python is an action, so the interpreter is whatever the runner image ships.
+      # The version is asserted rather than assumed: an image bump that moves the minor
+      # version fails here instead of somewhere downstream. The dependencies go in a venv
+      # because the image's python is externally managed and rejects a plain pip install;
+      # GITHUB_PATH puts that venv first for every step after this one.
+      - name: Python and the dev dependencies
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --quiet -r requirements-dev.txt
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
 
       - name: Prompt-graph invariants
         run: python3 -m pytest tests/ -q

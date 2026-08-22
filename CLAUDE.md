@@ -36,7 +36,7 @@ scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py �
 tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
-.github/workflows ci.yml + hol-plugin-scanner.yml on PRs (both blocked at startup)
+.github/workflows ci.yml on PRs · hol-plugin-scanner.yml read by the listing gate, never runs
 backlogs/         historical, not ops
 ```
 
@@ -86,8 +86,11 @@ Cheaper → lower affected ceilings (by hand by the measured delta if you had ti
 
 Numbers move the wrong way: suspect the measurement first (missing path in base, a `cp`'d seed counted as a load). Fix the model, then judge the content.
 
-The org restricts Actions to repositories it owns, so every workflow here fails at startup —
-`actions/checkout` included, whatever the ref. Checks run locally; `scripts/install_hooks.sh`
-wires them to pre-push. The workflows are still kept correct and their `uses:` SHA-pinned:
-`hol-plugin-scanner.yml` exists because the awesome-ai-plugins listing gate reads the file,
-and the scanner scores an unpinned `uses:` as an operational-security finding.
+The org allows Actions only from repositories it owns — `actions/checkout` included, whatever
+the ref — and a `uses:` naming any other owner fails the whole workflow at startup, before a
+step runs. So `ci.yml` carries no `uses:` at all: it fetches the ref with `git` and uses the
+runner image's own python. Add no action to it. `hol-plugin-scanner.yml` is the exception and
+stays broken on purpose: the awesome-ai-plugins listing gate reads that file for the vendor
+`uses:` and never looks at the run, and the catalog scans this repository from its own runner.
+Keep every `uses:` there SHA-pinned — the scanner scores an unpinned one as a finding.
+`scripts/install_hooks.sh` wires the same checks to pre-push.
