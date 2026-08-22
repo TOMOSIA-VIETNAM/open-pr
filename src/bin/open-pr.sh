@@ -692,6 +692,23 @@ cmd_stacks() {
     done
 }
 
+# ---------------------------------------------------------------- push ----
+# HEAD:branch to the remote matching the PR's host — a blind `origin` on a
+# multi-remote clone pushes one vendor's PR to another vendor's repository.
+cmd_push() {
+    parse_args "$@"
+    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); BRANCH=$(req branch)
+    check_ident '^[A-Za-z0-9._/-]+$' "$BRANCH"
+    D=$(arg dir); [ -n "$D" ] || D=.
+    HOST=$(arg host)
+    if [ -z "$HOST" ]; then
+        case "$V" in github) HOST=github.com ;; gitlab) HOST=gitlab.com ;; bitbucket) HOST=bitbucket.org ;; esac
+    fi
+    REMOTE=$(find_remote "$D" "$HOST" "$OWNER/$REPO")
+    git -C "$D" push "$REMOTE" "HEAD:$BRANCH" \
+        || die 1 "push to $REMOTE failed — surface this to the user as printed; the plugin never works around credentials or forces."
+}
+
 # ---------------------------------------------------------------- main ----
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr.XXXXXX")
 trap 'rm -rf "$TMPD"' EXIT INT TERM
@@ -706,6 +723,7 @@ case "$sub" in
     post)         cmd_post "$@" ;;
     publish)      cmd_publish "$@" ;;
     post-verify)  cmd_post_verify "$@" ;;
+    push)         cmd_push "$@" ;;
     reply)        cmd_reply "$@" ;;
     resolve)      cmd_resolve "$@" ;;
     react)        cmd_react "$@" ;;

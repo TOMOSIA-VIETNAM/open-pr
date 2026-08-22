@@ -29,6 +29,7 @@ on every networked one; `--host H` where self-hostable.
 | `post-verify [--review-id I] [--marker M]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker) |
 | `reply --comment-id C --body-file F [--kind line\|top] [--thread-id T]` | reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the thread holding C |
 | `resolve --thread-id T` | resolve a review thread |
+| `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
 | `react --comment-id C --emoji E` | `NO-EQUIVALENT` on Bitbucket |
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |

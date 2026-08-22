@@ -426,3 +426,37 @@ def test_bitbucket_threads_group_replies_under_their_root(shims, tmp_path):
     rows = [json.loads(l) for l in r.stdout.splitlines() if l.startswith("{")]
     assert {"thread_id": 1, "resolved": False, "comment_ids": [1, 2]} in rows
     assert {"thread_id": 3, "resolved": True, "comment_ids": [3]} in rows
+
+
+def test_push_targets_the_remote_matching_the_pr_host(fixture_repo):
+    """fix once said `git push origin HEAD:<branch>` — on a clone with one remote per
+    vendor that pushes a GitHub PR's commits to Bitbucket. push resolves the remote by
+    the PR's host, and a failure must surface instead of being worked around."""
+    clone = fixture_repo["clone"]
+    origin_url = subprocess.run(["git", "-C", str(clone), "remote", "get-url", "origin"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+    mirror = fixture_repo["tmp"] / "push-mirrors" / "github.com" / "o" / "r"
+    mirror.parent.mkdir(parents=True)
+    subprocess.run(["git", "clone", "--bare", origin_url, str(mirror)], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(clone), "remote", "set-url", "origin",
+                    "git@bitbucket.org:other/elsewhere.git"], check=True)
+    subprocess.run(["git", "-C", str(clone), "remote", "add", "gh", str(mirror)], check=True)
+    # a new commit on a detached HEAD, pushed as HEAD:feature
+    subprocess.run(["git", "-C", str(clone), "checkout", "--detach", fixture_repo["head"]],
+                   capture_output=True, check=True)
+    (clone / "new.txt").write_text("x\n")
+    subprocess.run(["git", "-C", str(clone), "add", "new.txt"], check=True)
+    subprocess.run(["git", "-C", str(clone), "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-m", "fix"], capture_output=True, check=True)
+    new = subprocess.run(["git", "-C", str(clone), "rev-parse", "HEAD"],
+                         capture_output=True, text=True, check=True).stdout.strip()
+    r = run("push", "--vendor", "github", "--owner", "o", "--repo", "r",
+            "--host", "github.com", "--branch", "feature", "--dir", str(clone), check=True)
+    assert "bitbucket.org" not in r.stderr, "the wrong-vendor origin was contacted"
+    tip = subprocess.run(["git", "-C", str(mirror), "rev-parse", "refs/heads/feature"],
+                         capture_output=True, text=True, check=True).stdout.strip()
+    assert tip == new, "the commit did not land on the matching remote's branch"
+    # failure path: no matching remote, unreachable origin -> non-zero + honest message
+    bad = run("push", "--vendor", "gitlab", "--owner", "x", "--repo", "y",
+              "--host", "gitlab.example.invalid", "--branch", "feature", "--dir", str(clone))
+    assert bad.returncode != 0 and "never works around" in bad.stderr

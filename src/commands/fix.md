@@ -12,9 +12,9 @@ disable-model-invocation: true
 >   fixing the remote/branch just to pass it.
 > - FORBIDDEN: `git commit --amend`, `git push --force`/`--force-with-lease`, `git add -A`/`git add .`,
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
->   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, checking
->   out the PR/MR, `git worktree add`/`remove`, close/merge/reopen, `<op> post`/`publish` (this command
->   only replies; posting is `review.md`'s job). `cd` is allowed ONLY into the Step 1a directory, once its
+>   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, RAW-git
+>   branch checkouts or worktree add/remove (Step 1b's `<op> checkout` is the ONLY sanctioned one),
+>   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s job). `cd` is allowed ONLY into the Step 1a directory, once its
 >   git remote proves the match — never by directory name. This bullet + the one above are the SOLE
 >   enforcement layer — no `allowed-tools` backs them (deliberate).
 
@@ -40,8 +40,8 @@ guessing past it.
 
 ## Context
 
-`<op> context --sections info,comments,reviews,account,threads` — labels "PR info", "Old comments",
-"Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git remote + current
+`<op> context --sections info,head,comments,reviews,account,threads` — labels "PR info", "Head SHA",
+"Old comments", "Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git remote + current
 branch": `git remote -v` && `git branch --show-current`.
 
 "Reviews" = `NO-EQUIVALENT` ⇒ Step 3 item 2 does not apply; LINE-level handling continues normally.
@@ -58,8 +58,12 @@ worktree (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory i
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 touching any file, proceeding to Step 2.
 
-1. the current branch matches `headRefName` EXACTLY, || `<repo_dir>` = the 1a worktree (DETACHED,
-   already at THIS PR's head). `<current branch>` = `detached` when none. Mismatch:
+1. the current branch matches `headRefName` EXACTLY ⇒ fix in place. Else `<repo_dir>` = a review
+   worktree whose `git rev-parse HEAD` prefix-matches "Head SHA" ⇒ fix there (DETACHED is normal; a
+   stale worktree is a mismatch). Anything else ⇒ ONE CHOICE per `core/guardrails.md`:
+   `Fix in a fresh worktree (Recommended)` — `<op> checkout` gates it to "Head SHA" and the user's own
+   branch/tree stays untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout
+   yourself, printing:
    ```
    ❌ Current branch (`<current branch>`) doesn't match the PR's branch (`<headRefName>`). Check
       out the correct branch `<headRefName>` and call this again.
@@ -139,7 +143,9 @@ signal (e.g. the repo's recent `git log`), else
 
 ## Step 9 — Push
 
-`<push>` = `git push` on a branch, `git push origin HEAD:<headRefName>` detached. NORMAL either way.
+`<push>` = `<op> push --branch <headRefName> --dir <repo_dir>`, on a branch and detached alike — the
+remote is matched to the PR's host, never a blind `origin`. It failing ⇒ report its stderr as printed,
+STOP. FORBIDDEN: retrying with other credentials or remotes.
 
 - **`auto_push: false`** (default) → STOP at local, tell the dev in 1 short sentence ("Fixed +
   committed locally. Say 'push' when you want me to push it up + reply."). The dev expresses the INTENT
