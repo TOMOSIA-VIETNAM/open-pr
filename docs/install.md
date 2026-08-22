@@ -30,6 +30,16 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 After you reload the plugin, if the new build changes the **schema** a lot, run `/open-pr:upgrade` to bring that repo's settings up to date.
 
+## Install a branch
+
+Installs any branch or tag instead of the newest release. `--update` then stays on it.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --ref <branch-or-tag>
+```
+
+`--ref latest` goes back to the newest release.
+
 ## Uninstall
 
 ```bash

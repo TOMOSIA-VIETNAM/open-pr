@@ -30,6 +30,16 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 プラグインを reload したあと、新しいビルドで **schema** が大きく変わっていれば `/open-pr:upgrade` でそのリポジトリの settings を更新します。
 
+## Install a branch
+
+最新リリースの代わりに、任意の branch または tag を入れます。以降の `--update` もそこに留まります。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --ref <branch-or-tag>
+```
+
+`--ref latest` で最新リリースに戻します。
+
 ## Uninstall
 
 ```bash

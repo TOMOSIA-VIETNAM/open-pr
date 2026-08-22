@@ -7,8 +7,11 @@
 # scripts/install-local.sh, which is what actually installs and is the only place that knows a
 # platform's directories. Read it there afterwards; it is the code that ran.
 #
-# Env: OPEN_PR_HOME (default ~/.open-pr) · OPEN_PR_REF (default: latest release tag; `main` for the
-# development branch) · OPEN_PR_REPO (default: this project on GitHub).
+# Args: --ref <branch-or-tag> installs that ref instead of the newest release, and every later run
+# stays on it; `--ref latest` returns to releases. Everything else is passed to install-local.sh.
+#
+# Env: OPEN_PR_HOME (default ~/.open-pr) · OPEN_PR_REF (same as --ref) · OPEN_PR_REPO (default: this
+# project on GitHub).
 #
 # Claude Code can also install without any of this: `/plugin marketplace add TOMOSIA-VIETNAM/open-pr`.
 #
@@ -42,17 +45,44 @@ is_our_clone() {
 main() {
   local repo="${OPEN_PR_REPO:-https://github.com/TOMOSIA-VIETNAM/open-pr}"
   local home="${OPEN_PR_HOME:-$HOME/.open-pr}"
-  local ref="${OPEN_PR_REF:-}"
-  local uninstalling=no targeted=no arg tmp=
+  # `ref` is what to check out; `pinned` is what the clone should follow from now on — empty means
+  # the release channel. `named=no` means this run said nothing about the ref, and then an existing
+  # clone keeps following whatever it already followed.
+  local ref="${OPEN_PR_REF:-}" pinned="${OPEN_PR_REF:-}" named=no
+  [ -z "$ref" ] || named=yes
+  local uninstalling=no targeted=no tmp=
+  # What install-local.sh gets: its own flags, none of ours.
+  local -a pass=()
 
-  for arg in "$@"; do
-    case "$arg" in
-      --uninstall) uninstalling=yes ;;
-      --platform|--all|--target) targeted=yes ;;
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --uninstall) uninstalling=yes; pass+=("$1"); shift ;;
+      --platform|--all|--target) targeted=yes; pass+=("$1"); shift ;;
+      --ref) [ $# -ge 2 ] && [ -n "$2" ] || {
+               printf 'install.sh: --ref needs a branch or tag name, or `latest`\n' >&2; exit 2; }
+             ref="$2"; pinned="$2"; named=yes; shift 2 ;;
+      --ref=?*) ref="${1#--ref=}"; pinned="$ref"; named=yes; shift ;;
+      --ref=) printf 'install.sh: --ref needs a branch or tag name, or `latest`\n' >&2; exit 2 ;;
+      # The clone below is already moved onto the wanted ref before install-local.sh runs. Passing
+      # --update on would have it fetch a second time and re-exec itself, and that second run is
+      # what asked the platform question twice.
+      --update) shift ;;
+      *) pass+=("$1"); shift ;;
     esac
   done
 
   command -v git >/dev/null || { printf 'install.sh: git is required\n' >&2; exit 1; }
+
+  # `latest` is the way back from a branch to the release channel: it asks for a release and for
+  # nothing to be followed afterwards.
+  if [ "$ref" = latest ]; then ref=; pinned=; fi
+
+  # A clone already following a ref stays on it, so re-running the one-liner to update does not drop
+  # someone off the branch they installed on purpose.
+  if [ "$named" = no ] && [ -d "$home/.git" ] && is_our_clone "$home" "$repo"; then
+    ref="$(git -C "$home" config --get open-pr.ref 2>/dev/null || true)"
+    pinned="$ref"
+  fi
 
   if [ -z "$ref" ]; then
     # Highest release tag, so a one-liner never lands on an unreleased commit.
@@ -86,13 +116,13 @@ main() {
     fi
     [ -x "$runner" ] || {
       printf 'install.sh: no uninstaller in %s at %s. Name a ref that has one:\n' "$repo" "$ref" >&2
-      printf '  OPEN_PR_REF=<branch-or-tag> before this command, or see docs/install.md\n' >&2
+      printf '  --ref <branch-or-tag> after this command, or see docs/install.md\n' >&2
       [ -z "$tmp" ] || rm -rf "$tmp"
       exit 1; }
     # `set -e` would exit here on a non-zero uninstall, before the borrowed clone is cleaned up and
     # before anything is said about what failed.
     local rc=0
-    "$runner" "$@" || rc=$?
+    "$runner" ${pass+"${pass[@]}"} || rc=$?
     [ -z "$tmp" ] || rm -rf "$tmp"
     # A run that named no platform meant all of it, so the clone goes too. One that named a platform
     # leaves the rest installed, and they need this clone to keep working.
@@ -145,9 +175,19 @@ main() {
       printf 'install.sh: %s/scripts/install-local.sh is missing\n' "$home" >&2; exit 1; }
   fi
 
+  # What this clone follows from now on, kept in its own config so a checkout cannot lose it and
+  # nothing tracked has to carry it. Read back here and by install-local.sh --update. Following the
+  # release channel is the absence of a value, so `--ref latest` clears it.
+  if [ -n "$pinned" ]; then
+    git -C "$home" config open-pr.ref "$pinned"
+    say 'following %s — `--ref latest` returns to releases\n' "$pinned"
+  else
+    git -C "$home" config --unset open-pr.ref 2>/dev/null || true
+  fi
+
   say '\nInstalled the plugin files. Next, the platform you run it on.\n'
   say 'Read what does the rest: %s/scripts/install-local.sh\n\n' "$home"
-  exec "$home/scripts/install-local.sh" "$@"
+  exec "$home/scripts/install-local.sh" ${pass+"${pass[@]}"}
 }
 
 main "$@"
