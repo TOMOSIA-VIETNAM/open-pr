@@ -36,7 +36,7 @@ scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py �
 tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
-.github/workflows ci.yml + hol-plugin-scanner.yml on PRs (both blocked at startup)
+.github/workflows ci.yml on the merge queue · hol-plugin-scanner.yml read by the listing gate
 backlogs/         historical, not ops
 ```
 
@@ -86,8 +86,15 @@ Cheaper → lower affected ceilings (by hand by the measured delta if you had ti
 
 Numbers move the wrong way: suspect the measurement first (missing path in base, a `cp`'d seed counted as a load). Fix the model, then judge the content.
 
-The org restricts Actions to repositories it owns, so every workflow here fails at startup —
-`actions/checkout` included, whatever the ref. Checks run locally; `scripts/install_hooks.sh`
-wires them to pre-push. The workflows are still kept correct and their `uses:` SHA-pinned:
-`hol-plugin-scanner.yml` exists because the awesome-ai-plugins listing gate reads the file,
-and the scanner scores an unpinned `uses:` as an operational-security finding.
+Actions are restricted to what the org owns, what GitHub authored, and Marketplace verified
+creators. `actions/*` is fine; anything else needs an entry in the repository's allowlist or
+the whole workflow fails at startup, before a step runs and without producing a check — a
+failure that is invisible on the pull request, so read the Actions tab when a run goes missing.
+`hol-plugin-scanner.yml` names a vendor action that is not verified: it exists for the
+awesome-ai-plugins listing gate, which reads the file and never the run, and the catalog scans
+this repository from its own runner. Keep every `uses:` SHA-pinned — the scanner scores an
+unpinned one as a finding.
+
+CI fires on the merge queue, not on each commit pushed to a pull request, so a pull request
+shows its checks only once queued. `scripts/check.sh` before pushing is what catches a break
+early; `scripts/install_hooks.sh` wires it to pre-push.
