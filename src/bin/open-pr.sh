@@ -297,9 +297,11 @@ cmd_locate_repo() {
 # A clone can carry one remote per vendor — fetching the PR ref or the base from
 # a blind `origin` hits the wrong host there, and the gate then rejects the tree.
 find_remote() {   # $1 = git dir, $2 = host, $3 = owner/repo
-    pat=$(printf '%s/%s' "$2" "$3" | tr 'A-Z' 'a-z')
+    h=$(printf '%s' "$2" | tr 'A-Z' 'a-z'); p=$(printf '%s' "$3" | tr 'A-Z' 'a-z')
+    # host then ':' or '/' then owner/repo — covers https://host/o/r, ssh://git@host/o/r,
+    # the scp form git@host:o/r, and a local mirror path ending /host/o/r.
     git -C "$1" remote -v 2>/dev/null | tr 'A-Z' 'a-z' \
-        | awk -v p="$pat" '$2 ~ ("(https://" p "|[@/]" p ")(\\.git)?$") {print $1; exit}' \
+        | awk -v h="$h" -v p="$p" '$2 ~ ("(https://|@|/)" h "[:/]" p "(\\.git)?$") {print $1; exit}' \
         | grep . || printf 'origin'
 }
 
