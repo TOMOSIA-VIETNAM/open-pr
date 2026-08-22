@@ -5,8 +5,8 @@ disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST, and `core/cli.md` with it —
-> they carry the shared rules and the `<op>` runtime. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`
-> — THIS line carries the absolute path; the env var does not exist inside the shell. On top of those:
+> they carry the shared rules and the `<op>` runtime. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
+> exactly as THIS line spells it — no env var exists in the shell. On top of those:
 > - This command EDITS REAL CODE at pwd, then commits/pushes — higher risk than the
 >   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action. FORBIDDEN: "helpfully"
 >   fixing the remote/branch just to pass it.

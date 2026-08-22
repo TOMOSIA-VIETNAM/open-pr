@@ -60,22 +60,13 @@
       "reason": "Shim boilerplate. Each platform demands its own entry file, and all four say the same two things: read adapters/root.md, then obey src/commands/<cmd>.md verbatim. The rules themselves have exactly one owner under src/ — collapsing the four shims into one would cost every platform its per-command slash entry."
     },
     {
-      "sha": "fec9ada56550",
+      "sha": "58607102245f",
       "files": [
         "commands/fix.md",
         "commands/review.md"
       ],
-      "sample": "op sh claude plugin root bin open pr sh this line carries the absolute path the env var",
-      "reason": "The <op> definition must sit in EACH command file: ${CLAUDE_PLUGIN_ROOT} is interpolated into command-file text at load and exists nowhere else — a file Read at run time (cli.md) gets no interpolation, and no env var reaches the shell. The runtime contract itself still has one owner, core/cli.md."
-    },
-    {
-      "sha": "66b13d7efc04",
-      "files": [
-        "commands/fix.md",
-        "commands/review.md"
-      ],
-      "sample": "this line carries the absolute path the env var does not exist inside the shell on top of",
-      "reason": "Second window of the same interpolated <op> line — same justification as fec9ada56550."
+      "sample": "op sh claude plugin root bin open pr sh exactly as this line spells it no env var",
+      "reason": "The <op> definition must sit in EACH command file: ${CLAUDE_PLUGIN_ROOT} is interpolated into command-file text at load and exists nowhere else — a file Read at run time (cli.md) gets no interpolation, and no env var reaches the shell. The runtime contract keeps one owner, core/cli.md."
     }
   ]
 }

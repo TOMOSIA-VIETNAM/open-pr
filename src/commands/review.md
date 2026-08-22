@@ -5,8 +5,8 @@ disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` and `core/cli.md` FIRST — shared
-> rules + the `<op>` runtime, not repeated here. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`
-> — THIS line carries the absolute path; the env var does not exist inside the shell. On top of those:
+> rules + the `<op>` runtime, not repeated here. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
+> exactly as THIS line spells it — no env var exists in the shell. On top of those:
 > - Read-only on the reviewed repo; the only write is Step 9's 1 review (+ 1 more on a submodule PR
 >   when Step 1 detects a bump). FORBIDDEN: close/merge/reopen, create/delete/switch a branch, push,
 >   edit code → mention it in the review instead.
@@ -58,13 +58,13 @@ writing under `notebooks/review/` → state pwd + `<repo>` in chat. No `notebook
 `/open-pr:clean` removes it. Exit 3 ⇒ STOP with its stderr. FORBIDDEN: retrying past the script's own
 retry, or comparing against a freshly fetched SHA — that hides the stale diff.
 
-Then try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" contains
-`Subproject commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`. Else skip.
+Then try `Read`ing `<worktree>/.gitmodules` — every run, never cached. Exists && "Diff" carries
+`Subproject commit` → `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/submodule-review.md`.
 
 ## Step 2 — Detect stack
 
 `<op> stacks --repo-dir <repo_dir> <every "Files" path>` → keep the `(file, stacks)` mapping for
-Steps 4-7; judge each `.md` line per `core/cli.md`'s note.
+Steps 4-7; judge `.md` lines per `core/cli.md`.
 
 ## Step 3 — Setup / doctor
 
@@ -93,8 +93,7 @@ Each Step 2 stack absent from `.review.templates_copied` → `Read`
 
 ## Step 5 — Load the criteria
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md` and load every layer it names, for the stacks
-from Step 2.
+`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md`; load every layer it names for Step 2's stacks.
 
 ## Step 6 — Re-review
 
@@ -260,8 +259,7 @@ its Fix — the PR carries that text; removing the worktree, or asking to — th
 ## Step 10 — Asked for something outside the review flow
 
 User asks about memory, a re-scan, or the config — this run or a later PR-less chat → `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/cases/chat-requests.md`. Nothing asked → skip; the scheduled doctor is Step
-3's job.
+`"${CLAUDE_PLUGIN_ROOT}"/cases/chat-requests.md`. Nothing asked → skip.
 
 ---
 

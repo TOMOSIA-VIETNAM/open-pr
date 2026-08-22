@@ -12,10 +12,10 @@ specific to what IT may touch; nothing below is repeated there.
   FORBIDDEN: the work process in anything posted to the PR.
 - **A subagent gets the command file VERBATIM** — delegating ⇒ it MUST `Read` that file and follow
   it. FORBIDDEN: paraphrasing the rules into a hand-written prompt.
-- **A search that ERRORED searched NOTHING — never 0 matches.** Non-result output line ⇒ FAILED even on
-  exit 0: print it, ask for the path, never search above pwd. No output && exit ≠ 0 ⇒ 0 matches, NOT a
-  failure. `find`: 1 predicate set, exclude via `| grep -Ev '^\./…'` anchored to result lines.
-  FORBIDDEN: `-not`/`-o`/`-exec` (shims reject them), `2>/dev/null`.
+- **A search that ERRORED searched NOTHING — never 0 matches.** Non-result output line ⇒ FAILED even
+  on exit 0: print it, ask for the path, never search above pwd. No output && exit ≠ 0 ⇒ 0 matches,
+  NOT a failure. `find`: 1 predicate set, exclude via `| grep -Ev`. FORBIDDEN: `-not`/`-o`/`-exec`
+  (shims reject them), `2>/dev/null`.
 - **Choice-based questions use the built-in feature** (e.g. `AskUserQuestion`) when available, else
   plain chat — here + any file a command leads to. Per-call cap ⇒ SEQUENTIAL calls, never crammed.
   Every question carries a pre-marked recommendation — that option's label ends `(Recommended)` — even
