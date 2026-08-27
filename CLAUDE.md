@@ -20,7 +20,7 @@ Vendors: GitHub, GitLab, Bitbucket.
 
 ```
 src/bin/          open-pr.sh — the deterministic runtime; code, never `Read` into context
-src/commands/     entry points; only these have frontmatter; each `disable-model-invocation: true`
+src/commands/     entry points; only these have frontmatter
 src/core/         shared procedure
 src/setup/        bootstrap, doctor, template, lesson
 src/cases/        gated branches — Read only when the condition matches

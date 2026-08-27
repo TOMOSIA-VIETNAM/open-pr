@@ -1,7 +1,6 @@
 ---
 argument-hint: "[what should be better]"
 description: Report a problem with the open-pr plugin itself, or ask for a change, on its public issue tracker. Reads no PR; writes nothing in your repo.
-disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
