@@ -1,7 +1,6 @@
 ---
 argument-hint: "[repo name...]"
 description: Remove the git worktrees review checked PR code out into. Each one is a full checkout on disk; nothing else is touched.
-disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated

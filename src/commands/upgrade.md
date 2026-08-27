@@ -1,7 +1,6 @@
 ---
 argument-hint: "[repo name...]"
 description: Bring every per-repo config found below pwd up to the schema this build expects. Takes no PR.
-disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
