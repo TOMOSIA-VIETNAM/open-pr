@@ -503,6 +503,32 @@ def test_fix_suggestions_prefer_a_code_fence():
     assert "FORBIDDEN: prose when the" in step7, "prose must be the exception, not a sibling option"
 
 
+def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
+    """A diff-scoped pass structurally cannot see whether the code around the diff agrees with
+    what the new code assumes — a caller invoking it the wrong way, a capability it takes for
+    granted. Scope carries the check, and all three parts of it are load-bearing:
+
+    the trigger is the conclusion FLIPPING on that symbol, not merely mentioning it, and it
+    binds the decision to stay silent as much as the decision to raise; the check is a bounded
+    `Grep`, because an unbounded one turns every review into a repo read; and an inconclusive
+    `Grep` still has to surface, or the rule quietly becomes permission to assume.
+    """
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+
+    assert "conclusion that FLIPS on how a symbol outside the diff behaves" in flat, \
+        "Scope must trigger on the conclusion flipping, not on any mention of an outside symbol"
+    assert "raise and stay-silent alike" in flat, \
+        "the check must bind the decision NOT to raise a finding too"
+    assert re.search(r"1 `Grep` for that symbol under `<worktree>` BEFORE concluding", flat), \
+        "the check must be a Grep aimed at the worktree, run before concluding"
+    assert re.search(r"max \d+ per PR, never a full `Read`", flat), \
+        "the Grep budget must be a number, and a full Read would defeat the cost argument"
+    assert re.search(r"`Grep` inconclusive ⇒ raise it at 🔵", flat), \
+        "an inconclusive Grep must still reach the PR, at the severity Scope names"
+    assert "FORBIDDEN: asserting the behaviour, or dropping it silently" in flat, \
+        "both ways out of an inconclusive Grep must stay closed"
+
+
 def test_chat_does_not_repeat_the_posted_findings():
     """The finding text is on the PR. Restating it in chat doubles the output for a reader
     who already has the better copy."""
