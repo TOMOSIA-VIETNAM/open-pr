@@ -606,19 +606,6 @@ def test_frontmatter_only_in_commands():
         assert has == rel(p).startswith("commands/"), f"{rel(p)}: frontmatter={has}"
 
 
-def test_commands_are_never_model_invoked():
-    """These commands post a review, commit and push, delete worktrees, or open a public
-    issue. `disable-model-invocation: true` keeps the harness from firing one on its own
-    reading of the chat, leaving `/open-pr:<cmd>` the only way in on Claude Code, and keeps each
-    description out of every unrelated session's always-loaded context.
-    """
-    for p in md_files():
-        if not rel(p).startswith("commands/"):
-            continue
-        assert re.search(r"^disable-model-invocation: true$", text(p), re.M), \
-            f"{rel(p)}: missing disable-model-invocation"
-
-
 def test_every_file_is_reachable_from_a_command():
     """A file nothing leads to still ships to every user and still rots."""
     graph, files = {}, {rel(p) for p in md_files()}

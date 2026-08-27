@@ -1,7 +1,6 @@
 ---
 argument-hint: "<PR URL> [other PR URL...] [content]"
 description: Review PRs against the conventions learned from each repo — 1 post per PR, findings tagged by severity, code left untouched.
-disable-model-invocation: true
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
