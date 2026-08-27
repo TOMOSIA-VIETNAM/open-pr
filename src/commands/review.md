@@ -173,6 +173,11 @@ Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
 - the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
   paths" file is absent BY DESIGN; the guard above owns how it gets read
 - never read library source unless genuinely unsure
+- a conclusion that FLIPS on how a symbol outside the diff behaves — a caller of the new code, a
+  capability it assumes — takes 1 `Grep` for that symbol under `<worktree>` BEFORE concluding, raise
+  and stay-silent alike; max 3 per PR, never a full `Read`
+- that `Grep` inconclusive ⇒ raise it at 🔵 naming the symbol + the assumption. FORBIDDEN: asserting
+  the behaviour, or dropping it silently
 - never pad the count with trivia; there is no minimum N
 
 **Finding format** — every `<…>` is a placeholder to REPLACE, never to print, `<Fix>` being that word in
