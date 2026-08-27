@@ -151,6 +151,14 @@ Do NOT decide the version or mode on your own, do NOT edit the content without a
 
 ## Step 5 — Tag + Release
 
+BEFORE the tag, `gemini-extension.json`'s `"version"` must already read the confirmed version
+without its leading `v`. A tag is immutable: placed over a manifest still naming the previous
+release, it ships that stale number permanently, and `test_the_declared_version_keeps_up_with_the_public_releases`
+turns `main` red the moment the Release exists. Behind ⇒ STOP before tagging and say so — `main`
+takes a change only through a PR, so the one-line bump lands as its own PR (the user merges it),
+then this command runs again from Step 0 on the updated `main`. An RC tags a branch, so the bump
+belongs to that branch's own PR.
+
 After the user confirms the final version + content, `Write` the confirmed note to a file and pass
 that file to both commands — a multi-line markdown body handed to `-m`/`--notes` on a command line
 arrives mangled:
