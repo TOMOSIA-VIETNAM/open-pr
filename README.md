@@ -6,7 +6,8 @@
 </p>
 
 <p align="center">
-  <strong>The review lands on the PR itself.</strong><br>
+  <strong>AI code review that lands on the PR — not in your terminal.</strong><br>
+  Open source · no server · runs in the agent CLI you already use.<br>
   <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
@@ -31,31 +32,21 @@
   <a href="./README.vi-VN.md">Tiếng Việt</a> · <strong>English</strong> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
+AI coding made PRs ship faster. Review did not get faster.
+
+**`open-pr` runs that first review round for you — on the PR, not on your laptop.** Anyone who opens the PR sees the same feedback.
+
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/en-dark.svg">
-    <img src="./docs/images/bottleneck/en.svg" width="760" alt="Before AI: 10 PRs/day, review keeps up. After AI: 30 PRs/day, review is the bottleneck. After AI plus Open-pr: 30 PRs/day, Open-pr reviews faster and review keeps up.">
-  </picture>
+  <a href="./docs/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="Overview, line comment with a suggested change, and the reply after the fix was pushed"></a>
 </p>
 
-In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and at that pace, almost nobody can keep up.
+One run produces three parts that belong together: an **overview**, **line comments** (with suggested changes), and a **reply** after `/open-pr:fix` has pushed. — [See the demo](./docs/demo.md)
 
-The real question usually isn't *"is this code correct?"*, but: **did the dev self-review the PR before sending it**, or just assume *"the reviewer will handle it"*? That makes the reviewer little more than a *vibecoding* tool for the AI.
-
-A local review is hard to trust. Anyone can say *"I already reviewed it"*. So `open-pr` moves that step to **remote** for transparency — comments sit on the PR, and anyone who opens it can see them.
-
-- `/open-pr:review <PR_URL>` → exactly **1** review (overview + line comments)
-- Dev reads the comments and fixes them, or uses `/open-pr:fix <PR_URL>` (**1** commit + a reply per thread)
-- Every run follows the same procedure: read the repo's conventions, remember what the team discussed on the PR
-
-> [!NOTE]
-> **Review rounds** (a suggestion for the team):
-> 1. **Round 1** — Dev runs AI review on the PR themselves. No review comments yet → reviewer **sends it back**, without touching it.
-> 2. **Round 2** — Reviewer runs it again (AI). Clean → **LGTM**.
-> 3. **Round 3** — Reviewer reviews the domain part.
-
-> [!IMPORTANT]
-> AI lightens the process load, but **final responsibility is still yours**.
+- 🔍 **Exactly 1 review per run** — one review posted, not a stream of bot comments
+- 🧠 **Learns your repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rules beat generic rules
+- 💬 **Remembers what the team said** — a correction on one PR carries into the next run
+- 🔧 **`/open-pr:fix` is disciplined** — exactly **1** commit, no force-push, a reply on every thread
+- 🔓 **Open source, no service** — MIT, no server and no bot account; it runs in the agent CLI you already have
 
 ## Install
 
@@ -74,13 +65,31 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 Full guide: [Install](./docs/install.md) · [Getting a token per vendor](./docs/credentials.md).
 
-## What it looks like
+Works with GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, self-hosted included) and Bitbucket Cloud (`.../pull-requests/<n>`).
 
-One run produces three parts that belong together: an **overview**, **line comments** (with suggested changes), and a **reply** after `/open-pr:fix` has pushed.
+## Why review is the bottleneck
 
-<a href="./docs/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="Overview, line comment with a suggested change, and the reply after the fix was pushed"></a>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/en-dark.svg">
+    <img src="./docs/images/bottleneck/en.svg" width="760" alt="Before AI: 10 PRs/day, review keeps up. After AI: 30 PRs/day, review is the bottleneck. After AI plus Open-pr: 30 PRs/day, Open-pr reviews faster and review keeps up.">
+  </picture>
+</p>
 
-[See the demo](./docs/demo.md) · supports GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, self-hosted included) and Bitbucket Cloud (`.../pull-requests/<n>`).
+In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and at that pace, almost nobody can keep up.
+
+The real question usually isn't *"is this code correct?"*, but: **did the dev self-review the PR before sending it**, or just assume *"the reviewer will handle it"*? That makes the reviewer little more than a *vibecoding* tool for the AI.
+
+A local review is hard to trust. Anyone can say *"I already reviewed it"*. So `open-pr` moves that step to **remote** for transparency — comments sit on the PR, and anyone who opens it can see them.
+
+> [!NOTE]
+> **Review rounds** (a suggestion for the team):
+> 1. **Round 1** — Dev runs AI review on the PR themselves. No review comments yet → reviewer **sends it back**, without touching it.
+> 2. **Round 2** — Reviewer runs it again (AI). Clean → **LGTM**.
+> 3. **Round 3** — Reviewer reviews the domain part.
+
+> [!IMPORTANT]
+> AI lightens the process load, but **final responsibility is still yours**.
 
 ## How it differs from a generic review skill
 

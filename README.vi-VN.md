@@ -6,7 +6,8 @@
 </p>
 
 <p align="center">
-  <strong>Review đăng thẳng lên chính PR.</strong><br>
+  <strong>AI review code đăng thẳng lên PR — không nằm lại trong terminal.</strong><br>
+  Open source · không server · chạy ngay trong agent CLI bạn đang dùng.<br>
   <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
@@ -31,31 +32,21 @@
   <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
+AI coding làm PR ra nhanh hơn. Còn review thì không nhanh hơn.
+
+**`open-pr` chạy vòng review đầu tiên đó cho bạn — trên chính PR, không phải trên máy bạn.** Ai mở PR cũng thấy cùng một feedback.
+
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/vi-dark.svg">
-    <img src="./docs/images/bottleneck/vi.svg" width="760" alt="Trước AI: 10 PR/ngày, review theo kịp. Sau AI: 30 PR/ngày, review thành điểm nghẽn. Sau AI + Open-pr: 30 PR/ngày, Open-pr review nhanh hơn nên review theo kịp.">
-  </picture>
+  <a href="./docs/vi-VN/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
 </p>
 
-Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
+Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push. — [Xem demo](./docs/vi-VN/demo.md)
 
-Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*? Điều này không khác gì reviewer chính là công cụ *vibecoding* cho AI.
-
-Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. Vì vậy `open-pr` đưa bước đó lên **remote** để minh bạch — comment nằm ngay trên PR, ai vào cũng thấy.
-
-- `/open-pr:review <PR_URL>` → đúng **1** review (overview + line comment)
-- Dev đọc comment rồi tự fix, hoặc dùng `/open-pr:fix <PR_URL>` (**1** commit + reply từng thread)
-- Mỗi lần chạy cùng một procedure: đọc convention repo, tự ghi nhớ những gì team đã thảo luận trong PR
-
-> [!NOTE]
-> **Review rounds** (gợi ý cho team):
-> 1. **Round 1** — Dev tự chạy AI review trên PR. Chưa thấy comment review → reviewer **trả về**, chưa đụng vào.
-> 2. **Round 2** — Reviewer chạy lại (AI). Sạch → **LGTM**.
-> 3. **Round 3** — Reviewer review phần domain.
-
-> [!IMPORTANT]
-> AI giảm gánh nặng ở khâu quy trình, nhưng **trách nhiệm cuối cùng vẫn là bạn**.
+- 🔍 **Đúng 1 review mỗi lần chạy** — một review được đăng, không phải một dòng comment bot
+- 🧠 **Học convention của repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rule thắng generic rule
+- 💬 **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau
+- 🔧 **`/open-pr:fix` có kỷ luật** — đúng **1** commit, không force-push, reply từng thread
+- 🔓 **Open source, không service** — MIT, không server, không bot account; chạy ngay trong agent CLI bạn đang dùng
 
 ## Cài đặt
 
@@ -74,13 +65,31 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 Hướng dẫn chi tiết: [Cài đặt](./docs/vi-VN/install.md) · [Lấy token cho từng vendor](./docs/vi-VN/credentials.md).
 
-## Kết quả trông như thế nào
+Hỗ trợ GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted) và Bitbucket Cloud (`.../pull-requests/<n>`).
 
-Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push.
+## Vì sao review thành điểm nghẽn
 
-<a href="./docs/vi-VN/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/vi-dark.svg">
+    <img src="./docs/images/bottleneck/vi.svg" width="760" alt="Trước AI: 10 PR/ngày, review theo kịp. Sau AI: 30 PR/ngày, review thành điểm nghẽn. Sau AI + Open-pr: 30 PR/ngày, Open-pr review nhanh hơn nên review theo kịp.">
+  </picture>
+</p>
 
-[Xem demo](./docs/vi-VN/demo.md) · hỗ trợ GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted) và Bitbucket Cloud (`.../pull-requests/<n>`).
+Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
+
+Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*? Điều này không khác gì reviewer chính là công cụ *vibecoding* cho AI.
+
+Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. Vì vậy `open-pr` đưa bước đó lên **remote** để minh bạch — comment nằm ngay trên PR, ai vào cũng thấy.
+
+> [!NOTE]
+> **Review rounds** (gợi ý cho team):
+> 1. **Round 1** — Dev tự chạy AI review trên PR. Chưa thấy comment review → reviewer **trả về**, chưa đụng vào.
+> 2. **Round 2** — Reviewer chạy lại (AI). Sạch → **LGTM**.
+> 3. **Round 3** — Reviewer review phần domain.
+
+> [!IMPORTANT]
+> AI giảm gánh nặng ở khâu quy trình, nhưng **trách nhiệm cuối cùng vẫn là bạn**.
 
 ## Khác gì so với skill review phổ thông
 
