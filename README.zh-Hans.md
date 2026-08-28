@@ -6,7 +6,8 @@
 </p>
 
 <p align="center">
-  <strong>评审直接发布在 PR 上</strong><br>
+  <strong>AI 代码评审直接落在 PR 上，而不是留在终端里。</strong><br>
+  开源 · 无需服务器 · 就跑在你已经在用的 agent CLI 里。<br>
   <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
@@ -31,31 +32,21 @@
   <a href="./README.vi-VN.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <strong>简体中文</strong>
 </p>
 
+AI 编码让 PR 变快了，评审并没有变快。
+
+**`open-pr` 把第一轮评审跑在 PR 上，而不是你的本地。** 任何打开这个 PR 的人，看到的都是同一份反馈。
+
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/zh-dark.svg">
-    <img src="./docs/images/bottleneck/zh.svg" width="760" alt="AI 之前：每天 10 个 PR，评审跟得上。AI 之后：每天 30 个 PR，评审成为瓶颈。AI 之后 + Open-pr：每天 30 个 PR，Open-pr 让评审更快，评审跟得上。">
-  </picture>
+  <a href="./docs/zh-Hans/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="总览、带 suggested change 的行级评论，以及 fix 推送后的回复"></a>
 </p>
 
-在 AI 编码的时代，PR 提交的速度远远快过评审的速度。瓶颈已经不在写代码，而在 **评审**。评审者既要检查项目规范 / 安全 / 性能，*还要* 覆盖业务逻辑 —— 以这样的节奏，几乎没有人跟得上。
+一次运行会产出三个互相关联的部分：**总览**、**行级评论**（附带 suggested change），以及 `/open-pr:fix` 推送之后的 **回复**。 —— [查看演示](./docs/zh-Hans/demo.md)
 
-真正的问题往往不是 *"这段代码对不对？"*，而是：**开发者在发出 PR 之前，自己评审过吗**，还是想着 *"评审者会处理的"*？这样一来，评审者不过是 AI 的一个 *vibecoding* 工具而已。
-
-本地评审很难取信于人。谁都可以说 *"我已经审过了"*。所以 `open-pr` 把这一步搬到 **远端**，让它透明 —— 评论就留在 PR 上，任何打开这个 PR 的人都看得见。
-
-- `/open-pr:review <PR_URL>` → 恰好 **1** 条评审（总览 + 行级评论）
-- 开发者读评论并修复，或者用 `/open-pr:fix <PR_URL>`（**1** 个 commit + 每个 thread 一条回复）
-- 每次运行都走同一套流程：读取仓库的规范，记住团队在 PR 上讨论过的内容
-
-> [!NOTE]
-> **评审轮次**（给团队的一个建议）：
-> 1. **第 1 轮** —— 开发者自己在 PR 上跑一次 AI 评审。还没有评审评论 → 评审者 **直接退回**，不去碰它。
-> 2. **第 2 轮** —— 评审者再跑一次（AI）。干净 → **LGTM**。
-> 3. **第 3 轮** —— 评审者评审业务领域的部分。
-
-> [!IMPORTANT]
-> AI 减轻的是流程负担，但 **最终责任仍然在你身上**。
+- 🔍 **每次运行恰好 1 条评审** —— 只发一条，不是源源不断的 bot 评论
+- 🧠 **学习你的仓库** —— 读 README / CLAUDE.md / AGENTS.md / docs / wiki；**团队规范优先于通用规则**
+- 💬 **记住团队说过的话** —— 这次 PR 上的一句纠正，下次运行就会应用
+- 🔧 **`/open-pr:fix` 有纪律** —— 恰好 **1** 个 commit，不 force-push，每个 thread 一条回复
+- 🔓 **开源，无需服务** —— MIT，不需要服务器、也不需要 bot 账号；就跑在你已经在用的 agent CLI 里
 
 ## 安装
 
@@ -74,13 +65,31 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 完整指南：[安装](./docs/zh-Hans/install.md) · [各平台如何取得 token](./docs/zh-Hans/credentials.md)。
 
-## 实际效果
+支持 GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`，含自建实例）和 Bitbucket Cloud（`.../pull-requests/<n>`）。
 
-一次运行会产出三个互相关联的部分：**总览**、**行级评论**（附带 suggested change），以及 `/open-pr:fix` 推送之后的 **回复**。
+## 为什么评审成了瓶颈
 
-<a href="./docs/zh-Hans/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="总览、带 suggested change 的行级评论，以及 fix 推送后的回复"></a>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/bottleneck/zh-dark.svg">
+    <img src="./docs/images/bottleneck/zh.svg" width="760" alt="AI 之前：每天 10 个 PR，评审跟得上。AI 之后：每天 30 个 PR，评审成为瓶颈。AI 之后 + Open-pr：每天 30 个 PR，Open-pr 让评审更快，评审跟得上。">
+  </picture>
+</p>
 
-[查看演示](./docs/zh-Hans/demo.md) · 支持 GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`，含自建实例）和 Bitbucket Cloud（`.../pull-requests/<n>`）。
+在 AI 编码的时代，PR 提交的速度远远快过评审的速度。瓶颈已经不在写代码，而在 **评审**。评审者既要检查项目规范 / 安全 / 性能，*还要* 覆盖业务逻辑 —— 以这样的节奏，几乎没有人跟得上。
+
+真正的问题往往不是 *"这段代码对不对？"*，而是：**开发者在发出 PR 之前，自己评审过吗**，还是想着 *"评审者会处理的"*？这样一来，评审者不过是 AI 的一个 *vibecoding* 工具而已。
+
+本地评审很难取信于人。谁都可以说 *"我已经审过了"*。所以 `open-pr` 把这一步搬到 **远端**，让它透明 —— 评论就留在 PR 上，任何打开这个 PR 的人都看得见。
+
+> [!NOTE]
+> **评审轮次**（给团队的一个建议）：
+> 1. **第 1 轮** —— 开发者自己在 PR 上跑一次 AI 评审。还没有评审评论 → 评审者 **直接退回**，不去碰它。
+> 2. **第 2 轮** —— 评审者再跑一次（AI）。干净 → **LGTM**。
+> 3. **第 3 轮** —— 评审者评审业务领域的部分。
+
+> [!IMPORTANT]
+> AI 减轻的是流程负担，但 **最终责任仍然在你身上**。
 
 ## 与普通评审 skill 的差别
 
