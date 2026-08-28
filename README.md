@@ -46,7 +46,7 @@ One run produces three parts that belong together: an **overview**, **line comme
 - 🧠 **Learns your repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rules beat generic rules
 - 💬 **Remembers what the team said** — a correction on one PR carries into the next run
 - 🔧 **`/open-pr:fix` is disciplined** — exactly **1** commit, no force-push, a reply on every thread
-- 🔓 **Open source, no service** — MIT, no server and no bot account; it runs in the agent CLI you already have
+- 🔓 **Open source, no `open-pr` service** — MIT-licensed, no `open-pr` server or bot account; it runs in the agent CLI you already have
 
 ## Install
 
@@ -76,7 +76,7 @@ PR URL formats: GitHub `.../pull/<n>` · GitLab `.../-/merge_requests/<n>` (self
   </picture>
 </p>
 
-In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and at that pace, almost nobody can keep up.
+In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and that doesn't scale well as PR volume grows.
 
 A local review is hard to trust. Anyone can say *"I already reviewed it"*. So `open-pr` moves that step to **remote** for transparency — comments sit on the PR, and anyone who opens it can see them.
 

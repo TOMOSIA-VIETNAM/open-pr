@@ -46,7 +46,7 @@ Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comme
 - 🧠 **Học convention của repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rule thắng generic rule
 - 💬 **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau
 - 🔧 **`/open-pr:fix` có kỷ luật** — đúng **1** commit, không force-push, reply từng thread
-- 🔓 **Open source, không service** — MIT, không server, không bot account; chạy ngay trong agent CLI bạn đang dùng
+- 🔓 **Open source, không service của `open-pr`** — MIT, không server `open-pr`, không bot account; chạy ngay trong agent CLI bạn đang dùng
 
 ## Cài đặt
 
@@ -76,7 +76,7 @@ Hướng dẫn chi tiết: [Cài đặt](./docs/vi-VN/install.md) · [Lấy toke
   </picture>
 </p>
 
-Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
+Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và cách đó không scale khi lượng PR tăng lên.
 
 Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. Vì vậy `open-pr` đưa bước đó lên **remote** để minh bạch — comment nằm ngay trên PR, ai vào cũng thấy.
 
