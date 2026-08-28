@@ -6,9 +6,9 @@
 </p>
 
 <p align="center">
-  <strong>AI review code đăng thẳng lên PR — không nằm lại trong terminal.</strong><br>
-  Open source · không server · chạy ngay trong agent CLI bạn đang dùng.<br>
-  <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
+  <strong>AI review code đăng thẳng lên PR của bạn.</strong><br>
+  <strong>Open source. Self-hosted.</strong><br>
+  <sub>Hoạt động với <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -32,7 +32,7 @@
   <strong>Tiếng Việt</strong> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
-AI coding làm PR ra nhanh hơn. Còn review thì không nhanh hơn.
+AI coding làm PR ra nhanh hơn. Nhưng review thì không nhanh hơn.
 
 **`open-pr` chạy vòng review đầu tiên đó cho bạn — trên chính PR, không phải trên máy bạn.** Ai mở PR cũng thấy cùng một feedback.
 
@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 Hướng dẫn chi tiết: [Cài đặt](./docs/vi-VN/install.md) · [Lấy token cho từng vendor](./docs/vi-VN/credentials.md).
 
-Hỗ trợ GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, kể cả self-hosted) và Bitbucket Cloud (`.../pull-requests/<n>`).
+Định dạng PR URL: GitHub `.../pull/<n>` · GitLab `.../-/merge_requests/<n>` (kể cả self-hosted) · Bitbucket Cloud `.../pull-requests/<n>`.
 
 ## Vì sao review thành điểm nghẽn
 
@@ -77,8 +77,6 @@ Hỗ trợ GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, kể c�
 </p>
 
 Trong thời buổi AI coding, PR ra nhanh hơn rất nhiều so với tốc độ review. Điểm nghẽn không còn nằm ở coding nữa mà nằm ở **khâu review**. Reviewer vừa phải check convention / security / performance dự án, vừa phải cover business logic — và với tần suất đó, gần như không kham nổi.
-
-Câu hỏi thật ra thường không phải *"code này đúng chưa?"*, mà là: **dev đã self-review PR trước khi gửi chưa**, hay cứ mặc định *"có reviewer lo"*? Điều này không khác gì reviewer chính là công cụ *vibecoding* cho AI.
 
 Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồi"*. Vì vậy `open-pr` đưa bước đó lên **remote** để minh bạch — comment nằm ngay trên PR, ai vào cũng thấy.
 

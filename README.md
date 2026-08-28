@@ -6,9 +6,9 @@
 </p>
 
 <p align="center">
-  <strong>AI code review that lands on the PR — not in your terminal.</strong><br>
-  Open source · no server · runs in the agent CLI you already use.<br>
-  <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
+  <strong>AI code review that lands directly on your PR.</strong><br>
+  <strong>Open source. Self-hosted.</strong><br>
+  <sub>Works with <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -32,7 +32,7 @@
   <a href="./README.vi-VN.md">Tiếng Việt</a> · <strong>English</strong> · <a href="./README.ja-JP.md">日本語</a> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
-AI coding made PRs ship faster. Review did not get faster.
+AI coding made PRs faster. But review didn't get faster.
 
 **`open-pr` runs that first review round for you — on the PR, not on your laptop.** Anyone who opens the PR sees the same feedback.
 
@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 Full guide: [Install](./docs/install.md) · [Getting a token per vendor](./docs/credentials.md).
 
-Works with GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, self-hosted included) and Bitbucket Cloud (`.../pull-requests/<n>`).
+PR URL formats: GitHub `.../pull/<n>` · GitLab `.../-/merge_requests/<n>` (self-hosted included) · Bitbucket Cloud `.../pull-requests/<n>`.
 
 ## Why review is the bottleneck
 
@@ -77,8 +77,6 @@ Works with GitHub (`.../pull/<n>`), GitLab (`.../-/merge_requests/<n>`, self-hos
 </p>
 
 In the age of AI coding, PRs ship far faster than they get reviewed. The bottleneck is no longer coding — it's **review**. Reviewers have to check the project's conventions / security / performance *and* cover business logic — and at that pace, almost nobody can keep up.
-
-The real question usually isn't *"is this code correct?"*, but: **did the dev self-review the PR before sending it**, or just assume *"the reviewer will handle it"*? That makes the reviewer little more than a *vibecoding* tool for the AI.
 
 A local review is hard to trust. Anyone can say *"I already reviewed it"*. So `open-pr` moves that step to **remote** for transparency — comments sit on the PR, and anyone who opens it can see them.
 

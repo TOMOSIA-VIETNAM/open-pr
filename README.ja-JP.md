@@ -6,9 +6,9 @@
 </p>
 
 <p align="center">
-  <strong>AI コードレビューを、ターミナルではなく PR 上に。</strong><br>
-  オープンソース · サーバー不要 · いま使っている agent CLI 上で動きます。<br>
-  <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
+  <strong>AI コードレビューを、あなたの PR に直接。</strong><br>
+  <strong>オープンソース。セルフホスト。</strong><br>
+  <sub>対応: <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -32,7 +32,7 @@
   <a href="./README.vi-VN.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <strong>日本語</strong> · <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
-AI コーディングで PR は速くなりました。レビューは速くなっていません。
+AI コーディングで PR は速くなりました。でもレビューは速くなっていません。
 
 **`open-pr` はその最初のレビューラウンドを、ローカルではなく PR 上で実行します。** PR を開いた人なら誰でも、同じフィードバックを見られます。
 
@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 詳細ガイド: [インストール](./docs/ja-JP/install.md) · [ベンダーごとのトークン取得](./docs/ja-JP/credentials.md)。
 
-GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`、セルフホスト含む）、Bitbucket Cloud（`.../pull-requests/<n>`）に対応。
+PR URL の形式: GitHub `.../pull/<n>` · GitLab `.../-/merge_requests/<n>`（セルフホスト含む）· Bitbucket Cloud `.../pull-requests/<n>`。
 
 ## なぜレビューがボトルネックになるのか
 
@@ -77,8 +77,6 @@ GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`、セルフホ�
 </p>
 
 AI コーディングの時代、PR の出る速さはレビューの速さを大きく上回っています。ボトルネックはもうコーディングではなく、**レビュー工程**にあります。レビュアーはプロジェクトの convention / security / performance を確認しつつ、ビジネスロジックもカバーしなければなりません — その頻度では、ほぼ持ちこたえられません。
-
-本当の問いはたいてい *「このコードは正しいか？」* ではなく、**開発者は送る前に PR をセルフレビューしたか**、それとも *"レビュアーがやってくれる"* と決めつけたか、です。それではレビュアーは AI の *vibecoding* ツールそのものです。
 
 ローカルでのレビューは信じにくい。誰でも *"レビュー済み"* と言えます。だから `open-pr` はそのステップを **remote** に移して可視化します — コメントは PR 上にあり、開いた人なら誰でも見られます。
 

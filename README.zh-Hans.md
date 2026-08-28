@@ -6,9 +6,9 @@
 </p>
 
 <p align="center">
-  <strong>AI 代码评审直接落在 PR 上，而不是留在终端里。</strong><br>
-  开源 · 无需服务器 · 就跑在你已经在用的 agent CLI 里。<br>
-  <sub><picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
+  <strong>AI 代码评审，直接落在你的 PR 上。</strong><br>
+  <strong>开源。自托管。</strong><br>
+  <sub>支持 <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
   <code>/open-pr:review</code> · <code>/open-pr:fix</code>
 </p>
 
@@ -32,7 +32,7 @@
   <a href="./README.vi-VN.md">Tiếng Việt</a> · <a href="./README.md">English</a> · <a href="./README.ja-JP.md">日本語</a> · <strong>简体中文</strong>
 </p>
 
-AI 编码让 PR 变快了，评审并没有变快。
+AI 编码让 PR 变快了。但评审并没有变快。
 
 **`open-pr` 把第一轮评审跑在 PR 上，而不是你的本地。** 任何打开这个 PR 的人，看到的都是同一份反馈。
 
@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 完整指南：[安装](./docs/zh-Hans/install.md) · [各平台如何取得 token](./docs/zh-Hans/credentials.md)。
 
-支持 GitHub（`.../pull/<n>`）、GitLab（`.../-/merge_requests/<n>`，含自建实例）和 Bitbucket Cloud（`.../pull-requests/<n>`）。
+PR URL 格式：GitHub `.../pull/<n>` · GitLab `.../-/merge_requests/<n>`（含自建实例）· Bitbucket Cloud `.../pull-requests/<n>`。
 
 ## 为什么评审成了瓶颈
 
@@ -77,8 +77,6 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 </p>
 
 在 AI 编码的时代，PR 提交的速度远远快过评审的速度。瓶颈已经不在写代码，而在 **评审**。评审者既要检查项目规范 / 安全 / 性能，*还要* 覆盖业务逻辑 —— 以这样的节奏，几乎没有人跟得上。
-
-真正的问题往往不是 *"这段代码对不对？"*，而是：**开发者在发出 PR 之前，自己评审过吗**，还是想着 *"评审者会处理的"*？这样一来，评审者不过是 AI 的一个 *vibecoding* 工具而已。
 
 本地评审很难取信于人。谁都可以说 *"我已经审过了"*。所以 `open-pr` 把这一步搬到 **远端**，让它透明 —— 评论就留在 PR 上，任何打开这个 PR 的人都看得见。
 
