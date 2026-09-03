@@ -50,7 +50,18 @@ One run produces three parts that belong together: an **overview**, **line comme
 
 ## Install
 
-[Claude Code](https://claude.ai/code):
+**1. A vendor CLI, logged in.** The plugin carries no credential of its own — it reads the PR and posts the review through *your* account:
+
+```bash
+# GitHub
+brew install gh          # or https://cli.github.com/
+gh auth login            # GitHub.com → HTTPS → Login with a web browser
+gh auth status           # must say "Logged in to github.com as <you>"
+```
+
+GitLab: `brew install glab && glab auth login --hostname gitlab.com`. Bitbucket ships no CLI — it reads `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` from the environment. Minimum permissions and how to check them: [Getting a token per vendor](./docs/credentials.md).
+
+**2. The plugin.** [Claude Code](https://claude.ai/code):
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr

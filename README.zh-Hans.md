@@ -50,7 +50,18 @@ AI 编码让 PR 变快了。但评审并没有变快。
 
 ## 安装
 
-[Claude Code](https://claude.ai/code)：
+**1. 先登录对应平台的 CLI。** 插件本身不持有任何 credential —— 它用*你的*账号读取 PR、发表评审：
+
+```bash
+# GitHub
+brew install gh          # 或 https://cli.github.com/
+gh auth login            # GitHub.com → HTTPS → Login with a web browser
+gh auth status           # 应显示 "Logged in to github.com as <you>"
+```
+
+GitLab：`brew install glab && glab auth login --hostname gitlab.com`。Bitbucket 没有 CLI —— 它从环境变量读取 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN`。各平台的最小权限与自查方法：[各平台如何取得 token](./docs/zh-Hans/credentials.md)。
+
+**2. 插件。** [Claude Code](https://claude.ai/code)：
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
