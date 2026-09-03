@@ -50,7 +50,18 @@ Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comme
 
 ## Cài đặt
 
-[Claude Code](https://claude.ai/code):
+**1. CLI của vendor, đã đăng nhập.** Plugin không giữ credential riêng — nó đọc PR và post review bằng tài khoản *của bạn*:
+
+```bash
+# GitHub
+brew install gh          # hoặc https://cli.github.com/
+gh auth login            # GitHub.com → HTTPS → Login with a web browser
+gh auth status           # phải hiện "Logged in to github.com as <bạn>"
+```
+
+GitLab: `brew install glab && glab auth login --hostname gitlab.com`. Bitbucket không có CLI — nó đọc `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` từ environment. Quyền tối thiểu và cách tự kiểm tra: [Lấy token cho từng vendor](./docs/vi-VN/credentials.md).
+
+**2. Plugin.** [Claude Code](https://claude.ai/code):
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr

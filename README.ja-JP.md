@@ -50,7 +50,18 @@ AI コーディングで PR は速くなりました。でもレビューは速�
 
 ## インストール
 
-[Claude Code](https://claude.ai/code):
+**1. ベンダーの CLI にログイン。** プラグイン自体は credential を持たず、*あなたの*アカウントで PR を読み、レビューを投稿します:
+
+```bash
+# GitHub
+brew install gh          # または https://cli.github.com/
+gh auth login            # GitHub.com → HTTPS → Login with a web browser
+gh auth status           # "Logged in to github.com as <you>" と出れば OK
+```
+
+GitLab は `brew install glab && glab auth login --hostname gitlab.com`。Bitbucket に CLI はなく、環境変数 `BITBUCKET_EMAIL` + `BITBUCKET_API_TOKEN` を読みます。最小権限と確認方法: [ベンダーごとのトークン取得](./docs/ja-JP/credentials.md)。
+
+**2. プラグイン。** [Claude Code](https://claude.ai/code):
 
 ```bash
 /plugin marketplace add TOMOSIA-VIETNAM/open-pr
