@@ -15,6 +15,7 @@
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img alt="Release" src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?style=flat-square&label=release&color=2ea44f"></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr?style=flat-square&color=blue"></a>
+  <a href="https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow"><img alt="Listed on Awesome AI Plugins" src="https://img.shields.io/badge/Awesome-AI%20Plugins-c5203e?style=flat-square&logo=awesomelists&logoColor=white"></a>
   <a href="#cài-đặt"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-supported-181717?style=flat-square&logo=github&logoColor=white"></a>
   <a href="#cài-đặt"><img alt="GitLab" src="https://img.shields.io/badge/GitLab-supported-FC6D26?style=flat-square&logo=gitlab&logoColor=white"></a>
   <a href="#cài-đặt"><img alt="Bitbucket" src="https://img.shields.io/badge/Bitbucket-supported-0052CC?style=flat-square&logo=bitbucket&logoColor=white"></a>
@@ -47,6 +48,12 @@ Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comme
 - 💬 **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau
 - 🔧 **`/open-pr:fix` có kỷ luật** — đúng **1** commit, không force-push, reply từng thread
 - 🔓 **Open source, không service của `open-pr`** — MIT, không server `open-pr`, không bot account; chạy ngay trong agent CLI bạn đang dùng
+
+## Được liệt kê trong Awesome AI Plugins
+
+`open-pr` có mặt trong [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) — catalog đa nền tảng do Hashgraph Online tuyển chọn — ở mục *Community Plugins → Development & Workflow*, và được [HOL Plugin Registry](https://hol.org/registry/plugins) thu nhận; registry quét mọi project trong danh sách và công bố trust score.
+
+Điều kiện để được liệt kê chính là kết quả quét đó: **score ≥ 80, không có finding mức high hay critical**. Scanner do chính catalog chạy trên nhánh mặc định của repo này, nên kết quả là của họ chứ không phải tự chúng tôi công bố. Một lần quét là tín hiệu tin cậy, không phải bảo chứng an toàn.
 
 ## Cài đặt
 
