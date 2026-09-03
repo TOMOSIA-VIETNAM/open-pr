@@ -15,6 +15,7 @@
 <p align="center">
   <a href="https://github.com/TOMOSIA-VIETNAM/open-pr/releases"><img alt="Release" src="https://img.shields.io/github/v/release/TOMOSIA-VIETNAM/open-pr?style=flat-square&label=release&color=2ea44f"></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/TOMOSIA-VIETNAM/open-pr?style=flat-square&color=blue"></a>
+  <a href="https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow"><img alt="Listed on Awesome AI Plugins" src="https://img.shields.io/badge/Awesome-AI%20Plugins-c5203e?style=flat-square&logo=awesomelists&logoColor=white"></a>
   <a href="#インストール"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-supported-181717?style=flat-square&logo=github&logoColor=white"></a>
   <a href="#インストール"><img alt="GitLab" src="https://img.shields.io/badge/GitLab-supported-FC6D26?style=flat-square&logo=gitlab&logoColor=white"></a>
   <a href="#インストール"><img alt="Bitbucket" src="https://img.shields.io/badge/Bitbucket-supported-0052CC?style=flat-square&logo=bitbucket&logoColor=white"></a>
@@ -47,6 +48,12 @@ AI コーディングで PR は速くなりました。でもレビューは速�
 - 💬 **チームが言ったことを記憶** — ある PR での指摘が、次の実行に引き継がれます
 - 🔧 **`/open-pr:fix` は規律を守る** — ちょうど **1** コミット、force-push なし、スレッドごとに返信
 - 🔓 **オープンソース、`open-pr` のサービス不要** — MIT ライセンス。`open-pr` のサーバーも bot アカウントも不要で、いま使っている agent CLI 上で動きます
+
+## Awesome AI Plugins に掲載されています
+
+`open-pr` は、Hashgraph Online がキュレーションするクロスプラットフォームのカタログ [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) の *Community Plugins → Development & Workflow* に掲載され、[HOL Plugin Registry](https://hol.org/registry/plugins) に取り込まれています。レジストリは掲載された全プロジェクトをスキャンし、trust score を公開します。
+
+掲載の条件はそのスキャン結果です: **score 80 以上、high / critical の finding なし**。スキャンはカタログ側が、このリポジトリのデフォルトブランチに対して自ら実行するもので、当方の自己申告ではありません。スキャンは信頼の目安であって、安全の保証ではありません。
 
 ## インストール
 
