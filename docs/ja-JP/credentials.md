@@ -139,6 +139,8 @@ curl -sS --fail-with-body -u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN" \
 リポジトリに属するため `/user` は 401 を返し、レビューはトークン名で表示されます。自動化向けで、日常の
 レビューには上の API token が適しています。
 
+**同じ token で git を HTTPS 経由で使う場合:** ユーザー名はリテラル `x-bitbucket-api-token-auth` です。メールアドレスは REST API のみで有効で、git では認証に失敗します。
+
 ## push にはトークンではなく SSH が必要
 
 `/open-pr:review` は読むだけです。`/open-pr:fix` は commit して push し、3 つのベンダーいずれもトークンでは

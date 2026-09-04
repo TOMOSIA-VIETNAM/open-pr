@@ -3,24 +3,26 @@ argument-hint: "[PR URL] [content]"
 description: Act on the findings a review left on a PR — takes or declines each by severity, edits code at pwd to match the project, 1 commit, replies once pushed.
 ---
 
-> **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
-> here. On top of those:
+> **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST, and `core/cli.md` with it —
+> they carry the shared rules and the `<op>` runtime. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
+> exactly as THIS line spells it — no env var exists in the shell. On top of those:
 > - This command EDITS REAL CODE at pwd, then commits/pushes — higher risk than the
 >   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action. FORBIDDEN: "helpfully"
 >   fixing the remote/branch just to pass it.
 > - FORBIDDEN: `git commit --amend`, `git push --force`/`--force-with-lease`, `git add -A`/`git add .`,
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
->   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, checking
->   out the PR/MR, `git worktree add`/`remove`, close/merge/reopen, creating a
->   review/draft-note batch (this command only replies; posting is `review.md`'s job). `cd`/`find` are
->   allowed ONLY to self-locate the project directory (Step 1a), and only once `git remote` proves the
->   match — never by directory name. This bullet + the one above are the SOLE enforcement layer — no
->   `allowed-tools` backs them (deliberate).
+>   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, RAW-git
+>   branch checkouts or worktree add/remove (Step 1b's `<op> checkout` is the ONLY sanctioned one),
+>   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s job). `cd` is allowed ONLY between the invocation
+>   directory, the 1a directory (once its git remote proves the match — never by name), and the
+>   Step 1b worktree. This bullet + the one above are the SOLE
+>   enforcement layer — no `allowed-tools` backs them (deliberate).
 
 ## Step 0 — Target
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md`, taking its no-store branch (§2): this command never
-persists `git_remote_type`, it uses `<vendor_guess>` as-is. `Usage:` block:
+`<op> target <url>`; exit 4 or no URL → the block below. `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md`, taking its no-store branch (§2): this command never
+persists `git_remote_type`, it uses the parsed vendor as-is.
 
 ```
 ❌ Error: No PR URL provided.
@@ -33,41 +35,40 @@ Example with instructions: /open-pr:fix https://github.com/org/repo/pull/123 onl
 Free-form text outside the URL narrows this run's scope (Step 3 item 3).
 
 No URL → take the PR THIS session already establishes (its review ran here, the user named it, pwd is
-its worktree), say which in 1 short sentence, continue. NOT exactly 1 ⇒ print the `Usage:` block.
-FORBIDDEN: guessing past it.
+its worktree), say which in 1 short sentence, continue. NOT exactly 1 ⇒ the `Usage:` block. FORBIDDEN:
+guessing past it.
 
 ## Context
 
-Fetch:
+`<op> context --sections info,head,comments,reviews,account,threads` — labels "PR info", "Head SHA",
+"Old comments", "Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git
+remote + current branch": `git remote -v` && `git branch --show-current` — pwd may be no repo (exit
+128) or the wrong one; not fatal, Step 1 re-checks everything at the 1a directory.
 
-| `V§` entry | label |
-|---|---|
-| "Fetch PR basic info", fields `number,headRefName,baseRefName` | PR info |
-| "Fetch PR review comments (LINE-level findings)" | Comments |
-| "Fetch PR reviews (FILE-level findings + review_id)" | Reviews |
-| "Fetch account running the command" | Account running this command |
-| "Fetch review threads (id + isResolved + comment ids)" | Review threads |
-
-Plus 2 plain `git` commands, vendor-independent ⇒ no vendor file — label "Git remote +
-current branch": `git remote -v` && `git branch --show-current`.
-
-A vendor whose "Fetch PR reviews" entry has no equivalent returns nothing here; Step 3 item 2 then
-does not apply, while LINE-level handling continues normally.
+"Reviews" empty ⇒ Step 3 item 2 does not apply; LINE-level handling continues normally.
 
 `core/pr-target.md` §4-5 give `<repo>` and the empty-"PR info" stop.
 
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
-**1a.** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/locate-repo.md` for `<repo_dir>`, then `cd` into it — this
-command EDITS that repo's files ⇒ works from inside. Everything below runs there,
-`notebooks/review/<repo>/` included — `<repo_dir>` = a `review` worktree
-(`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ that directory is at `../../`.
+**1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → ask with a CHOICE in plain language, STOP if
+unresolved). `<memory-dir>` = `notebooks/review/<repo>` at THIS invocation directory, ABSOLUTE — the
+place review.md writes from its own pwd; `<repo_dir>` = a `review` worktree
+(`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ its `../../`. FORBIDDEN: resolving memory inside
+`<repo_dir>` — a repo that is a subdirectory of the workspace grows a second, drifting copy. Then
+`cd` into `<repo_dir>` — this command EDITS that repo's files ⇒ works from inside.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 touching any file, proceeding to Step 2.
 
-1. the current branch matches `headRefName` EXACTLY, || `<repo_dir>` = the 1a worktree (DETACHED,
-   already at THIS PR's head). `<current branch>` = `detached` when none. Mismatch:
+1. the current branch matches `headRefName` EXACTLY **and its tip prefix-matches "Head SHA"** ⇒ fix
+   in place — a matching name on a stale tip edits a tree the findings do not describe and the push
+   cannot fast-forward. Else `<repo_dir>` = a review worktree whose `git rev-parse HEAD`
+   prefix-matches "Head SHA" ⇒ fix there (DETACHED is normal). Anything else — wrong branch, stale
+   tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`:
+   `Fix in a fresh worktree (Recommended)` — `<op> checkout`, run FROM the invocation directory so
+   the worktree lands under `<memory-dir>`, gates it to "Head SHA"; the user's own branch/tree stays
+   untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout yourself, printing:
    ```
    ❌ Current branch (`<current branch>`) doesn't match the PR's branch (`<headRefName>`). Check
       out the correct branch `<headRefName>` and call this again.
@@ -82,20 +83,19 @@ touching any file, proceeding to Step 2.
 
 ## Step 2 — Settings
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/repo-settings.md`, then `notebooks/review/<repo>/settings.json`.
-Resolve `chat_language` per that file.
+`<op> settings --dir <memory-dir>` (`core/repo-settings.md` names what each field means). Resolve
+`chat_language` per that file.
 
-- `.fix` present → use its values, do NOT ask again
+- the FILE carries a `.fix` node → use its values, do NOT ask again
 - absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle
 
-2 KINDS, differing in data source and in how "still open" is decided:
+2 KINDS, differing in data source and in how "still open" is decided; `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md` — it defines how both are recognized.
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md` — it defines how both kinds are recognized.
-
-1. **LINE-level** (from "Comments") → drop a finding when EITHER holds: its `id` (databaseId) belongs to
-   a thread in "Review threads" with `isResolved: true`, || that same thread is already handled
+1. **LINE-level** (from "Old comments") → drop a finding when EITHER holds: its `id` belongs to a
+   thread in "Review threads" with `resolved: true`, || that same thread is already handled
    (`core/finding-markers.md`).
 2. **FILE-level / OVERVIEW-level** (from "Reviews") → an individual bullet has no resolve concept and no
    readable reply history, so EVERY FILE-level finding in the most recent review is ALWAYS treated as
@@ -107,11 +107,10 @@ Resolve `chat_language` per that file.
 
 ## Step 4 — Read the project's convention
 
-`notebooks/review/<repo>/` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at
-Step 7. FORBIDDEN: blocking or erroring on this.
+`<memory-dir>` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at Step 7.
+FORBIDDEN: blocking or erroring on this.
 
-Present → map each finding's file to its stack via
-`"${CLAUDE_PLUGIN_ROOT}"/core/stack-detection.md`, then `Read`
+Present → `<op> stacks --repo-dir . <each finding's file>`, then `Read`
 `"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md` and load the layers it names for those stacks. A layer
 whose file doesn't exist yet → skip it; FORBIDDEN: creating one here (`setup/template.md`'s job).
 
@@ -138,7 +137,9 @@ Nothing to ask → straight to Step 7.
 ## Step 7 — Fix
 
 `Edit` the code for EVERY finding decided as FIX, matching the layers loaded at Step 4; nothing readable
-→ ordinary judgment, favouring the surrounding style. Directly at `<repo_dir>`.
+→ ordinary judgment, favouring the surrounding style. Directly at `<repo_dir>`. Decisions may OVERLAP
+(one edit settles several findings, or one accepted finding erases another's target) — plan the edits
+jointly; Step 10 still replies to EACH finding with its own outcome.
 
 ## Step 8 — Commit
 
@@ -149,7 +150,9 @@ signal (e.g. the repo's recent `git log`), else
 
 ## Step 9 — Push
 
-`<push>` = `git push` on a branch, `git push origin HEAD:<headRefName>` detached. NORMAL either way.
+`<push>` = `<op> push --branch <headRefName> --dir <repo_dir>`, on a branch and detached alike — the
+remote is matched to the PR's host, never a blind `origin`. It failing ⇒ report its stderr as printed,
+STOP. FORBIDDEN: retrying with other credentials or remotes.
 
 - **`auto_push: false`** (default) → STOP at local, tell the dev in 1 short sentence ("Fixed +
   committed locally. Say 'push' when you want me to push it up + reply."). The dev expresses the INTENT
@@ -160,18 +163,18 @@ signal (e.g. the repo's recent `git log`), else
 
 ONLY after the code has actually reached the remote.
 
-For EACH finding decided (fixed or declined), `V§"Reply on a PR"`:
+For EACH finding decided (fixed or declined), body written to a file, then `<op> reply`:
 
-- **LINE-level** — `comment_id` = the ORIGINAL finding comment's id. Content SHORT: fixed → a short
-  confirmation ("Fixed, thanks!"); declined → a short reason. FORBIDDEN: recounting the process ("read
-  file X then checked Y").
-- **FILE-level / OVERVIEW-level** — link to that finding's location via `V§"Finding permalink"` when
-  the vendor has an addressable one; otherwise reference it by file path + short description.
-  FORBIDDEN: blockquoting the whole review verbatim.
+- **LINE-level** — `--comment-id` = the ORIGINAL finding comment's id, `--kind line`. Content SHORT:
+  fixed → a short confirmation ("Fixed, thanks!"); declined → a short reason; settled by ANOTHER
+  finding's decision (its target removed/rewritten) → name what happened and why the code is gone.
+  FORBIDDEN: recounting the process ("read file X then checked Y").
+- **FILE-level / OVERVIEW-level** — `--kind top`, referencing the finding by file path + short
+  description. FORBIDDEN: blockquoting the whole review verbatim.
 
-Content MUST end with `V§"Reply marker"`, exactly as that entry states it — Step 3 reads it back.
+Content MUST end with `<op> marker --kind reply`, exactly as printed — Step 3 reads it back.
 
-FORBIDDEN: resolving a thread — this command has no auto-resolve setting, unlike `re-review.md`.
+FORBIDDEN: `<op> resolve` — this command has no auto-resolve setting, unlike `re-review.md`.
 
 ## Step 11 — Lesson-saving
 

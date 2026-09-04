@@ -136,6 +136,8 @@ Ngoài ra plugin còn đọc `BITBUCKET_TOKEN` cho repository/workspace access t
 chứ không gắn với người, nên `/user` trả 401 và review hiển thị dưới tên token. Dùng cho tự động hoá;
 review hằng ngày nên dùng API token ở trên.
 
+**Dùng chính token này cho git qua HTTPS:** username là chuỗi literal `x-bitbucket-api-token-auth`, không phải email — email chỉ hợp lệ với REST API.
+
 ## Push code cần SSH, không phải token
 
 `/open-pr:review` chỉ đọc. `/open-pr:fix` commit rồi push, và trên cả ba vendor token không push được —

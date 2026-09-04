@@ -1,43 +1,25 @@
-# Vendor interface
+# Vendor contract — what `bin/open-pr.sh` guarantees per vendor
 
-Every vendor is `src/vendors/<name>/{fetch,worktree,post,thread}.md`, each file carrying the SAME entry
-headings below with the text copied verbatim, so a caller only ever writes `V§"<entry>"`
-(`core/pr-target.md` §3) and never names a vendor. Entry names stay vendor-neutral even where one vendor's
-own terminology differs — "PR" means MR on GitLab, and a heading may describe a mechanism that isn't
-literally what its name suggests for that vendor. Anything vendor-wide (terminology, id encoding, auth)
-belongs in `fetch.md`, the group every run loads first.
+Reference for contributors; FORBIDDEN to `Read` at run time — `core/cli.md` is the runtime contract.
+The script is the single place vendor differences live. Adding a vendor = a branch in each subcommand
+of `src/bin/open-pr.sh` + its URL shape in `target` + fixtures in `tests/test_cli.py` + atoms/scenarios
+in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE the script (printed as
+`NO-EQUIVALENT` or `UNKNOWN`), never worked around in a prompt.
 
-**Every filter and projection goes INSIDE the command.** Whatever a command prints is in the agent's
-context for the rest of the run, so trimming afterwards saves nothing. An entry MUST return the caller's
-requested fields and nothing else, and any entry whose output grows with the size of the PR MUST bound it
-— an unbounded diff fetch alone cost more than every prompt file in a run combined.
+| capability | github | gitlab | bitbucket |
+|---|---|---|---|
+| context sections | gh CLI | glab api (MR object + /changes cached per run) | curl+jq, paged, whole-diff cut at `diff --git` |
+| head SHA | `headRefOid` (40 chars) | `diff_refs.head_sha` | `source.commit.hash` (12 chars — prefix-matched, never equality) |
+| PR checkout | `refs/pull/<n>/head` | `refs/merge-requests/<n>/head` | fetch source branch, detach at the PR's commit hash; unreachable hash = force-push, exit 3 |
+| unpublished stage | PENDING review object | draft notes | none — the payload file is the stage; publish POSTs one comment per part, overview first |
+| publish | review event COMMENT | `bulk_publish` | per-part POST |
+| post-verify | review state by id | draft_notes emptied ⇔ published | marker-filtered comment scan (`--marker`) |
+| FILE-level reviews | review objects | NO-EQUIVALENT | NO-EQUIVALENT |
+| account | login | username | nickname, or UNKNOWN under a workspace token (401 on /user is BY DESIGN) |
+| threads | GraphQL reviewThreads | discussions (`resolved` flag) | root comment + `parent` chains, `resolution` on the ROOT only |
+| react | reactions API | award_emoji | NO-EQUIVALENT |
+| markers | HTML comments | HTML comments | link reference definitions (raw HTML is escaped there) |
 
-Reference doc for whoever adds a vendor. FORBIDDEN: `Read`ing it during a review/fix run — the group
-files are the run-time artifact.
-
-| group | entry | must return / do |
-|---|---|---|
-| fetch | Fetch PR basic info | the caller's requested fields, under this plugin's common names (`number`, `title`, `body`, `author`, `baseRefName`, `headRefName`) |
-| fetch | Fetch PR head commit SHA | `<commit_id>` of the PR's head |
-| fetch | Fetch PR diff — file list | changed paths, 1 per line |
-| fetch | Fetch PR diff — patch, omitting oversized files | a unified diff of only the files whose patch is under the caller's `<max_patch_bytes>` |
-| fetch | Fetch PR commits headlines | 1 subject line per commit |
-| fetch | Fetch PR review comments (LINE-level findings) | line-anchored comments, with author + id + any reply linkage |
-| fetch | Fetch PR diff size per file | a size proxy per file, or `UNKNOWN` when the vendor withheld or collapsed it. Never 0 for a file the vendor declined to diff |
-| fetch | Fetch CI checks | every check unfiltered, each with a pass/fail bucket + name + link; never exit non-zero when there is no CI |
-| fetch | Fetch PR reviews (FILE-level findings + review_id) | review bodies + their ids — or an explicit "no equivalent" when the vendor has no review object |
-| fetch | Fetch account running the command | the authenticated account's login |
-| fetch | Fetch review threads (id + isResolved + comment ids) | thread id, resolved flag, and the comment ids inside each thread |
-| worktree | Check out the PR head into a worktree | a DETACHED checkout of the PR head into a worktree the CALLER already created (`git worktree add` is vendor-agnostic, so the caller owns it) |
-| worktree | Checkout a PR into an already-existing worktree subdirectory | the same, reusing a directory `git submodule update` already created — never a new worktree |
-| post | Post a review | composite: every LINE finding anchored to its line/side + the overview body, left UNPUBLISHED. May take any number of calls |
-| post | Verify a posted review's state | whether "Post a review"'s result is still unpublished, without a race against someone else's concurrent review |
-| post | Publish the pending review | make that result visible |
-| post | Commit URL | a markdown link to one commit, label = the SHA's first 7 chars, code-styled |
-| post | Finding marker | the literal that ends every finding on this vendor, plus whatever rule its form needs — it MUST render to nothing on that vendor's PR page |
-| post | Post-error notes | this vendor's known failure modes for the 3 entries above, and the shortcut commands that must never substitute for them |
-| thread | Reply on a PR | a reply inside an existing thread, for a LINE finding and for a FILE/overview finding |
-| thread | Resolve a review thread | mark a thread resolved, given a finding's `comment_id` |
-| thread | React to a PR comment | add one of `+1`/`heart`/`hooray`/`rocket`/`confused`/`eyes` to a comment |
-| thread | Finding permalink | a URL addressing a FILE-level finding — or an explicit "none exists" |
-| thread | Reply marker | the same, for a reply |
+Credentials: gh/glab bring their own login. Bitbucket needs `BITBUCKET_EMAIL`+`BITBUCKET_API_TOKEN`
+(user identity) or `BITBUCKET_TOKEN` (workspace token, no identity); missing ⇒ exit 6 with setup
+instructions. Tokens never enter argv, URLs, or output.
