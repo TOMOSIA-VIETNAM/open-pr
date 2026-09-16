@@ -54,6 +54,8 @@ NOTE = (
     "`scripts/token_chart.py --add <tag>`; redraw the image from these numbers with `--render`."
 )
 
+X_LABELS = 10  # newest tags that keep an axis label; older points keep dot + tick only
+
 STAMP = "mean per group · cl100k_base proxy · each point frozen at its release · tests/token-history.json"
 
 PR_BODY = (
@@ -181,10 +183,15 @@ def render(data):
         s.append(f'<text x="{PAD_L - 8}" y="{gy + 3.5:.1f}" text-anchor="end" font-size="10"'
                  f' fill="{GREY}">{gv // 1000}k</text>')
 
-    # x labels
+    # x labels — every point keeps its dot and tick, but only the newest tags get text:
+    # the axis stays readable as releases accumulate, and the old shape stays visible.
+    labelled = {len(points) - 1 - i for i in range(min(X_LABELS, len(points)))}
     for i, p in enumerate(points):
-        s.append(f'<text x="{x(i):.1f}" y="{height - PAD_B + 18:.1f}" text-anchor="middle"'
-                 f' font-size="10" fill="{GREY}">{p["tag"]}</text>')
+        s.append(f'<line x1="{x(i):.1f}" y1="{height - PAD_B + 2:.1f}" x2="{x(i):.1f}"'
+                 f' y2="{height - PAD_B + 6:.1f}" stroke="{GREY}" stroke-opacity="0.5"/>')
+        if i in labelled:
+            s.append(f'<text x="{x(i):.1f}" y="{height - PAD_B + 18:.1f}" text-anchor="middle"'
+                     f' font-size="10" fill="{GREY}">{p["tag"]}</text>')
 
     # one polyline + dots per command, skipping the tags where it did not exist
     for line in LINES:
