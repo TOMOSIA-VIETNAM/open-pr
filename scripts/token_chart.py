@@ -54,7 +54,11 @@ NOTE = (
     "`scripts/token_chart.py --add <tag>`; redraw the image from these numbers with `--render`."
 )
 
-X_LABELS = 10  # newest tags that keep an axis label; older points keep dot + tick only
+# Axis labels: the story's start and its present. The first releases anchor where the
+# chart began, the newest carry the current reading; the middle keeps dot + tick and
+# one ellipsis, so the axis stays readable however many releases accumulate.
+X_LABELS_HEAD = 3
+X_LABELS_TAIL = 10
 
 STAMP = "mean per group · cl100k_base proxy · each point frozen at its release · tests/token-history.json"
 
@@ -183,15 +187,21 @@ def render(data):
         s.append(f'<text x="{PAD_L - 8}" y="{gy + 3.5:.1f}" text-anchor="end" font-size="10"'
                  f' fill="{GREY}">{gv // 1000}k</text>')
 
-    # x labels — every point keeps its dot and tick, but only the newest tags get text:
-    # the axis stays readable as releases accumulate, and the old shape stays visible.
-    labelled = {len(points) - 1 - i for i in range(min(X_LABELS, len(points)))}
+    # x labels — every point keeps its dot and tick; text goes to the first
+    # X_LABELS_HEAD and the last X_LABELS_TAIL tags, with one ellipsis for the gap.
+    labelled = set(range(min(X_LABELS_HEAD, len(points)))) \
+        | {len(points) - 1 - i for i in range(min(X_LABELS_TAIL, len(points)))}
+    gap = [i for i in range(len(points)) if i not in labelled]
     for i, p in enumerate(points):
         s.append(f'<line x1="{x(i):.1f}" y1="{height - PAD_B + 2:.1f}" x2="{x(i):.1f}"'
                  f' y2="{height - PAD_B + 6:.1f}" stroke="{GREY}" stroke-opacity="0.5"/>')
         if i in labelled:
             s.append(f'<text x="{x(i):.1f}" y="{height - PAD_B + 18:.1f}" text-anchor="middle"'
                      f' font-size="10" fill="{GREY}">{p["tag"]}</text>')
+    if gap:
+        gx = (x(gap[0]) + x(gap[-1])) / 2
+        s.append(f'<text x="{gx:.1f}" y="{height - PAD_B + 18:.1f}" text-anchor="middle"'
+                 f' font-size="10" fill="{GREY}">…</text>')
 
     # one polyline + dots per command, skipping the tags where it did not exist
     for line in LINES:
