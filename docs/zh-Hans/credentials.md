@@ -125,6 +125,8 @@ curl -sS --fail-with-body -u "$BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN" \
 
 插件也会读 `BITBUCKET_TOKEN`，用于 repository 或 workspace access token。那类 token 属于仓库而不属于个人，所以 `/user` 会返回 401，评审会以该 token 的名义出现 —— 适合自动化；日常评审还是用上面的 API token 更好。
 
+**用同一 token 走 git over HTTPS：** 用户名是字面量 `x-bitbucket-api-token-auth`，不是邮箱 —— 邮箱只对 REST API 有效。
+
 ## push 需要 SSH，不是 token
 
 `/open-pr:review` 只读。`/open-pr:fix` 会 commit 并 push，而这三个平台上 token 都无法 push —— 账号需要一把 SSH key：

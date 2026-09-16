@@ -11,14 +11,6 @@
       "reason": "The pointer to core/guardrails.md must exist verbatim in every command file — it is the delegation itself, not a rule. Extracting it would mean a file telling the agent to read the file it is already reading."
     },
     {
-      "sha": "22cb2cf3dfd7",
-      "files": [
-        "vendors/gitlab/fetch.md"
-      ],
-      "sample": "glab api projects owner 2f repo merge requests pull number changes jq",
-      "reason": "One endpoint deliberately serves two entries — the size list and the gated patch — so each carries the same URL with a different jq program. Collapsing them would leave one entry without a runnable command, which vendor_lint.py requires."
-    },
-    {
       "sha": "2c321456f063",
       "files": [
         "skills/open-pr-review/SKILL.md",
@@ -68,21 +60,13 @@
       "reason": "Shim boilerplate. Each platform demands its own entry file, and all four say the same two things: read adapters/root.md, then obey src/commands/<cmd>.md verbatim. The rules themselves have exactly one owner under src/ — collapsing the four shims into one would cost every platform its per-command slash entry."
     },
     {
-      "sha": "3b677685fcb8",
+      "sha": "58607102245f",
       "files": [
-        "vendors/gitlab/post.md"
+        "commands/fix.md",
+        "commands/review.md"
       ],
-      "sample": "glab api x post projects owner 2f repo merge requests pull number",
-      "reason": "A shared URL prefix of two different endpoints (draft_notes and draft_notes/bulk_publish), not a rule stated twice. Shortening it would hide which endpoint each entry calls."
-    },
-    {
-      "sha": "456a878850f6",
-      "files": [
-        "vendors/bitbucket/post.md",
-        "vendors/bitbucket/thread.md"
-      ],
-      "sample": "last line of the body with a blank line before it a definition cannot interrupt a paragraph and",
-      "reason": "The blank-line rule is stated in BOTH marker entries on purpose. A caller loads one group: review.md reads post, fix.md and re-review.md read thread, and the fix scenario in token_report.py proves bb-post is not loaded there. A pointer from one to the other is a rule the reader never sees, which is what the review found; each entry states it and test_a_link_reference_marker_carries_its_blank_line_rule now requires exactly that."
+      "sample": "op sh claude plugin root bin open pr sh exactly as this line spells it no env var",
+      "reason": "The <op> definition must sit in EACH command file: ${CLAUDE_PLUGIN_ROOT} is interpolated into command-file text at load and exists nowhere else — a file Read at run time (cli.md) gets no interpolation, and no env var reaches the shell. The runtime contract keeps one owner, core/cli.md."
     }
   ]
 }

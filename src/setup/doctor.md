@@ -27,6 +27,6 @@ scoped to the current PR's stack or feature.
    generic. Record the reconciled version as 1 lesson (`setup/lesson.md`), authored by you, naming
    which sources conflicted and why this direction won. This is the ONE lesson logged WITHOUT the
    user's confirmation.
-5. `.review` ← `"doctored": true`, `"doctored_at": "<now>"`, `"project_docs_found": [step 1]`,
+5. `.review` ← `"doctored": true`, `"doctored_at": "<now, ISO 8601 with time — e.g. 2026-08-22T10:00:00Z>"`, `"project_docs_found": [step 1]`,
    `"pr_template_paths": [step 1]`.
 6. `core/memory-commit.md`.

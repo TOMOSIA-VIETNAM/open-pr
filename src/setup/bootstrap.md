@@ -1,6 +1,6 @@
 # Bootstrap `notebooks/review/<repo>/`
 
-Everything below happens at the directory `core/locate-repo.md` established — FORBIDDEN: `cd` elsewhere,
+Everything below happens at the directory `<op> locate-repo` established — FORBIDDEN: `cd` elsewhere,
 inferring `<repo>` from any directory's basename (`<repo>` = `core/pr-target.md` §4). `cp` for a verbatim
 file copy (never Read+Write through context), `mkdir -p` for directories.
 
@@ -29,7 +29,7 @@ SEQUENTIAL calls (q1-4, then the rest), finishing one before the next.
 
 | # | field | values | default |
 |---|---|---|---|
-| 1 | `git_remote_type` | one `<vendor_guess>` value of `core/pr-target.md` §1's table | `<vendor_guess>` already computed by the caller (`core/pr-target.md` §2) — reuse, FORBIDDEN: re-deriving or asking twice |
+| 1 | `git_remote_type` | `github`/`gitlab`/`bitbucket`, as `<op> target` parses them | the parsed vendor, already computed by the caller (`core/pr-target.md` §2) — reuse, FORBIDDEN: re-deriving or asking twice |
 | 2 | `output_language` | the language findings/replies get POSTED in — offer per `cases/language-choice.md` | that file's own |
 | 3 | `auto_submit_review` | `true` = published when the run ends; `false` = seen by you alone, in this vendor's draft or — where it has none — in THIS CHAT. FORBIDDEN: promising a draft ON the PR without knowing this vendor has them | `false` |
 | 4 | `auto_resolve_fixed_findings` | true/false | `false` |

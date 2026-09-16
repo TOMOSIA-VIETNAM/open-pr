@@ -17,7 +17,7 @@ Only `src/` ships to users. Everything else is repo-side.
 | `src/core/` | procedure shared by any run | always |
 | `src/setup/` | per-repo provisioning (bootstrap, doctor, template, lesson) | first run / on schedule |
 | `src/cases/` | branches behind a condition | only when that condition matched |
-| `src/vendors/<name>/` | `fetch` · `worktree` · `post` · `thread` | per phase, per vendor |
+| `src/bin/open-pr.sh` | the deterministic runtime — every vendor/git mechanic | one script, vendor branches inside |
 | `src/templates/` | per-stack review criteria | per detected stack |
 | `src/seeds/` | files copied into the reviewed repo | never — copied with `cp` |
 | `src/reference/` | schema + vendor contract, for humans | never |
@@ -29,7 +29,7 @@ Only `src/` ships to users. Everything else is repo-side.
   live in `tests/duplication_allowlist.json` with a reason.
 - **Split a file only when the split-off part is conditional.** An extra read costs tokens; splitting
   something that always loads is a loss.
-- **Callers never name a vendor.** They write `V§"<entry>"` and the entry resolves per vendor.
+- **Prompts never name a vendor mechanic.** They call an `<op>` subcommand per `src/core/cli.md`; the vendor branch lives inside `src/bin/open-pr.sh`.
 - **Context cost is tracked.** Every scenario has a ceiling in `tests/budgets.json`. Cheaper →
   lower ceilings; costlier for a correct fix → explain on the PR. Do not strip behaviour for budget.
 - **Files must be self-contained.** No pointers to task ids, plan phases or docs that get deleted.
@@ -53,11 +53,12 @@ scripts/check.sh main
   you had tightened them)
 - more expensive → state which scenario and why in the PR; do not strip behaviour for budget
 
-## Touched `src/vendors/`
+## Touched `src/bin/open-pr.sh`
 
 ```bash
-python3 scripts/vendor_lint.py                  # offline
-python3 scripts/vendor_lint.py --pr <n>         # needs an open fixture
+python3 -m pytest tests/test_cli.py -q          # shims + real git fixtures
+python3 scripts/vendor_lint.py                  # offline: flags vs the real CLIs
+python3 scripts/vendor_lint.py --url <fixture>  # live, needs an open fixture PR
 ```
 
 ## Before merging something substantial
@@ -108,14 +109,14 @@ python3 scripts/dup_scan.py --window 10 --all --min-waste 20
 ## Adding a stack
 
 1. `src/templates/<stack>.md` — every bullet names a concrete API, idiom or tool of that stack
-2. a row in `src/core/stack-detection.md`
+2. its mapping row in `src/bin/open-pr.sh`'s `stacks` subcommand (+ a case in `tests/test_cli.py`)
 3. axis names 1/2/3/4/6 must match `src/core/review-criteria.md`
 
 ## Adding a vendor
 
-1. `src/vendors/<name>/{fetch,worktree,post,thread}.md`
-2. same entry headings as the existing vendors — `src/reference/vendor-interface.md` lists them
-3. no caller changes
+1. branches in each subcommand of `src/bin/open-pr.sh` + its URL shape in `target`
+2. fixtures in `tests/test_cli.py`; `src/reference/vendor-interface.md` maps the capabilities
+3. no prompt changes
 
 ## Adding a config field
 

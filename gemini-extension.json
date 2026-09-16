@@ -1,5 +1,5 @@
 {
   "name": "open-pr",
-  "version": "1.4.3",
+  "version": "2.0.0",
   "description": "Review pull requests on GitHub, GitLab and Bitbucket across many stacks, learning each repo's own conventions over time and posting one review through that vendor's own CLI or REST API."
 }

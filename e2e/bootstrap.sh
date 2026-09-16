@@ -47,7 +47,7 @@ case "$BRANCH" in e2e/*) : ;; *) echo "refusing branch '$BRANCH'" >&2; exit 1 ;;
 ALL_VENDORS="github gitlab bitbucket"
 
 # Bitbucket ships no CLI, so "logged in" there means the env carries a credential —
-# src/vendors/bitbucket/fetch.md owns which variables and what they are for.
+# src/bin/open-pr.sh owns which variables and what they are for (Bitbucket credentials).
 authed() { case "$1" in
   github) command -v gh >/dev/null && gh auth status >/dev/null 2>&1 ;;
   gitlab) command -v glab >/dev/null && glab auth status >/dev/null 2>&1 ;;

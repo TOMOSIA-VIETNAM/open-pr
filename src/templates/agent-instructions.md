@@ -1,7 +1,7 @@
 # Agent instructions (prompts for a model)
 
 _Applies to any file that instructs an AI agent — a `.md` skill/command/CLAUDE.md/AGENTS.md/cursor
-rule, or a prompt embedded in code, config or data (`core/stack-detection.md`). NOT a README or docs
+rule, or a prompt embedded in code, config or data (`<op> stacks`). NOT a README or docs
 written for a human._
 
 #### 1. Bugs & logic

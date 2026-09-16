@@ -64,6 +64,8 @@ ROLES = {
     "bb-post": ["vendors/bitbucket/post.md"],
     "bb-thread": ["vendors/bitbucket/thread.md"],
     "guardrails": ["core/guardrails.md"],
+    # the CLI contract every review/fix run reads; absent on pre-CLI base refs
+    "cli": ["core/cli.md"],
     "locate-repo": ["core/locate-repo.md"],
     "upgrades-index": ["core/llm-upgrades-index.md"],
     "reconfigure": ["core/reconfigure.md"],
@@ -89,40 +91,40 @@ ROLES = {
 # A "load set" = what a single run of one command Reads into context.
 SCENARIOS = {
     "review/new-repo-github": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "setup-bootstrap",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "setup-bootstrap",
         "setup-doctor", "memory-commit", "upgrades-index", "case-language-choice", "gh-fetch", "gh-worktree",
         "gh-post",
         "criteria", "always-rule", "setup-template", "tpl-rails",
     ],
     "review/known-repo-github-clean": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "criteria", "always-rule", "tpl-rails",
     ],
     "review/known-repo-gitlab-rereview": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-worktree",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-worktree",
         "gl-post", "gl-thread", "case-re-review", "marker-logic", "setup-doctor",
         "memory-commit",
         "criteria", "always-rule", "tpl-vue",
     ],
     "review/large-diff-multistack": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
         "gh-post", "case-large-diff", "case-pr-template", "criteria", "always-rule", "tpl-rails",
         "tpl-vue",
     ],
     "review/submodule-bump": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-worktree",
         "gh-post", "case-submodule", "criteria", "always-rule", "tpl-nodejs",
     ],
     "review/agent-instructions-repo": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "criteria", "always-rule", "tpl-agent-instructions",
     ],
     "review/post-error-github": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "case-post-error", "criteria", "always-rule", "tpl-rails",
     ],
     "chat/reconfigure-review": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings",
         "case-chat-requests", "reconfigure", "memory-commit",
     ],
     "upgrade": [
@@ -135,24 +137,24 @@ SCENARIOS = {
         "feedback-cmd", "guardrails",
     ],
     "review/known-repo-bitbucket-clean": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack",
         "bb-fetch", "bb-worktree", "bb-post", "criteria", "always-rule", "tpl-rails",
     ],
     "review/known-repo-bitbucket-rereview": [
-        "review-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "bb-fetch",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "bb-fetch",
         "bb-worktree", "bb-post", "bb-thread", "case-re-review", "marker-logic", "criteria",
         "always-rule", "tpl-vue",
     ],
     "fix/known-repo-bitbucket": [
-        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack",
+        "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack",
         "bb-fetch", "bb-thread", "marker-logic", "criteria", "always-rule", "tpl-rails",
     ],
     "fix/known-repo-github": [
-        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
+        "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
         "marker-logic", "criteria", "always-rule", "tpl-rails",
     ],
     "fix/first-run-gitlab": [
-        "fix-cmd", "guardrails", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-thread",
+        "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-thread",
         "marker-logic", "criteria", "setup-fix-bootstrap", "memory-commit",
     ],
 }

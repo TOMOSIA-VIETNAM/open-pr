@@ -29,6 +29,9 @@ sides; `tests/test_prompt_graph.py` fails when one gains a path the other lacks.
 | 0 | STOP. Print `open-pr: plugin files not found — reinstall (docs/install.md)`. FORBIDDEN: guessing a path, working from memory of what these commands do, running anything anyway |
 | ≥2 | ask the user which one, WAIT for the answer |
 
+On Windows, every shell command in this bundle — `sh ROOT/bin/open-pr.sh` included — is POSIX and
+runs in Git Bash (`bash -lc '…'`), never PowerShell or cmd.
+
 ## 2 — Tool names
 
 Files below `ROOT` name Claude Code's tools. What binds is the CAPABILITY, not the name:

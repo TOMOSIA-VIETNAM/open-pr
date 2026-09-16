@@ -86,3 +86,9 @@ delete the memory directory when the first-run path is what you mean to test.
 Teardown: `e2e/bootstrap.sh --pr <n> --teardown` — closes the fixture PR/MR and deletes its branch. The
 fixture repo itself is never touched. The link stays in this project's PR description as the record that
 the run happened.
+
+## Windows smoke (once per release that touches `src/bin/`)
+
+On a Windows machine with Git for Windows + jq: run `/open-pr:review` against the GitHub fixture from
+Git Bash. What it proves that macOS/Linux runs cannot: the `sh` invocation path, LF survival
+(`.gitattributes`), and GNU-vs-BSD `date` handling in `settings`.
