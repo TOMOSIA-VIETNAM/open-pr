@@ -162,6 +162,12 @@ the output language:
 
 A code fix is a fence on its own line, the label line then ending at `**<Fix>**` — no dangling `—`.
 
+**The snippet is code entering the codebase — review it like the diff.** Before a finding is kept,
+apply the same criteria to the fix you wrote: trace what runs once it is applied, confirm the path it
+replaces is actually gone, and that it adds no new work or failure mode — a dev applies the fence as
+written. A snippet you cannot verify to that bar ⇒ state the DIRECTION in prose instead; that is the
+one legal prose-fix case besides a fix with no code form.
+
 `<marker>` = `<op> marker --kind finding`, verbatim, on its own line after a blank line; MUST end EVERY
 finding, FILE and LINE alike.
 
@@ -172,8 +178,8 @@ fix now is 🔵, not 📝. Each finding carries its own emoji, whatever heading 
 
 The fix shows the corrected CODE in a fence by default: a LINE comment replacing that exact line ⇒
 ` ```suggestion `, anything else ⇒ a normal language fence. Inline code inside prose is NOT a substitute.
-Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm) — FORBIDDEN: prose when the
-code is writable.
+Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm), or the snippet failed its
+own review above — FORBIDDEN: prose merely because writing the code is effort.
 
 ≥2 independent points (common on LINE) → one `-` bullet each, never one multi-clause sentence.
 
