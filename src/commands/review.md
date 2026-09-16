@@ -174,8 +174,8 @@ fix now is 🔵, not 📝. Each finding carries its own emoji, whatever heading 
 
 The fix shows the corrected CODE in a fence by default: a LINE comment replacing that exact line ⇒
 ` ```suggestion `, anything else ⇒ a normal language fence. Inline code inside prose is NOT a substitute.
-Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm), or the snippet failed its
-own review above — FORBIDDEN: prose merely because writing the code is effort.
+Prose-only ⇔ the fix has no code form (a missing test, a spec to reconfirm), or the snippet cannot be
+verified to that bar — FORBIDDEN: prose merely because writing the code is effort.
 
 ≥2 independent points (common on LINE) → one `-` bullet each, never one multi-clause sentence.
 
