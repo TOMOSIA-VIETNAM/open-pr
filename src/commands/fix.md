@@ -87,8 +87,7 @@ touching any file, proceeding to Step 2.
 `chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
-- `memory_found: false` → the Step 1a CHOICE's wrong-directory rule applies here too: confirm first
-  review vs STOP with `memory_dir`
+- `memory_found: false` → `core/repo-settings.md` "memory_found" rule FIRST — it may STOP
 - absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle

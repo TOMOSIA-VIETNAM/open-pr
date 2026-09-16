@@ -76,11 +76,7 @@ already computed. `<vendor>` is already reconciled, never re-asked. Persisting i
 
 Branch:
 
-- `memory_found: false` → BEFORE treating this as a new repo, ONE CHOICE per `core/guardrails.md`:
-  `First review from this directory (Recommended)` — continue to bootstrap — vs the user ran it from
-  the wrong directory ⇒ STOP, print `memory_dir` and say to call again from the directory whose
-  `notebooks/review/` holds this repo. A repo bootstrapped elsewhere answers to defaults here, and
-  re-asking setup is the symptom the user sees.
+- `memory_found: false` → `core/repo-settings.md` "memory_found" rule FIRST — it may STOP
 - no file || no `.review` || `.review.bootstrapped` != `true` → `Read`
   `"${CLAUDE_PLUGIN_ROOT}"/setup/bootstrap.md`, then `setup/doctor.md`
 - `bootstrapped: true` && `doctor_due` → `setup/doctor.md` only, FORBIDDEN: re-asking bootstrap
