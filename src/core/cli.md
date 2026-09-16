@@ -34,7 +34,7 @@ on every networked one; `--host H` where self-hostable.
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
 | `marker --kind finding\|reply` | the marker literal — end every finding/reply with it |
-| `settings (--repo <repo> \| --dir <memory-dir>)` | that repo's `settings.json` with read-time defaults applied + computed `doctor_due` — `--repo` resolves `notebooks/review/<repo>` at cwd, `--dir` takes the memory directory itself. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether it existed — a wrong cwd is otherwise identical to a never-bootstrapped repo |
+| `settings (--repo <repo> \| --dir <memory-dir>)` | that repo's `settings.json` with read-time defaults applied + computed `doctor_due` — `--repo` resolves `notebooks/review/<repo>` at cwd, `--dir` takes the memory directory itself. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there — a wrong cwd is otherwise identical to a never-bootstrapped repo |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line

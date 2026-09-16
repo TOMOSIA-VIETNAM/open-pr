@@ -5,6 +5,14 @@
 `reference/settings-schema.md` — FORBIDDEN: `Read`ing that file during a review/fix run, nothing here
 needs it.
 
+## memory_found: false — new repo, or wrong directory?
+
+The defaults for the two are identical, so BEFORE any bootstrap runs, ONE CHOICE per
+`core/guardrails.md`: `First run from this directory (Recommended)` — continue to the caller's
+bootstrap — vs the user ran it from the wrong directory ⇒ STOP, print `memory_dir` and say to call
+again from the directory whose `notebooks/review/` holds this repo. A repo bootstrapped elsewhere
+answers to defaults here, and re-asking setup is the symptom the user sees.
+
 ## Node ownership (invariant)
 
 `review.md` ⇄ `.review`; `fix.md` ⇄ `.fix`; both ⇄ `.shared`. Neither ever writes the other's node.
