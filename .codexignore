@@ -1,0 +1,9 @@
+# What a Codex install does not need: dev tooling, tests, fixtures and history.
+.github/
+.claude/
+backlogs/
+e2e/
+notebooks/
+scripts/
+tests/
+token-history.svg

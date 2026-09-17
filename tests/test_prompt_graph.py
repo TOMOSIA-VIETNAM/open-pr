@@ -31,7 +31,10 @@ VENDORS = ("bitbucket", "github", "gitlab")
 # never pay for it. seeds/memory.md is `cp`-ed into the reviewed repo and read back
 # only as that repo's own memory index, whose real size the team drives, not us.
 NEVER_LOADED = {"reference/settings-schema.md", "reference/vendor-interface.md",
-                "seeds/memory.md"}
+                "seeds/memory.md",
+                # shipped for the humans and scanners that read an INSTALLED plugin
+                # standalone — no run ever Reads it (src/LICENSE is not markdown)
+                "SECURITY.md"}
 
 
 def md_files():
