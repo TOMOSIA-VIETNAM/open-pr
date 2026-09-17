@@ -1,0 +1,83 @@
+{
+  "_note": "Every place under src/ where a Step orders, or bans, a second lookup. The stall rule in core/guardrails.md enumerates the only repeats that stay allowed, and each site here says which claim it makes — so dropping an exemption from the rule reddens the sites that leaned on it, and a new repeat has to be argued for here instead of appended to the rule as one more clause. `claim`: the CAPS word the rule exempts (`changed`, `written`), `forbidden` where the site bans the repeat, `not-a-repeat` where the run does not already hold the material. A sha covers the matched phrase plus 45 characters either side; edit a site and the suite prints the new entry to paste.",
+  "sites": [
+    {
+      "sha": "5c98462967f9",
+      "file": "cases/post-review.md",
+      "claim": "not-a-repeat",
+      "reason": "Printed text asking the USER to invoke the command again after a force-push. A fresh invocation fetches everything from scratch; nothing is being re-read inside one run."
+    },
+    {
+      "sha": "f30274a45ab9",
+      "file": "cases/post-review.md",
+      "claim": "forbidden",
+      "reason": "Names re-fetching the diff and re-listing comments as the workarounds a failed post must not try."
+    },
+    {
+      "sha": "80a37baefa5e",
+      "file": "cases/submodule-review.md",
+      "claim": "forbidden",
+      "reason": "A second `git worktree add` for the same submodule is banned; the first one already produced the tree."
+    },
+    {
+      "sha": "673bd1c98b78",
+      "file": "cases/submodule-review.md",
+      "claim": "forbidden",
+      "reason": "The submodule's head is the one Step C already read — re-fetching it here would anchor findings to a tree no Step reviewed."
+    },
+    {
+      "sha": "3b4cb2c406d7",
+      "file": "commands/fix.md",
+      "claim": "not-a-repeat",
+      "reason": "Printed text asking the USER to check out the right branch and invoke the command again."
+    },
+    {
+      "sha": "7b79eee1a36b",
+      "file": "commands/fix.md",
+      "claim": "forbidden",
+      "reason": "The matching pass is bounded to the Context already fetched; re-reading the marker rules or re-running the fetch is the loop the stall rule exists for."
+    },
+    {
+      "sha": "5150809f99a1",
+      "file": "commands/fix.md",
+      "claim": "forbidden",
+      "reason": "A finding the dev already decided on is skipped; asking a second time is the question-shaped form of the same stall."
+    },
+    {
+      "sha": "e9fa86ca2ca8",
+      "file": "commands/review.md",
+      "claim": "not-a-repeat",
+      "reason": "`.gitmodules` is read once per run, and no earlier Step holds it. `never cached` bans trusting a PREVIOUS run's conclusion — settings carry no submodule field precisely so this read decides it."
+    },
+    {
+      "sha": "9dc5511fd982",
+      "file": "commands/review.md",
+      "claim": "changed",
+      "reason": "The head is fetched a second time to learn whether it MOVED while the review ran. The first value cannot answer that."
+    },
+    {
+      "sha": "4a81a382d01f",
+      "file": "commands/review.md",
+      "claim": "forbidden",
+      "reason": "Once the check above resolves `<commit_id>`, the overview and the payload reuse it; a third fetch would answer what the second already did."
+    },
+    {
+      "sha": "a54ce7dc5652",
+      "file": "commands/review.md",
+      "claim": "written",
+      "reason": "`.review-skipped.md` is written by an earlier Step of this same run, so what is in context predates the file's final contents."
+    },
+    {
+      "sha": "6ad8c79171ef",
+      "file": "setup/bootstrap.md",
+      "claim": "forbidden",
+      "reason": "The vendor is already parsed by the caller; deriving it again, or asking the user for it, repeats work whose answer is in context."
+    },
+    {
+      "sha": "b7c7c8752652",
+      "file": "setup/doctor.md",
+      "claim": "not-a-repeat",
+      "reason": "Describes what a LATER review does with a REFERENCE line: it reads the pointed-at path then, instead of memory holding a copy. No lookup is repeated inside the doctor run."
+    }
+  ]
+}

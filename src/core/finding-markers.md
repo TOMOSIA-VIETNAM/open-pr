@@ -23,7 +23,6 @@ path + severity + description. Only the account's MOST RECENT review counts — 
 ## A reply this plugin already posted
 
 The finding's own thread carries ≥1 reply with the reply marker from the SAME account. That says ONE
-thing: the bot has replied in that thread before. It does NOT say the finding is settled — one account
-runs both commands under one marker, so a fix-side "done" reply and a review-side confirmation are the
-same bytes. Whether the work is finished is judged from the CURRENT code plus what the thread's replies
-SAY (`cases/re-review.md`).
+thing: this plugin replied there before — NOT that the finding is SETTLED (one marker, both commands:
+a fix-side "done" and a review-side confirmation are the same bytes). Settled is judged from the
+CURRENT code plus what the thread's replies SAY (`cases/re-review.md`).

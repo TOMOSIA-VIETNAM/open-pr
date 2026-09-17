@@ -33,7 +33,7 @@ skills/           one shim per command (Cursor · Codex · Gemini · Antigravity
 commands/*.toml   Gemini CLI entry format
 install.sh        non-Claude install: clone → install-local.sh
 scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · hooks · install-local.sh
-tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json
+tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json · ordered_repeats.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
 .github/workflows ci.yml on PRs and main · hol-plugin-scanner.yml read by the listing gate
@@ -45,6 +45,8 @@ backlogs/         historical, not ops
 **Fix the real problem.** Keep a rule, guard, vendor entry, or severity when the product still needs it. Do not strip or reword solely to shrink a number or go green while behaviour drifts. Moving a conditional block into `cases/` (or its own atom) is fine — that is the intended load split, not a bypass.
 
 **One owner per rule.** Prefer a single home; point elsewhere rather than restating. Allowed duplicates need `sha` + reason in `tests/duplication_allowlist.json`. `dup_scan.py` catches near-verbatim only.
+
+**A rule and the Steps it governs are one change.** A Step that orders or bans a second `Read`/`Grep`/fetch is registered in `tests/ordered_repeats.json` against the exemption `src/core/guardrails.md` grants it. Widening the rule so the Step slips through leaves two files describing one behaviour, which no per-file assert can see.
 
 **State what is true now**, once, where it belongs. No bolting a new clause beside the old one. No history ("used to…", "this broke when…").
 

@@ -121,9 +121,11 @@ python3 scripts/dup_scan.py --window 10 --all --min-waste 20
 ## Adding a config field
 
 1. classify it in `src/reference/settings-schema.md`
-2. read-time default in `src/core/repo-settings.md`
-3. ask it in `src/setup/bootstrap.md`
+2. read-time default inside `<op> settings` in `src/bin/open-pr.sh` — the sole place one is applied
+3. ask it in `src/setup/bootstrap.md`, offering that same default
 4. `llm-upgrades/vN.md` + a line in `llm-upgrades/index.md`
+
+Steps 1-3 are checked by the suite, so a half-added field is red rather than a repo reading empty.
 
 ## Commits
 
