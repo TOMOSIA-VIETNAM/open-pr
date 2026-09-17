@@ -24,4 +24,5 @@ specific to what IT may touch; nothing below is repeated there.
   Step names an order or needs an earlier call's output.
 - **The same action twice with nothing gained is a stall.** A `Read`/`Grep`/fetch over material
   ALREADY in context returns what the first one returned ⇒ STOP, name what stayed unresolved, ASK.
-  FORBIDDEN: a lookup as the way out of an ambiguity — that is a question for the user.
+  FORBIDDEN: a lookup as the way out of an ambiguity — that is a question for the user. A repeat that
+  a Step ORDERS — re-checking whether something changed, re-reading a file written since — is not this.

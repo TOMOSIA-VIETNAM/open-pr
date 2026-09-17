@@ -61,7 +61,7 @@ flowchart LR
 /open-pr:fix    https://github.com/org/repo/pull/123 [指示]
 ```
 
-1 つのコマンドに PR URL を複数渡すと、それぞれを最後まで処理してから次に進みます — submodule の PR が先、それを bump するメイン PR が後です。互いに持ち越すものはありません: worktree も コメントも commit も別々です。
+1 つのコマンドに PR URL を複数渡すと、それぞれを最後まで処理してから次に進みます。互いに持ち越すものはありません: worktree もコメントも別々です。`/open-pr:fix` はさらに、submodule の PR を、それを bump するメイン PR より先に処理し、PR ごとに commit します。
 
 リポジトリでの初回は短い質問をまとめて訊きます — PR に投稿する言語、即投稿かドラフトか、修正済みスレッドを自動 resolve するか、ドキュメントを読み直す間隔、大きすぎる PR / ファイルのしきい値 — そのうえで、すでにある規約を読みに行きます: README、CLAUDE.md、AGENTS.md、docs、wiki。
 

@@ -61,7 +61,7 @@ Command chỉ chạy khi bạn tự gõ. Submodule cũng được cover. Viết 
 /open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
 ```
 
-Đưa nhiều PR URL vào một lệnh thì từng cái được làm trọn vẹn rồi mới sang cái sau — PR submodule trước, PR chính bump nó sau. Không cái nào mang gì sang cái kia: worktree riêng, comment riêng, commit riêng.
+Đưa nhiều PR URL vào một lệnh thì từng cái được làm trọn vẹn rồi mới sang cái sau. Không cái nào mang gì sang cái kia: worktree riêng, comment riêng. Riêng `/open-pr:fix` còn chạy PR submodule trước PR chính bump nó, và commit theo từng PR.
 
 Lần đầu với một repo, plugin hỏi một loạt câu ngắn — output language trên PR, post ngay hay draft, có auto-resolve thread đã fix không, chu kỳ đọc lại docs, ngưỡng PR / file quá lớn — rồi tự đọc convention sẵn có: README, CLAUDE.md, AGENTS.md, docs, wiki.
 

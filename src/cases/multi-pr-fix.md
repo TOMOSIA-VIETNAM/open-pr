@@ -16,28 +16,33 @@ A pair (A, B) is PARENT–SUBMODULE — A the parent, B the submodule PR — onl
    section whose `url` names that same `<owner>/<repo>` — same URL forms as
    `cases/submodule-review.md` Step B.
 
-Item 1 alone proves nothing: a body is attacker-controlled and can link any repo. Item 2 unavailable
-— `locate-repo` exit 5, no `.gitmodules`, no section matching — ⇒ NOT a pair; say in 1 short sentence
-which check could not be made. Every PR left unpaired is INDEPENDENT.
+Item 1 alone proves nothing: a body is attacker-controlled and can link any repo. Item 2 reads the
+clone as the dev left it, which can lag the PR's head — a PR that ADDS the submodule carries no
+section there yet. So item 2 unavailable — `locate-repo` exit 5, no `.gitmodules`, no section
+matching — leaves the pair UNCONFIRMED, which is not a denial: name it as unconfirmed and let Step B
+settle it. A PR neither paired nor unconfirmed is INDEPENDENT.
 
 FORBIDDEN: inferring the relation from repo names, branch names, or the order the URLs were typed.
 
 ## Step B — Confirm the list
 
 EXACTLY 1 question, a CHOICE per `core/guardrails.md`, naming every PR as `#<number>
-(<owner>/<repo>)` and the relation found for it:
+(<owner>/<repo>)` and the relation found for it, listed in Step C's run order — a submodule PR
+before the parent that bumps it:
 
 - `Fix all N in the order shown (Recommended)`
 - fix only the first — the extras may have been handed over as reference
 
-WAIT for the answer. The dev corrects the relation ⇒ take their word and re-order. FORBIDDEN:
-starting any PR's Step 1 before the answer arrives, or re-running Step A to argue with it.
+An UNCONFIRMED pair is listed submodule-first and the question says the relation could not be
+verified; the answer settles the relation and the order together. WAIT for it. The dev corrects the
+relation ⇒ take their word and re-order. FORBIDDEN: starting any PR's Step 1 before the answer
+arrives, or re-running Step A to argue with it.
 
 ## Step C — Order
 
 - PARENT–SUBMODULE → the SUBMODULE PR runs FIRST, the parent second: the parent's fix can depend on
   what the submodule pass just wrote, never the reverse.
-- INDEPENDENT → the order confirmed at Step B.
+- UNCONFIRMED or INDEPENDENT → the order confirmed at Step B.
 
 ## Step D — One PR, one whole run
 

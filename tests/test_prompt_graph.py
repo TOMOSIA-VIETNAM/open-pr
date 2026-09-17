@@ -523,6 +523,8 @@ def test_repeating_an_action_with_nothing_gained_stops_the_run():
         "the rule must state what to do instead of repeating"
     assert "FORBIDDEN: a lookup as the way out of an ambiguity" in flat, \
         "an ambiguity resolved by another lookup is the loop itself"
+    assert "A repeat that a Step ORDERS" in flat, \
+        "a re-check a Step mandates (a changed head, a file written since) must stay allowed"
 
 
 def test_several_prs_in_one_fix_run_stay_separate():
