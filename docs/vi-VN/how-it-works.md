@@ -14,7 +14,7 @@ Nếu vẫn còn trong phiên chat thì gõ lại `/open-pr:review` trên cùng 
 flowchart LR
   A["/open-pr:review URL<br/>(lần 2 trở đi)"] --> B[Đọc lại từng thread<br/>finding cũ vs code hiện tại]
   B --> C{Đã fix?}
-  C -- rồi --> D["Reply xác nhận đúng thread ấy<br/>· resolve nếu bạn đã bật"]
+  C -- rồi --> D["Reply xác nhận đúng thread ấy<br/>· im lặng nếu thread đã nói rồi<br/>· cả hai trường hợp đều resolve nếu bạn đã bật"]
   C -- chưa --> E["Để nguyên thread đang mở<br/>không nhắc lại, không tạo finding trùng"]
   B --> F{Thread có chốt<br/>một convention?}
   F -- có --> G["Hỏi bạn trước<br/>→ ghi vào memory của repo"]

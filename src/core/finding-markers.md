@@ -20,7 +20,10 @@ Lives inside a review `body` rather than as its own comment: that body carries t
 splits into blocks, each running from a severity-emoji opening line to the marker, each yielding
 path + severity + description. Only the account's MOST RECENT review counts — older ones are superseded.
 
-## Already handled in an earlier run
+## A reply this plugin already posted
 
-The finding's own thread carries ≥1 reply with the reply marker from the SAME account. Together with
-the thread's resolved flag, that is what stops a second commit or reply on work already done.
+The finding's own thread carries ≥1 reply with the reply marker from the SAME account. That says ONE
+thing: the bot has replied in that thread before. It does NOT say the finding is settled — one account
+runs both commands under one marker, so a fix-side "done" reply and a review-side confirmation are the
+same bytes. Whether the work is finished is judged from the CURRENT code plus what the thread's replies
+SAY (`cases/re-review.md`).
