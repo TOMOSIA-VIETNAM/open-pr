@@ -89,7 +89,7 @@ Mở `~/.zshrc` (zsh, mặc định trên macOS) hoặc `~/.bashrc` (bash) bằn
 
 ```bash
 export BITBUCKET_EMAIL="ban@congty.com"
-export BITBUCKET_API_TOKEN="token-vua-copy"
+export BITBUCKET_API_TOKEN="<your-api-token>"
 ```
 
 Nạp lại và kiểm tra:
@@ -107,7 +107,7 @@ Sửa bằng editor, đừng `echo ... >> ~/.zshrc` — token sẽ nằm lại t
 {
   "env": {
     "BITBUCKET_EMAIL": "ban@congty.com",
-    "BITBUCKET_API_TOKEN": "token-vua-copy"
+    "BITBUCKET_API_TOKEN": "<your-api-token>"
   }
 }
 ```

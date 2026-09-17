@@ -81,7 +81,7 @@ token 显示在屏幕上时就复制下来 —— 关掉对话框就再也看不
 
 ```bash
 export BITBUCKET_EMAIL="you@company.com"
-export BITBUCKET_API_TOKEN="the-token-you-copied"
+export BITBUCKET_API_TOKEN="<your-api-token>"
 ```
 
 重新加载并检查：
@@ -99,7 +99,7 @@ printenv BITBUCKET_EMAIL
 {
   "env": {
     "BITBUCKET_EMAIL": "you@company.com",
-    "BITBUCKET_API_TOKEN": "the-token-you-copied"
+    "BITBUCKET_API_TOKEN": "<your-api-token>"
   }
 }
 ```

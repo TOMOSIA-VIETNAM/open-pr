@@ -92,7 +92,7 @@ Bitbucket では 401 が返ります。アプリに **Bitbucket** を選び、�
 
 ```bash
 export BITBUCKET_EMAIL="you@company.com"
-export BITBUCKET_API_TOKEN="コピーしたトークン"
+export BITBUCKET_API_TOKEN="<your-api-token>"
 ```
 
 読み込み直して確認します。
@@ -110,7 +110,7 @@ printenv BITBUCKET_EMAIL
 {
   "env": {
     "BITBUCKET_EMAIL": "you@company.com",
-    "BITBUCKET_API_TOKEN": "コピーしたトークン"
+    "BITBUCKET_API_TOKEN": "<your-api-token>"
   }
 }
 ```
