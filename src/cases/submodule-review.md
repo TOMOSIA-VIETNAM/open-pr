@@ -60,8 +60,8 @@ Reapply `review.md` Step 2 → Step 8 against the Step C data, with exactly 3 di
 
 - every tree access aims at the SUBMODULE's checkout: `<worktree>/<submodule-path>/<path>` for each
   `<worktree>/<path>` those Steps name, and `--worktree <worktree>/<submodule-path>` on every
-  `<op> verify-line` — Step 7's reads and Step 6's check of an old finding against current code
-  included. FORBIDDEN: the MAIN repo's tree, which holds a different file at the same path.
+  `<op> verify-line` — Step 7's reads and Step 6's checks included. FORBIDDEN: the MAIN repo's tree,
+  which holds a different file at the same path.
 - its own stack detection over the submodule's diff files, independent of the main PR's
 - memory/templates SHARE the MAIN repo's directory, `notebooks/review/<repo>/` (`<repo>` = from the
   ORIGINAL PR URL). FORBIDDEN: a separate `notebooks/review/<repo-submodule>/` — bootstrap, doctor and
@@ -102,6 +102,6 @@ SPLIT, referring to each by PR NUMBER. FORBIDDEN: relative labels like "main PR"
 - **Nested submodules are NOT handled.** The submodule PR's own diff also containing a `Subproject
   commit` line → STOP, do NOT recurse. Note in its output that a nested submodule was detected and left
   unreviewed.
-- **No separate auth.** One account normally covers both repos. A call failing because that account
-  lacks permission on the submodule repo (e.g. a private repo in another org) → handle as a normal
-  Step F error: read it, report it. FORBIDDEN: switching accounts or improvising a workaround.
+- **No separate auth.** One account normally covers both repos. A call failing for lack of permission
+  on the submodule repo → a normal Step F error: read it, report it. FORBIDDEN: switching accounts or
+  improvising a workaround.

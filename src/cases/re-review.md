@@ -11,13 +11,13 @@ Both sections below work off the SAME "Old comments" data — not independent.
   message is not). Put it as a CHOICE per `core/guardrails.md`, never a prose question: `Log it` vs
   `Skip it`, the one you judge right marked `(Recommended)`, the lesson's own text — content + stack tag
   — in that option's detail. Judge by whether the pattern recurs for that stack or is a one-off here.
-- User chose to log → `"${CLAUDE_PLUGIN_ROOT}"/setup/lesson.md`.
+- User chose to log → `setup/lesson.md`.
 
 ## Checking whether old findings (left by this command) have been fixed
 
 1. `<op> context --sections account,threads` (this command's Context did not fetch them).
 2. From "Old comments", pick this plugin's own past LINE findings per
-   `"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md`.
+   `core/finding-markers.md`.
 3. For EACH: compare its description against the CURRENT code at that path/region — `Read`
    `<worktree>/<path>`, NOT the path at pwd — judging by actually reading it, no rigid rule. Read the
    thread's replies too (already in "Old comments" — fetch nothing more): what a reply SAYS decides,
@@ -54,8 +54,8 @@ PR-template item)? any NEW skipped file?
 | new? | replied/resolved this run? | other old findings still open? | outcome |
 |---|---|---|---|
 | no | yes | yes | drop Step 8/9, post nothing further — the replies already delivered the value, and a top-level "all clear" would mislead while something else is open |
-| no | yes | no | still go to Step 9, body = the LGTM one-liner exactly as Step 8 shapes it — the only place stating the PR AS A WHOLE is clean at this commit, which someone skimming the top-level view sees without opening each thread. Whether that lands on the PR or in chat is Step 9's `post_lgtm` gate |
-| no | no | yes | drop Step 8/9, post nothing further — nothing was fixed, so everything postable duplicates the review already standing |
+| no | yes | no | still go to Step 9, body = the LGTM one-liner exactly as Step 8 shapes it — the only top-level statement that the PR AS A WHOLE is clean at this commit. Whether that lands on the PR or in chat is Step 9's `post_lgtm` gate |
+| no | no | yes | drop Step 8/9, post nothing further — nothing was fixed, so everything postable duplicates the standing review |
 | no | no | no | continue Step 8/9 NORMALLY (nothing was open to handle) — FORBIDDEN: skipping merely because nothing is new, or the dev gets no confirmation for this update; land on the LGTM tier |
 | yes | — | — | continue Step 8/9, but any assessment prose covers ONLY what is new/changed this round, never restating a previous review |
 

@@ -5,7 +5,8 @@ description: Act on the findings a review left on a PR — takes or declines eac
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST, and `core/cli.md` with it —
 > they carry the shared rules and the `<op>` runtime. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
-> exactly as THIS line spells it — no env var exists in the shell. On top of those:
+> exactly as THIS line spells it — no env var exists in the shell. Every bare `dir/file.md` a Step
+> `Read`s lives under that same plugin directory. On top of those:
 > - This command EDITS REAL CODE at pwd, then commits/pushes — higher risk than the
 >   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action. FORBIDDEN: "helpfully"
 >   fixing the remote/branch just to pass it.
@@ -13,15 +14,15 @@ description: Act on the findings a review left on a PR — takes or declines eac
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
 >   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, RAW-git
 >   branch checkouts or worktree add/remove (Step 1b's `<op> checkout` is the ONLY sanctioned one),
->   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s job). `cd` is allowed ONLY between the invocation
->   directory, the 1a directory (once its git remote proves the match — never by name), and the
->   Step 1b worktree. This bullet + the one above are the SOLE
+>   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s
+>   job). `cd` is allowed ONLY between the invocation directory, the 1a directory (once its git
+>   remote proves the match — never by name), and the Step 1b worktree. These bullets are the SOLE
 >   enforcement layer — no `allowed-tools` backs them (deliberate).
 
 ## Step 0 — Target
 
 `<op> target <url>`; exit 4 or no URL → the block below. `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md`, taking its no-store branch (§2): this command never
+`core/pr-target.md`, taking its no-store branch (§2): this command never
 persists `git_remote_type`, it uses the parsed vendor as-is.
 
 ```
@@ -35,7 +36,7 @@ Example with instructions: /open-pr:fix https://github.com/org/repo/pull/123 onl
 Free-form text outside the URL narrows this run's scope (Step 3 item 3).
 
 **≥2 valid PR URLs** → `<op> target` EACH, then `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/cases/multi-pr-fix.md` — it classifies how they relate, confirms the list
+`cases/multi-pr-fix.md` — it classifies how they relate, confirms the list
 with the dev and sets the run order. FORBIDDEN: acting on the first URL alone, or folding 2 PRs into
 1 run.
 
@@ -48,7 +49,7 @@ guessing past it.
 `<op> context --sections info,head,comments,reviews,account,threads` — labels "PR info", "Head SHA",
 "Old comments", "Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git
 remote + current branch": `git remote -v` && `git branch --show-current` — pwd may be no repo (exit
-128) or the wrong one; not fatal, Step 1 re-checks everything at the 1a directory.
+128) or the wrong one; not fatal, Step 1 re-checks at the 1a directory.
 
 "Reviews" empty ⇒ Step 3 item 2 does not apply; LINE-level handling continues normally.
 
@@ -97,21 +98,20 @@ names what each field means) — on a miss it probes beside the repo's main work
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
 - `memory_found: false` → `core/repo-settings.md` "memory_found" rule FIRST — it may STOP
-- absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
+- absent, or no file at all → `Read` `setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle
 
 2 KINDS, differing in data source and in how "still open" is decided; `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md` — it defines how both are recognized.
+`core/finding-markers.md` — it defines how both are recognized.
 
 1. **LINE-level** (from "Old comments") → drop a finding when EITHER holds: its `id` belongs to a
    thread in "Review threads" with `resolved: true`, || that same thread already carries a reply from
    this plugin (`core/finding-markers.md`) — either command may have written it, and re-answering is
    the duplicate.
-2. **FILE-level / OVERVIEW-level** (from "Reviews") → an individual bullet has no resolve concept and no
-   readable reply history, so EVERY FILE-level finding in the most recent review is ALWAYS treated as
-   still open and re-handled every run. Accepted limitation: a repeat run after that part is already
-   fixed may add 1 duplicate reply.
+2. **FILE-level / OVERVIEW-level** (from "Reviews") → no resolve concept, no readable reply history ⇒
+   EVERY FILE-level finding in the most recent review is ALWAYS treated as still open and re-handled
+   every run. Accepted limitation: a repeat run may add 1 duplicate reply.
 3. Free-form instructions present (Step 0) → filter both lists BY MEANING (e.g. "only fix the security
    part"), no rigid syntax.
 4. Both lists empty after filtering → say so in 1 short sentence, STOP CLEANLY.
@@ -127,7 +127,7 @@ another lookup.
 FORBIDDEN: blocking or erroring on this.
 
 Present → `<op> stacks --repo-dir . <each finding's file>`, then `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md` and load the layers it names for those stacks. A layer
+`core/review-criteria.md` and load the layers it names for those stacks. A layer
 whose file doesn't exist yet → skip it; FORBIDDEN: creating one here (`setup/template.md`'s job).
 
 ## Step 5 — Decide on each finding
@@ -197,12 +197,12 @@ FORBIDDEN: `<op> resolve` — this command has no auto-resolve setting, unlike `
 
 At any point, a finding reflecting a GENERAL project convention (not PR-specific) → propose it in chat
 (content + stack tag + recommendation + reasoning), WAIT for the dev to confirm, only then log it per
-`"${CLAUDE_PLUGIN_ROOT}"/setup/lesson.md`, into the repo's SAME `memory.md`/`ALWAYS_RULE.md`. FORBIDDEN:
+`setup/lesson.md`, into the repo's SAME `memory.md`/`ALWAYS_RULE.md`. FORBIDDEN:
 a separate lesson file for `/open-pr:fix`.
 
 ## Reconfiguring fix
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/reconfigure.md`, `<node>` = `.fix`.
+`Read` `core/reconfigure.md`, `<node>` = `.fix`.
 
 ---
 
