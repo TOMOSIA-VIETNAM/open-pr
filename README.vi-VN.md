@@ -43,17 +43,13 @@ AI coding làm PR ra nhanh hơn. Nhưng review thì không nhanh hơn.
 
 Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push. — [Xem demo](./docs/vi-VN/demo.md)
 
-- 🔍 **Đúng 1 review mỗi lần chạy** — một review được đăng, không phải một dòng comment bot
-- 🧠 **Học convention của repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rule thắng generic rule
-- 💬 **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau
-- 🔧 **`/open-pr:fix` có kỷ luật** — đúng **1** commit, không force-push, reply từng thread
-- 🔓 **Open source, không service của `open-pr`** — MIT, không server `open-pr`, không bot account; chạy ngay trong agent CLI bạn đang dùng
+- **Đúng 1 review mỗi lần chạy** — một review được đăng, không phải một dòng comment bot
+- **Học convention của repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rule thắng generic rule
+- **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau
+- **`/open-pr:fix` có kỷ luật** — đúng **1** commit, không force-push, reply từng thread
+- **Open source, không service của `open-pr`** — MIT, không server `open-pr`, không bot account; chạy ngay trong agent CLI bạn đang dùng
 
-## Được liệt kê trong Awesome AI Plugins
-
-`open-pr` có mặt trong [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) — catalog đa nền tảng do Hashgraph Online tuyển chọn — ở mục *Community Plugins → Development & Workflow*, và được [HOL Plugin Registry](https://hol.org/registry/plugins) thu nhận; registry quét mọi project trong danh sách và công bố trust score.
-
-Điều kiện để được liệt kê chính là kết quả quét đó: **score ≥ 80, không có finding mức high hay critical**. Scanner do chính catalog chạy trên nhánh mặc định của repo này, nên kết quả là của họ chứ không phải tự chúng tôi công bố. Một lần quét là tín hiệu tin cậy, không phải bảo chứng an toàn.
+Có mặt trong [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow); danh sách này được gác bằng chính bản quét của họ trên repo này — score ≥ 80, không finding high hay critical. Một bản quét là tín hiệu tin cậy, không phải bảo đảm an toàn.
 
 ## Cài đặt
 

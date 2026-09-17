@@ -21,7 +21,7 @@ Resolve with the first method that hits:
 | 3 | else | shell: `for d in ~/.open-pr ~/.agents/skills/open-pr-*/../.. ~/.cursor/skills/open-pr-*/../.. ~/.gemini/config/skills/open-pr-*/../.. ~/.gemini/antigravity-cli/skills/open-pr-*/../.. ~/.gemini/extensions/open-pr ~/.cursor/plugins/local/open-pr ~/.claude/plugins/*/open-pr*; do [ -f "$d/src/commands/review.md" ] && (cd "$d/src" && pwd -P); done` — collect the output and dedupe it; `pwd -P` first, or one clone reached by four paths counts as four installs |
 
 Method 3's list and `scripts/install-local.sh`'s own target directories are the same set seen from two
-sides; `tests/test_prompt_graph.py` fails when one gains a path the other lacks.
+sides; `tests/graph/test_adapters.py` fails when one gains a path the other lacks.
 
 | hits | do |
 |---|---|

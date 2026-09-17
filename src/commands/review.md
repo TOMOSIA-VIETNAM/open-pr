@@ -71,7 +71,8 @@ Steps 4-7; judge `.md` lines per `core/cli.md`.
 From the Context `settings` call: resolve `chat_language` per `core/repo-settings.md`; `doctor_due` is
 already computed. `<vendor>` is already reconciled, never re-asked. Persisting it:
 
-- about to bootstrap → q1's pre-marked default, `setup/bootstrap.md` writes it
+- about to bootstrap → the `git_remote_type` question's pre-marked default, `setup/bootstrap.md`
+  writes it
 - bootstrapped, field predates this schema → read-time value only. FORBIDDEN: writing it back
   (`/open-pr:upgrade` owns that backfill); a confirmed mismatch was already persisted at §2
 
