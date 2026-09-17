@@ -31,6 +31,11 @@ report. It proves the graph still holds, not that the agent behaves — for that
 - [ ] `tests/token-history.json` and `token-history.svg` untouched — the chart takes one frozen
   point per release (`/release-now`), never one per PR
 - [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly
+- [ ] No AI-flavoured prose in anything a reader sees — README, docs, PR text, commit messages.
+  The tells: a decorative emoji opening a heading or a bullet; a section praising this project;
+  padding that carries no fact ("seamlessly", "robust", "powerful", "it's worth noting",
+  "not just X, but Y"); a bullet whose em-dash half repeats its own bold half. Write the fact,
+  or cut the line
 - [ ] Anything a user sees — a command, the flow, a default, what setup asks — → every README
   version (`README.md` and each `README.<lang>.md`) and the page that owns the detail in `docs/`
   and each `docs/<lang>/`. No page left describing the old behavior

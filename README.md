@@ -43,17 +43,11 @@ AI coding made PRs faster. But review didn't get faster.
 
 One run produces three parts that belong together: an **overview**, **line comments** (with suggested changes), and a **reply** after `/open-pr:fix` has pushed. — [See the demo](./docs/demo.md)
 
-- 🔍 **Exactly 1 review per run** — one review posted, not a stream of bot comments
-- 🧠 **Learns your repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rules beat generic rules
-- 💬 **Remembers what the team said** — a correction on one PR carries into the next run
-- 🔧 **`/open-pr:fix` is disciplined** — exactly **1** commit, no force-push, a reply on every thread
-- 🔓 **Open source, no `open-pr` service** — MIT-licensed, no `open-pr` server or bot account; it runs in the agent CLI you already have
-
-## Listed in Awesome AI Plugins
-
-`open-pr` is listed in [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) — the cross-platform catalog curated by Hashgraph Online — under *Community Plugins → Development & Workflow*, and it is ingested by the [HOL Plugin Registry](https://hol.org/registry/plugins), which scans every listed project and publishes a trust score.
-
-The listing is gated on that scan: **score ≥ 80, with no high or critical finding**. The catalog runs the scanner itself against this repository's default branch, so the result is theirs rather than ours. A scan is a trust signal, not a safety guarantee.
+- **Exactly 1 review per run** — one review posted, not a stream of bot comments
+- **Learns your repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rules beat generic rules
+- **Remembers what the team said** — a correction on one PR carries into the next run
+- **`/open-pr:fix` is disciplined** — exactly **1** commit, no force-push, a reply on every thread
+- **Open source, no `open-pr` service** — MIT-licensed, no `open-pr` server or bot account; it runs in the agent CLI you already have
 
 ## Install
 

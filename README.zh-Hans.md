@@ -43,17 +43,11 @@ AI 编码让 PR 变快了。但评审并没有变快。
 
 一次运行会产出三个互相关联的部分：**总览**、**行级评论**（附带 suggested change），以及 `/open-pr:fix` 推送之后的 **回复**。 —— [查看演示](./docs/zh-Hans/demo.md)
 
-- 🔍 **每次运行恰好 1 条评审** —— 只发一条，不是源源不断的 bot 评论
-- 🧠 **学习你的仓库** —— 读 README / CLAUDE.md / AGENTS.md / docs / wiki；**团队规范优先于通用规则**
-- 💬 **记住团队说过的话** —— 这次 PR 上的一句纠正，下次运行就会应用
-- 🔧 **`/open-pr:fix` 有纪律** —— 恰好 **1** 个 commit，不 force-push，每个 thread 一条回复
-- 🔓 **开源，无需 `open-pr` 服务** —— MIT 许可，不需要 `open-pr` 的服务器、也不需要 bot 账号；就跑在你已经在用的 agent CLI 里
-
-## 已收录于 Awesome AI Plugins
-
-`open-pr` 已收录于 Hashgraph Online 维护的跨平台目录 [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) 的 *Community Plugins → Development & Workflow* 分类，并被 [HOL Plugin Registry](https://hol.org/registry/plugins) 收录——该 registry 会扫描所有上榜项目并公布 trust score。
-
-收录的门槛正是这次扫描：**score ≥ 80，且没有 high 或 critical 级别的 finding**。扫描由目录方自己针对本仓库的默认分支运行，结果不是我们自报的。扫描是信任信号，不是安全保证。
+- **每次运行恰好 1 条评审** —— 只发一条，不是源源不断的 bot 评论
+- **学习你的仓库** —— 读 README / CLAUDE.md / AGENTS.md / docs / wiki；**团队规范优先于通用规则**
+- **记住团队说过的话** —— 这次 PR 上的一句纠正，下次运行就会应用
+- **`/open-pr:fix` 有纪律** —— 恰好 **1** 个 commit，不 force-push，每个 thread 一条回复
+- **开源，无需 `open-pr` 服务** —— MIT 许可，不需要 `open-pr` 的服务器、也不需要 bot 账号；就跑在你已经在用的 agent CLI 里
 
 ## 安装
 
