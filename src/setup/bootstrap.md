@@ -16,8 +16,8 @@ user runs `/open-pr:upgrade` once, then re-invokes. Bootstrapping over it re-ask
 - `memories/.gitkeep`, `templates/.gitkeep` — empty.
 - `notebooks/review/.gitignore` MUST contain the line `worktrees/` (`Write` it when absent, `Edit` to
   append when the file exists without it). This is the NESTED repo's ignore file, separate from the
-  reviewed repo's own `.gitignore` (`core/repo-settings.md`): it keeps the ephemeral worktree
-  (`review.md` Step 1) out of the memory repo, which must only ever hold rules/memory/templates.
+  reviewed repo's own: it keeps the ephemeral worktree out of the memory repo, which only ever holds
+  rules/memory/templates.
 - `cp "${CLAUDE_PLUGIN_ROOT}/seeds/ALWAYS_RULE.md" "notebooks/review/<repo>/ALWAYS_RULE.md"` — an
   empty file for the team's own rules, theirs from here on. The plugin's baseline criteria are NOT in
   it (`core/review-criteria.md` owns those) — FORBIDDEN: writing criteria into this copy.

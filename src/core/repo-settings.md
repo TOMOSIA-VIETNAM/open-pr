@@ -39,6 +39,6 @@ wins.
 
 ## Fresh file → `schema_version`
 
-Never a literal in any prompt file: `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/llm-upgrades-index.md`, take
+Never a literal in any prompt file: `Read` `core/llm-upgrades-index.md`, take
 the checkpoint it states. File already exists → keep `schema_version` + every foreign node untouched,
 add only your own node.
