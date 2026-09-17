@@ -1516,16 +1516,16 @@ def _schema_example():
     return {n: v for n, v in json.loads(block.group(1)).items() if isinstance(v, dict)}
 
 
-def _schema_groups(schema):
-    """The "Field groups" table as [(group, node, [fields])]. A backticked token counts as a
-    field only when that node declares it, so the prose around a row (valid values, a pointer
-    to another field) cannot be read as one more classification."""
+def _schema_groups():
+    """The "Field groups" table as [(group, node, [fields])]. Every backticked token in a
+    `fields` cell is taken as a classification — which is why that column carries names alone
+    and what a field means sits under the table. Filtering the cell against the JSON instead
+    would make the JSON the only source: a table naming a field the JSON never declares would
+    vanish rather than fail."""
     rows = []
     for m in re.finditer(r"^\| ([A-Z][a-z-]+(?: [a-z]+)*) \| `\.([a-z]+)` \| (.+?) \|",
                          text(SETTINGS_SCHEMA), re.M):
-        node, cell = m.group(2), m.group(3)
-        rows.append((m.group(1), node,
-                     [f for f in re.findall(r"`([a-z_]+)`", cell) if f in schema.get(node, {})]))
+        rows.append((m.group(1), m.group(2), re.findall(r"`([a-z_]+)`", m.group(3))))
     assert rows, "the schema doc must carry the field-group table"
     return rows
 
@@ -1542,7 +1542,7 @@ def test_every_settings_field_is_classified_exactly_once():
     JSON dropped sends a migration author after a key that is not there."""
     schema = _schema_example()
     seen = {}
-    for group, node, fields in _schema_groups(schema):
+    for group, node, fields in _schema_groups():
         for f in fields:
             seen.setdefault((node, f), []).append(group)
     twice = {k: v for k, v in seen.items() if len(v) > 1}
@@ -1593,17 +1593,26 @@ def _runtime_defaults():
 
 
 def test_every_user_config_field_has_a_runtime_default():
-    """A User config field is one an older repo's settings.json may not carry yet, and
-    `<op> settings` is the sole place a default is applied. Ship the field without one and
-    every repo bootstrapped before it reads empty — silently, because a missing key and a
-    stored false look the same to the prompt."""
+    """The schema and the runtime must name the same fields, in both directions. A User config
+    field is one an older repo's settings.json may not carry yet, and `<op> settings` is the
+    sole place a default is applied: ship the field without one and every repo bootstrapped
+    before it reads empty — silently, because a missing key and a stored false look the same to
+    the prompt. The other way round, a default applied to a field the schema never declares is
+    one no reader of this doc can classify and no migration can reach."""
     schema = _schema_example()
-    wanted = {f for group, node, fields in _schema_groups(schema) if group == "User config"
+    wanted = {f for group, node, fields in _schema_groups() if group == "User config"
               for f in fields}
     missing = wanted - set(_runtime_defaults()) - NO_CONSTANT_DEFAULT
     assert not missing, f"User config fields the runtime never defaults: {sorted(missing)}"
     stale = NO_CONSTANT_DEFAULT - wanted
     assert not stale, f"listed as having no constant default, but no longer User config: {sorted(stale)}"
+
+    # and the way back: a default the runtime applies to a field the doc never mentions is a
+    # field nobody can find, upgrade cannot migrate and this file's own reader cannot classify
+    declared = {f for fields in schema.values() for f in fields}
+    undocumented = set(_runtime_defaults()) - declared
+    assert not undocumented, \
+        f"the runtime defaults fields the schema never declares: {sorted(undocumented)}"
 
 
 def test_a_question_number_is_named_only_where_it_is_defined():
@@ -1629,7 +1638,7 @@ def test_bootstrap_asks_exactly_the_user_config_fields():
     bootstrap writes must receive exactly the fields classified User config for it."""
     schema = _schema_example()
     user_config = {}
-    for group, node, fields in _schema_groups(schema):
+    for group, node, fields in _schema_groups():
         if group == "User config":
             user_config.setdefault(node, set()).update(fields)
 
