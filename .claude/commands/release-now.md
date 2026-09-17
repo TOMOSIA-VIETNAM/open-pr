@@ -26,6 +26,11 @@ description: Create a git tag + GitHub Release for open-pr — an official relea
   - No open PR (a standalone branch, no PR created yet) → STOP, tell the user: a PR needs to be
     opened first, or checkout `main` if the intent is to create an official release.
 
+Then `Read` `gemini-extension.json`. Its `"version"` behind the newest `vX.Y.Z` tag ⇒ STOP before
+drafting anything: that gap is already failing the suite, and closing it is the one-line PR the
+release-tag edge in `CLAUDE.md` describes. Say so and stop; this command runs again from Step 0 once
+that PR is merged.
+
 ## Step 2A — Official release (standing on `main`)
 
 ```
@@ -151,13 +156,10 @@ Do NOT decide the version or mode on your own, do NOT edit the content without a
 
 ## Step 5 — Tag + Release
 
-BEFORE the tag, `gemini-extension.json`'s `"version"` must already read the confirmed version
-without its leading `v`. A tag is immutable: placed over a manifest still naming the previous
-release, it ships that stale number permanently, and `test_the_declared_version_keeps_up_with_the_public_releases`
-turns `main` red the moment the Release exists. Behind ⇒ STOP before tagging and say so — `main`
-takes a change only through a PR, so the one-line bump lands as its own PR (the user merges it),
-then this command runs again from Step 0 on the updated `main`. An RC tags a branch, so the bump
-belongs to that branch's own PR.
+BEFORE the tag, `gemini-extension.json`'s `"version"` must read the version confirmed at Step 4,
+without its leading `v` — Step 1's gate only proves the file is not behind the LAST release, not that
+it names this one. It does not ⇒ STOP before tagging, and the bump lands the way the release-tag
+edge in `CLAUDE.md` describes; this command runs again from Step 0 afterwards.
 
 After the user confirms the final version + content, `Write` the confirmed note to a file and pass
 that file to both commands — a multi-line markdown body handed to `-m`/`--notes` on a command line

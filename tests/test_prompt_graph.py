@@ -1267,6 +1267,30 @@ def test_the_declared_version_keeps_up_with_the_public_releases():
         f"v{'.'.join(str(n) for n in newest)} — bump it")
 
 
+def test_the_release_command_gates_on_the_declared_version():
+    """The version check above can only fail once a tag exists, and a tag is immutable — so the
+    release command is the only thing standing between a stale manifest and a permanent bad number.
+    It gates twice, because the two failures are different: the file already behind the last release
+    (stop before any drafting work is spent), and the file not yet naming the version just confirmed
+    (stop before the tag). The edge itself lives in CLAUDE.md, where an agent that never runs this
+    command still reads it."""
+    release = text(REPO / ".claude" / "commands" / "release-now.md")
+    flat = " ".join(release.split())
+
+    assert "behind the newest `vX.Y.Z` tag ⇒ STOP before drafting anything" in flat, \
+        "a manifest already behind the last release must stop the run before the note is written"
+    assert "must read the version confirmed at Step 4" in flat, \
+        "passing the first gate does not prove the file names the release being cut"
+    assert release.index("gemini-extension.json") < release.index("## Step 2A"), \
+        "the first gate must sit ahead of the drafting steps, or it stops nothing that matters"
+
+    edge = " ".join(text(REPO / "CLAUDE.md").split())
+    assert "A release tag and the declared version move together" in edge, \
+        "the invariant must be readable without opening the release command"
+    assert "the bump merges BEFORE the tag is pushed" in edge, \
+        "the edge has to name the ordering, which is the whole of it"
+
+
 def test_install_paths_have_one_owner():
     """Where a platform keeps its skills is stated twice: install-local.sh writes there, and the ROOT
     fallback in adapters/root.md looks there. They drifted apart once already, leaving the fallback
