@@ -78,7 +78,7 @@ same invariants as `review.md` Step 9, with 2 differences:
 
 - `<commit_id>` = what Step E's Step 8 pass resolved for the SUBMODULE PR, by that Step's own rule
   against Step C's "Head SHA" — never the main PR's, never re-fetched here.
-- `auto_submit_review`/`auto_resolve_fixed_findings` come from the MAIN repo's settings, already
+- `auto_submit_review`/`auto_resolve_fixed_findings`/`post_lgtm` come from the MAIN repo's settings, already
   resolved at `review.md`'s Context — never asked again; submodules have no separate config.
 
 This POST is separate from the main PR's and doesn't count toward its "exactly 1" — but it is itself

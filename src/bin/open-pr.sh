@@ -619,6 +619,10 @@ cmd_settings() {
             || date -d "$d_at" +%s 2>/dev/null || true)
     fi
     printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" --arg memdir "$mem_dir" --argjson found "$found" '
+        # A boolean defaulting to true needs has(): the // operator treats an explicit
+        # false as absent and would flip a stored false back to the default.
+        def default_bool($node; $key; $fallback):
+            if ($node // {}) | has($key) then $node[$key] else $fallback end;
         def dur_secs:
             capture("(?<n>[0-9]+) (?<u>day|week|month)s?") as $m
             | ($m.n | tonumber) * (if $m.u == "day" then 86400 elif $m.u == "week" then 604800 else 2592000 end);
@@ -626,8 +630,7 @@ cmd_settings() {
             review: ((.review // {}) + {
                 auto_submit_review: (.review.auto_submit_review // false),
                 auto_resolve_fixed_findings: (.review.auto_resolve_fixed_findings // false),
-                # has(), not //, for the same reason decline_needs_confirmation below states
-                post_lgtm: (if (.review // {}) | has("post_lgtm") then .review.post_lgtm else true end),
+                post_lgtm: default_bool(.review; "post_lgtm"; true),
                 doctor_schedule: (.review.doctor_schedule // "1 months"),
                 many_files_threshold: (.review.many_files_threshold // 30),
                 big_file_threshold_kb: (.review.big_file_threshold_kb // 20),
@@ -636,9 +639,7 @@ cmd_settings() {
                 pr_template_paths: (.review.pr_template_paths // [])
             }),
             fix: ((.fix // {}) + {
-                # // treats an explicit false as absent; has() keeps a stored
-                # false from flipping to the true default
-                decline_needs_confirmation: (if (.fix // {}) | has("decline_needs_confirmation") then .fix.decline_needs_confirmation else true end),
+                decline_needs_confirmation: default_bool(.fix; "decline_needs_confirmation"; true),
                 auto_push: (.fix.auto_push // false)
             }),
             shared: (.shared // {}),

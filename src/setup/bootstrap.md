@@ -25,7 +25,7 @@ user runs `/open-pr:upgrade` once, then re-invokes. Bootstrapping over it re-ask
 ## 2. Ask — 1 batch, every option pre-marked with the default below
 
 q7 is conditional ⇒ 8 or 9 questions. The choice-Q&A feature caps questions per call ⇒ split into
-SEQUENTIAL calls (q1-4, then the rest), finishing one before the next.
+SEQUENTIAL calls of at most 4 (q1-4, then q5-8, then the rest), finishing one before the next.
 
 | # | field | values | default |
 |---|---|---|---|
