@@ -49,6 +49,8 @@ Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comme
 - **`/open-pr:fix` có kỷ luật** — đúng **1** commit, không force-push, reply từng thread
 - **Open source, không service của `open-pr`** — MIT, không server `open-pr`, không bot account; chạy ngay trong agent CLI bạn đang dùng
 
+Có mặt trong [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow); danh sách này được gác bằng chính bản quét của họ trên repo này — score ≥ 80, không finding high hay critical. Một bản quét là tín hiệu tin cậy, không phải bảo đảm an toàn.
+
 ## Cài đặt
 
 **1. CLI của vendor, đã đăng nhập.** Plugin không giữ credential riêng — nó đọc PR và post review bằng tài khoản *của bạn*:
@@ -165,8 +167,6 @@ Số token bình quân mỗi lần chạy — gồm cả *happy-case* và *bad-c
 ![Mean tokens per run, theo command / release](./token-history.svg)
 
 ---
-
-Có mặt trong [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow); danh sách này được gác bằng chính bản quét của họ trên repo này — score ≥ 80, không finding high hay critical. Một bản quét là tín hiệu tin cậy, không phải bảo đảm an toàn.
 
 Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md).
 

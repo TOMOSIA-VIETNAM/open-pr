@@ -49,6 +49,8 @@ AI コーディングで PR は速くなりました。でもレビューは速�
 - **`/open-pr:fix` は規律を守る** — ちょうど **1** コミット、force-push なし、スレッドごとに返信
 - **オープンソース、`open-pr` のサービス不要** — MIT ライセンス。`open-pr` のサーバーも bot アカウントも不要で、いま使っている agent CLI 上で動きます
 
+[Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) に掲載。掲載の条件はカタログ側がこのリポジトリに対して自ら実行するスキャン — score 80 以上、high / critical の finding なし。スキャンは信頼の目安であって、安全の保証ではありません。
+
 ## インストール
 
 **1. ベンダーの CLI にログイン。** プラグイン自体は credential を持たず、*あなたの*アカウントで PR を読み、レビューを投稿します:
@@ -165,8 +167,6 @@ flowchart LR
 ![コマンド / リリース別の 1 回あたり平均トークン数](./token-history.svg)
 
 ---
-
-[Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) に掲載。掲載の条件はカタログ側がこのリポジトリに対して自ら実行するスキャン — score 80 以上、high / critical の finding なし。スキャンは信頼の目安であって、安全の保証ではありません。
 
 Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md)。
 

@@ -49,6 +49,8 @@ AI 编码让 PR 变快了。但评审并没有变快。
 - **`/open-pr:fix` 有纪律** —— 恰好 **1** 个 commit，不 force-push，每个 thread 一条回复
 - **开源，无需 `open-pr` 服务** —— MIT 许可，不需要 `open-pr` 的服务器、也不需要 bot 账号；就跑在你已经在用的 agent CLI 里
 
+已收录于 [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow)；上榜门槛是目录方自己对本仓库跑的扫描 — score ≥ 80，无 high 或 critical 级别的 finding。扫描是信任信号，不是安全保证。
+
 ## 安装
 
 **1. 先登录对应平台的 CLI。** 插件本身不持有任何 credential —— 它用*你的*账号读取 PR、发表评审：
@@ -165,8 +167,6 @@ flowchart LR
 ![每次运行的平均 token，按命令 / release 划分](./token-history.svg)
 
 ---
-
-已收录于 [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow)；上榜门槛是目录方自己对本仓库跑的扫描 — score ≥ 80，无 high 或 critical 级别的 finding。扫描是信任信号，不是安全保证。
 
 想参与贡献？[CONTRIBUTING.md](./CONTRIBUTING.md)。
 

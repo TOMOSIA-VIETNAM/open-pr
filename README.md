@@ -49,6 +49,8 @@ One run produces three parts that belong together: an **overview**, **line comme
 - **`/open-pr:fix` is disciplined** — exactly **1** commit, no force-push, a reply on every thread
 - **Open source, no `open-pr` service** — MIT-licensed, no `open-pr` server or bot account; it runs in the agent CLI you already have
 
+Listed in [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow), which gates the listing on its own scan of this repository — score ≥ 80, no high or critical finding. A scan is a trust signal, not a safety guarantee.
+
 ## Install
 
 **1. A vendor CLI, logged in.** The plugin carries no credential of its own — it reads the PR and posts the review through *your* account:
@@ -165,8 +167,6 @@ Mean tokens per run — covering both *happy-case* and *bad-case*:
 ![Mean tokens per run, by command / release](./token-history.svg)
 
 ---
-
-Listed in [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow), which gates the listing on its own scan of this repository — score ≥ 80, no high or critical finding. A scan is a trust signal, not a safety guarantee.
 
 Contributing? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
