@@ -603,7 +603,13 @@ cmd_settings() {
     # notebooks/review/<repo> would resolve inside the reviewed tree instead.
     d=$(arg dir)
     if [ -n "$d" ]; then f="$d/settings.json"; else f="notebooks/review/$(req repo)/settings.json"; fi
-    if [ -s "$f" ]; then raw=$(cat "$f"); else raw='{}'; fi
+    # The caller must be able to tell "never bootstrapped" from "read from the
+    # wrong directory" — the defaults for the two are byte-identical otherwise.
+    mem_dir=$(cd "$(dirname "$f")" 2>/dev/null && pwd) || {
+        mem_dir=$(dirname "$f")
+        case "$mem_dir" in /*) ;; *) mem_dir="$PWD/$mem_dir" ;; esac
+    }
+    if [ -s "$f" ]; then raw=$(cat "$f"); found=true; else raw='{}'; found=false; fi
     now=$(date +%s)
     d_at=$(printf '%s' "$raw" | jq -r '.review.doctored_at // empty')
     d_ep=""
@@ -612,7 +618,7 @@ cmd_settings() {
             || date -j -f '%Y-%m-%d' "$(printf '%.10s' "$d_at")" +%s 2>/dev/null \
             || date -d "$d_at" +%s 2>/dev/null || true)
     fi
-    printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" '
+    printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" --arg memdir "$mem_dir" --argjson found "$found" '
         def dur_secs:
             capture("(?<n>[0-9]+) (?<u>day|week|month)s?") as $m
             | ($m.n | tonumber) * (if $m.u == "day" then 86400 elif $m.u == "week" then 604800 else 2592000 end);
@@ -635,6 +641,8 @@ cmd_settings() {
             }),
             shared: (.shared // {}),
             schema_version: (.schema_version // null),
+            memory_dir: $memdir,
+            memory_found: $found,
             doctor_due: (
                 if (.review.doctored // false) != true then true
                 elif (.review.doctor_schedule // "1 months") == "never" then false
