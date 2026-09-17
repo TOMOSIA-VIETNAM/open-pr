@@ -495,12 +495,24 @@ def test_fix_reads_the_memory_review_wrote():
     assert "run FROM the invocation directory so the worktree lands under `<memory-dir>`" in flat
 
 
+def test_the_fix_snippet_is_reviewed_like_the_diff():
+    """The snippet in a finding is the one piece of code in the loop no criteria covered —
+    a dev applies the fence as written, so a wrong snippet lands and only the NEXT round
+    catches it, as a finding against the reviewer's own suggestion. The rule and its escape
+    hatch (prose direction when the snippet cannot be verified) live beside the fix format."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "apply the same criteria to the fix you wrote" in flat
+    assert "the path it replaces is actually gone" in flat
+    assert "state the DIRECTION in prose instead" in flat
+
+
 def test_fix_suggestions_prefer_a_code_fence():
     """A finding whose Fix is prose makes the dev reconstruct the intended logic. The
     fence is the default; prose is for fixes with no code form."""
     step7 = text(SRC / "commands" / "review.md")
     assert "shows the corrected CODE in a fence by default" in step7
-    assert "FORBIDDEN: prose when the" in step7, "prose must be the exception, not a sibling option"
+    assert "FORBIDDEN: prose merely because writing the code is effort" in step7, \
+        "prose must be the exception, not a sibling option"
 
 
 def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
