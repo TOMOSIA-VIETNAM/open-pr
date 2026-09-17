@@ -603,6 +603,18 @@ cmd_settings() {
     # notebooks/review/<repo> would resolve inside the reviewed tree instead.
     d=$(arg dir)
     if [ -n "$d" ]; then f="$d/settings.json"; else f="notebooks/review/$(req repo)/settings.json"; fi
+    # A worktree or subdirectory invocation misses the memory the review created
+    # at its own workspace — with --repo-dir and --repo, probe beside the repo's
+    # MAIN worktree (and its parent workspace) before declaring memory absent.
+    if [ ! -s "$f" ] && [ -n "$(arg repo_dir)" ] && [ -n "$(arg repo)" ]; then
+        common=$(git -C "$(arg repo_dir)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || common=""
+        common=${common:-$(arg repo_dir)/.git}   # not a git tree: stay beside repo_dir, never cwd
+        main_wt=$(dirname "$common")
+        # parent workspace FIRST: the in-repo copy is the drifting one fix.md forbids
+        for cand in "$(dirname "$main_wt")/notebooks/review/$(arg repo)" "$main_wt/notebooks/review/$(arg repo)"; do
+            [ -s "$cand/settings.json" ] && { f="$cand/settings.json"; break; }
+        done
+    fi
     # The caller must be able to tell "never bootstrapped" from "read from the
     # wrong directory" — the defaults for the two are byte-identical otherwise.
     mem_dir=$(cd "$(dirname "$f")" 2>/dev/null && pwd) || {
@@ -619,6 +631,10 @@ cmd_settings() {
             || date -d "$d_at" +%s 2>/dev/null || true)
     fi
     printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" --arg memdir "$mem_dir" --argjson found "$found" '
+        # A boolean defaulting to true needs has(): the // operator treats an explicit
+        # false as absent and would flip a stored false back to the default.
+        def default_bool($node; $key; $fallback):
+            if ($node // {}) | has($key) then $node[$key] else $fallback end;
         def dur_secs:
             capture("(?<n>[0-9]+) (?<u>day|week|month)s?") as $m
             | ($m.n | tonumber) * (if $m.u == "day" then 86400 elif $m.u == "week" then 604800 else 2592000 end);
@@ -626,6 +642,7 @@ cmd_settings() {
             review: ((.review // {}) + {
                 auto_submit_review: (.review.auto_submit_review // false),
                 auto_resolve_fixed_findings: (.review.auto_resolve_fixed_findings // false),
+                post_lgtm: default_bool(.review; "post_lgtm"; true),
                 doctor_schedule: (.review.doctor_schedule // "1 months"),
                 many_files_threshold: (.review.many_files_threshold // 30),
                 big_file_threshold_kb: (.review.big_file_threshold_kb // 20),
@@ -634,9 +651,7 @@ cmd_settings() {
                 pr_template_paths: (.review.pr_template_paths // [])
             }),
             fix: ((.fix // {}) + {
-                # // treats an explicit false as absent; has() keeps a stored
-                # false from flipping to the true default
-                decline_needs_confirmation: (if (.fix // {}) | has("decline_needs_confirmation") then .fix.decline_needs_confirmation else true end),
+                decline_needs_confirmation: default_bool(.fix; "decline_needs_confirmation"; true),
                 auto_push: (.fix.auto_push // false)
             }),
             shared: (.shared // {}),

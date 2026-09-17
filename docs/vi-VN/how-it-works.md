@@ -14,7 +14,7 @@ Nếu vẫn còn trong phiên chat thì gõ lại `/open-pr:review` trên cùng 
 flowchart LR
   A["/open-pr:review URL<br/>(lần 2 trở đi)"] --> B[Đọc lại từng thread<br/>finding cũ vs code hiện tại]
   B --> C{Đã fix?}
-  C -- rồi --> D["Reply xác nhận đúng thread ấy<br/>· resolve nếu bạn đã bật"]
+  C -- rồi --> D["Reply xác nhận đúng thread ấy<br/>· im lặng nếu thread đã nói rồi<br/>· cả hai trường hợp đều resolve nếu bạn đã bật"]
   C -- chưa --> E["Để nguyên thread đang mở<br/>không nhắc lại, không tạo finding trùng"]
   B --> F{Thread có chốt<br/>một convention?}
   F -- có --> G["Hỏi bạn trước<br/>→ ghi vào memory của repo"]
@@ -60,6 +60,8 @@ Command chỉ chạy khi bạn tự gõ. Submodule cũng được cover. Viết 
 /open-pr:review https://github.com/org/repo/pull/123 [instructions]
 /open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
 ```
+
+Đưa nhiều PR URL vào một lệnh thì từng cái được làm trọn vẹn rồi mới sang cái sau. Không cái nào mang gì sang cái kia: worktree riêng, comment riêng. Riêng `/open-pr:fix` còn chạy PR submodule trước PR chính bump nó, và commit theo từng PR.
 
 Lần đầu với một repo, plugin hỏi một loạt câu ngắn — output language trên PR, post ngay hay draft, có auto-resolve thread đã fix không, chu kỳ đọc lại docs, ngưỡng PR / file quá lớn — rồi tự đọc convention sẵn có: README, CLAUDE.md, AGENTS.md, docs, wiki.
 

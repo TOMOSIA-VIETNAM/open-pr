@@ -14,7 +14,7 @@ If you're still in the same chat session, type `/open-pr:review` again on the sa
 flowchart LR
   A["/open-pr:review URL<br/>(2nd run onward)"] --> B[Re-read each thread<br/>old finding vs current code]
   B --> C{Fixed?}
-  C -- yes --> D["Confirm on that exact thread<br/>· resolve if you enabled it"]
+  C -- yes --> D["Confirm on that exact thread<br/>· quiet if the thread already says so<br/>· resolve either way if you enabled it"]
   C -- not yet --> E["Leave the open thread alone<br/>no repeat, no duplicate finding"]
   B --> F{Thread settled<br/>on a convention?}
   F -- yes --> G["Asks you first<br/>→ writes it into the repo's memory"]
@@ -60,6 +60,8 @@ Commands run only when you type them. Submodules are covered. Extra words after 
 /open-pr:review https://github.com/org/repo/pull/123 [instructions]
 /open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
 ```
+
+Hand several PR URLs to one command and each one is worked through in full before the next starts. Nothing carries over between them: own worktree, own comments. `/open-pr:fix` additionally runs a submodule PR ahead of the main PR that bumps it, and commits per PR.
 
 The first run in a repo asks a short batch of questions — the language to post on the PR, post immediately or keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large PR / file thresholds — then reads the conventions already there: README, CLAUDE.md, AGENTS.md, docs, wiki.
 

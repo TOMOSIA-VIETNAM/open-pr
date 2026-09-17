@@ -1,11 +1,12 @@
 ---
-argument-hint: "[PR URL] [content]"
+argument-hint: "[PR URL] [other PR URL...] [content]"
 description: Act on the findings a review left on a PR — takes or declines each by severity, edits code at pwd to match the project, 1 commit, replies once pushed.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST, and `core/cli.md` with it —
 > they carry the shared rules and the `<op>` runtime. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
-> exactly as THIS line spells it — no env var exists in the shell. On top of those:
+> exactly as THIS line spells it — no env var exists in the shell. Every bare `dir/file.md` a Step
+> `Read`s lives under that same plugin directory. On top of those:
 > - This command EDITS REAL CODE at pwd, then commits/pushes — higher risk than the
 >   read-only `/open-pr:review`. Step 1 MUST run BEFORE ANY other action. FORBIDDEN: "helpfully"
 >   fixing the remote/branch just to pass it.
@@ -13,15 +14,15 @@ description: Act on the findings a review left on a PR — takes or declines eac
 >   `git branch -D`, `git reset --hard`, resolving a PR thread, editing/committing when the PR's branch
 >   is protected or the remote/branch doesn't match the PR, deciding alone on a 🔵/📝 finding, RAW-git
 >   branch checkouts or worktree add/remove (Step 1b's `<op> checkout` is the ONLY sanctioned one),
->   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s job). `cd` is allowed ONLY between the invocation
->   directory, the 1a directory (once its git remote proves the match — never by name), and the
->   Step 1b worktree. This bullet + the one above are the SOLE
+>   close/merge/reopen, `<op> post`/`publish` (this command only replies; posting is `review.md`'s
+>   job). `cd` is allowed ONLY between the invocation directory, the 1a directory (once its git
+>   remote proves the match — never by name), and the Step 1b worktree. These bullets are the SOLE
 >   enforcement layer — no `allowed-tools` backs them (deliberate).
 
 ## Step 0 — Target
 
 `<op> target <url>`; exit 4 or no URL → the block below. `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/pr-target.md`, taking its no-store branch (§2): this command never
+`core/pr-target.md`, taking its no-store branch (§2): this command never
 persists `git_remote_type`, it uses the parsed vendor as-is.
 
 ```
@@ -34,6 +35,11 @@ Example with instructions: /open-pr:fix https://github.com/org/repo/pull/123 onl
 
 Free-form text outside the URL narrows this run's scope (Step 3 item 3).
 
+**≥2 valid PR URLs** → `<op> target` EACH, then `Read`
+`cases/multi-pr-fix.md` — it classifies how they relate, confirms the list
+with the dev and sets the run order. FORBIDDEN: acting on the first URL alone, or folding 2 PRs into
+1 run.
+
 No URL → take the PR THIS session already establishes (its review ran here, the user named it, pwd is
 its worktree), say which in 1 short sentence, continue. NOT exactly 1 ⇒ the `Usage:` block. FORBIDDEN:
 guessing past it.
@@ -43,7 +49,7 @@ guessing past it.
 `<op> context --sections info,head,comments,reviews,account,threads` — labels "PR info", "Head SHA",
 "Old comments", "Reviews", "Account", "Review threads". Plus 2 plain `git` commands, label "Git
 remote + current branch": `git remote -v` && `git branch --show-current` — pwd may be no repo (exit
-128) or the wrong one; not fatal, Step 1 re-checks everything at the 1a directory.
+128) or the wrong one; not fatal, Step 1 re-checks at the 1a directory.
 
 "Reviews" empty ⇒ Step 3 item 2 does not apply; LINE-level handling continues normally.
 
@@ -52,8 +58,9 @@ remote + current branch": `git remote -v` && `git branch --show-current` — pwd
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
 **1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → ask with a CHOICE in plain language, STOP if
-unresolved). `<memory-dir>` = `notebooks/review/<repo>` at THIS invocation directory, ABSOLUTE — the
-place review.md writes from its own pwd; `<repo_dir>` = a `review` worktree
+unresolved). `<memory-dir>`: the one THIS session already established for `<repo>`
+(a review or fix ran here) — reuse it, ask nothing; else `notebooks/review/<repo>` at THIS invocation
+directory, ABSOLUTE — unless `<repo_dir>` is a `review` worktree
 (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ its `../../`. FORBIDDEN: resolving memory inside
 `<repo_dir>` — a repo that is a subdirectory of the workspace grows a second, drifting copy. Then
 `cd` into `<repo_dir>` — this command EDITS that repo's files ⇒ works from inside.
@@ -65,7 +72,9 @@ touching any file, proceeding to Step 2.
    in place — a matching name on a stale tip edits a tree the findings do not describe and the push
    cannot fast-forward. Else `<repo_dir>` = a review worktree whose `git rev-parse HEAD`
    prefix-matches "Head SHA" ⇒ fix there (DETACHED is normal). Anything else — wrong branch, stale
-   tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`:
+   tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`. A checkout THIS session already
+   established that prefix-matches "Head SHA" ⇒ `Use the session's checkout at <path> (Recommended)`
+   heads the options; else the recommendation is
    `Fix in a fresh worktree (Recommended)` — `<op> checkout`, run FROM the invocation directory so
    the worktree lands under `<memory-dir>`, gates it to "Head SHA"; the user's own branch/tree stays
    untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout yourself, printing:
@@ -83,28 +92,34 @@ touching any file, proceeding to Step 2.
 
 ## Step 2 — Settings
 
-`<op> settings --dir <memory-dir>` (`core/repo-settings.md` names what each field means). Resolve
+`<op> settings --dir <memory-dir> --repo <repo> --repo-dir <repo_dir>` (`core/repo-settings.md`
+names what each field means) — on a miss it probes beside the repo's main worktree itself. Resolve
 `chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
 - `memory_found: false` → `core/repo-settings.md` "memory_found" rule FIRST — it may STOP
-- absent, or no file at all → `Read` `"${CLAUDE_PLUGIN_ROOT}"/setup/fix-bootstrap.md`, follow it
+- absent, or no file at all → `Read` `setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle
 
 2 KINDS, differing in data source and in how "still open" is decided; `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/finding-markers.md` — it defines how both are recognized.
+`core/finding-markers.md` — it defines how both are recognized.
 
 1. **LINE-level** (from "Old comments") → drop a finding when EITHER holds: its `id` belongs to a
-   thread in "Review threads" with `resolved: true`, || that same thread is already handled
-   (`core/finding-markers.md`).
-2. **FILE-level / OVERVIEW-level** (from "Reviews") → an individual bullet has no resolve concept and no
-   readable reply history, so EVERY FILE-level finding in the most recent review is ALWAYS treated as
-   still open and re-handled every run. Accepted limitation: a repeat run after that part is already
-   fixed may add 1 duplicate reply.
+   thread in "Review threads" with `resolved: true`, || that same thread already carries a reply from
+   this plugin (`core/finding-markers.md`) — either command may have written it, and re-answering is
+   the duplicate.
+2. **FILE-level / OVERVIEW-level** (from "Reviews") → no resolve concept, no readable reply history ⇒
+   EVERY FILE-level finding in the most recent review is ALWAYS treated as still open and re-handled
+   every run. Accepted limitation: a repeat run may add 1 duplicate reply.
 3. Free-form instructions present (Step 0) → filter both lists BY MEANING (e.g. "only fix the security
    part"), no rigid syntax.
 4. Both lists empty after filtering → say so in 1 short sentence, STOP CLEANLY.
+
+Matching is ONE pass over the Context already fetched. FORBIDDEN: re-`Read`ing
+`core/finding-markers.md`, re-running `<op> context`, or re-opening a finding's comment or scratch
+file to double-check a marker. Still ambiguous when that pass ends ⇒ Step 6 asks the dev, never
+another lookup.
 
 ## Step 4 — Read the project's convention
 
@@ -112,12 +127,13 @@ touching any file, proceeding to Step 2.
 FORBIDDEN: blocking or erroring on this.
 
 Present → `<op> stacks --repo-dir . <each finding's file>`, then `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/core/review-criteria.md` and load the layers it names for those stacks. A layer
+`core/review-criteria.md` and load the layers it names for those stacks. A layer
 whose file doesn't exist yet → skip it; FORBIDDEN: creating one here (`setup/template.md`'s job).
 
 ## Step 5 — Decide on each finding
 
-- **LINE-level**: read the original finding + EVERY reply on THAT EXACT thread. A CLEAR human reply
+- **LINE-level**: read the original finding + EVERY reply on THAT EXACT thread, off the Context
+  already fetched, in the single pass Step 3 names. A CLEAR human reply
   already settling it (leave as-is / no fix needed / intended behaviour) → skip that finding ENTIRELY.
   FORBIDDEN: asking again, or fixing over an existing decision.
 - **FILE-level**: no thread to read (Step 3 item 2) → skip the branch above, rest applies normally.
@@ -181,12 +197,12 @@ FORBIDDEN: `<op> resolve` — this command has no auto-resolve setting, unlike `
 
 At any point, a finding reflecting a GENERAL project convention (not PR-specific) → propose it in chat
 (content + stack tag + recommendation + reasoning), WAIT for the dev to confirm, only then log it per
-`"${CLAUDE_PLUGIN_ROOT}"/setup/lesson.md`, into the repo's SAME `memory.md`/`ALWAYS_RULE.md`. FORBIDDEN:
+`setup/lesson.md`, into the repo's SAME `memory.md`/`ALWAYS_RULE.md`. FORBIDDEN:
 a separate lesson file for `/open-pr:fix`.
 
 ## Reconfiguring fix
 
-`Read` `"${CLAUDE_PLUGIN_ROOT}"/core/reconfigure.md`, `<node>` = `.fix`.
+`Read` `core/reconfigure.md`, `<node>` = `.fix`.
 
 ---
 

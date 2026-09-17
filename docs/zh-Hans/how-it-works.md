@@ -14,7 +14,7 @@
 flowchart LR
   A["/open-pr:review URL<br/>(第 2 次及以后)"] --> B[重读每个 thread<br/>旧 finding 对照当前代码]
   B --> C{修好了吗?}
-  C -- 是 --> D["在那个 thread 上确认<br/>· 若你启用了则 resolve"]
+  C -- 是 --> D["在那个 thread 上确认<br/>· thread 里已有结论则保持沉默<br/>· 启用了的话两种情况都 resolve"]
   C -- 还没有 --> E["未关闭的 thread 保持原样<br/>不重复、不产生重复 finding"]
   B --> F{thread 上定下了<br/>某条规范吗?}
   F -- 是 --> G["先问过你<br/>→ 写进仓库的 memory"]
@@ -60,6 +60,8 @@ flowchart LR
 /open-pr:review https://github.com/org/repo/pull/123 [附加说明]
 /open-pr:fix    https://github.com/org/repo/pull/123 [附加说明]
 ```
+
+把多个 PR URL 交给同一条命令，每一个都会完整跑完再轮到下一个。彼此之间不传递任何东西：各自的 worktree、各自的评论。`/open-pr:fix` 还会把 submodule 的 PR 排在 bump 它的主 PR 之前，并按每个 PR 各提交一次。
 
 仓库第一次运行时会问一小批问题 —— 发布到 PR 上用什么语言、立即发布还是先留草稿、修好的 thread 要不要自动 resolve、隔多久重读一次文档、PR / 文件多大算过大 —— 然后读取已有的规范：README、CLAUDE.md、AGENTS.md、docs、wiki。
 

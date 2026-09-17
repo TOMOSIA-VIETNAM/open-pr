@@ -9,9 +9,9 @@ scoped to the current PR's stack or feature.
    `GEMINI.md` + similar agent-instruction `.md` variants, `docs/`, `wiki/`,
    `.cursorrules`/`.cursor/rules/`, `.github/copilot-instructions.md`. Absent → skip, not an error.
 
-   Run this with `Agent` IN PARALLEL on large repos: 1 subagent globs/greps the tree → the list of
+   On large repos run it with `Agent` IN PARALLEL: 1 subagent globs/greps the tree → the list of
    paths; then several subagents (1 file or group each) read + summarize + surface conflicts. No
-   specific subagent type — stays portable across environments.
+   specific subagent type — stays portable.
 
    SAME pass, no separate step: also collect the PR-template paths that actually exist among
    `.github/PULL_REQUEST_TEMPLATE.md`, `.github/pull_request_template.md`,

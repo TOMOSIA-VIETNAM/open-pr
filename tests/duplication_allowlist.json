@@ -1,5 +1,5 @@
 {
-  "_note": "Cross-file duplication that is accepted. Every entry needs a reason; an unexplained entry means a rule has two owners. Regenerate a sha with tests/test_prompt_graph.py's reporter.",
+  "_note": "Cross-file duplication that is accepted. Every entry needs a reason; an unexplained entry means a rule has two owners. Regenerate a sha with tests/graph/test_single_source.py's reporter.",
   "approved": [
     {
       "sha": "21b1e62f9627",
@@ -67,6 +67,15 @@
       ],
       "sample": "op sh claude plugin root bin open pr sh exactly as this line spells it no env var",
       "reason": "The <op> definition must sit in EACH command file: ${CLAUDE_PLUGIN_ROOT} is interpolated into command-file text at load and exists nowhere else — a file Read at run time (cli.md) gets no interpolation, and no env var reaches the shell. The runtime contract keeps one owner, core/cli.md."
+    },
+    {
+      "sha": "46c91728d020",
+      "files": [
+        "commands/fix.md",
+        "commands/review.md"
+      ],
+      "sample": "exactly as this line spells it no env var exists in the shell every bare dir file md",
+      "reason": "The bare-ref rule extends the <op> definition above and must sit beside it in EACH command file: it tells the agent that every bare dir/file.md path resolves under the plugin root that ONLY these files carry interpolated. One sentence per command file replaces ~10 interpolated absolute-path prefixes each."
     }
   ]
 }

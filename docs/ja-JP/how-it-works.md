@@ -14,7 +14,7 @@ PR が変更した箇所だけでなく、その周辺のロジックもスコ�
 flowchart LR
   A["/open-pr:review URL<br/>(2 回目以降)"] --> B[各スレッドを読み直す<br/>過去の指摘 vs 現在のコード]
   B --> C{修正済み?}
-  C -- はい --> D["そのスレッドに確認の返信<br/>· 設定を有効にしていれば resolve"]
+  C -- はい --> D["そのスレッドに確認の返信<br/>· スレッドで既に述べられていれば何もしない<br/>· 設定を有効にしていればどちらでも resolve"]
   C -- まだ --> E["開いているスレッドはそのまま<br/>再掲しない、重複指摘も作らない"]
   B --> F{スレッド内で<br/>規約が固まった?}
   F -- はい --> G["まずあなたに確認<br/>→ リポジトリの memory に記録"]
@@ -60,6 +60,8 @@ flowchart LR
 /open-pr:review https://github.com/org/repo/pull/123 [指示]
 /open-pr:fix    https://github.com/org/repo/pull/123 [指示]
 ```
+
+1 つのコマンドに PR URL を複数渡すと、それぞれを最後まで処理してから次に進みます。互いに持ち越すものはありません: worktree もコメントも別々です。`/open-pr:fix` はさらに、submodule の PR を、それを bump するメイン PR より先に処理し、PR ごとに commit します。
 
 リポジトリでの初回は短い質問をまとめて訊きます — PR に投稿する言語、即投稿かドラフトか、修正済みスレッドを自動 resolve するか、ドキュメントを読み直す間隔、大きすぎる PR / ファイルのしきい値 — そのうえで、すでにある規約を読みに行きます: README、CLAUDE.md、AGENTS.md、docs、wiki。
 

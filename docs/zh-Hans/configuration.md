@@ -56,6 +56,7 @@ cd ~/workspace
 | `shared.output_language` | 发布到 PR 上的语言 | 初次询问后保存 |
 | `review.auto_submit_review` | `true` = 立即发布，`false` = 先留给你过目 —— 平台有草稿功能时是 PR 上的草稿；Bitbucket 没有草稿，就留在聊天里，PR 上保持空白 | `false` |
 | `review.auto_resolve_fixed_findings` | finding 修好后自动 resolve 对应 thread | `false` |
+| `review.post_lgtm` | 没有任何 finding 的干净结果也发到 PR 上；`false` 则只在聊天里显示 | `true` |
 | `review.doctor_schedule` | 隔多久重读一次规范文档：`"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status` | 是否提及失败的 CI（只提醒，绝不要求你修） | 存在 CI ⇒ `true` |
 | `review.many_files_threshold` | PR 文件数超过这个值 ⇒ 提醒过大 | `30` |
