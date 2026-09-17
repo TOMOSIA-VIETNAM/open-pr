@@ -40,7 +40,7 @@ field means). `<vendor>` MUST be reconciled (`core/pr-target.md` §2) BEFORE the
 call fetches everything — `<op> context` with `--max-patch-bytes` = `big_file_threshold_kb` × 1024;
 its `## <label>` sections are what later Steps name. Any path "Diff size per file" lists that "Diff"
 lacks is an omitted file → carry to Step 7 as **"Oversized paths"**. "CI checks" stays unfiltered —
-Step 7 and `setup/bootstrap.md` q6 each read the raw list.
+Step 7 and `setup/bootstrap.md`'s `review_ci_status` question each read the raw list.
 
 **Filesystem:** `<op> locate-repo` → `<repo_dir>`; exit 5 → ask with a CHOICE in plain language —
 name the N directories found and why each might be it — STOP if unresolved. FORBIDDEN: `cd`.
@@ -242,6 +242,10 @@ non-empty, even under LGTM. Missing/empty → drop the
 heading, never write "none".
 
 ## Step 9 — Post (1 composite op, main PR)
+
+`.review.post_lgtm` is `false` && Step 8 shaped the LGTM one-liner ⇒ put NOTHING on the PR: print that
+exact line in chat instead, + 1 sentence saying this setting is why it was not posted, + the worktree
+path and `/open-pr:clean` as below, then STOP this Step. Every other body shape posts as usual.
 
 Write the payload — `core/cli.md`'s ONE shape, `<commit_id>` from Step 8 — with a file-writing tool.
 

@@ -56,6 +56,7 @@ Team rules go into `ALWAYS_RULE.md` as plain prose (empty by default). Everythin
 | `shared.output_language` | language posted on the PR | asked once, then kept |
 | `review.auto_submit_review` | `true` = post straight away, `false` = hold it for you to look over first — a draft on the PR where the vendor has drafts, and in the chat on Bitbucket, which has none, leaving the PR empty | `false` |
 | `review.auto_resolve_fixed_findings` | resolve a thread once its finding is fixed | `false` |
+| `review.post_lgtm` | post a clean review (nothing to report) on the PR; `false` keeps it in the chat only | `true` |
 | `review.doctor_schedule` | how often to re-read convention docs: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status` | whether to mention failing CI (warn only, never demand a fix) | CI present ⇒ `true` |
 | `review.many_files_threshold` | more files than this in a PR ⇒ warn that it's too large | `30` |

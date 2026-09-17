@@ -358,6 +358,7 @@ def test_settings_applies_read_time_defaults(tmp_path):
          "shared": {"output_language": "English"}}))
     out = json.loads(run("settings", "--repo", "demo", cwd=tmp_path, check=True).stdout)
     assert out["review"]["many_files_threshold"] == 30
+    assert out["review"]["post_lgtm"] is True, "a clean review is posted unless the repo opted out"
     assert out["fix"]["auto_push"] is False
     # jq's // operator treats an explicit false as absent — a stored false must
     # never flip to the true default, or fix declines without asking
@@ -365,6 +366,11 @@ def test_settings_applies_read_time_defaults(tmp_path):
         {"review": {"bootstrapped": True}, "fix": {"decline_needs_confirmation": False}}))
     flip = json.loads(run("settings", "--repo", "demo", cwd=tmp_path, check=True).stdout)
     assert flip["fix"]["decline_needs_confirmation"] is False, "explicit false flipped to true"
+    (d / "settings.json").write_text(json.dumps(
+        {"review": {"bootstrapped": True, "post_lgtm": False}}))
+    off = json.loads(run("settings", "--repo", "demo", cwd=tmp_path, check=True).stdout)
+    assert off["review"]["post_lgtm"] is False, \
+        "explicit false flipped to true — the repo would get the LGTM review it opted out of"
     (d / "settings.json").write_text(json.dumps(
         {"review": {"bootstrapped": True, "doctored": True, "doctor_schedule": "never"},
          "shared": {"output_language": "English"}}))

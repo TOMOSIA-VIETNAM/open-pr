@@ -24,8 +24,8 @@ user runs `/open-pr:upgrade` once, then re-invokes. Bootstrapping over it re-ask
 
 ## 2. Ask — 1 batch, every option pre-marked with the default below
 
-q6 is conditional ⇒ 7 or 8 questions. The choice-Q&A feature caps questions per call ⇒ split into
-SEQUENTIAL calls (q1-4, then the rest), finishing one before the next.
+q7 is conditional ⇒ 8 or 9 questions. The choice-Q&A feature caps questions per call ⇒ split into
+SEQUENTIAL calls of at most 4 (q1-4, then q5-8, then the rest), finishing one before the next.
 
 | # | field | values | default |
 |---|---|---|---|
@@ -33,16 +33,17 @@ SEQUENTIAL calls (q1-4, then the rest), finishing one before the next.
 | 2 | `output_language` | the language findings/replies get POSTED in — offer per `cases/language-choice.md` | that file's own |
 | 3 | `auto_submit_review` | `true` = published when the run ends; `false` = seen by you alone, in this vendor's draft or — where it has none — in THIS CHAT. FORBIDDEN: promising a draft ON the PR without knowing this vendor has them | `false` |
 | 4 | `auto_resolve_fixed_findings` | true/false | `false` |
-| 5 | `doctor_schedule` | `{N} days`\|`{N} weeks`\|`{N} months`\|`never` | `"1 months"` |
-| 6 | `review_ci_status` | true/false — ASK ONLY WHEN this PR's "CI checks" array is non-empty (≥1 check ⇒ CI configured). Empty → skip the question, write `false`, no explanation needed | `true` |
-| 7 | `many_files_threshold` | file count above which review strategy gets asked first | `30` |
-| 8 | `big_file_threshold_kb` | per-file diff KB above which it counts as a large/dump file | `20` |
+| 5 | `post_lgtm` | true/false — `true` posts a clean review (no finding at all) on the PR as a review of its own; `false` keeps that one case in chat and puts nothing on the PR | `true` |
+| 6 | `doctor_schedule` | `{N} days`\|`{N} weeks`\|`{N} months`\|`never` | `"1 months"` |
+| 7 | `review_ci_status` | true/false — ASK ONLY WHEN this PR's "CI checks" array is non-empty (≥1 check ⇒ CI configured). Empty → skip the question, write `false`, no explanation needed | `true` |
+| 8 | `many_files_threshold` | file count above which review strategy gets asked first | `30` |
+| 9 | `big_file_threshold_kb` | per-file diff KB above which it counts as a large/dump file | `20` |
 
 ## 3. Write `settings.json`
 
 `schema_version` per `core/repo-settings.md` "Fresh file". Then:
 
-- `.review` ← `"bootstrapped": true` + q3-q8, plus `_comments.doctor_schedule` = a hint string
+- `.review` ← `"bootstrapped": true` + q3-q9, plus `_comments.doctor_schedule` = a hint string
   listing the valid `doctor_schedule` values for whoever edits the file by hand (ignored at run
   time, `reference/settings-schema.md`).
 - `.shared` ← `"git_remote_type"` = q1 (a value always exists: the reused guess or the user's pick —
