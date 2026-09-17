@@ -82,6 +82,7 @@ ROLES = {
     "case-large-diff": ["cases/large-diff-guards.md"],
     "case-pr-template": ["cases/pr-template-checklist.md"],
     "case-submodule": ["cases/submodule-review.md"],
+    "case-multi-pr-fix": ["cases/multi-pr-fix.md"],
     "tpl-rails": ["templates/rails.md"],
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
@@ -152,6 +153,12 @@ SCENARIOS = {
     "fix/known-repo-github": [
         "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
         "marker-logic", "criteria", "always-rule", "tpl-rails",
+    ],
+    # a main PR + its submodule PR handed to one fix run: the case file loads once,
+    # then each PR runs the command alone — this is the cost of the ONE run that reads it
+    "fix/multi-pr-submodule": [
+        "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
+        "marker-logic", "case-multi-pr-fix", "criteria", "always-rule", "tpl-rails",
     ],
     "fix/first-run-gitlab": [
         "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-thread",

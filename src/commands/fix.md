@@ -1,5 +1,5 @@
 ---
-argument-hint: "[PR URL] [content]"
+argument-hint: "[PR URL] [other PR URL...] [content]"
 description: Act on the findings a review left on a PR — takes or declines each by severity, edits code at pwd to match the project, 1 commit, replies once pushed.
 ---
 
@@ -33,6 +33,11 @@ Example with instructions: /open-pr:fix https://github.com/org/repo/pull/123 onl
 ```
 
 Free-form text outside the URL narrows this run's scope (Step 3 item 3).
+
+**≥2 valid PR URLs** → `<op> target` EACH, then `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/cases/multi-pr-fix.md` — it classifies how they relate, confirms the list
+with the dev and sets the run order. FORBIDDEN: acting on the first URL alone, or folding 2 PRs into
+1 run.
 
 No URL → take the PR THIS session already establishes (its review ran here, the user named it, pwd is
 its worktree), say which in 1 short sentence, continue. NOT exactly 1 ⇒ the `Usage:` block. FORBIDDEN:
@@ -107,6 +112,11 @@ touching any file, proceeding to Step 2.
    part"), no rigid syntax.
 4. Both lists empty after filtering → say so in 1 short sentence, STOP CLEANLY.
 
+Matching is ONE pass over the Context already fetched. FORBIDDEN: re-`Read`ing
+`core/finding-markers.md`, re-running `<op> context`, or re-opening a finding's comment or scratch
+file to double-check a marker. Still ambiguous when that pass ends ⇒ Step 6 asks the dev, never
+another lookup.
+
 ## Step 4 — Read the project's convention
 
 `<memory-dir>` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at Step 7.
@@ -118,7 +128,8 @@ whose file doesn't exist yet → skip it; FORBIDDEN: creating one here (`setup/t
 
 ## Step 5 — Decide on each finding
 
-- **LINE-level**: read the original finding + EVERY reply on THAT EXACT thread. A CLEAR human reply
+- **LINE-level**: read the original finding + EVERY reply on THAT EXACT thread, off the Context
+  already fetched, in the single pass Step 3 names. A CLEAR human reply
   already settling it (leave as-is / no fix needed / intended behaviour) → skip that finding ENTIRELY.
   FORBIDDEN: asking again, or fixing over an existing decision.
 - **FILE-level**: no thread to read (Step 3 item 2) → skip the branch above, rest applies normally.
