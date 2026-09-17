@@ -139,6 +139,15 @@
       "upgrade": 2159,
       "clean": 1245,
       "feedback": 2083
+    },
+    {
+      "tag": "v2.0.2",
+      "date": "2026-09-17",
+      "review": 9134,
+      "fix": 7769,
+      "upgrade": 2243,
+      "clean": 1329,
+      "feedback": 2167
     }
   ]
 }
