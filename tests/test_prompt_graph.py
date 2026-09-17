@@ -544,6 +544,24 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
         "both ways out of an inconclusive Grep must stay closed"
 
 
+def test_a_clean_review_can_be_kept_off_the_pr():
+    """`post_lgtm` is the one setting that decides whether something reaches the PR at all,
+    so the gate has to sit where the posting happens and name the single body it covers —
+    a finding of any kind still posts. The re-review early-stop row reaches Step 9 for the
+    same one-liner and must defer to the gate rather than carry a second copy of it."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "`.review.post_lgtm` is `false` && Step 8 shaped the LGTM one-liner ⇒ put NOTHING on the PR" \
+        in flat, "the gate must name the setting and the one body shape it covers"
+    assert "print that exact line in chat instead, + 1 sentence saying this setting is why it was " \
+        "not posted" in flat, "the user must still see the result, and why the PR did not"
+    assert "Every other body shape posts as usual" in flat, \
+        "the setting must not reach a review that carries findings"
+
+    rr = " ".join(text(SRC / "cases" / "re-review.md").split())
+    assert "Whether that lands on the PR or in chat is Step 9's `post_lgtm` gate" in rr, \
+        "the early-stop row must defer to the gate, not restate it"
+
+
 def test_chat_does_not_repeat_the_posted_findings():
     """The finding text is on the PR. Restating it in chat doubles the output for a reader
     who already has the better copy."""

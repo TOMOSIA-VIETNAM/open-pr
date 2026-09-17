@@ -56,6 +56,7 @@ cd ~/workspace
 | `shared.output_language` | PR に投稿する言語 | 初回に質問して保存 |
 | `review.auto_submit_review` | `true` = すぐ投稿、`false` = 先に確認できるよう保留 — ドラフトがあるベンダーでは PR 上のドラフト、ドラフトのない Bitbucket ではチャット内に留まり PR は空のまま | `false` |
 | `review.auto_resolve_fixed_findings` | 指摘が修正されたらスレッドを自動 resolve | `false` |
+| `review.post_lgtm` | 指摘が 1 件もない結果を PR に投稿する。`false` ならチャットに表示するだけ | `true` |
 | `review.doctor_schedule` | 規約ドキュメントを読み直す間隔: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status` | CI が失敗している場合に触れるか（警告のみ、修正は強制しない） | CI あり ⇒ `true` |
 | `review.many_files_threshold` | この数を超えるファイル数の PR は大きすぎると警告 | `30` |

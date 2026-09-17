@@ -626,6 +626,8 @@ cmd_settings() {
             review: ((.review // {}) + {
                 auto_submit_review: (.review.auto_submit_review // false),
                 auto_resolve_fixed_findings: (.review.auto_resolve_fixed_findings // false),
+                # has(), not //, for the same reason decline_needs_confirmation below states
+                post_lgtm: (if (.review // {}) | has("post_lgtm") then .review.post_lgtm else true end),
                 doctor_schedule: (.review.doctor_schedule // "1 months"),
                 many_files_threshold: (.review.many_files_threshold // 30),
                 big_file_threshold_kb: (.review.big_file_threshold_kb // 20),

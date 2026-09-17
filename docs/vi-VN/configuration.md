@@ -56,6 +56,7 @@ Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định
 | `shared.output_language` | ngôn ngữ post lên PR | hỏi một lần rồi lưu |
 | `review.auto_submit_review` | `true` = post luôn, `false` = giữ lại cho bạn xem trước — dạng draft trên PR ở vendor có draft, còn Bitbucket không có draft nên review nằm trong chat và PR vẫn trống | `false` |
 | `review.auto_resolve_fixed_findings` | tự resolve thread khi finding đã được sửa | `false` |
+| `review.post_lgtm` | post kết quả sạch (không có finding nào) lên PR; `false` thì chỉ hiện trong chat | `true` |
 | `review.doctor_schedule` | chu kỳ đọc lại docs quy ước: `"{N} days"` \| `"{N} weeks"` \| `"{N} months"` \| `"never"` | `"1 months"` |
 | `review.review_ci_status` | có nhắc CI đang fail không (chỉ warn, không bắt sửa) | có CI ⇒ `true` |
 | `review.many_files_threshold` | PR nhiều hơn bấy nhiêu file thì cảnh báo quá lớn | `30` |

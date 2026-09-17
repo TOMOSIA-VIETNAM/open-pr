@@ -243,6 +243,10 @@ heading, never write "none".
 
 ## Step 9 — Post (1 composite op, main PR)
 
+`.review.post_lgtm` is `false` && Step 8 shaped the LGTM one-liner ⇒ put NOTHING on the PR: print that
+exact line in chat instead, + 1 sentence saying this setting is why it was not posted, + the worktree
+path and `/open-pr:clean` as below, then STOP this Step. Every other body shape posts as usual.
+
 Write the payload — `core/cli.md`'s ONE shape, `<commit_id>` from Step 8 — with a file-writing tool.
 
 Every `line` CONFIRMED first: `<op> verify-line` per LINE finding prints the line's REAL content —
