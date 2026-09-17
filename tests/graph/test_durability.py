@@ -1,8 +1,24 @@
-"""The files themselves: no dangling lifetime, no leaked English, no emoji a terminal splits."""
+"""The files themselves: no dangling lifetime, no leaked English, no emoji a terminal splits.
+
+The suite's own files are here too — what keeps a two-level tests/ tree collectable is a
+naming rule, and a rule nothing checks is a rule the next contributor breaks.
+"""
 
 import re
 
-from _common import SEVERITY_HEADINGS, SRC, VENDORS, NEVER_LOADED, md_files, rel, text, all_text, cli_text
+from _common import (SEVERITY_HEADINGS, SRC, TESTS, VENDORS, NEVER_LOADED,
+                     md_files, rel, text, all_text, cli_text)
+
+
+def test_test_file_basenames_stay_unique():
+    """tests/graph/ carries no __init__.py, so pytest imports each test file under its bare
+    basename. Two files sharing one name anywhere under tests/ is not one broken file — the
+    import collides and collection aborts for the WHOLE suite, with a hint about .pyc files
+    that points nowhere near the cause. Adding __init__.py is not the alternative: the
+    package directory then stops reaching sys.path and every `from _common import …` breaks."""
+    names = [p.name for p in TESTS.rglob("test_*.py")]
+    dupes = sorted({n for n in names if names.count(n) > 1})
+    assert not dupes, f"duplicate test-file basenames: {dupes}"
 
 
 EPHEMERAL = [
@@ -79,6 +95,16 @@ def test_review_writes_at_the_invocation_directory():
     assert 'target="$PWD/notebooks/review/' in body, "the worktree must root at the invocation directory"
     locate = re.search(r"^cmd_locate_repo\(\) \{\n(.*?)^\}", body, re.M | re.S).group(1)
     assert "cd " not in locate, "locate-repo decides for its callers; it must not cd"
+
+
+def test_fix_reuses_what_the_session_already_established():
+    """#123: run from a side worktree, fix re-asked the bootstrap CHOICE and offered only a
+    fresh checkout although the same session had the repo's memory and a gated checkout in
+    hand. Session knowledge comes first in both places; the gate still judges the tree."""
+    flat = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "the one THIS session already established for `<repo>`" in flat
+    assert "A checkout THIS session already established that prefix-matches" in flat
+    assert "probes beside the repo's main worktree" in flat
 
 
 def test_fix_reads_the_memory_review_wrote():
