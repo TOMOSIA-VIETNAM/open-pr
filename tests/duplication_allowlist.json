@@ -1,5 +1,5 @@
 {
-  "_note": "Cross-file duplication that is accepted. Every entry needs a reason; an unexplained entry means a rule has two owners. Regenerate a sha with tests/test_prompt_graph.py's reporter.",
+  "_note": "Cross-file duplication that is accepted. Every entry needs a reason; an unexplained entry means a rule has two owners. Regenerate a sha with tests/graph/test_single_source.py's reporter.",
   "approved": [
     {
       "sha": "21b1e62f9627",

@@ -33,7 +33,8 @@ skills/           one shim per command (Cursor · Codex · Gemini · Antigravity
 commands/*.toml   Gemini CLI entry format
 install.sh        non-Claude install: clone → install-local.sh
 scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · hooks · install-local.sh
-tests/            test_prompt_graph.py · budgets.json · duplication_allowlist.json · ordered_repeats.json
+tests/            graph/ (one file per invariant family) · test_cli.py · budgets.json
+                  duplication_allowlist.json · ordered_repeats.json
 e2e/              real-run fixture; never in CI
 .claude/skills/   dev skills (`e2e-loop`)
 .github/workflows ci.yml on PRs and main · hol-plugin-scanner.yml read by the listing gate
