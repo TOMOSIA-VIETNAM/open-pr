@@ -316,6 +316,47 @@ def test_the_marker_literal_belongs_to_the_script():
     assert not bad, f"a marker literal outside the script: {bad}"
 
 
+def test_a_reply_marker_does_not_mean_the_finding_is_settled():
+    """One account runs both commands, so the fix command's "done" reply and a review
+    confirmation are the same bytes. Reading the marker as "already handled" swallowed the
+    confirmation on every thread the fix command had answered — including partly fixed ones,
+    which then read as settled."""
+    flat = " ".join(text(SRC / "core" / "finding-markers.md").split())
+    assert "the bot has replied in that thread before" in flat, \
+        "the marker may claim only that a reply exists"
+    assert "It does NOT say the finding is settled" in flat, \
+        "the marker must no longer stand for handled work"
+    assert "judged from the CURRENT code plus what the thread's replies SAY" in flat, \
+        "what settles a finding must be the code and the thread's words, not the marker"
+
+
+def test_re_review_reads_a_confirmation_out_of_the_thread_text():
+    """With the marker demoted, the words in the thread are the only thing that can hold a
+    confirmation back: one already posted (by anyone), or a human deciding to leave the code
+    as it is. Both silences must be content-driven, and both must be reachable without
+    fetching anything the run does not already hold."""
+    flat = " ".join(text(SRC / "cases" / "re-review.md").split())
+    assert "what a reply SAYS decides, never who wrote it, never its marker" in flat, \
+        "authorship and marker must not decide whether a finding is settled"
+    assert 'already in "Old comments" — fetch nothing more' in flat, \
+        "the thread text is on hand already; reading it must cost no extra call"
+    assert "**Fixed, and a reply already says so** → do NOTHING to the thread" in flat
+    assert "FORBIDDEN: a second confirmation" in flat, \
+        "double-confirming is what the demoted marker no longer prevents"
+    assert "**A human settled it**" in flat, \
+        "a human's leave-as-is call must survive the code check"
+    assert "**Fixed, and no reply says so yet** → reply on THAT EXACT thread" in flat, \
+        "the confirming reply must still be posted when nothing in the thread says it"
+
+
+def test_fix_still_stops_on_its_own_earlier_reply():
+    """Demoting the marker is about confirmations, not about the fix command redoing work it
+    already answered — there, a reply of this plugin's in the thread still drops the finding."""
+    flat = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "that same thread already carries a reply from this plugin" in flat, \
+        "fix must keep dropping a finding it has answered once"
+
+
 def _axis_names(body):
     return {int(m.group(1)): m.group(2).strip()
             for m in re.finditer(r"^#### (\d)\. (.+)$", body, re.M)}
