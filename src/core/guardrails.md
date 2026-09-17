@@ -22,3 +22,6 @@ specific to what IT may touch; nothing below is repeated there.
   an unanticipated one: the defined default, or the safer/more common choice; genuinely tied ⇒ blank.
 - **Independent calls go in 1 tool block** — the `Read`s one Step names. One at a time only where a
   Step names an order or needs an earlier call's output.
+- **The same action twice with nothing gained is a stall.** A `Read`/`Grep`/fetch over material
+  ALREADY in context returns what the first one returned ⇒ STOP, name what stayed unresolved, ASK.
+  FORBIDDEN: a lookup as the way out of an ambiguity — that is a question for the user.

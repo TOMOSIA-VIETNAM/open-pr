@@ -61,6 +61,8 @@ flowchart LR
 /open-pr:fix    https://github.com/org/repo/pull/123 [附加说明]
 ```
 
+把多个 PR URL 交给同一条命令，每一个都会完整跑完再轮到下一个 —— submodule 的 PR 在前，bump 它的主 PR 在后。彼此之间不传递任何东西：各自的 worktree、各自的评论、各自的 commit。
+
 仓库第一次运行时会问一小批问题 —— 发布到 PR 上用什么语言、立即发布还是先留草稿、修好的 thread 要不要自动 resolve、隔多久重读一次文档、PR / 文件多大算过大 —— 然后读取已有的规范：README、CLAUDE.md、AGENTS.md、docs、wiki。
 
 ## 在其他平台上的同一套评审

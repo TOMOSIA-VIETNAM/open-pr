@@ -61,6 +61,8 @@ Commands run only when you type them. Submodules are covered. Extra words after 
 /open-pr:fix    https://github.com/org/repo/pull/123 [instructions]
 ```
 
+Hand several PR URLs to one command and each one is worked through in full before the next starts — a submodule PR ahead of the main PR that bumps it. Nothing carries over between them: own worktree, own comments, own commit.
+
 The first run in a repo asks a short batch of questions — the language to post on the PR, post immediately or keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large PR / file thresholds — then reads the conventions already there: README, CLAUDE.md, AGENTS.md, docs, wiki.
 
 ## Same review on other platforms

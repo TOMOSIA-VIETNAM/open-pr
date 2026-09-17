@@ -498,6 +498,59 @@ def test_fix_reads_the_memory_review_wrote():
     assert "run FROM the invocation directory so the worktree lands under `<memory-dir>`" in flat
 
 
+def test_fix_matches_findings_in_one_pass():
+    """Re-reading the marker rules and the findings to "double-check" a match is what burned
+    110 requests in 13 minutes on a single run: the data never changes between passes, so the
+    second lookup answers exactly what the first did and there is no natural end to the loop.
+    The only way out of an ambiguous match is the question Step 6 already asks."""
+    flat = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "Matching is ONE pass over the Context already fetched" in flat, \
+        "the matching pass has to be bounded to the data already in context"
+    assert re.search(r"FORBIDDEN: re-`Read`ing `core/finding-markers\.md`, re-running `<op> context`",
+                     flat), "both re-reads that fed the loop must be named as forbidden"
+    assert "Still ambiguous when that pass ends ⇒ Step 6 asks the dev, never another lookup" in flat, \
+        "an unresolved match must become a question, not a retry"
+    assert "in the single pass Step 3 names" in flat, \
+        "Step 5 reads the same threads; it must be bound to that one pass too"
+
+
+def test_repeating_an_action_with_nothing_gained_stops_the_run():
+    """Every command can stall the same way, so the escape lives once, in the shared rules,
+    and names the exit: stop, say what is unresolved, ask."""
+    flat = " ".join(text(SRC / "core" / "guardrails.md").split())
+    assert "The same action twice with nothing gained is a stall" in flat
+    assert "STOP, name what stayed unresolved, ASK" in flat, \
+        "the rule must state what to do instead of repeating"
+    assert "FORBIDDEN: a lookup as the way out of an ambiguity" in flat, \
+        "an ambiguity resolved by another lookup is the loop itself"
+
+
+def test_several_prs_in_one_fix_run_stay_separate():
+    """One `/open-pr:fix` invocation can be handed a main PR and its submodule PR. Matching one
+    repo's findings against the other's comments never converges, so each PR gets its own whole
+    run, and the relation that decides the order is verified against `.gitmodules` rather than
+    taken from a body anyone can write."""
+    fix = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "**≥2 valid PR URLs**" in fix and "cases/multi-pr-fix.md" in fix, \
+        "fix.md must route a multi-URL invocation to the case file"
+
+    case = " ".join(text(SRC / "cases" / "multi-pr-fix.md").split())
+    assert "only when BOTH hold" in case, \
+        "a body link alone must not establish the parent-submodule relation"
+    assert "`.gitmodules` carrying a `[submodule \"…\"]` section whose `url` names that same" in case, \
+        "the relation must be verified against the parent's own .gitmodules"
+    assert "the SUBMODULE PR runs FIRST" in case, \
+        "the parent's fix can depend on what the submodule pass wrote"
+    assert "Step 0 → Step 11 to COMPLETION before the next one begins" in case, \
+        "each PR needs a whole run, not a shared pass"
+    assert re.search(r"FORBIDDEN: parallel runs, a subagent, or carrying another PR's findings",
+                     case), "the runs must not share findings, comments, worktree or settings"
+    assert "Step 3 matches markers against THIS PR's \"Old comments\" and nothing else" in case, \
+        "marker matching is per-PR; two repos in one pass is the loop"
+    assert "bumping the parent's submodule pointer to it is the dev's call" in case, \
+        "fix commits only what it edited — the pointer bump is handed back"
+
+
 def test_the_fix_snippet_is_reviewed_like_the_diff():
     """The snippet in a finding is the one piece of code in the loop no criteria covered —
     a dev applies the fence as written, so a wrong snippet lands and only the NEXT round
