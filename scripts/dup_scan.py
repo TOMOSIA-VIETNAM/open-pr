@@ -21,7 +21,7 @@ Usage:
     python3 scripts/dup_scan.py --min-waste 40      # only blocks worth the edit
     python3 scripts/dup_scan.py --json out.json
 
-`tests/test_prompt_graph.py` imports `scan()` from here, so the gate and this tool
+`tests/graph/test_single_source.py` imports `scan()` from here, so the gate and this tool
 can never disagree.
 """
 

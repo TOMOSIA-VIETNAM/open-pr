@@ -43,17 +43,13 @@ AI コーディングで PR は速くなりました。でもレビューは速�
 
 1 回の実行で、結びついた 3 つの要素が出ます: **overview**、**行コメント**（suggested change 付き）、そして `/open-pr:fix` が push したあとの **返信**。 — [デモを見る](./docs/ja-JP/demo.md)
 
-- 🔍 **1 回の実行でちょうど 1 件のレビュー** — bot コメントの垂れ流しではありません
-- 🧠 **リポジトリを学ぶ** — README / CLAUDE.md / AGENTS.md / docs / wiki を読み、**チームのルールが汎用ルールに優先**
-- 💬 **チームが言ったことを記憶** — ある PR での指摘が、次の実行に引き継がれます
-- 🔧 **`/open-pr:fix` は規律を守る** — ちょうど **1** コミット、force-push なし、スレッドごとに返信
-- 🔓 **オープンソース、`open-pr` のサービス不要** — MIT ライセンス。`open-pr` のサーバーも bot アカウントも不要で、いま使っている agent CLI 上で動きます
+- **1 回の実行でちょうど 1 件のレビュー** — bot コメントの垂れ流しではありません
+- **リポジトリを学ぶ** — README / CLAUDE.md / AGENTS.md / docs / wiki を読み、**チームのルールが汎用ルールに優先**
+- **チームが言ったことを記憶** — ある PR での指摘が、次の実行に引き継がれます
+- **`/open-pr:fix` は規律を守る** — ちょうど **1** コミット、force-push なし、スレッドごとに返信
+- **オープンソース、`open-pr` のサービス不要** — MIT ライセンス。`open-pr` のサーバーも bot アカウントも不要で、いま使っている agent CLI 上で動きます
 
-## Awesome AI Plugins に掲載されています
-
-`open-pr` は、Hashgraph Online がキュレーションするクロスプラットフォームのカタログ [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) の *Community Plugins → Development & Workflow* に掲載され、[HOL Plugin Registry](https://hol.org/registry/plugins) に取り込まれています。レジストリは掲載された全プロジェクトをスキャンし、trust score を公開します。
-
-掲載の条件はそのスキャン結果です: **score 80 以上、high / critical の finding なし**。スキャンはカタログ側が、このリポジトリのデフォルトブランチに対して自ら実行するもので、当方の自己申告ではありません。スキャンは信頼の目安であって、安全の保証ではありません。
+[Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) に掲載。掲載の条件はカタログ側がこのリポジトリに対して自ら実行するスキャン — score 80 以上、high / critical の finding なし。スキャンは信頼の目安であって、安全の保証ではありません。
 
 ## インストール
 
