@@ -92,7 +92,7 @@ Open `~/.zshrc` (zsh, the macOS default) or `~/.bashrc` (bash) in an editor and 
 
 ```bash
 export BITBUCKET_EMAIL="you@company.com"
-export BITBUCKET_API_TOKEN="the-token-you-copied"
+export BITBUCKET_API_TOKEN="<your-api-token>"
 ```
 
 Reload and check:
@@ -110,7 +110,7 @@ Use an editor, not `echo ... >> ~/.zshrc` — that leaves the token in `~/.zsh_h
 {
   "env": {
     "BITBUCKET_EMAIL": "you@company.com",
-    "BITBUCKET_API_TOKEN": "the-token-you-copied"
+    "BITBUCKET_API_TOKEN": "<your-api-token>"
   }
 }
 ```
