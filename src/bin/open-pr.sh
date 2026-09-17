@@ -608,8 +608,10 @@ cmd_settings() {
     # MAIN worktree (and its parent workspace) before declaring memory absent.
     if [ ! -s "$f" ] && [ -n "$(arg repo_dir)" ] && [ -n "$(arg repo)" ]; then
         common=$(git -C "$(arg repo_dir)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || common=""
+        common=${common:-$(arg repo_dir)/.git}   # not a git tree: stay beside repo_dir, never cwd
         main_wt=$(dirname "$common")
-        for cand in "$main_wt/notebooks/review/$(arg repo)" "$(dirname "$main_wt")/notebooks/review/$(arg repo)"; do
+        # parent workspace FIRST: the in-repo copy is the drifting one fix.md forbids
+        for cand in "$(dirname "$main_wt")/notebooks/review/$(arg repo)" "$main_wt/notebooks/review/$(arg repo)"; do
             [ -s "$cand/settings.json" ] && { f="$cand/settings.json"; break; }
         done
     fi

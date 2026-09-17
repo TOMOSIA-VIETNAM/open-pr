@@ -57,9 +57,9 @@ remote + current branch": `git remote -v` && `git branch --show-current` — pwd
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
 **1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → ask with a CHOICE in plain language, STOP if
-unresolved). `<memory-dir>`, first match wins: the one THIS session already established for `<repo>`
+unresolved). `<memory-dir>`: the one THIS session already established for `<repo>`
 (a review or fix ran here) — reuse it, ask nothing; else `notebooks/review/<repo>` at THIS invocation
-directory, ABSOLUTE; `<repo_dir>` = a `review` worktree
+directory, ABSOLUTE — unless `<repo_dir>` is a `review` worktree
 (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ its `../../`. FORBIDDEN: resolving memory inside
 `<repo_dir>` — a repo that is a subdirectory of the workspace grows a second, drifting copy. Then
 `cd` into `<repo_dir>` — this command EDITS that repo's files ⇒ works from inside.
