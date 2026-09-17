@@ -14,7 +14,7 @@ If you're still in the same chat session, type `/open-pr:review` again on the sa
 flowchart LR
   A["/open-pr:review URL<br/>(2nd run onward)"] --> B[Re-read each thread<br/>old finding vs current code]
   B --> C{Fixed?}
-  C -- yes --> D["Confirm on that exact thread<br/>· resolve if you enabled it<br/>· quiet if the thread already settled it"]
+  C -- yes --> D["Confirm on that exact thread<br/>· quiet if the thread already says so<br/>· resolve either way if you enabled it"]
   C -- not yet --> E["Leave the open thread alone<br/>no repeat, no duplicate finding"]
   B --> F{Thread settled<br/>on a convention?}
   F -- yes --> G["Asks you first<br/>→ writes it into the repo's memory"]

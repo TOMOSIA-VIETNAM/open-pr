@@ -14,7 +14,7 @@
 flowchart LR
   A["/open-pr:review URL<br/>(第 2 次及以后)"] --> B[重读每个 thread<br/>旧 finding 对照当前代码]
   B --> C{修好了吗?}
-  C -- 是 --> D["在那个 thread 上确认<br/>· 若你启用了则 resolve<br/>· thread 里已有结论则保持沉默"]
+  C -- 是 --> D["在那个 thread 上确认<br/>· thread 里已有结论则保持沉默<br/>· 启用了的话两种情况都 resolve"]
   C -- 还没有 --> E["未关闭的 thread 保持原样<br/>不重复、不产生重复 finding"]
   B --> F{thread 上定下了<br/>某条规范吗?}
   F -- 是 --> G["先问过你<br/>→ 写进仓库的 memory"]

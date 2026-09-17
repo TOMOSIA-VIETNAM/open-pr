@@ -22,9 +22,10 @@ Both sections below work off the SAME "Old comments" data — not independent.
    `<worktree>/<path>`, NOT the path at pwd — judging by actually reading it, no rigid rule. Read the
    thread's replies too (already in "Old comments" — fetch nothing more): what a reply SAYS decides,
    never who wrote it, never its marker.
-   - **A human settled it** (intended, out of scope, agreed won't-fix) → do NOTHING to the thread,
-     count it closed, whatever the code shows. Their call stands.
-   - **Fixed, and a reply already says so** → do NOTHING to the thread, count it closed. FORBIDDEN:
+   - **A reply settles it** (intended, out of scope, agreed won't-fix) → do NOTHING, count it closed,
+     whatever the code shows.
+   - **Fixed, and a reply already says so** → count it closed; `auto_resolve_fixed_findings` `true` ⇒
+     `<op> resolve` (`--thread-id` as below) — the reply resolve requires is already there. FORBIDDEN:
      a second confirmation — that reply may be the fix command's own, same marker.
    - **Fixed, and no reply says so yet** → reply on THAT EXACT thread via `<op> reply --kind line`
      (body in a file): 1 short confirmation sentence in the output language ("Confirmed fixed,

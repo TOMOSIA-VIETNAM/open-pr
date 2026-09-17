@@ -340,11 +340,13 @@ def test_re_review_reads_a_confirmation_out_of_the_thread_text():
         "authorship and marker must not decide whether a finding is settled"
     assert 'already in "Old comments" — fetch nothing more' in flat, \
         "the thread text is on hand already; reading it must cost no extra call"
-    assert "**Fixed, and a reply already says so** → do NOTHING to the thread" in flat
+    assert "**Fixed, and a reply already says so** → count it closed" in flat
     assert "FORBIDDEN: a second confirmation" in flat, \
         "double-confirming is what the demoted marker no longer prevents"
-    assert "**A human settled it**" in flat, \
-        "a human's leave-as-is call must survive the code check"
+    assert "`auto_resolve_fixed_findings` `true` ⇒ `<op> resolve`" in flat, \
+        "silence must not cost the resolve the setting asks for — the reply it requires is there"
+    assert "**A reply settles it**" in flat, \
+        "a settling reply must survive the code check, and the branch is named by content"
     assert "**Fixed, and no reply says so yet** → reply on THAT EXACT thread" in flat, \
         "the confirming reply must still be posted when nothing in the thread says it"
 

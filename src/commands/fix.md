@@ -97,7 +97,7 @@ touching any file, proceeding to Step 2.
 
 1. **LINE-level** (from "Old comments") → drop a finding when EITHER holds: its `id` belongs to a
    thread in "Review threads" with `resolved: true`, || that same thread already carries a reply from
-   this plugin (`core/finding-markers.md`) — this command has answered it once, and re-answering is
+   this plugin (`core/finding-markers.md`) — either command may have written it, and re-answering is
    the duplicate.
 2. **FILE-level / OVERVIEW-level** (from "Reviews") → an individual bullet has no resolve concept and no
    readable reply history, so EVERY FILE-level finding in the most recent review is ALWAYS treated as
