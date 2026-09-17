@@ -392,6 +392,46 @@ def test_settings_applies_read_time_defaults(tmp_path):
     assert byd["shared"]["output_language"] == "English", "--dir did not read the real file"
 
 
+def test_settings_probes_beside_the_main_worktree(fixture_repo, tmp_path):
+    """Running fix from a linked git worktree resolves memory relative to that worktree,
+    finds nothing, and used to re-ask setup the session had already answered (#123). With
+    --repo-dir and --repo, a miss probes beside the repo's MAIN worktree and its parent
+    workspace — where review actually wrote the memory — before declaring it absent."""
+    clone = fixture_repo["clone"]           # workspace = its parent tmp dir
+    workspace = clone.parent
+    mem = workspace / "notebooks" / "review" / "r"
+    mem.mkdir(parents=True)
+    (mem / "settings.json").write_text(json.dumps(
+        {"review": {"bootstrapped": True}, "shared": {"output_language": "English"}}))
+    wt = tmp_path / "side-worktree"
+    subprocess.run(["git", "-C", str(clone), "worktree", "add", str(wt), "--detach"],
+                   capture_output=True, check=True)
+    miss_dir = wt / "notebooks" / "review" / "r"   # what invocation-relative resolution yields
+    out = json.loads(run("settings", "--dir", str(miss_dir), "--repo", "r",
+                         "--repo-dir", str(wt), cwd=wt, check=True).stdout)
+    assert out["memory_found"] is True, "the probe must find the workspace memory"
+    assert out["memory_dir"] == str(mem)
+    assert out["shared"]["output_language"] == "English"
+    # both copies exist -> the parent workspace wins: the in-repo copy is the
+    # drifting one fix.md forbids resolving
+    inrepo = clone / "notebooks" / "review" / "r"
+    inrepo.mkdir(parents=True)
+    (inrepo / "settings.json").write_text(json.dumps(
+        {"review": {"bootstrapped": True}, "shared": {"output_language": "IN-REPO"}}))
+    both = json.loads(run("settings", "--dir", str(miss_dir), "--repo", "r",
+                          "--repo-dir", str(wt), cwd=wt, check=True).stdout)
+    assert both["memory_dir"] == str(mem), "the workspace copy must win over the in-repo copy"
+    # --repo-dir that is no git tree must never fall back to probing the CWD
+    plain = tmp_path / "isolated" / "plain-dir"; plain.mkdir(parents=True)
+    ws_cwd = workspace  # cwd holds real memory a cwd-relative probe would wrongly find
+    nogit = json.loads(run("settings", "--dir", str(plain / "notebooks/review/r"), "--repo", "r",
+                           "--repo-dir", str(plain), cwd=ws_cwd, check=True).stdout)
+    assert nogit["memory_found"] is False, "a non-git --repo-dir probed the cwd"
+    # no probe args -> the old behaviour stands: a miss is a miss
+    bare = json.loads(run("settings", "--dir", str(miss_dir), cwd=wt, check=True).stdout)
+    assert bare["memory_found"] is False
+
+
 def test_stacks_maps_extensions_and_overlays(tmp_path):
     (tmp_path / "artisan").write_text("")
     r = run("stacks", "--repo-dir", str(tmp_path),
