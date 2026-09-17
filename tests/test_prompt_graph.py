@@ -530,6 +530,16 @@ def test_review_writes_at_the_invocation_directory():
     assert "cd " not in locate, "locate-repo decides for its callers; it must not cd"
 
 
+def test_fix_reuses_what_the_session_already_established():
+    """#123: run from a side worktree, fix re-asked the bootstrap CHOICE and offered only a
+    fresh checkout although the same session had the repo's memory and a gated checkout in
+    hand. Session knowledge comes first in both places; the gate still judges the tree."""
+    flat = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "the one THIS session already established for `<repo>`" in flat
+    assert "A checkout THIS session already established that prefix-matches" in flat
+    assert "probes beside the repo's main worktree" in flat
+
+
 def test_fix_reads_the_memory_review_wrote():
     """review.md writes notebooks/review/<repo> at ITS pwd (the invocation directory); fix.md
     cd's into the repo — resolving memory relative to the repo there grew a second, drifting

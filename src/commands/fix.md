@@ -57,8 +57,9 @@ remote + current branch": `git remote -v` && `git branch --show-current` — pwd
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
 **1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → ask with a CHOICE in plain language, STOP if
-unresolved). `<memory-dir>` = `notebooks/review/<repo>` at THIS invocation directory, ABSOLUTE — the
-place review.md writes from its own pwd; `<repo_dir>` = a `review` worktree
+unresolved). `<memory-dir>`, first match wins: the one THIS session already established for `<repo>`
+(a review or fix ran here) — reuse it, ask nothing; else `notebooks/review/<repo>` at THIS invocation
+directory, ABSOLUTE; `<repo_dir>` = a `review` worktree
 (`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ its `../../`. FORBIDDEN: resolving memory inside
 `<repo_dir>` — a repo that is a subdirectory of the workspace grows a second, drifting copy. Then
 `cd` into `<repo_dir>` — this command EDITS that repo's files ⇒ works from inside.
@@ -70,7 +71,9 @@ touching any file, proceeding to Step 2.
    in place — a matching name on a stale tip edits a tree the findings do not describe and the push
    cannot fast-forward. Else `<repo_dir>` = a review worktree whose `git rev-parse HEAD`
    prefix-matches "Head SHA" ⇒ fix there (DETACHED is normal). Anything else — wrong branch, stale
-   tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`:
+   tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`. A checkout THIS session already
+   established that prefix-matches "Head SHA" ⇒ `Use the session's checkout at <path> (Recommended)`
+   heads the options; else the recommendation is
    `Fix in a fresh worktree (Recommended)` — `<op> checkout`, run FROM the invocation directory so
    the worktree lands under `<memory-dir>`, gates it to "Head SHA"; the user's own branch/tree stays
    untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout yourself, printing:
@@ -88,7 +91,8 @@ touching any file, proceeding to Step 2.
 
 ## Step 2 — Settings
 
-`<op> settings --dir <memory-dir>` (`core/repo-settings.md` names what each field means). Resolve
+`<op> settings --dir <memory-dir> --repo <repo> --repo-dir <repo_dir>` (`core/repo-settings.md`
+names what each field means) — on a miss it probes beside the repo's main worktree itself. Resolve
 `chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again

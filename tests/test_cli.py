@@ -392,6 +392,31 @@ def test_settings_applies_read_time_defaults(tmp_path):
     assert byd["shared"]["output_language"] == "English", "--dir did not read the real file"
 
 
+def test_settings_probes_beside_the_main_worktree(fixture_repo, tmp_path):
+    """Running fix from a linked git worktree resolves memory relative to that worktree,
+    finds nothing, and used to re-ask setup the session had already answered (#123). With
+    --repo-dir and --repo, a miss probes beside the repo's MAIN worktree and its parent
+    workspace — where review actually wrote the memory — before declaring it absent."""
+    clone = fixture_repo["clone"]           # workspace = its parent tmp dir
+    workspace = clone.parent
+    mem = workspace / "notebooks" / "review" / "r"
+    mem.mkdir(parents=True)
+    (mem / "settings.json").write_text(json.dumps(
+        {"review": {"bootstrapped": True}, "shared": {"output_language": "English"}}))
+    wt = tmp_path / "side-worktree"
+    subprocess.run(["git", "-C", str(clone), "worktree", "add", str(wt), "--detach"],
+                   capture_output=True, check=True)
+    miss_dir = wt / "notebooks" / "review" / "r"   # what invocation-relative resolution yields
+    out = json.loads(run("settings", "--dir", str(miss_dir), "--repo", "r",
+                         "--repo-dir", str(wt), cwd=wt, check=True).stdout)
+    assert out["memory_found"] is True, "the probe must find the workspace memory"
+    assert out["memory_dir"] == str(mem)
+    assert out["shared"]["output_language"] == "English"
+    # no probe args -> the old behaviour stands: a miss is a miss
+    bare = json.loads(run("settings", "--dir", str(miss_dir), cwd=wt, check=True).stdout)
+    assert bare["memory_found"] is False
+
+
 def test_stacks_maps_extensions_and_overlays(tmp_path):
     (tmp_path / "artisan").write_text("")
     r = run("stacks", "--repo-dir", str(tmp_path),

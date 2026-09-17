@@ -603,6 +603,16 @@ cmd_settings() {
     # notebooks/review/<repo> would resolve inside the reviewed tree instead.
     d=$(arg dir)
     if [ -n "$d" ]; then f="$d/settings.json"; else f="notebooks/review/$(req repo)/settings.json"; fi
+    # A worktree or subdirectory invocation misses the memory the review created
+    # at its own workspace — with --repo-dir and --repo, probe beside the repo's
+    # MAIN worktree (and its parent workspace) before declaring memory absent.
+    if [ ! -s "$f" ] && [ -n "$(arg repo_dir)" ] && [ -n "$(arg repo)" ]; then
+        common=$(git -C "$(arg repo_dir)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || common=""
+        main_wt=$(dirname "$common")
+        for cand in "$main_wt/notebooks/review/$(arg repo)" "$(dirname "$main_wt")/notebooks/review/$(arg repo)"; do
+            [ -s "$cand/settings.json" ] && { f="$cand/settings.json"; break; }
+        done
+    fi
     # The caller must be able to tell "never bootstrapped" from "read from the
     # wrong directory" — the defaults for the two are byte-identical otherwise.
     mem_dir=$(cd "$(dirname "$f")" 2>/dev/null && pwd) || {
