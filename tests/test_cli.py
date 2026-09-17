@@ -371,6 +371,12 @@ def test_settings_applies_read_time_defaults(tmp_path):
     assert out["doctor_due"] is False, '"never" is never due on a schedule'
     fresh = json.loads(run("settings", "--repo", "ghost", cwd=tmp_path, check=True).stdout)
     assert fresh["doctor_due"] is True, "an unbootstrapped repo is always due"
+    # a wrong cwd must be distinguishable from a never-bootstrapped repo: the
+    # resolved directory and whether it existed ride along with the values
+    assert fresh["memory_found"] is False and fresh["memory_dir"].startswith(str(tmp_path)), \
+        "settings must say which directory it read and that nothing was there"
+    assert out["memory_found"] is True and out["memory_dir"] == str(d), \
+        "a real read reports the directory it found"
     # --dir reads the memory directory itself — the fix flow stands INSIDE a review
     # worktree, where a cwd-relative notebooks/review/<repo> resolves into the
     # reviewed tree and read defaults would silently re-trigger fix-bootstrap
