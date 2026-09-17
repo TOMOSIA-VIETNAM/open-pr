@@ -166,6 +166,8 @@ Mean tokens per run — covering both *happy-case* and *bad-case*:
 
 ---
 
+Listed in [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow), which gates the listing on its own scan of this repository — score ≥ 80, no high or critical finding. A scan is a trust signal, not a safety guarantee.
+
 Contributing? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 Enjoy reviewing 🥰

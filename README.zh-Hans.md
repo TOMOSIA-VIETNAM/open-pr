@@ -166,6 +166,8 @@ flowchart LR
 
 ---
 
+已收录于 [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow)；上榜门槛是目录方自己对本仓库跑的扫描 — score ≥ 80，无 high 或 critical 级别的 finding。扫描是信任信号，不是安全保证。
+
 想参与贡献？[CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 评审愉快 🥰

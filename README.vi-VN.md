@@ -166,6 +166,8 @@ Số token bình quân mỗi lần chạy — gồm cả *happy-case* và *bad-c
 
 ---
 
+Có mặt trong [Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow); danh sách này được gác bằng chính bản quét của họ trên repo này — score ≥ 80, không finding high hay critical. Một bản quét là tín hiệu tin cậy, không phải bảo đảm an toàn.
+
 Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 Enjoy reviewing 🥰

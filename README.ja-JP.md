@@ -166,6 +166,8 @@ flowchart LR
 
 ---
 
+[Awesome AI Plugins](https://github.com/hashgraph-online/awesome-ai-plugins#development--workflow) に掲載。掲載の条件はカタログ側がこのリポジトリに対して自ら実行するスキャン — score 80 以上、high / critical の finding なし。スキャンは信頼の目安であって、安全の保証ではありません。
+
 Contribute? [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 Enjoy reviewing 🥰
