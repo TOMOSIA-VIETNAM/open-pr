@@ -141,16 +141,14 @@ Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
   context the rest of the review pays for: spend where a finding turns on it, not from curiosity
 - the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
   paths" file is absent BY DESIGN; the guard above owns how it gets read
-- the diff is ONE change, not N independent files: ≥2 hunks touching the SAME function/symbol, or a
-  helper the diff edits that the diff also CALLS elsewhere → check those hunks AGAINST EACH OTHER
-  before concluding, silence included — a PR's later commit can contradict its earlier one, and each
-  hunk can look right alone. In-diff callers are already on hand; an out-of-diff caller is the `Grep`
-  rule below
+- the diff is ONE change, not N independent files: ≥2 hunks editing the SAME function, or one hunk
+  editing a definition another hunk CALLS → check those hunks AGAINST EACH OTHER before concluding,
+  silence included — a later commit can contradict an earlier one. Both triggers read off the diff
+  itself, never a symbol index of it; an out-of-diff caller is the `Grep` rule below
 - never read library source unless genuinely unsure
 - a conclusion that FLIPS on how a symbol outside the diff behaves — a caller of the new code, a
   capability it assumes — takes a `Grep` for that symbol under `<worktree>` BEFORE concluding, raise
-  and stay-silent alike; as many as flipping conclusions genuinely need, and `Grep` before `Read` —
-  the match list usually answers without paying for the file
+  and stay-silent alike; as many as flipping conclusions genuinely need, and `Grep` before `Read`
 - that `Grep` inconclusive ⇒ raise it at 🔵 naming the symbol + the assumption. FORBIDDEN: asserting
   the behaviour, or dropping it silently
 - never pad the count with trivia; there is no minimum N
@@ -170,9 +168,8 @@ A code fix is a fence on its own line, the label line then ending at `**<Fix>**`
 **The snippet is code entering the codebase — review it like the diff**: apply the same criteria to
 the fix you wrote — trace what runs once it is applied, confirm the path it replaces is actually gone
 and that it adds no new work or failure mode; a dev applies the fence as written. A fix touching code
-with OTHER CALLERS ⇒ the finding NAMES the callers it must keep working — a fix that regresses one
-costs the author a whole round. A snippet you cannot verify to that bar ⇒ state the DIRECTION in
-prose instead.
+with OTHER CALLERS ⇒ the finding NAMES the callers it must keep working. A snippet you cannot verify
+to that bar ⇒ state the DIRECTION in prose instead.
 
 `<marker>` = `<op> marker --kind finding`, verbatim, on its own line after a blank line; MUST end EVERY
 finding, FILE and LINE alike.
