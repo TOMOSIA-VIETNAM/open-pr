@@ -135,9 +135,10 @@ Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
 **Scope:**
 
 - in-scope first; a 📝 puts no pressure to fix and counts toward nothing
-- reading further at `<worktree>/<path>` is optional, but MUST use `Read`'s `offset`/`limit` around
-  the changed region (hunk header `@@` ± ~20-30 lines). FORBIDDEN: a bare `Read` unless the file is
-  new or a wholesale rewrite
+- reading further at `<worktree>/<path>` is your judgment call: default to `offset`/`limit` around
+  the changed region (hunk header `@@` ± ~20-30 lines), read wider — up to the whole file — when a
+  conclusion genuinely needs it (new file, rewrite, state spread through the file). Every read is
+  context the rest of the review pays for: spend where a finding turns on it, not from curiosity
 - the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
   paths" file is absent BY DESIGN; the guard above owns how it gets read
 - the diff is ONE change, not N independent files: ≥2 hunks touching the SAME function/symbol, or a
@@ -147,8 +148,9 @@ Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
   rule below
 - never read library source unless genuinely unsure
 - a conclusion that FLIPS on how a symbol outside the diff behaves — a caller of the new code, a
-  capability it assumes — takes 1 `Grep` for that symbol under `<worktree>` BEFORE concluding, raise
-  and stay-silent alike; max 3 per PR, never a full `Read`
+  capability it assumes — takes a `Grep` for that symbol under `<worktree>` BEFORE concluding, raise
+  and stay-silent alike; as many as flipping conclusions genuinely need, and `Grep` before `Read` —
+  the match list usually answers without paying for the file
 - that `Grep` inconclusive ⇒ raise it at 🔵 naming the symbol + the assumption. FORBIDDEN: asserting
   the behaviour, or dropping it silently
 - never pad the count with trivia; there is no minimum N

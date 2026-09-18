@@ -187,9 +187,11 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
     granted. Scope carries the check, and all three parts of it are load-bearing:
 
     the trigger is the conclusion FLIPPING on that symbol, not merely mentioning it, and it
-    binds the decision to stay silent as much as the decision to raise; the check is a bounded
-    `Grep`, because an unbounded one turns every review into a repo read; and an inconclusive
-    `Grep` still has to surface, or the rule quietly becomes permission to assume.
+    binds the decision to stay silent as much as the decision to raise; the spend is the
+    agent's own judgment, bound to the flip trigger rather than a numeric cap (issue #131:
+    a hard cap bounded the evidence, and bounded evidence is where the misses came from);
+    and an inconclusive `Grep` still has to surface, or the rule quietly becomes permission
+    to assume.
     """
     flat = " ".join(text(SRC / "commands" / "review.md").split())
 
@@ -197,14 +199,57 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
         "Scope must trigger on the conclusion flipping, not on any mention of an outside symbol"
     assert "raise and stay-silent alike" in flat, \
         "the check must bind the decision NOT to raise a finding too"
-    assert re.search(r"1 `Grep` for that symbol under `<worktree>` BEFORE concluding", flat), \
+    assert re.search(r"`Grep` for that symbol under `<worktree>` BEFORE concluding", flat), \
         "the check must be a Grep aimed at the worktree, run before concluding"
-    assert re.search(r"max \d+ per PR, never a full `Read`", flat), \
-        "the Grep budget must be a number, and a full Read would defeat the cost argument"
+    assert "as many as flipping conclusions genuinely need" in flat, \
+        "the spend must stay bound to the flip trigger, not become free-roaming exploration"
+    assert re.search(r"`Grep` before `Read`", flat), \
+        "the cheap tool must stay the first tool"
     assert re.search(r"`Grep` inconclusive ⇒ raise it at 🔵", flat), \
         "an inconclusive Grep must still reach the PR, at the severity Scope names"
     assert "FORBIDDEN: asserting the behaviour, or dropping it silently" in flat, \
         "both ways out of an inconclusive Grep must stay closed"
+
+
+def test_read_spend_is_owned_judgment_with_a_stated_cost():
+    """Hard read caps (offset/limit MANDATORY, a numeric Grep budget) bounded the evidence a
+    review could see, and issue #131 showed bounded evidence is where an expert model's misses
+    come from. The caps became owned judgment — but ownership needs the cost stated where the
+    decision happens, or judgment decays into reading everything."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    scope = flat[flat.index("**Scope:**"):flat.index("**Finding format**")]
+    assert re.search(r"default to `offset`/`limit` around the changed region", scope), \
+        "the bounded read must stay the DEFAULT even with the cap gone"
+    assert "when a conclusion genuinely needs it" in scope, \
+        "the wider read must be tied to a conclusion needing it, not availability"
+    assert "Every read is context the rest of the review pays for" in scope, \
+        "the cost must be stated where the judgment is exercised"
+
+
+def test_fix_owns_the_edit_and_checks_the_callers():
+    """Blind obedience is the low bar issue #131 priced: a pasted snippet broke another
+    caller and cost a whole round. The fixer owns the edit — the finding names the problem,
+    the code decides the fix — and an edit to shared code checks the call sites the finding
+    may not have listed."""
+    flat = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "You OWN what you apply" in flat
+    assert "re-derive a suggested snippet against the code before applying it" in flat, \
+        "the reviewer's snippet must be re-derived in context, never pasted as-is"
+    assert re.search(r"`Grep` those callers at `<repo_dir>`", flat), \
+        "an edit to shared code must check its call sites"
+    assert "the finding may not list them" in flat, \
+        "the caller check must not depend on the finding having named the callers"
+
+
+def test_a_recommendation_is_earned_not_defaulted():
+    """Users pick the `(Recommended)` option without reading the alternatives, so a wrong
+    mark is silently followed. The mark must survive the case for the other option before
+    it is placed; a genuine tie stays blank rather than guessing."""
+    g = " ".join(text(SRC / "core" / "guardrails.md").split())
+    assert "EARN it: make the case for the OTHER option first" in g, \
+        "the recommendation must be tested against the alternative before it is marked"
+    assert "genuinely tied ⇒ blank" in g, \
+        "a tie must stay unmarked, not get a guessed recommendation"
 
 
 def test_the_prs_own_hunks_are_checked_against_each_other():
