@@ -20,8 +20,8 @@ specific to what IT may touch; nothing below is repeated there.
   plain chat — here + any file a command leads to. Per-call cap ⇒ SEQUENTIAL calls, never crammed.
   Every question carries a pre-marked recommendation — that option's label ends `(Recommended)` — even
   an unanticipated one: the defined default, or the safer/more common choice. Users take the mark
-  without reading ⇒ EARN it: make the case for the OTHER option first, mark what survives; genuinely
-  tied ⇒ blank.
+  without reading ⇒ EARN it: make the case for the OTHER option first, in reasoning not in the
+  question text, mark what survives; genuinely tied ⇒ blank.
 - **Independent calls go in 1 tool block** — the `Read`s one Step names. One at a time only where a
   Step names an order or needs an earlier call's output.
 - **A `Read`/`Grep`/fetch over material ALREADY in context is a stall** ⇒ STOP, name what stayed

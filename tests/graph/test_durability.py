@@ -25,6 +25,7 @@ EPHEMERAL = [
     (r"\bT[0-9]\b", "task id"),
     (r"\bPhase [0-9]", "plan phase"),
     (r"PR #[0-9]+", "a specific PR number"),
+    (r"issue #[0-9]+", "a specific issue number"),
     (r"\b(?:backlogs|SPEC)/", "a doc that gets deleted"),
 ]
 
@@ -188,8 +189,8 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
 
     the trigger is the conclusion FLIPPING on that symbol, not merely mentioning it, and it
     binds the decision to stay silent as much as the decision to raise; the spend is the
-    agent's own judgment, bound to the flip trigger rather than a numeric cap (issue #131:
-    a hard cap bounded the evidence, and bounded evidence is where the misses came from);
+    agent's own judgment, bound to the flip trigger rather than a numeric cap — a hard cap
+    bounds the evidence, and bounded evidence is where an expert model's misses come from;
     and an inconclusive `Grep` still has to surface, or the rule quietly becomes permission
     to assume.
     """
@@ -212,10 +213,10 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
 
 
 def test_read_spend_is_owned_judgment_with_a_stated_cost():
-    """Hard read caps (offset/limit MANDATORY, a numeric Grep budget) bounded the evidence a
-    review could see, and issue #131 showed bounded evidence is where an expert model's misses
-    come from. The caps became owned judgment — but ownership needs the cost stated where the
-    decision happens, or judgment decays into reading everything."""
+    """A hard read cap (a mandatory offset/limit, a numeric Grep budget) bounds the evidence
+    a review can see, and bounded evidence is where an expert model's misses come from. The
+    caps are owned judgment instead — but ownership needs the cost stated where the decision
+    happens, or judgment decays into reading everything."""
     flat = " ".join(text(SRC / "commands" / "review.md").split())
     scope = flat[flat.index("**Scope:**"):flat.index("**Finding format**")]
     assert re.search(r"default to `offset`/`limit` around the changed region", scope), \
@@ -227,10 +228,9 @@ def test_read_spend_is_owned_judgment_with_a_stated_cost():
 
 
 def test_fix_owns_the_edit_and_checks_the_callers():
-    """Blind obedience is the low bar issue #131 priced: a pasted snippet broke another
-    caller and cost a whole round. The fixer owns the edit — the finding names the problem,
-    the code decides the fix — and an edit to shared code checks the call sites the finding
-    may not have listed."""
+    """A pasted snippet can break another caller and cost a whole round. The fixer owns the
+    edit — the finding names the problem, the code decides the fix — and an edit to shared
+    code checks the call sites the finding may not have listed."""
     flat = " ".join(text(SRC / "commands" / "fix.md").split())
     assert "You OWN what you apply" in flat
     assert "re-derive a suggested snippet against the code before applying it" in flat, \
@@ -256,9 +256,9 @@ def test_the_prs_own_hunks_are_checked_against_each_other():
     """A per-file pass can bless every hunk while the PR contradicts itself: two commits
     touch the same function, or a helper the diff edits is called elsewhere in the same
     diff under a contract the edit broke. Each round that misses this publishes another
-    review and costs the author a push (issue #131). The check must bind the decision to
-    stay silent, not only the decision to raise, and it must hand out-of-diff callers to
-    the bounded Grep rule instead of growing an unbounded read of its own."""
+    review and costs the author a push. The check must bind the decision to stay silent,
+    not only the decision to raise, and it must hand out-of-diff callers to the flip-bound
+    `Grep` rule instead of growing a read of its own."""
     flat = " ".join(text(SRC / "commands" / "review.md").split())
     scope = flat[flat.index("**Scope:**"):flat.index("**Finding format**")]
     assert "hunks touching the SAME function/symbol" in scope, \
@@ -268,13 +268,13 @@ def test_the_prs_own_hunks_are_checked_against_each_other():
     assert re.search(r"later commit can contradict its earlier one", scope), \
         "the rule must say WHY: one PR, several commits, one truth"
     assert re.search(r"out-of-diff caller is the `Grep` rule", scope), \
-        "out-of-diff callers must route to the bounded Grep, not a new unbounded read"
+        "out-of-diff callers must route to the `Grep` rule, not a new read of their own"
 
 
 def test_a_fix_to_shared_code_names_the_callers_it_must_keep_working():
-    """The regression round in issue #131 came from a suggested fix that broke another
-    caller of the same helper. The snippet rule must make the finding name those callers,
-    so the dev applying the fence knows what it has to keep working."""
+    """A suggested fix to a shared helper can break the helper's other callers, and the dev
+    applying the fence as written cannot see that. The snippet rule must make the finding
+    name those callers, so the fix carries its own blast radius."""
     flat = " ".join(text(SRC / "commands" / "review.md").split())
     assert re.search(r"OTHER CALLERS ⇒ the finding NAMES the callers it must keep working", flat), \
         "a fix to shared code must carry its blast radius in the finding itself"
