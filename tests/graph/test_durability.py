@@ -256,7 +256,7 @@ def test_the_prs_own_hunks_are_checked_against_each_other():
     """A per-file pass can bless every hunk while the PR contradicts itself: two commits
     touch the same function, or a helper the diff edits is called elsewhere in the same
     diff under a contract the edit broke. Each round that misses this publishes another
-    review and costs the author a push. Both triggers must be readable off the diff text
+    review and costs the author a push. Every trigger must be readable off the diff text
     itself — a trigger that needs a symbol index of the whole diff either gets skipped or
     eats the context. The check must bind the decision to stay silent, not only the
     decision to raise, and it must hand out-of-diff callers to the flip-bound `Grep` rule
@@ -270,7 +270,7 @@ def test_the_prs_own_hunks_are_checked_against_each_other():
     assert "editing a definition another hunk CALLS" in scope, \
         "Scope must name the definition-vs-caller trigger"
     assert "never a symbol index" in scope, \
-        "both triggers must stay readable off the diff, or the check has no stop condition"
+        "every trigger must stay readable off the diff, or the check has no stop condition"
     assert re.search(r"AGAINST EACH OTHER before concluding, silence included", scope), \
         "the cross-hunk check must bind the decision to stay silent too"
     assert re.search(r"out-of-diff caller is the `Grep` rule", scope), \
