@@ -154,7 +154,11 @@ Nothing to ask → straight to Step 7.
 ## Step 7 — Fix
 
 `Edit` the code for EVERY finding decided as FIX, matching the layers loaded at Step 4; nothing readable
-→ ordinary judgment, favouring the surrounding style. Directly at `<repo_dir>`. Decisions may OVERLAP
+→ ordinary judgment, favouring the surrounding style. Directly at `<repo_dir>`. You OWN what you apply:
+the finding names the problem, the surrounding code decides the fix — re-derive a suggested snippet
+against the code before applying it, never paste it blind. An `Edit` touching code that other call
+sites use → `Grep` those callers at `<repo_dir>` and keep every one working — the finding may not
+list them. Decisions may OVERLAP
 (one edit settles several findings, or one accepted finding erases another's target) — plan the edits
 jointly; Step 10 still replies to EACH finding with its own outcome.
 

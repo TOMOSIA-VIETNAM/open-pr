@@ -25,6 +25,7 @@ EPHEMERAL = [
     (r"\bT[0-9]\b", "task id"),
     (r"\bPhase [0-9]", "plan phase"),
     (r"PR #[0-9]+", "a specific PR number"),
+    (r"issue #[0-9]+", "a specific issue number"),
     (r"\b(?:backlogs|SPEC)/", "a doc that gets deleted"),
 ]
 
@@ -187,9 +188,11 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
     granted. Scope carries the check, and all three parts of it are load-bearing:
 
     the trigger is the conclusion FLIPPING on that symbol, not merely mentioning it, and it
-    binds the decision to stay silent as much as the decision to raise; the check is a bounded
-    `Grep`, because an unbounded one turns every review into a repo read; and an inconclusive
-    `Grep` still has to surface, or the rule quietly becomes permission to assume.
+    binds the decision to stay silent as much as the decision to raise; the spend is the
+    agent's own judgment, bound to the flip trigger rather than a numeric cap — a hard cap
+    bounds the evidence, and bounded evidence is where an expert model's misses come from;
+    and an inconclusive `Grep` still has to surface, or the rule quietly becomes permission
+    to assume.
     """
     flat = " ".join(text(SRC / "commands" / "review.md").split())
 
@@ -197,14 +200,90 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
         "Scope must trigger on the conclusion flipping, not on any mention of an outside symbol"
     assert "raise and stay-silent alike" in flat, \
         "the check must bind the decision NOT to raise a finding too"
-    assert re.search(r"1 `Grep` for that symbol under `<worktree>` BEFORE concluding", flat), \
+    assert re.search(r"`Grep` for that symbol under `<worktree>` BEFORE concluding", flat), \
         "the check must be a Grep aimed at the worktree, run before concluding"
-    assert re.search(r"max \d+ per PR, never a full `Read`", flat), \
-        "the Grep budget must be a number, and a full Read would defeat the cost argument"
+    assert "as many as flipping conclusions genuinely need" in flat, \
+        "the spend must stay bound to the flip trigger, not become free-roaming exploration"
+    assert re.search(r"`Grep` before `Read`", flat), \
+        "the cheap tool must stay the first tool"
     assert re.search(r"`Grep` inconclusive ⇒ raise it at 🔵", flat), \
         "an inconclusive Grep must still reach the PR, at the severity Scope names"
     assert "FORBIDDEN: asserting the behaviour, or dropping it silently" in flat, \
         "both ways out of an inconclusive Grep must stay closed"
+
+
+def test_read_spend_is_owned_judgment_with_a_stated_cost():
+    """A hard read cap (a mandatory offset/limit, a numeric Grep budget) bounds the evidence
+    a review can see, and bounded evidence is where an expert model's misses come from. The
+    caps are owned judgment instead — but ownership needs the cost stated where the decision
+    happens, or judgment decays into reading everything."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    scope = flat[flat.index("**Scope:**"):flat.index("**Finding format**")]
+    assert re.search(r"default to `offset`/`limit` around the changed region", scope), \
+        "the bounded read must stay the DEFAULT even with the cap gone"
+    assert "when a conclusion genuinely needs it" in scope, \
+        "the wider read must be tied to a conclusion needing it, not availability"
+    assert "Every read is context the rest of the review pays for" in scope, \
+        "the cost must be stated where the judgment is exercised"
+
+
+def test_fix_owns_the_edit_and_checks_the_callers():
+    """A pasted snippet can break another caller and cost a whole round. The fixer owns the
+    edit — the finding names the problem, the code decides the fix — and an edit to shared
+    code checks the call sites the finding may not have listed."""
+    flat = " ".join(text(SRC / "commands" / "fix.md").split())
+    assert "You OWN what you apply" in flat
+    assert "re-derive a suggested snippet against the code before applying it" in flat, \
+        "the reviewer's snippet must be re-derived in context, never pasted as-is"
+    assert re.search(r"`Grep` those callers at `<repo_dir>`", flat), \
+        "an edit to shared code must check its call sites"
+    assert "the finding may not list them" in flat, \
+        "the caller check must not depend on the finding having named the callers"
+
+
+def test_a_recommendation_is_earned_not_defaulted():
+    """Users pick the `(Recommended)` option without reading the alternatives, so a wrong
+    mark is silently followed. The mark must survive the case for the other option before
+    it is placed; a genuine tie stays blank rather than guessing."""
+    g = " ".join(text(SRC / "core" / "guardrails.md").split())
+    assert "EARN it: make the case for the OTHER option first" in g, \
+        "the recommendation must be tested against the alternative before it is marked"
+    assert "genuinely tied ⇒ blank" in g, \
+        "a tie must stay unmarked, not get a guessed recommendation"
+
+
+def test_the_prs_own_hunks_are_checked_against_each_other():
+    """A per-file pass can bless every hunk while the PR contradicts itself: two commits
+    touch the same function, or a helper the diff edits is called elsewhere in the same
+    diff under a contract the edit broke. Each round that misses this publishes another
+    review and costs the author a push. Every trigger must be readable off the diff text
+    itself — a trigger that needs a symbol index of the whole diff either gets skipped or
+    eats the context. The check must bind the decision to stay silent, not only the
+    decision to raise, and it must hand out-of-diff callers to the flip-bound `Grep` rule
+    instead of growing a read of its own."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    scope = flat[flat.index("**Scope:**"):flat.index("**Finding format**")]
+    assert "hunks editing the SAME function" in scope, \
+        "Scope must name the twice-edited-function trigger"
+    assert "a rule another hunk RESTATES in prose" in scope, \
+        "Scope must name the rule-vs-restatement trigger — code and its prose echo drift apart"
+    assert "editing a definition another hunk CALLS" in scope, \
+        "Scope must name the definition-vs-caller trigger"
+    assert "never a symbol index" in scope, \
+        "every trigger must stay readable off the diff, or the check has no stop condition"
+    assert re.search(r"AGAINST EACH OTHER before concluding, silence included", scope), \
+        "the cross-hunk check must bind the decision to stay silent too"
+    assert re.search(r"out-of-diff caller is the `Grep` rule", scope), \
+        "out-of-diff callers must route to the `Grep` rule, not a new read of their own"
+
+
+def test_a_fix_to_shared_code_names_the_callers_it_must_keep_working():
+    """A suggested fix to a shared helper can break the helper's other callers, and the dev
+    applying the fence as written cannot see that. The snippet rule must make the finding
+    name those callers, so the fix carries its own blast radius."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    assert re.search(r"OTHER CALLERS ⇒ the finding NAMES the callers it must keep working", flat), \
+        "a fix to shared code must carry its blast radius in the finding itself"
 
 
 def test_a_clean_review_can_be_kept_off_the_pr():
