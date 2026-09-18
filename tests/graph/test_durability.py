@@ -207,6 +207,34 @@ def test_a_cross_file_assumption_is_checked_before_it_is_concluded():
         "both ways out of an inconclusive Grep must stay closed"
 
 
+def test_the_prs_own_hunks_are_checked_against_each_other():
+    """A per-file pass can bless every hunk while the PR contradicts itself: two commits
+    touch the same function, or a helper the diff edits is called elsewhere in the same
+    diff under a contract the edit broke. Each round that misses this publishes another
+    review and costs the author a push (issue #131). The check must bind the decision to
+    stay silent, not only the decision to raise, and it must hand out-of-diff callers to
+    the bounded Grep rule instead of growing an unbounded read of its own."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    scope = flat[flat.index("**Scope:**"):flat.index("**Finding format**")]
+    assert "hunks touching the SAME function/symbol" in scope, \
+        "Scope must name the same-symbol trigger"
+    assert re.search(r"AGAINST EACH OTHER before concluding, silence included", scope), \
+        "the cross-hunk check must bind the decision to stay silent too"
+    assert re.search(r"later commit can contradict its earlier one", scope), \
+        "the rule must say WHY: one PR, several commits, one truth"
+    assert re.search(r"out-of-diff caller is the `Grep` rule", scope), \
+        "out-of-diff callers must route to the bounded Grep, not a new unbounded read"
+
+
+def test_a_fix_to_shared_code_names_the_callers_it_must_keep_working():
+    """The regression round in issue #131 came from a suggested fix that broke another
+    caller of the same helper. The snippet rule must make the finding name those callers,
+    so the dev applying the fence knows what it has to keep working."""
+    flat = " ".join(text(SRC / "commands" / "review.md").split())
+    assert re.search(r"OTHER CALLERS ⇒ the finding NAMES the callers it must keep working", flat), \
+        "a fix to shared code must carry its blast radius in the finding itself"
+
+
 def test_a_clean_review_can_be_kept_off_the_pr():
     """`post_lgtm` is the one setting that decides whether something reaches the PR at all,
     so the gate has to sit where the posting happens and name the single body it covers —
