@@ -265,6 +265,8 @@ def test_the_prs_own_hunks_are_checked_against_each_other():
     scope = flat[flat.index("**Scope:**"):flat.index("**Finding format**")]
     assert "hunks editing the SAME function" in scope, \
         "Scope must name the twice-edited-function trigger"
+    assert "a rule another hunk RESTATES in prose" in scope, \
+        "Scope must name the rule-vs-restatement trigger — code and its prose echo drift apart"
     assert "editing a definition another hunk CALLS" in scope, \
         "Scope must name the definition-vs-caller trigger"
     assert "never a symbol index" in scope, \

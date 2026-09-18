@@ -141,9 +141,10 @@ Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
   context the rest of the review pays for: spend where a finding turns on it, not from curiosity
 - the Context "Diff" is the sole source for the files it contains — never refetch it. An "Oversized
   paths" file is absent BY DESIGN; the guard above owns how it gets read
-- the diff is ONE change, not N independent files: ≥2 hunks editing the SAME function, or one hunk
+- the diff is ONE change, not N independent files: ≥2 hunks editing the SAME function, one hunk
+  changing a rule another hunk RESTATES in prose (docstring, assert message, doc line), or one hunk
   editing a definition another hunk CALLS → check those hunks AGAINST EACH OTHER before concluding,
-  silence included — a later commit can contradict an earlier one. Both triggers read off the diff
+  silence included — a later commit can contradict an earlier one. Every trigger reads off the diff
   itself, never a symbol index of it; an out-of-diff caller is the `Grep` rule below
 - never read library source unless genuinely unsure
 - a conclusion that FLIPS on how a symbol outside the diff behaves — a caller of the new code, a
