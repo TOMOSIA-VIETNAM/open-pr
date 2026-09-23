@@ -9,7 +9,7 @@
 memory、设置和评审用的 worktree 都放在 **每台机器上的同一个位置**，永远不进项目：
 
 ```
-~/.open-pr/review/
+~/.open-pr-data/review/
 ├── .git/            已学内容的本地历史 —— 没有 remote，永远不 push
 ├── repo-backend/    memory.md · memories/ · templates/ · ALWAYS_RULE.md · settings.json · worktrees/
 └── repo-frontend/
@@ -25,24 +25,24 @@ cd ~/workspace
 `/open-pr:fix` 也能从同样的位置运行（仓库必须处在 PR 的分支上）—— 也可以从 `review` 已经建好的 worktree 里运行；在那里 URL 是可选的，因为会话已经知道是哪个 PR。
 
 > [!NOTE]
-> 从把 `~/.open-pr/review/` 放在 workspace 里的旧版本升级过来：插件不会替你搬。想保留已学内容，搬一次即可 —— `mkdir -p ~/.open-pr && mv notebooks/review ~/.open-pr/review` —— 然后删掉 `.gitignore` 里的 `~/.open-pr/review/` 行。
+> 从把 `~/.open-pr-data/review/` 放在 workspace 里的旧版本升级过来：插件不会替你搬。想保留已学内容，搬一次即可 —— `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` —— 然后删掉 `.gitignore` 里的 `~/.open-pr-data/review/` 行。
 
 ## 命令
 
 | 命令 | 你站在哪里 | 它写什么 |
 | --- | --- | --- |
-| `/open-pr:review` | 仓库里面，或装着它的 workspace —— 靠 `git remote` 找到它 | PR 上的评论 + `~/.open-pr/review/<repo>/` 下的 memory |
+| `/open-pr:review` | 仓库里面，或装着它的 workspace —— 靠 `git remote` 找到它 | PR 上的评论 + `~/.open-pr-data/review/<repo>/` 下的 memory |
 | `/open-pr:fix` | 在该仓库里 / 装着它的 workspace 里 —— 但 **仓库必须处在 PR 的分支上** | 仓库里的真实代码 + PR 上的回复 |
-| `/open-pr:upgrade` | 任意位置 —— 升级所有已配置的仓库，或你点名的那些 | `~/.open-pr/review/<repo>/settings.json` |
-| `/open-pr:clean` | 任意位置 | 什么都不写 —— 只删除 `~/.open-pr/review/*/worktrees/*` |
+| `/open-pr:upgrade` | 任意位置 —— 升级所有已配置的仓库，或你点名的那些 | `~/.open-pr-data/review/<repo>/settings.json` |
+| `/open-pr:clean` | 任意位置 | 什么都不写 —— 只删除 `~/.open-pr-data/review/*/worktrees/*` |
 | `/open-pr:feedback` | 任意位置 | 本地什么都不写 —— 在你批准文本之后，往插件自己的 tracker 发一条 issue |
 
 ## 设置
 
-学到的一切都索引在 `~/.open-pr/review/<repo>/memory.md` 里（目录式 —— token 便宜，但全貌仍在）。细节存放在 `~/.open-pr/review/<repo>/memories/*.md`。
+学到的一切都索引在 `~/.open-pr-data/review/<repo>/memory.md` 里（目录式 —— token 便宜，但全貌仍在）。细节存放在 `~/.open-pr-data/review/<repo>/memories/*.md`。
 
 > [!NOTE]
-> 整个 `~/.open-pr/review/` 目录由一个 **独立的本地 git** 管理 —— 没有 remote，永远不会被 push。你可以追溯 memory 从上一次评审到这一次是怎么变的。
+> 整个 `~/.open-pr-data/review/` 目录由一个 **独立的本地 git** 管理 —— 没有 remote，永远不会被 push。你可以追溯 memory 从上一次评审到这一次是怎么变的。
 
 团队规则以普通文字写进 `ALWAYS_RULE.md`（默认为空）。其余一切都在 `settings.json` 里：
 

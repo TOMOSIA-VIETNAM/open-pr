@@ -1,6 +1,6 @@
 ---
 argument-hint: "[repo name...]"
-description: Bring every per-repo config under ~/.open-pr up to the schema this build expects. Takes no PR.
+description: Bring every per-repo config under ~/.open-pr-data up to the schema this build expects. Takes no PR.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
@@ -19,11 +19,11 @@ description: Bring every per-repo config under ~/.open-pr up to the schema this 
 
 ## Step 1 — Discover the config sets, read each checkpoint
 
-`<set>` = one `~/.open-pr/review/<repo>/`, whatever pwd is. FORBIDDEN: `cd`, deriving `<repo>` from a
+`<set>` = one `~/.open-pr-data/review/<repo>/`, whatever pwd is. FORBIDDEN: `cd`, deriving `<repo>` from a
 git remote:
 
 ```bash
-find "$HOME/.open-pr/review" -mindepth 1 -maxdepth 1 -type d ! -name .git 2>&1
+find "$HOME/.open-pr-data/review" -mindepth 1 -maxdepth 1 -type d ! -name .git 2>&1
 ```
 
 Each hit is a `<set>`, named by its basename `<repo>`.

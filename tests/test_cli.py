@@ -66,7 +66,7 @@ def test_target_rejects_what_it_cannot_prove(url):
 
 @pytest.fixture(autouse=True)
 def home(tmp_path, monkeypatch):
-    """The script roots memory and worktrees at $HOME/.open-pr — never the real one."""
+    """The script roots memory and worktrees at $HOME/.open-pr-data — never the real one."""
     h = tmp_path / "home"
     h.mkdir()
     monkeypatch.setenv("HOME", str(h))
@@ -112,7 +112,7 @@ def test_checkout_gates_and_fetches_the_base_ref(fixture_repo, home):
     vals = dict(line.split("=", 1) for line in r.stdout.splitlines())
     assert vals["head"] == fixture_repo["head"]
     wt = Path(vals["worktree"])
-    assert wt.is_dir() and str(wt).startswith(str(home / ".open-pr" / "review" / "r" / "worktrees")), \
+    assert wt.is_dir() and str(wt).startswith(str(home / ".open-pr-data" / "review" / "r" / "worktrees")), \
         "the worktree must root under the per-user memory directory, never the invocation directory"
     # the explicit refspec created origin/main inside the worktree's ref space
     mb = subprocess.run(["git", "-C", str(wt), "merge-base", "origin/main", "HEAD"],
@@ -360,7 +360,7 @@ esac
 # ------------------------------------------------- settings and stacks ----
 
 def test_settings_applies_read_time_defaults(tmp_path, home):
-    d = home / ".open-pr" / "review" / "demo"
+    d = home / ".open-pr-data" / "review" / "demo"
     d.mkdir(parents=True)
     (d / "settings.json").write_text(json.dumps(
         {"review": {"bootstrapped": True, "doctored": True, "doctor_schedule": "never"},
@@ -384,13 +384,13 @@ def test_settings_applies_read_time_defaults(tmp_path, home):
     fresh = json.loads(run("settings", "--repo", "ghost", cwd=tmp_path, check=True).stdout)
     assert fresh["doctor_due"] is True, "an unbootstrapped repo is always due"
     assert out["memory_dir"] == str(d), "memory_dir must be the absolute per-user directory"
-    assert fresh["memory_dir"] == str(home / ".open-pr" / "review" / "ghost")
+    assert fresh["memory_dir"] == str(home / ".open-pr-data" / "review" / "ghost")
 
 
 def test_settings_ignores_the_invocation_directory(fixture_repo, home):
     """Review, fix, a linked worktree and a workspace all read ONE memory directory per repo:
     whatever cwd the caller stands in, and whatever a stray copy in cwd says."""
-    mem = home / ".open-pr" / "review" / "r"
+    mem = home / ".open-pr-data" / "review" / "r"
     mem.mkdir(parents=True)
     (mem / "settings.json").write_text(json.dumps({"shared": {"output_language": "English"}}))
     clone = fixture_repo["clone"]

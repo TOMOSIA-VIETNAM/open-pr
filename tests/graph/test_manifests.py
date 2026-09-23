@@ -38,7 +38,7 @@ def test_upgrade_finds_its_targets_without_a_git_remote():
     every set found; a named repo filters them."""
     up = text(SRC / "commands" / "upgrade.md")
     flat = " ".join(up.split())
-    assert 'find "$HOME/.open-pr/review"' in flat, \
+    assert 'find "$HOME/.open-pr-data/review"' in flat, \
         "config lives under the per-user root, whatever pwd is"
     assert "deriving `<repo>` from a git remote" in flat, \
         "the set is named by its directory — the ban must be stated"
@@ -186,7 +186,7 @@ def test_clean_deletes_worktrees_and_nothing_else():
     flat = " ".join(c.split())
     for keep in ("memory.md", "memories/", "ALWAYS_RULE.md", "settings.json", "templates/"):
         assert keep in flat.split("## Step 1")[0], f"the CRITICAL block must rule out {keep}"
-    assert "~/.open-pr/review/*/worktrees/" in flat, "the only deletable path must be named"
+    assert "~/.open-pr-data/review/*/worktrees/" in flat, "the only deletable path must be named"
     ask = c.index("## Step 3")
     assert c.index("## Step 4 — Remove") > ask, "the ask must come before the removal"
     assert "(Recommended)" in c and "`Keep them`" in c, "two options, one of them recommended"

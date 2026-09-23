@@ -1,4 +1,4 @@
-# Repo settings — `~/.open-pr/review/<repo>/settings.json` at run time
+# Repo settings — `~/.open-pr-data/review/<repo>/settings.json` at run time
 
 `<op> settings` is how a run READS this file: it applies every read-time default and computes
 `doctor_due`, so a field it prints may not exist on disk. Full schema + field classification live in

@@ -138,7 +138,7 @@ clone_to() {  # $1 = url -> echoes dir
 }
 
 # The fix flow needs a working copy on the fixture branch. The reviewed repo's memory
-# lives under ~/.open-pr/review/, so the fix run finds the learned convention from anywhere.
+# lives under ~/.open-pr-data/review/, so the fix run finds the learned convention from anywhere.
 checkout_only() {  # $1 = clone url
   local d; d=$(clone_to "$1")
   git -C "$d" fetch -q origin "$BRANCH"

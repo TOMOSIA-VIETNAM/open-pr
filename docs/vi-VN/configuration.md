@@ -9,7 +9,7 @@ Những gì plugin ghi nhớ cho từng repo, và chỗ bạn sửa khi cần.
 Memory, setting và worktree review nằm ở **một chỗ duy nhất trên máy**, không bao giờ trong dự án:
 
 ```
-~/.open-pr/review/
+~/.open-pr-data/review/
 ├── .git/            lịch sử local của những gì đã học — không remote, không push
 ├── repo-backend/    memory.md · memories/ · templates/ · ALWAYS_RULE.md · settings.json · worktrees/
 └── repo-frontend/
@@ -25,24 +25,24 @@ cd ~/workspace
 `/open-pr:fix` gọi được từ cùng những chỗ đó (repo phải đang ở branch của PR) — hoặc từ chính worktree mà `review` đã tạo; ở đó URL không bắt buộc vì session đã biết PR nào.
 
 > [!NOTE]
-> Chuyển từ bản cũ để `~/.open-pr/review/` trong workspace: plugin không tự chuyển. Muốn giữ những gì đã học, chuyển một lần — `mkdir -p ~/.open-pr && mv notebooks/review ~/.open-pr/review` — rồi xoá dòng `~/.open-pr/review/` trong `.gitignore`.
+> Chuyển từ bản cũ để `~/.open-pr-data/review/` trong workspace: plugin không tự chuyển. Muốn giữ những gì đã học, chuyển một lần — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — rồi xoá dòng `~/.open-pr-data/review/` trong `.gitignore`.
 
 ## Command
 
 | Command | Bạn đứng ở đâu | Nó ghi gì |
 | --- | --- | --- |
-| `/open-pr:review` | trong repo, hoặc workspace chứa nó — tự tìm theo `git remote` | comment trên PR + memory ở `~/.open-pr/review/<repo>/` |
+| `/open-pr:review` | trong repo, hoặc workspace chứa nó — tự tìm theo `git remote` | comment trên PR + memory ở `~/.open-pr-data/review/<repo>/` |
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
-| `/open-pr:upgrade` | bất kỳ đâu — nâng mọi repo đã setup, hoặc các repo bạn nêu tên | `~/.open-pr/review/<repo>/settings.json` |
-| `/open-pr:clean` | bất kỳ đâu | không ghi gì — chỉ xóa `~/.open-pr/review/*/worktrees/*` |
+| `/open-pr:upgrade` | bất kỳ đâu — nâng mọi repo đã setup, hoặc các repo bạn nêu tên | `~/.open-pr-data/review/<repo>/settings.json` |
+| `/open-pr:clean` | bất kỳ đâu | không ghi gì — chỉ xóa `~/.open-pr-data/review/*/worktrees/*` |
 | `/open-pr:feedback` | bất kỳ đâu | không ghi gì ở máy — một issue trên tracker của plugin, sau khi bạn duyệt nội dung |
 
 ## Setting
 
-Mọi thứ đã học được index trong `~/.open-pr/review/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `~/.open-pr/review/<repo>/memories/*.md`.
+Mọi thứ đã học được index trong `~/.open-pr-data/review/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `~/.open-pr-data/review/<repo>/memories/*.md`.
 
 > [!NOTE]
-> Cả thư mục `~/.open-pr/review/` do một **git local độc lập** quản lý — không remote, không push. Bạn theo dõi được memory đổi qua từng lần review.
+> Cả thư mục `~/.open-pr-data/review/` do một **git local độc lập** quản lý — không remote, không push. Bạn theo dõi được memory đổi qua từng lần review.
 
 Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định rỗng). Phần còn lại nằm ở `settings.json`:
 

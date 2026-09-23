@@ -34,7 +34,7 @@ on every networked one; `--host H` where self-hostable.
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
 | `marker --kind finding\|reply` | the marker literal — end every finding/reply with it |
-| `settings --repo <repo>` | that repo's `settings.json` with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults. `memory_dir` (`<memory_dir>` in every prompt) = the ABSOLUTE form of `~/.open-pr/review/<repo>`. Any `~/.open-pr/…` a prompt names ⇒ file tools take it absolute, never with `~` |
+| `settings --repo <repo>` | that repo's `settings.json` with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults. `memory_dir` (`<memory_dir>` in every prompt) = the ABSOLUTE form of `~/.open-pr-data/review/<repo>`. Any `~/.open-pr-data/…` a prompt names ⇒ file tools take it absolute, never with `~` |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line

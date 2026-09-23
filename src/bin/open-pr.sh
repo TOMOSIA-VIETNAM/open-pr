@@ -28,8 +28,10 @@ need() {
 need jq
 
 # Every repo's review memory, settings and PR worktrees live under one
-# per-user root, never inside a project: $HOME/.open-pr/review/<repo>/.
-MEMORY_ROOT="$HOME/.open-pr/review"
+# per-user root, never inside a project: $HOME/.open-pr-data/review/<repo>/.
+# Never under ~/.open-pr — install.sh clones the plugin itself there, and a
+# reinstall or an editor indexing that clone must not reach the user's data.
+MEMORY_ROOT="$HOME/.open-pr-data/review"
 
 # ---------------------------------------------------------------- args ----
 # Parsed by every subcommand: --key value pairs into ARG_<KEY> (dashes -> _).
@@ -289,7 +291,7 @@ cmd_locate_repo() {
     }
     if matches_remote .; then printf '.\n'; return 0; fi
     found=""
-    for d in $(find . -maxdepth 4 -type d -iname "$REPO" 2>/dev/null | grep -Ev '/(node_modules|\.open-pr)/' || true); do
+    for d in $(find . -maxdepth 4 -type d -iname "$REPO" 2>/dev/null | grep -Ev '/(node_modules|\.open-pr-data)/' || true); do
         if matches_remote "$d"; then found="$found$d\n"; fi
     done
     count=$(printf '%b' "$found" | grep -c . || true)

@@ -49,7 +49,7 @@ is the same path a real user's subagent takes.
 
 Covering `/open-pr:fix` in the same round: `e2e/bootstrap.sh --pr <n> --checkout --clone-dir <dir>`
 gives a working copy on the fixture branch without touching the remote; the fix reads the convention
-the review learned from `~/.open-pr/review/<repo>/`. FORBIDDEN: re-running the
+the review learned from `~/.open-pr-data/review/<repo>/`. FORBIDDEN: re-running the
 seeding mode for that — it force-pushes the branch the posted review is anchored to.
 
 ## Stage 2 — grade it (a DIFFERENT subagent, fresh)

@@ -1,4 +1,4 @@
-# Bootstrap `~/.open-pr/review/<repo>/`
+# Bootstrap `~/.open-pr-data/review/<repo>/`
 
 Everything below writes under `<memory_dir>` (`<op> settings`), never at pwd — FORBIDDEN: `cd`,
 inferring `<repo>` from any directory's basename (`<repo>` = `core/pr-target.md` §4). `cp` for a verbatim
@@ -14,7 +14,7 @@ user runs `/open-pr:upgrade` once, then re-invokes. Bootstrapping over it re-ask
 - `cp "${CLAUDE_PLUGIN_ROOT}/seeds/memory.md" "<memory_dir>/memory.md"` — an empty index
   whose own comment defines the entry format every later write follows.
 - `memories/.gitkeep`, `templates/.gitkeep` — empty.
-- `~/.open-pr/review/.gitignore` MUST contain the line `worktrees/` (`Write` it when absent, `Edit` to
+- `~/.open-pr-data/review/.gitignore` MUST contain the line `worktrees/` (`Write` it when absent, `Edit` to
   append when the file exists without it). It keeps the ephemeral worktree out of the memory repo,
   which only ever holds rules/memory/templates.
 - `cp "${CLAUDE_PLUGIN_ROOT}/seeds/ALWAYS_RULE.md" "<memory_dir>/ALWAYS_RULE.md"` — an

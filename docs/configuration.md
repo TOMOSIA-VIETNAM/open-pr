@@ -9,7 +9,7 @@ Everything the plugin keeps per repo, and where you change it.
 Memory, settings and review worktrees live in **one place per machine**, never inside a project:
 
 ```
-~/.open-pr/review/
+~/.open-pr-data/review/
 ├── .git/            local history of what was learned — no remote, never pushed
 ├── repo-backend/    memory.md · memories/ · templates/ · ALWAYS_RULE.md · settings.json · worktrees/
 └── repo-frontend/
@@ -25,24 +25,24 @@ cd ~/workspace
 `/open-pr:fix` works from the same places (the repo must be on the PR's branch) — or from the worktree `review` already made; there the URL is optional because the session already knows which PR.
 
 > [!NOTE]
-> Coming from a build that kept `~/.open-pr/review/` in your workspace: nothing is moved for you. To keep what was learned, move it once — `mkdir -p ~/.open-pr && mv notebooks/review ~/.open-pr/review` — then drop the `~/.open-pr/review/` line from `.gitignore`.
+> Coming from a build that kept `~/.open-pr-data/review/` in your workspace: nothing is moved for you. To keep what was learned, move it once — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — then drop the `~/.open-pr-data/review/` line from `.gitignore`.
 
 ## Command
 
 | Command | Where you stand | What it writes |
 | --- | --- | --- |
-| `/open-pr:review` | inside the repo, or a workspace holding it — finds it by `git remote` | comments on the PR + memory under `~/.open-pr/review/<repo>/` |
+| `/open-pr:review` | inside the repo, or a workspace holding it — finds it by `git remote` | comments on the PR + memory under `~/.open-pr-data/review/<repo>/` |
 | `/open-pr:fix` | in that repo / workspace holding it — but **the repo must be on the PR's branch** | real code in the repo + replies on the PR |
-| `/open-pr:upgrade` | anywhere — upgrades every repo set up, or the ones you name | `~/.open-pr/review/<repo>/settings.json` |
-| `/open-pr:clean` | anywhere | writes nothing — only deletes `~/.open-pr/review/*/worktrees/*` |
+| `/open-pr:upgrade` | anywhere — upgrades every repo set up, or the ones you name | `~/.open-pr-data/review/<repo>/settings.json` |
+| `/open-pr:clean` | anywhere | writes nothing — only deletes `~/.open-pr-data/review/*/worktrees/*` |
 | `/open-pr:feedback` | anywhere | writes nothing locally — one issue on the plugin's own tracker, after you approve the text |
 
 ## Setting
 
-Everything learned is indexed in `~/.open-pr/review/<repo>/memory.md` (table of contents — cheap in tokens, still the whole picture). Details live under `~/.open-pr/review/<repo>/memories/*.md`.
+Everything learned is indexed in `~/.open-pr-data/review/<repo>/memory.md` (table of contents — cheap in tokens, still the whole picture). Details live under `~/.open-pr-data/review/<repo>/memories/*.md`.
 
 > [!NOTE]
-> The whole `~/.open-pr/review/` directory is managed by an **independent local git** — no remote, never pushed. You can follow how memory changed from one review to the next.
+> The whole `~/.open-pr-data/review/` directory is managed by an **independent local git** — no remote, never pushed. You can follow how memory changed from one review to the next.
 
 Team rules go into `ALWAYS_RULE.md` as plain prose (empty by default). Everything else lives in `settings.json`:
 

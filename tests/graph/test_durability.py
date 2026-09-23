@@ -89,7 +89,10 @@ def test_memory_and_worktrees_live_under_the_per_user_root():
     per-user root removes all three: the script owns the path, and no prompt writes at pwd
     or resolves memory relative to it."""
     body = cli_text()
-    assert 'MEMORY_ROOT="$HOME/.open-pr/review"' in body, "the script must own the root"
+    assert 'MEMORY_ROOT="$HOME/.open-pr-data/review"' in body, "the script must own the root"
+    install = (SRC.parent / "install.sh").read_text(encoding="utf-8")
+    assert 'home="${OPEN_PR_HOME:-$HOME/.open-pr}"' in install and '$HOME/.open-pr/' not in body, \
+        "user data must never sit inside the plugin clone install.sh owns"
     assert 'target="$MEMORY_ROOT/$REPO/worktrees/' in body, "the worktree must root under it"
     assert 'mem_dir="$MEMORY_ROOT/$(req repo)"' in body, "settings must read from it"
     assert 'git -C "$repo_dir" worktree add' in body, "the worktree add is not aimed with -C"
