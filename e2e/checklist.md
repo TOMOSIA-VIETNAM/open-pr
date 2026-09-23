@@ -24,8 +24,8 @@ Each planted defect and the path it exercises:
 
 Then check the mechanics:
 
-- [ ] run it from a WORKSPACE (a parent dir, not a repo): `notebooks/review/open-pr-test/` appears in
-      that workspace, NOT inside the cloned repo, and the worktree lands under it too
+- [ ] memory lands in `~/.open-pr/review/open-pr-test/` and the worktree under its `worktrees/` —
+      nothing is written at pwd, and no `.gitignore` is touched
 - [ ] every `Fix` that has a code form arrived as a fence — a LINE one as ` ```suggestion `; inline code
       inside a sentence does not count
 - [ ] the chat message after posting is ≤3 sentences with the link and the counts, and repeats NO
@@ -42,7 +42,7 @@ Then check the mechanics:
 - [ ] severity is emoji only — no "Must fix" wording, no count of N
 - [ ] no heading printed with nothing under it
 - [ ] the overview never repeats a line comment's text
-- [ ] `notebooks/review/open-pr-test/` was created, and the reviewed repo's `.gitignore` covers it
+- [ ] `~/.open-pr/review/open-pr-test/` was created
 - [ ] output language matches `.shared.output_language`
 - [ ] nothing was pushed to the fixture repo, no branch created, no code edited
 
@@ -58,10 +58,8 @@ e2e/bootstrap.sh --pr <n> --checkout --clone-dir /tmp/fixture   # no writes to t
 cd /tmp/fixture                                                 # then /open-pr:fix <fixture url>
 ```
 
-The checkout also copies this project's `notebooks/review/open-pr-test/` into the clone, so the run has
-the learned convention to fix against rather than falling back to ordinary judgment. Expect the
-fixture's own `.gitignore` to gain a `notebooks/review/` line, uncommitted — Step 8 commits only the
-files Step 7 edited, which is correct.
+The fix run reads the same `~/.open-pr/review/open-pr-test/` the review wrote, so it has the learned
+convention to fix against rather than falling back to ordinary judgment.
 
 Then, `/open-pr:fix <same url>`:
 
@@ -72,8 +70,8 @@ Then, `/open-pr:fix <same url>`:
 
 ## Which path a round exercises
 
-The fixture PR is per project PR; the plugin's own setup state is separate and lives at the pwd the
-REVIEW runs from — this project, in `notebooks/review/open-pr-test/`.
+The fixture PR is per project PR; the plugin's own setup state is separate and lives in
+`~/.open-pr/review/open-pr-test/`.
 
 | that directory | the round exercises | run it when |
 |---|---|---|

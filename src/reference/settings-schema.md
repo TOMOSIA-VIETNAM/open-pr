@@ -1,6 +1,6 @@
 # `settings.json` schema
 
-One file per reviewed repo: `notebooks/review/<repo>/settings.json`, 1 node per feature. Reference
+One file per reviewed repo: `~/.open-pr/review/<repo>/settings.json`, 1 node per feature. Reference
 for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the file by hand.
 `review.md`/`fix.md` never `Read` this file — their run-time view is `core/repo-settings.md`.
 

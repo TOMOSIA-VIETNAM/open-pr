@@ -45,10 +45,8 @@ Step 7 and bootstrap's `review_ci_status` question read the raw list.
 
 **Filesystem:** `<op> locate-repo` → `<repo_dir>`; exit 5 → ask with a CHOICE in plain language —
 name the N directories found and why each might be it — STOP if unresolved. FORBIDDEN: `cd`.
-Everything this command writes — `notebooks/review/<repo>/`, the worktree, `.gitignore` — is
-relative to pwd: 1 workspace ⇒ 1 `notebooks/review/`. Before writing under `notebooks/review/` →
-state pwd + `<repo>` in chat. No `notebooks/review/` line in
-`.gitignore` at pwd → add exactly that line.
+Memory, settings and the worktree live under `~/.open-pr/review/<repo>/` (`memory_dir`), never
+inside a project ⇒ nothing is written at pwd.
 
 ## Step 1 — Ephemeral worktree
 
@@ -78,20 +76,19 @@ already computed. `<vendor>` is already reconciled, never re-asked. Persisting i
 
 Branch:
 
-- `memory_found: false` → `core/repo-settings.md` "memory_found" rule FIRST — it may STOP
 - no file || no `.review` || `.review.bootstrapped` != `true` → `Read`
   `setup/bootstrap.md`, then `setup/doctor.md`
 - `bootstrapped: true` && `doctor_due` → `setup/doctor.md` only, FORBIDDEN: re-asking bootstrap
 - `bootstrapped: true`, `doctor_due` false → skip both
 
-Setup stable ⇒ don't touch `notebooks/review/` outside Step 4 (new template), Step 6 (lesson), or a due
+Setup stable ⇒ don't touch `~/.open-pr/review/` outside Step 4 (new template), Step 6 (lesson), or a due
 doctor.
 
 ## Step 4 — Local template per stack
 
 Each Step 2 stack absent from `.review.templates_copied` → `Read`
 `setup/template.md`, follow it. Present → use
-`notebooks/review/<repo>/templates/<stack>.md`. Runs every time: a new stack can appear post-bootstrap.
+`~/.open-pr/review/<repo>/templates/<stack>.md`. Runs every time: a new stack can appear post-bootstrap.
 
 ## Step 5 — Load the criteria
 

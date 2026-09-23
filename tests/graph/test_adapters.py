@@ -22,7 +22,7 @@ MANIFESTS = ("gemini-extension.json", "plugin.json", ".cursor-plugin/plugin.json
 # exactly one file under src/, and finding it out here means two owners.
 BUSINESS_MARKERS = (
     "🔴", "🟠", "🔵", "📝", "worktree", "severity", "gh pr", "glab mr", "gh api", "glab api",
-    "schema_version", "notebooks/review", "settings.json", "ALWAYS_RULE", "memory.md",
+    "schema_version", ".open-pr/review", "settings.json", "ALWAYS_RULE", "memory.md",
 )
 SHIM_MAX_LINES = 14
 

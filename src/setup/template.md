@@ -4,7 +4,7 @@ For EACH stack absent from `.review.templates_copied`:
 
 1. `${CLAUDE_PLUGIN_ROOT}/templates/<stack>.md` exists?
    - **Yes** → `cp "${CLAUDE_PLUGIN_ROOT}/templates/<stack>.md"
-     "notebooks/review/<repo>/templates/<stack>.md"` — verbatim copy, FORBIDDEN: Read+Write through
+     "<memory_dir>/templates/<stack>.md"` — verbatim copy, FORBIDDEN: Read+Write through
      context. The repo may edit its own copy later without touching the plugin's.
    - **No** (plugin doesn't cover this stack) → author a new one yourself against the 6 axes in
      `core/review-criteria.md`: EVERY bullet must name a concrete API, idiom or tool of THAT stack — a

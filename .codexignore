@@ -3,7 +3,6 @@
 .claude/
 backlogs/
 e2e/
-notebooks/
 scripts/
 tests/
 token-history.svg

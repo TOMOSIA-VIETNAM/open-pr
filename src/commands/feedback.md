@@ -17,7 +17,7 @@ description: Report a problem with the open-pr plugin itself, or ask for a chang
 
 Sources, in order: `ARGUMENTS`, then what THIS chat session shows — which `/open-pr:` command the user
 ran, what it did, what they wanted instead. FORBIDDEN: reading the reviewed repo, its diff, its
-`notebooks/review/`, its settings or memory.
+`~/.open-pr/review/`, its settings or memory.
 
 Both empty ⇒ ONE free-text question — what should change, and what prompted it — then WAIT.
 

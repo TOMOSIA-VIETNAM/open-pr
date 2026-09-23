@@ -6,47 +6,43 @@ Everything the plugin keeps per repo, and where you change it.
 
 ## Where to stand
 
+Memory, settings and review worktrees live in **one place per machine**, never inside a project:
+
 ```
-✅ standing in the workspace                 ❌ standing inside the repo
-─────────────────────────                    ─────────────────────────
-workspace/            ← type here            repo-backend/         ← type here
-├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory sits INSIDE the project
-│   ├── repo-backend/  outside every repo    ├── .gitignore         +1 line — a real change
-│   └── repo-frontend/                       └── src/
-├── repo-backend/     ← clean, 0 stray files
-└── repo-frontend/    ← clean, 0 stray files (repo-frontend? out of sight)
+~/.open-pr/review/
+├── .git/            local history of what was learned — no remote, never pushed
+├── repo-backend/    memory.md · memories/ · templates/ · ALWAYS_RULE.md · settings.json · worktrees/
+└── repo-frontend/
 ```
 
-`notebooks/review/` (memory + worktree) is always created **right where you type the command**.
-
-| Where you stand | Consequence |
-| --- | --- |
-| **Workspace** (recommended) | Repo untouched. Repos sit side by side → can review **cross-repo** PRs in one run (one after another, not in parallel) |
-| **Inside the repo** | `notebooks/review/` lands in the project. Plugin adds 1 line to `.gitignore` so `git status` stays clean — but that line is still a real change in the repo |
+So you can type the command anywhere the repo can be found: inside it, or in a workspace holding it (it is matched by `git remote`). Nothing is written into your projects and no `.gitignore` line is added. A workspace with several repos side by side lets one run review **cross-repo** PRs (one after another, not in parallel):
 
 ```bash
 cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
 
-`/open-pr:fix` works from the workspace (it finds the right repo, as long as that repo is on the PR's branch) — or from the worktree `review` already made; there the URL is optional because the session already knows which PR.
+`/open-pr:fix` works from the same places (the repo must be on the PR's branch) — or from the worktree `review` already made; there the URL is optional because the session already knows which PR.
+
+> [!NOTE]
+> Coming from a build that kept `~/.open-pr/review/` in your workspace: nothing is moved for you. To keep what was learned, move it once — `mkdir -p ~/.open-pr && mv notebooks/review ~/.open-pr/review` — then drop the `~/.open-pr/review/` line from `.gitignore`.
 
 ## Command
 
 | Command | Where you stand | What it writes |
 | --- | --- | --- |
-| `/open-pr:review` | workspace holding the repo (preferred), or inside the repo — finds it by `git remote` | comments on the PR + memory under `notebooks/review/<repo>/` |
+| `/open-pr:review` | inside the repo, or a workspace holding it — finds it by `git remote` | comments on the PR + memory under `~/.open-pr/review/<repo>/` |
 | `/open-pr:fix` | in that repo / workspace holding it — but **the repo must be on the PR's branch** | real code in the repo + replies on the PR |
-| `/open-pr:upgrade` | workspace or repo already set up — several repos → lets you pick | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | anywhere above the `notebooks/review/` to clean | writes nothing — only deletes `notebooks/review/*/worktrees/*` |
+| `/open-pr:upgrade` | anywhere — upgrades every repo set up, or the ones you name | `~/.open-pr/review/<repo>/settings.json` |
+| `/open-pr:clean` | anywhere | writes nothing — only deletes `~/.open-pr/review/*/worktrees/*` |
 | `/open-pr:feedback` | anywhere | writes nothing locally — one issue on the plugin's own tracker, after you approve the text |
 
 ## Setting
 
-Everything learned is indexed in `notebooks/review/<repo>/memory.md` (table of contents — cheap in tokens, still the whole picture). Details live under `notebooks/review/<repo>/memories/*.md`.
+Everything learned is indexed in `~/.open-pr/review/<repo>/memory.md` (table of contents — cheap in tokens, still the whole picture). Details live under `~/.open-pr/review/<repo>/memories/*.md`.
 
 > [!NOTE]
-> The whole `notebooks/review/` directory is managed by an **independent local git** — no remote, never pushed. You can follow how memory changed from one review to the next.
+> The whole `~/.open-pr/review/` directory is managed by an **independent local git** — no remote, never pushed. You can follow how memory changed from one review to the next.
 
 Team rules go into `ALWAYS_RULE.md` as plain prose (empty by default). Everything else lives in `settings.json`:
 

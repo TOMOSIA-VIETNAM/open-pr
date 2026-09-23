@@ -83,40 +83,32 @@ def test_emoji_in_output_are_single_codepoint():
     assert not bad, "emoji that render as parts on some clients:\n  " + "\n  ".join(bad)
 
 
-def test_review_writes_at_the_invocation_directory():
-    """Standing in a workspace and reviewing three repos must leave ONE notebooks/review/
-    there holding all three. A version of this that `cd`-ed into the repo put the memory
-    inside the repo instead. So review.md may not `cd`; locate-repo yields a directory and
-    decides nothing (fix.md needs the opposite); and the script aims its git calls with -C
-    while rooting the worktree at $PWD — the invocation directory."""
-    review = text(SRC / "commands" / "review.md")
-    assert "FORBIDDEN: `cd`" in review, "review.md must forbid cd — it writes at pwd"
+def test_memory_and_worktrees_live_under_the_per_user_root():
+    """Memory resolved relative to pwd grew one copy per workspace, a second drifting copy
+    inside the repo when fix cd-ed there, and a `.gitignore` edit in every project. ONE
+    per-user root removes all three: the script owns the path, and no prompt writes at pwd
+    or resolves memory relative to it."""
     body = cli_text()
+    assert 'MEMORY_ROOT="$HOME/.open-pr/review"' in body, "the script must own the root"
+    assert 'target="$MEMORY_ROOT/$REPO/worktrees/' in body, "the worktree must root under it"
+    assert 'mem_dir="$MEMORY_ROOT/$(req repo)"' in body, "settings must read from it"
     assert 'git -C "$repo_dir" worktree add' in body, "the worktree add is not aimed with -C"
-    assert 'target="$PWD/notebooks/review/' in body, "the worktree must root at the invocation directory"
     locate = re.search(r"^cmd_locate_repo\(\) \{\n(.*?)^\}", body, re.M | re.S).group(1)
     assert "cd " not in locate, "locate-repo decides for its callers; it must not cd"
+    review = text(SRC / "commands" / "review.md")
+    assert "FORBIDDEN: `cd`" in review
+    assert "nothing is written at pwd" in " ".join(review.split())
+    for name, t in all_text().items():
+        assert "notebooks/" not in t, f"{name} still names the pwd-relative memory directory"
 
 
 def test_fix_reuses_what_the_session_already_established():
-    """#123: run from a side worktree, fix re-asked the bootstrap CHOICE and offered only a
-    fresh checkout although the same session had the repo's memory and a gated checkout in
-    hand. Session knowledge comes first in both places; the gate still judges the tree."""
+    """#123: run from a side worktree, fix offered only a fresh checkout although the same
+    session had a gated checkout in hand. Session knowledge comes first; the gate still
+    judges the tree."""
     flat = " ".join(text(SRC / "commands" / "fix.md").split())
-    assert "the one THIS session already established for `<repo>`" in flat
     assert "A checkout THIS session already established that prefix-matches" in flat
-    assert "probes beside the repo's main worktree" in flat
-
-
-def test_fix_reads_the_memory_review_wrote():
-    """review.md writes notebooks/review/<repo> at ITS pwd (the invocation directory); fix.md
-    cd's into the repo — resolving memory relative to the repo there grew a second, drifting
-    settings.json inside the reviewed tree (seen live: the two copies disagreed on
-    git_remote_type). fix must resolve memory at the invocation directory, absolutely."""
-    flat = " ".join(text(SRC / "commands" / "fix.md").split())
-    assert "at THIS invocation directory, ABSOLUTE" in flat
-    assert "FORBIDDEN: resolving memory inside `<repo_dir>`" in flat
-    assert "run FROM the invocation directory so the worktree lands under `<memory-dir>`" in flat
+    assert "`<op> settings --repo <repo>`" in flat, "fix reads the same memory review wrote"
 
 
 def test_fix_matches_findings_in_one_pass():

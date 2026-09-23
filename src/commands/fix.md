@@ -58,12 +58,7 @@ remote + current branch": `git remote -v` && `git branch --show-current` — pwd
 ## Step 1 — Verify a safe context (STOP IMMEDIATELY on failure)
 
 **1a.** `<op> locate-repo` → `<repo_dir>` (exit 5 → ask with a CHOICE in plain language, STOP if
-unresolved). `<memory-dir>`: the one THIS session already established for `<repo>`
-(a review or fix ran here) — reuse it, ask nothing; else `notebooks/review/<repo>` at THIS invocation
-directory, ABSOLUTE — unless `<repo_dir>` is a `review` worktree
-(`notebooks/review/*/worktrees/pr<pull_number>-*`) ⇒ its `../../`. FORBIDDEN: resolving memory inside
-`<repo_dir>` — a repo that is a subdirectory of the workspace grows a second, drifting copy. Then
-`cd` into `<repo_dir>` — this command EDITS that repo's files ⇒ works from inside.
+unresolved). Then `cd` into `<repo_dir>` — this command EDITS that repo's files ⇒ works from inside.
 
 **1b. Check BOTH at the 1a directory.** Either failing → print that error, STOP COMPLETELY. FORBIDDEN:
 touching any file, proceeding to Step 2.
@@ -75,9 +70,8 @@ touching any file, proceeding to Step 2.
    tip, stale worktree — ⇒ ONE CHOICE per `core/guardrails.md`. A checkout THIS session already
    established that prefix-matches "Head SHA" ⇒ `Use the session's checkout at <path> (Recommended)`
    heads the options; else the recommendation is
-   `Fix in a fresh worktree (Recommended)` — `<op> checkout`, run FROM the invocation directory so
-   the worktree lands under `<memory-dir>`, gates it to "Head SHA"; the user's own branch/tree stays
-   untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout yourself, printing:
+   `Fix in a fresh worktree (Recommended)` — `<op> checkout` gates it to "Head SHA"; the user's own
+   branch/tree stays untouched; `cd` into the printed worktree, continue there — vs stop-and-checkout yourself, printing:
    ```
    ❌ Current branch (`<current branch>`) doesn't match the PR's branch (`<headRefName>`). Check
       out the correct branch `<headRefName>` and call this again.
@@ -92,12 +86,10 @@ touching any file, proceeding to Step 2.
 
 ## Step 2 — Settings
 
-`<op> settings --dir <memory-dir> --repo <repo> --repo-dir <repo_dir>` (`core/repo-settings.md`
-names what each field means) — on a miss it probes beside the repo's main worktree itself. Resolve
+`<op> settings --repo <repo>` (`core/repo-settings.md` names what each field means). Resolve
 `chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
-- `memory_found: false` → `core/repo-settings.md` "memory_found" rule FIRST — it may STOP
 - absent, or no file at all → `Read` `setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle
@@ -123,7 +115,7 @@ another lookup.
 
 ## Step 4 — Read the project's convention
 
-`<memory-dir>` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at Step 7.
+`<memory_dir>/memory.md` absent (repo never reviewed) → skip this Step, fix on ordinary judgment at Step 7.
 FORBIDDEN: blocking or erroring on this.
 
 Present → `<op> stacks --repo-dir . <each finding's file>`, then `Read`

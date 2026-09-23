@@ -6,7 +6,7 @@ caller's own rule.
 Every lesson is loaded again on every later review of a matching stack ⇒ write it as a rule, not a
 story, in the same compressed style as the plugin's own prompt files.
 
-1. `notebooks/review/<repo>/memories/<lesson-slug>.md` — short kebab-case slug, no sequence numbers:
+1. `<memory_dir>/memories/<lesson-slug>.md` — short kebab-case slug, no sequence numbers:
    - the convention itself, imperative and present tense
    - a minimal before/after ONLY when words alone stay ambiguous — the changed lines, never a whole
      function

@@ -16,6 +16,6 @@ No answer → the defaults. Then write `.fix`:
 
 A repo that never ran `/open-pr:review` still gets `settings.json` with just a `.fix` node. FORBIDDEN:
 creating `memory.md`/`ALWAYS_RULE.md`/`templates/` here — those are `review.md`'s, and `fix.md` Step 4
-skips itself when that directory is absent.
+skips itself while `memory.md` is absent.
 
-Then `core/memory-commit.md`, and the `.gitignore` rule in `core/repo-settings.md`.
+Then `core/memory-commit.md`.

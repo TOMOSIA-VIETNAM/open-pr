@@ -1,6 +1,6 @@
 ---
 argument-hint: "[repo name...]"
-description: Bring every per-repo config found below pwd up to the schema this build expects. Takes no PR.
+description: Bring every per-repo config under ~/.open-pr up to the schema this build expects. Takes no PR.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
@@ -19,20 +19,18 @@ description: Bring every per-repo config found below pwd up to the schema this b
 
 ## Step 1 — Discover the config sets, read each checkpoint
 
-`<set>` = one `notebooks/review/<repo>/`, sitting wherever `/open-pr:review` ran — side by side in a
-workspace, or inside the repo itself. Search both, from pwd; FORBIDDEN:
-`cd`, deriving `<repo>` from a git remote (a workspace has none):
+`<set>` = one `~/.open-pr/review/<repo>/`, whatever pwd is. FORBIDDEN: `cd`, deriving `<repo>` from a
+git remote:
 
 ```bash
-find . -maxdepth 4 -type d -path '*/notebooks/review' 2>&1 | grep -Ev '^\./.*(/worktrees/|node_modules)'
+find "$HOME/.open-pr/review" -mindepth 1 -maxdepth 1 -type d ! -name .git 2>&1
 ```
 
-Each hit's subdirectories are the `<set>`s, named `<repo>`; key them by PATH — one `<repo>` may sit under
-2 `notebooks/review/`, each with its own checkpoint.
+Each hit is a `<set>`, named by its basename `<repo>`.
 
 | case | do |
 |---|---|
-| 0 found | STOP: nothing set up here — `cd` to the workspace or repo `/open-pr:review` runs from, bootstrap there first |
+| 0 found | STOP: nothing set up yet — `/open-pr:review` bootstraps a repo first |
 | `ARGUMENTS` non-empty | keep `<set>`s whose `<repo>` it names, case-insensitive; 0 matched ⇒ STOP, listing the `<repo>`s found |
 | else | ALL of them — FORBIDDEN: asking which, that IS the bare form's job |
 
@@ -74,7 +72,7 @@ fetch — a later `vN` can override an earlier one's field ⇒ nothing decidable
 ## Step 4 — Summarise, then ask
 
 ONE CHOICE per `core/guardrails.md`, EXACTLY 2 options, no hedging third. Its body NAMES every `<set>` —
-`<repo>`, checkpoint move, path when a `<repo>` repeats ⇒ nothing written against an unlisted repo:
+`<repo>` + checkpoint move ⇒ nothing written against an unlisted repo:
 
 - `Upgrade all N (Recommended)` — detail: what changes per `ADDED`/`MODIFIED`/`REMOVED`/`RENAMED`, files touched
 - `Not now` — detail: nothing written, every config keeps working

@@ -27,6 +27,10 @@ need() {
 
 need jq
 
+# Every repo's review memory, settings and PR worktrees live under one
+# per-user root, never inside a project: $HOME/.open-pr/review/<repo>/.
+MEMORY_ROOT="$HOME/.open-pr/review"
+
 # ---------------------------------------------------------------- args ----
 # Parsed by every subcommand: --key value pairs into ARG_<KEY> (dashes -> _).
 parse_args() {
@@ -285,7 +289,7 @@ cmd_locate_repo() {
     }
     if matches_remote .; then printf '.\n'; return 0; fi
     found=""
-    for d in $(find . -maxdepth 4 -type d -iname "$REPO" 2>/dev/null | grep -Ev '/(node_modules|notebooks/review)/' || true); do
+    for d in $(find . -maxdepth 4 -type d -iname "$REPO" 2>/dev/null | grep -Ev '/(node_modules|\.open-pr)/' || true); do
         if matches_remote "$d"; then found="$found$d\n"; fi
     done
     count=$(printf '%b' "$found" | grep -c . || true)
@@ -355,7 +359,7 @@ cmd_checkout() {
         REMOTE=$(find_remote "$target" "$HOST" "$OWNER/$REPO")
     else
         repo_dir=$(req repo_dir)
-        target="$PWD/notebooks/review/$REPO/worktrees/pr$N-$$$(awk 'BEGIN{srand();printf "%d", rand()*32768}')"
+        target="$MEMORY_ROOT/$REPO/worktrees/pr$N-$$$(awk 'BEGIN{srand();printf "%d", rand()*32768}')"
         git -C "$repo_dir" worktree add "$target" --detach >&2
         REMOTE=$(find_remote "$repo_dir" "$HOST" "$OWNER/$REPO")
     fi
@@ -598,30 +602,9 @@ cmd_marker() {
 # the computed doctor_due. Never writes anything.
 cmd_settings() {
     parse_args "$@"
-    # --dir wins: a caller standing inside a review worktree passes the memory
-    # directory it located (../../ from the worktree), where a cwd-relative
-    # notebooks/review/<repo> would resolve inside the reviewed tree instead.
-    d=$(arg dir)
-    if [ -n "$d" ]; then f="$d/settings.json"; else f="notebooks/review/$(req repo)/settings.json"; fi
-    # A worktree or subdirectory invocation misses the memory the review created
-    # at its own workspace — with --repo-dir and --repo, probe beside the repo's
-    # MAIN worktree (and its parent workspace) before declaring memory absent.
-    if [ ! -s "$f" ] && [ -n "$(arg repo_dir)" ] && [ -n "$(arg repo)" ]; then
-        common=$(git -C "$(arg repo_dir)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || common=""
-        common=${common:-$(arg repo_dir)/.git}   # not a git tree: stay beside repo_dir, never cwd
-        main_wt=$(dirname "$common")
-        # parent workspace FIRST: the in-repo copy is the drifting one fix.md forbids
-        for cand in "$(dirname "$main_wt")/notebooks/review/$(arg repo)" "$main_wt/notebooks/review/$(arg repo)"; do
-            [ -s "$cand/settings.json" ] && { f="$cand/settings.json"; break; }
-        done
-    fi
-    # The caller must be able to tell "never bootstrapped" from "read from the
-    # wrong directory" — the defaults for the two are byte-identical otherwise.
-    mem_dir=$(cd "$(dirname "$f")" 2>/dev/null && pwd) || {
-        mem_dir=$(dirname "$f")
-        case "$mem_dir" in /*) ;; *) mem_dir="$PWD/$mem_dir" ;; esac
-    }
-    if [ -s "$f" ]; then raw=$(cat "$f"); found=true; else raw='{}'; found=false; fi
+    mem_dir="$MEMORY_ROOT/$(req repo)"
+    f="$mem_dir/settings.json"
+    if [ -s "$f" ]; then raw=$(cat "$f"); else raw='{}'; fi
     now=$(date +%s)
     d_at=$(printf '%s' "$raw" | jq -r '.review.doctored_at // empty')
     d_ep=""
@@ -630,7 +613,7 @@ cmd_settings() {
             || date -j -f '%Y-%m-%d' "$(printf '%.10s' "$d_at")" +%s 2>/dev/null \
             || date -d "$d_at" +%s 2>/dev/null || true)
     fi
-    printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" --arg memdir "$mem_dir" --argjson found "$found" '
+    printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" --arg memdir "$mem_dir" '
         # A boolean defaulting to true needs has(): the // operator treats an explicit
         # false as absent and would flip a stored false back to the default.
         def default_bool($node; $key; $fallback):
@@ -657,7 +640,6 @@ cmd_settings() {
             shared: (.shared // {}),
             schema_version: (.schema_version // null),
             memory_dir: $memdir,
-            memory_found: $found,
             doctor_due: (
                 if (.review.doctored // false) != true then true
                 elif (.review.doctor_schedule // "1 months") == "never" then false

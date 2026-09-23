@@ -1,5 +1,4 @@
 .DS_Store
-notebooks/review/
 __pycache__/
 *.pyc
 .claude/worktrees/

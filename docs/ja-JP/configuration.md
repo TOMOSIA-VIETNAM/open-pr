@@ -6,47 +6,43 @@
 
 ## どこに立つか
 
+memory・設定・レビュー用 worktree は **マシンごとに 1 か所** にまとまり、プロジェクト内には置かれません:
+
 ```
-✅ ワークスペースにいる                      ❌ リポジトリの中にいる
-─────────────────────────                    ─────────────────────────
-workspace/            ← ここで入力           repo-backend/         ← ここで入力
-├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory がプロジェクト内に入る
-│   ├── repo-backend/  どのリポジトリの外    ├── .gitignore         +1 行 — 実際の変更
-│   └── repo-frontend/                       └── src/
-├── repo-backend/     ← 余計なファイル 0
-└── repo-frontend/    ← 余計なファイル 0     (repo-frontend? 見えない)
+~/.open-pr/review/
+├── .git/            学習内容のローカル履歴 — remote なし、push もしない
+├── repo-backend/    memory.md · memories/ · templates/ · ALWAYS_RULE.md · settings.json · worktrees/
+└── repo-frontend/
 ```
 
-`notebooks/review/`（memory + worktree）は、コマンドを入力した場所に **そのまま** 作られます。
-
-| 立つ場所 | 結果 |
-| --- | --- |
-| **ワークスペース**（推奨） | リポジトリには触れない。リポジトリが横に並ぶ → 1 回の実行で **リポジトリ横断** PR をレビューできる（並列ではなく順番に） |
-| **リポジトリ内** | `notebooks/review/` がプロジェクト内に置かれる。プラグインが `.gitignore` に 1 行追加するので `git status` は汚れない — ただしその 1 行はリポジトリへの実際の変更 |
+そのため、リポジトリを見つけられる場所ならどこでもコマンドを入力できます: リポジトリ内、またはそれを含むワークスペース（`git remote` で判別）。プロジェクトには何も書かれず、`.gitignore` にも行は追加されません。複数のリポジトリが並ぶワークスペースなら、1 回の実行で **リポジトリ横断** PR をレビューできます（並列ではなく順番に）:
 
 ```bash
 cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
 
-`/open-pr:fix` はワークスペースから呼べます（対象リポジトリを自分で見つける。そのリポジトリが PR のブランチ上にあることが条件）— または `review` がすでに作った worktree から。そこではセッションが対象 PR を知っているため URL は省略できます。
+`/open-pr:fix` も同じ場所から呼べます（リポジトリが PR のブランチ上にあること）— または `review` がすでに作った worktree から。そこではセッションが対象 PR を知っているため URL は省略できます。
+
+> [!NOTE]
+> ワークスペースに `~/.open-pr/review/` を置いていた旧ビルドから移る場合、自動では移動されません。学習内容を残すには一度だけ移動してください — `mkdir -p ~/.open-pr && mv notebooks/review ~/.open-pr/review` — そのあと `.gitignore` の `~/.open-pr/review/` 行を削除します。
 
 ## Command
 
 | コマンド | どこに立つか | 何を書くか |
 | --- | --- | --- |
-| `/open-pr:review` | リポジトリを含むワークスペース（推奨）、またはリポジトリ内 — `git remote` で自動判別 | PR 上のコメント + `notebooks/review/<repo>/` の memory |
+| `/open-pr:review` | リポジトリ内、またはそれを含むワークスペース — `git remote` で自動判別 | PR 上のコメント + `~/.open-pr/review/<repo>/` の memory |
 | `/open-pr:fix` | そのリポジトリ内 / それを含むワークスペース — ただし **リポジトリが PR のブランチ上にあること** | リポジトリの実コード + PR への返信 |
-| `/open-pr:upgrade` | 設定済みのワークスペースまたはリポジトリ — 複数あれば選択させる | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | 掃除したい `notebooks/review/` より上のどこか | 何も書かない — `notebooks/review/*/worktrees/*` だけを削除 |
+| `/open-pr:upgrade` | どこでも — 設定済みの全リポジトリ、または指定したものを更新 | `~/.open-pr/review/<repo>/settings.json` |
+| `/open-pr:clean` | どこでも | 何も書かない — `~/.open-pr/review/*/worktrees/*` だけを削除 |
 | `/open-pr:feedback` | どこでも | ローカルには何も書かない — 本文を承認したあと、プラグイン自身の tracker に issue を 1 件 |
 
 ## Setting
 
-学習した内容は `notebooks/review/<repo>/memory.md` にインデックスされます（目次 — トークンを節約しつつ全体像は把握できる）。詳細は `notebooks/review/<repo>/memories/*.md` にあります。
+学習した内容は `~/.open-pr/review/<repo>/memory.md` にインデックスされます（目次 — トークンを節約しつつ全体像は把握できる）。詳細は `~/.open-pr/review/<repo>/memories/*.md` にあります。
 
 > [!NOTE]
-> `notebooks/review/` 全体は **独立したローカル git** で管理されます — remote なし、push もしない。レビューごとの memory の変化を追えます。
+> `~/.open-pr/review/` 全体は **独立したローカル git** で管理されます — remote なし、push もしない。レビューごとの memory の変化を追えます。
 
 チームルールは普通の文章で `ALWAYS_RULE.md` に書きます（初期状態は空）。それ以外は `settings.json` にあります:
 

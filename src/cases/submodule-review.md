@@ -3,8 +3,8 @@
 `review.md` Step 1 arrives with the worktree created and NO submodule initialised; `<op> checkout
 --submodule-path` is what inits ONLY the bumped path, at `<worktree>/<submodule-path>/` — a full
 checkout on disk. FORBIDDEN: a second `git worktree add`; writing inside a submodule beyond its own
-checkout — the worktree sits beside the project repo, under the invocation directory's
-`notebooks/review/`, and a submodule never gets a `notebooks/` of its own.
+checkout — the worktree sits under `~/.open-pr/review/<repo>/worktrees/`, and a submodule never gets
+a memory directory of its own.
 
 Several submodule bumps in the SAME main PR → repeat A→F for EACH path, presenting each result
 separately per "Presenting output".
@@ -63,8 +63,8 @@ Reapply `review.md` Step 2 → Step 8 against the Step C data, with exactly 3 di
   `<op> verify-line` — Step 7's reads and Step 6's checks included. FORBIDDEN: the MAIN repo's tree,
   which holds a different file at the same path.
 - its own stack detection over the submodule's diff files, independent of the main PR's
-- memory/templates SHARE the MAIN repo's directory, `notebooks/review/<repo>/` (`<repo>` = from the
-  ORIGINAL PR URL). FORBIDDEN: a separate `notebooks/review/<repo-submodule>/` — bootstrap, doctor and
+- memory/templates SHARE the MAIN repo's directory, `~/.open-pr/review/<repo>/` (`<repo>` = from the
+  ORIGINAL PR URL). FORBIDDEN: a separate `~/.open-pr/review/<repo-submodule>/` — bootstrap, doctor and
   `.review` exist once, for the main repo. A submodule stack missing from `templates_copied` still gets
   its template copied/authored as usual, into that same directory.
 

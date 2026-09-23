@@ -1,7 +1,7 @@
 # Memory / doctor / config asked for in chat
 
 Reached when the user asks for one of these outside a review — including a session with no PR at all.
-Needs `notebooks/review/<repo>/` to exist already.
+Needs `~/.open-pr/review/<repo>/` to exist already.
 
 | asked | do |
 |---|---|

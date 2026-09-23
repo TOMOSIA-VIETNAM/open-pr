@@ -6,47 +6,43 @@ Những gì plugin ghi nhớ cho từng repo, và chỗ bạn sửa khi cần.
 
 ## Đứng ở đâu
 
+Memory, setting và worktree review nằm ở **một chỗ duy nhất trên máy**, không bao giờ trong dự án:
+
 ```
-✅ đứng ở workspace                          ❌ đứng trong repo
-─────────────────────────                    ─────────────────────────
-workspace/            ← gõ ở đây             repo-backend/         ← gõ ở đây
-├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory nằm TRONG dự án
-│   ├── repo-backend/  ngoài mọi repo        ├── .gitignore         +1 dòng — thay đổi thật
-│   └── repo-frontend/                       └── src/
-├── repo-backend/     ← sạch, 0 file lạ
-└── repo-frontend/    ← sạch, 0 file lạ      (repo-frontend? không thấy)
+~/.open-pr/review/
+├── .git/            lịch sử local của những gì đã học — không remote, không push
+├── repo-backend/    memory.md · memories/ · templates/ · ALWAYS_RULE.md · settings.json · worktrees/
+└── repo-frontend/
 ```
 
-`notebooks/review/` (memory + worktree) luôn sinh ra **ngay chỗ bạn gõ command**.
-
-| Đứng ở | Hệ quả |
-| --- | --- |
-| **Workspace** (khuyến nghị) | Repo không bị chạm. Các repo nằm cạnh nhau → review được PR **chéo repo** trong một lượt (lần lượt, không song song) |
-| **Trong repo** | `notebooks/review/` nằm trong dự án. Plugin tự thêm 1 dòng `.gitignore` nên `git status` sạch — nhưng dòng đó vẫn là thay đổi thật trong repo |
+Vì vậy gõ command ở bất kỳ đâu tìm được repo: trong repo, hoặc workspace chứa nó (khớp theo `git remote`). Không ghi gì vào dự án, không thêm dòng `.gitignore`. Workspace có nhiều repo nằm cạnh nhau → review được PR **chéo repo** trong một lượt (lần lượt, không song song):
 
 ```bash
 cd ~/workspace
 /open-pr:review https://github.com/org/repo-backend/pull/12 https://github.com/org/repo-frontend/pull/34
 ```
 
-`/open-pr:fix` gọi được từ workspace (nó tự tìm đúng repo, miễn repo đang ở branch của PR) — hoặc từ chính worktree mà `review` đã tạo; ở đó URL không bắt buộc vì session đã biết PR nào.
+`/open-pr:fix` gọi được từ cùng những chỗ đó (repo phải đang ở branch của PR) — hoặc từ chính worktree mà `review` đã tạo; ở đó URL không bắt buộc vì session đã biết PR nào.
+
+> [!NOTE]
+> Chuyển từ bản cũ để `~/.open-pr/review/` trong workspace: plugin không tự chuyển. Muốn giữ những gì đã học, chuyển một lần — `mkdir -p ~/.open-pr && mv notebooks/review ~/.open-pr/review` — rồi xoá dòng `~/.open-pr/review/` trong `.gitignore`.
 
 ## Command
 
 | Command | Bạn đứng ở đâu | Nó ghi gì |
 | --- | --- | --- |
-| `/open-pr:review` | workspace chứa repo (nên vậy), hoặc trong repo — tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
+| `/open-pr:review` | trong repo, hoặc workspace chứa nó — tự tìm theo `git remote` | comment trên PR + memory ở `~/.open-pr/review/<repo>/` |
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
-| `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
+| `/open-pr:upgrade` | bất kỳ đâu — nâng mọi repo đã setup, hoặc các repo bạn nêu tên | `~/.open-pr/review/<repo>/settings.json` |
+| `/open-pr:clean` | bất kỳ đâu | không ghi gì — chỉ xóa `~/.open-pr/review/*/worktrees/*` |
 | `/open-pr:feedback` | bất kỳ đâu | không ghi gì ở máy — một issue trên tracker của plugin, sau khi bạn duyệt nội dung |
 
 ## Setting
 
-Mọi thứ đã học được index trong `notebooks/review/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `notebooks/review/<repo>/memories/*.md`.
+Mọi thứ đã học được index trong `~/.open-pr/review/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `~/.open-pr/review/<repo>/memories/*.md`.
 
 > [!NOTE]
-> Cả thư mục `notebooks/review/` do một **git local độc lập** quản lý — không remote, không push. Bạn theo dõi được memory đổi qua từng lần review.
+> Cả thư mục `~/.open-pr/review/` do một **git local độc lập** quản lý — không remote, không push. Bạn theo dõi được memory đổi qua từng lần review.
 
 Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định rỗng). Phần còn lại nằm ở `settings.json`:
 
