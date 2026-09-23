@@ -25,7 +25,7 @@ cd ~/workspace
 `/open-pr:fix` works from the same places (the repo must be on the PR's branch) — or from the worktree `review` already made; there the URL is optional because the session already knows which PR.
 
 > [!NOTE]
-> Coming from a build that kept `~/.open-pr-data/review/` in your workspace: nothing is moved for you. To keep what was learned, move it once — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — then drop the `~/.open-pr-data/review/` line from `.gitignore`.
+> Coming from a build that kept `notebooks/review/` in your workspace: nothing is moved for you. To keep what was learned, run `/open-pr:clean` there first (a moved worktree leaves a broken registration in its repo), then move it once — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — and drop the `notebooks/review/` line from `.gitignore`. From a second workspace, move each `notebooks/review/<repo>/` into `~/.open-pr-data/review/` instead: moving the whole directory again nests it as `review/review/`.
 
 ## Command
 

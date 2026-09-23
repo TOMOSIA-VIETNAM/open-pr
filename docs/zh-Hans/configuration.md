@@ -25,7 +25,7 @@ cd ~/workspace
 `/open-pr:fix` 也能从同样的位置运行（仓库必须处在 PR 的分支上）—— 也可以从 `review` 已经建好的 worktree 里运行；在那里 URL 是可选的，因为会话已经知道是哪个 PR。
 
 > [!NOTE]
-> 从把 `~/.open-pr-data/review/` 放在 workspace 里的旧版本升级过来：插件不会替你搬。想保留已学内容，搬一次即可 —— `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` —— 然后删掉 `.gitignore` 里的 `~/.open-pr-data/review/` 行。
+> 从把 `notebooks/review/` 放在 workspace 里的旧版本升级过来：插件不会替你搬。想保留已学内容，先在那里运行 `/open-pr:clean`（被搬走的 worktree 会在仓库里留下失效的登记），再搬一次 —— `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` —— 然后删掉 `.gitignore` 里的 `notebooks/review/` 行。从第二个 workspace 起，把每个 `notebooks/review/<repo>/` 单独搬进 `~/.open-pr-data/review/`：再次整体搬动会嵌套成 `review/review/`。
 
 ## 命令
 

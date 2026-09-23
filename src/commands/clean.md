@@ -18,7 +18,7 @@ description: Remove the git worktrees review checked PR code out into. Each one 
 Every worktree `/open-pr:review` made sits under `~/.open-pr-data/review/`, whatever pwd is. FORBIDDEN: `cd`.
 
 ```bash
-find "$HOME/.open-pr-data/review" -mindepth 3 -maxdepth 3 -type d -path '*/worktrees/*' 2>&1
+[ -d "$HOME/.open-pr-data/review" ] && find "$HOME/.open-pr-data/review" -mindepth 3 -maxdepth 3 -type d -path '*/worktrees/*' 2>&1
 ```
 
 None → say there is nothing to clean, STOP.

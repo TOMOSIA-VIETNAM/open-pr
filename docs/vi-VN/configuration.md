@@ -25,7 +25,7 @@ cd ~/workspace
 `/open-pr:fix` gọi được từ cùng những chỗ đó (repo phải đang ở branch của PR) — hoặc từ chính worktree mà `review` đã tạo; ở đó URL không bắt buộc vì session đã biết PR nào.
 
 > [!NOTE]
-> Chuyển từ bản cũ để `~/.open-pr-data/review/` trong workspace: plugin không tự chuyển. Muốn giữ những gì đã học, chuyển một lần — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — rồi xoá dòng `~/.open-pr-data/review/` trong `.gitignore`.
+> Chuyển từ bản cũ để `notebooks/review/` trong workspace: plugin không tự chuyển. Muốn giữ những gì đã học, chạy `/open-pr:clean` ở đó trước (worktree bị chuyển đi để lại registration hỏng trong repo), rồi chuyển một lần — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — và xoá dòng `notebooks/review/` trong `.gitignore`. Từ workspace thứ hai, chuyển từng `notebooks/review/<repo>/` vào `~/.open-pr-data/review/`: chuyển cả thư mục lần nữa sẽ lồng thành `review/review/`.
 
 ## Command
 

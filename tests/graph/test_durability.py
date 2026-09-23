@@ -101,7 +101,12 @@ def test_memory_and_worktrees_live_under_the_per_user_root():
     review = text(SRC / "commands" / "review.md")
     assert "FORBIDDEN: `cd`" in review
     assert "nothing is written at pwd" in " ".join(review.split())
+    # upgrade.md alone names it: live-fetched migrations still spell the old path, and it
+    # has to map that path onto the set they apply to.
     for name, t in all_text().items():
+        if name == "commands/upgrade.md":
+            assert "naming `notebooks/review/` means the `<set>`'s parent" in " ".join(t.split())
+            continue
         assert "notebooks/" not in t, f"{name} still names the pwd-relative memory directory"
 
 

@@ -23,7 +23,7 @@ description: Bring every per-repo config under ~/.open-pr-data up to the schema 
 git remote:
 
 ```bash
-find "$HOME/.open-pr-data/review" -mindepth 1 -maxdepth 1 -type d ! -name .git 2>&1
+[ -d "$HOME/.open-pr-data/review" ] && find "$HOME/.open-pr-data/review" -mindepth 1 -maxdepth 1 -type d 2>&1 | grep -Ev '/\.git$'
 ```
 
 Each hit is a `<set>`, named by its basename `<repo>`.
@@ -84,7 +84,9 @@ decides from WHAT changes, not HOW. `Not now` ⇒ STOP, nothing written.
 ## Step 5 — Apply cumulatively, write the new checkpoint
 
 Per `<set>`, apply migrations with `N` > ITS OWN checkpoint, ASCENDING — each `vN.md`'s instructions
-literally (fields added/modified/removed/renamed, files merged/split/renamed…). FORBIDDEN: assuming any
+literally (fields added/modified/removed/renamed, files merged/split/renamed…). A `vN.md` naming
+`notebooks/review/` means the `<set>`'s parent, `~/.open-pr-data/review/` — every read, write and
+`git -C` it spells resolves there, never at pwd. FORBIDDEN: assuming any
 target shape the fetched file does not state. Then set that `<set>`'s `schema_version` = highest `N`
 applied to it.
 

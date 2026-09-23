@@ -25,7 +25,7 @@ cd ~/workspace
 `/open-pr:fix` も同じ場所から呼べます（リポジトリが PR のブランチ上にあること）— または `review` がすでに作った worktree から。そこではセッションが対象 PR を知っているため URL は省略できます。
 
 > [!NOTE]
-> ワークスペースに `~/.open-pr-data/review/` を置いていた旧ビルドから移る場合、自動では移動されません。学習内容を残すには一度だけ移動してください — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — そのあと `.gitignore` の `~/.open-pr-data/review/` 行を削除します。
+> ワークスペースに `notebooks/review/` を置いていた旧ビルドから移る場合、自動では移動されません。学習内容を残すには、まずそこで `/open-pr:clean` を実行し（移動した worktree はリポジトリ側に壊れた登録を残します）、一度だけ移動してください — `mkdir -p ~/.open-pr-data && mv notebooks/review ~/.open-pr-data/review` — そのあと `.gitignore` の `notebooks/review/` 行を削除します。2 つ目以降のワークスペースからは `notebooks/review/<repo>/` を 1 つずつ `~/.open-pr-data/review/` へ移動してください。ディレクトリごと再度移動すると `review/review/` に入れ子になります。
 
 ## Command
 
