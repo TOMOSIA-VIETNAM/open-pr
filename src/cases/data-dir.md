@@ -1,7 +1,7 @@
-# `<data>` — pick it once, import existing memory
+# `<data>` not set — pick it once, import existing memory
 
-Two ways in: `<op> data-dir` exited 7 → "Not set"; `<op> settings` printed `memory_found: false` →
-"memory_found: false". FORBIDDEN: `cd` anywhere below.
+Read when `<op> data-dir` exits 7; `cases/memory-not-found.md` reads only "Import". FORBIDDEN: `cd`
+anywhere below.
 
 ## Not set
 
@@ -21,23 +21,6 @@ The answer is stored per user, not per repo: every later run, from any directory
    - free text = any path the user types
 3. `<op> data-dir --set <answer>` → `<data>`.
 4. Each `<src>` other than `<data>` → "Import". Then continue the calling command.
-
-## memory_found: false — new repo, or memory kept elsewhere?
-
-The defaults for the two are identical, so BEFORE any bootstrap runs, look for this repo's memory below
-the invocation directory:
-
-```bash
-find . -maxdepth 4 -type d -path '*/notebooks/review/<repo>' 2>&1 | grep -Ev 'node_modules|/worktrees/'
-```
-
-- hit → ONE CHOICE per `core/guardrails.md`, one per hit: `Import <hit> (Recommended)` → "Import" with
-  `<src>` = the hit's parent, this `<repo>` only, then `<op> settings --repo <repo>` again (the file was
-  WRITTEN since) — vs `First run for this repo` → the caller's bootstrap
-- none → ONE CHOICE: `First run for this repo (Recommended)` → the caller's bootstrap — vs its memory
-  sits in another directory ⇒ STOP, print `memory_dir` and say to copy that repo's memory there
-
-A repo bootstrapped elsewhere answers to defaults here, and re-asking setup is the symptom the user sees.
 
 ## Import
 

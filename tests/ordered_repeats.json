@@ -80,8 +80,8 @@
       "reason": "Describes what a LATER review does with a REFERENCE line: it reads the pointed-at path then, instead of memory holding a copy. No lookup is repeated inside the doctor run."
     },
     {
-      "sha": "d1d16423da1b",
-      "file": "cases/data-dir.md",
+      "sha": "b4829c303914",
+      "file": "cases/memory-not-found.md",
       "claim": "written",
       "reason": "Import just copied this repo's settings.json into <data>; the first settings call read defaults from a file that did not exist yet, so the second reads what the copy WROTE."
     }

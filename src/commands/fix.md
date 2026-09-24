@@ -92,7 +92,7 @@ touching any file, proceeding to Step 2.
 `chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
-- `memory_found: false` → `Read` `cases/data-dir.md` "memory_found: false" FIRST — it may import or STOP
+- `memory_found: false` → `Read` `cases/memory-not-found.md` FIRST — it may import or STOP
 - absent, or no file at all → `Read` `setup/fix-bootstrap.md`, follow it
 
 ## Step 3 — Identify findings to handle

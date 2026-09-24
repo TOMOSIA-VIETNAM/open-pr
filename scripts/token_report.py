@@ -84,6 +84,7 @@ ROLES = {
     "case-submodule": ["cases/submodule-review.md"],
     "case-multi-pr-fix": ["cases/multi-pr-fix.md"],
     "case-data-dir": ["cases/data-dir.md"],
+    "case-memory-not-found": ["cases/memory-not-found.md"],
     "tpl-rails": ["templates/rails.md"],
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
@@ -93,8 +94,8 @@ ROLES = {
 # A "load set" = what a single run of one command Reads into context.
 SCENARIOS = {
     "review/new-repo-github": [
-        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "case-data-dir", "stack",
-        "setup-bootstrap",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "case-memory-not-found",
+        "stack", "setup-bootstrap",
         "setup-doctor", "memory-commit", "upgrades-index", "case-language-choice", "gh-fetch", "gh-worktree",
         "gh-post",
         "criteria", "always-rule", "setup-template", "tpl-rails",
