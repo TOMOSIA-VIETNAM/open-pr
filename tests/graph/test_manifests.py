@@ -296,7 +296,9 @@ def test_token_history_is_frozen_and_its_chart_matches():
 
     tags = subprocess.run(["git", "-C", str(REPO), "tag", "--list"],
                           capture_output=True, text=True, check=True).stdout.split()
-    for p in points:
+    # a release PR prepares its own point: only the last one, and only the declared version
+    prepared = points[-1]["tag"] == token_chart.declared_tag()
+    for p in points[:-1] if prepared else points:
         assert p["tag"] in tags, f"{p['tag']} is not a tag in this repo"
         for line in token_chart.LINES:
             v = p.get(line["key"])

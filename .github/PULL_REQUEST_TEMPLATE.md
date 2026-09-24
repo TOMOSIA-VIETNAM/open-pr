@@ -29,7 +29,8 @@ report. It proves the graph still holds, not that the agent behaves — for that
   scenario, by how much, and why. Never strip behaviour for budget
   (`--update-budgets` rewrites every ceiling to measured +2% — fine when none were hand-tightened)
 - [ ] `tests/token-history.json` and `token-history.svg` untouched — the chart takes one frozen
-  point per release (`/release-now`), never one per PR
+  point per release (`/release-now`), never one per PR. Only the release PR may prepare its own
+  point: `token_chart.py --add <declared version>`
 - [ ] Behavior/architecture change → updated `CLAUDE.md` accordingly
 - [ ] No AI-flavoured prose in anything a reader sees — README, docs, PR text, commit messages.
   The tells: a decorative emoji opening a heading or a bullet; a section praising this project;
