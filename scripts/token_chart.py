@@ -37,12 +37,20 @@ SVG = REPO / "token-history.svg"
 
 # A line per command. `cmd_role` is what proves the command EXISTED at a tag: a
 # group whose command file is absent gets null, never 0 — 0 would read as free.
+# `colour` is the brand palette, drawn on a light page (GitHub light, the landing page's sand);
+# `dark` is a lighter tint of the same hue for a dark page (GitHub dark, #0d1117), where every
+# line reaches at least 7:1. Both are emitted once, into the SVG's own stylesheet.
 LINES = [
-    {"key": "review", "label": "/open-pr:review", "colour": "#2f81f7", "cmd_role": "review-cmd"},
-    {"key": "fix", "label": "/open-pr:fix", "colour": "#e3742f", "cmd_role": "fix-cmd"},
-    {"key": "upgrade", "label": "/open-pr:upgrade", "colour": "#a371f7", "cmd_role": "upgrade-cmd"},
-    {"key": "clean", "label": "/open-pr:clean", "colour": "#3fb950", "cmd_role": "clean-cmd"},
-    {"key": "feedback", "label": "/open-pr:feedback", "colour": "#db61a2", "cmd_role": "feedback-cmd"},
+    {"key": "review", "label": "/open-pr:review", "colour": "#e8450f", "dark": "#ff7a45",
+     "cmd_role": "review-cmd"},
+    {"key": "fix", "label": "/open-pr:fix", "colour": "#3bb4b8", "dark": "#5fd4d8",
+     "cmd_role": "fix-cmd"},
+    {"key": "upgrade", "label": "/open-pr:upgrade", "colour": "#7a2105", "dark": "#f4b196",
+     "cmd_role": "upgrade-cmd"},
+    {"key": "clean", "label": "/open-pr:clean", "colour": "#7d7440", "dark": "#c9be78",
+     "cmd_role": "clean-cmd"},
+    {"key": "feedback", "label": "/open-pr:feedback", "colour": "#57534e", "dark": "#dcd6cf",
+     "cmd_role": "feedback-cmd"},
 ]
 
 NOTE = (
@@ -74,7 +82,8 @@ PR_BODY = (
 
 W, H = 720, 260
 PAD_L, PAD_R, PAD_T, PAD_B = 62, 18, 38, 46
-GREY = "#8b949e"
+# axes, gridlines and every label: light page, dark page
+GREY, GREY_DARK = "#78716c", "#a8a29e"
 LEGEND_CHAR, LEGEND_DOT, LEGEND_GAP, LEGEND_ROW = 7.0, 13, 13, 17
 
 
@@ -137,7 +146,7 @@ def y_ceiling(values):
 
 
 def legend_rows(points):
-    """Legend entries as rows of (x, colour, text), wrapped so no entry crosses W - PAD_R.
+    """Legend entries as rows of (x, key, text), wrapped so no entry crosses W - PAD_R.
 
     A command with no released point yet gets no entry: the image is redrawn only when a release
     adds data, never when code changes. Text width is estimated at LEGEND_CHAR per character,
@@ -153,11 +162,27 @@ def legend_rows(points):
         if row and lx + span > W - PAD_R:
             rows.append(row)
             row, lx = [], PAD_L
-        row.append((lx, line["colour"], text))
+        row.append((lx, line["key"], text))
         lx += span + LEGEND_GAP
     if row:
         rows.append(row)
     return rows
+
+
+def stylesheet():
+    """Every colour the chart paints, as classes: `guide` strokes the gridlines and ticks,
+    `label` fills the text, `line-<key>` / `dot-<key>` paint one command's polyline and dots.
+    The dark block restates each one for a reader whose system asks for a dark scheme; a page
+    embedding the image as `<img>` keeps the light block by declaring `color-scheme: light`."""
+    def rules(grey, pick):
+        out = [f".guide{{stroke:{grey}}}", f".label{{fill:{grey}}}"]
+        for line in LINES:
+            out += [f'.line-{line["key"]}{{stroke:{pick(line)}}}',
+                    f'.dot-{line["key"]}{{fill:{pick(line)}}}']
+        return "".join(out)
+    light = rules(GREY, lambda l: l["colour"])
+    dark = rules(GREY_DARK, lambda l: l["dark"])
+    return f"<style>{light}@media (prefers-color-scheme: dark){{{dark}}}</style>"
 
 
 def render(data):
@@ -186,15 +211,15 @@ def render(data):
 
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {height}" width="{W}" height="{height}"'
          f' font-family="system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif"'
-         f' role="img" aria-label="Context cost per release, one line per command">']
+         f' role="img" aria-label="Context cost per release, one line per command">', stylesheet()]
 
     # gridlines + y labels
     for gv in range(0, ymax + 1, 2000):
         gy = y(gv)
         s.append(f'<line x1="{PAD_L}" y1="{gy:.1f}" x2="{W - PAD_R}" y2="{gy:.1f}"'
-                 f' stroke="{GREY}" stroke-opacity="0.25"/>')
+                 f' class="guide" stroke-opacity="0.25"/>')
         s.append(f'<text x="{PAD_L - 8}" y="{gy + 3.5:.1f}" text-anchor="end" font-size="10"'
-                 f' fill="{GREY}">{gv // 1000}k</text>')
+                 f' class="label">{gv // 1000}k</text>')
 
     # x labels — every point keeps its dot and tick; text goes to the first
     # X_LABELS_HEAD and the last X_LABELS_TAIL tags, with one ellipsis for the gap.
@@ -203,35 +228,35 @@ def render(data):
     gap = [i for i in range(len(points)) if i not in labelled]
     for i, p in enumerate(points):
         s.append(f'<line x1="{x(i):.1f}" y1="{height - PAD_B + 2:.1f}" x2="{x(i):.1f}"'
-                 f' y2="{height - PAD_B + 6:.1f}" stroke="{GREY}" stroke-opacity="0.5"/>')
+                 f' y2="{height - PAD_B + 6:.1f}" class="guide" stroke-opacity="0.5"/>')
         if i in labelled:
             s.append(f'<text x="{x(i):.1f}" y="{height - PAD_B + 18:.1f}" text-anchor="middle"'
-                     f' font-size="10" fill="{GREY}">{p["tag"]}</text>')
+                     f' font-size="10" class="label">{p["tag"]}</text>')
     if gap:
         gx = (x(gap[0]) + x(gap[-1])) / 2
         s.append(f'<text x="{gx:.1f}" y="{height - PAD_B + 18:.1f}" text-anchor="middle"'
-                 f' font-size="10" fill="{GREY}">…</text>')
+                 f' font-size="10" class="label">…</text>')
 
     # one polyline + dots per command, skipping the tags where it did not exist
     for line in LINES:
         seq = [(x(i), y(p[line["key"]])) for i, p in enumerate(points) if p.get(line["key"]) is not None]
         if len(seq) > 1:
             pts = " ".join(f"{px:.1f},{py:.1f}" for px, py in seq)
-            s.append(f'<polyline points="{pts}" fill="none" stroke="{line["colour"]}"'
+            s.append(f'<polyline points="{pts}" fill="none" class="line-{line["key"]}"'
                      f' stroke-width="2" stroke-linejoin="round"/>')
         for px, py in seq:
-            s.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3" fill="{line["colour"]}"/>')
+            s.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="3" class="dot-{line["key"]}"/>')
 
     # legend, and the value each line ends on. The last row keeps its 20px gap above the plot,
     # so earlier rows stack upward into the space the taller canvas opened.
     for r, row in enumerate(rows):
         cy = top - 20 - (len(rows) - 1 - r) * LEGEND_ROW
-        for lx, colour, text in row:
-            s.append(f'<circle cx="{lx + 4}" cy="{cy}" r="3.5" fill="{colour}"/>')
+        for lx, key, text in row:
+            s.append(f'<circle cx="{lx + 4}" cy="{cy}" r="3.5" class="dot-{key}"/>')
             s.append(f'<text x="{lx + LEGEND_DOT}" y="{cy + 3.5}" font-size="11"'
-                     f' fill="{GREY}">{text}</text>')
+                     f' class="label">{text}</text>')
 
-    s.append(f'<text x="{PAD_L}" y="{height - 8}" font-size="9" fill="{GREY}"'
+    s.append(f'<text x="{PAD_L}" y="{height - 8}" font-size="9" class="label"'
              f' fill-opacity="0.85">{STAMP}</text>')
     s.append("</svg>")
     SVG.write_text("\n".join(s) + "\n", encoding="utf-8")
