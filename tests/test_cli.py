@@ -50,6 +50,25 @@ def data_dir(tmp_path, monkeypatch):
     return data
 
 
+# ------------------------------------------------------------------ help ----
+
+@pytest.mark.parametrize("flag", ["--help", "-h"])
+def test_help_prints_the_contract_without_any_dependency(flag, tmp_path):
+    """--help must answer even where jq is missing — it is how a user learns what to install."""
+    (tmp_path / "cat").symlink_to(subprocess.run(["sh", "-c", "command -v cat"], capture_output=True,
+                                                 text=True, check=True).stdout.strip())
+    r = subprocess.run(["/bin/sh", str(CLI), flag], capture_output=True, text=True,
+                       env={"PATH": str(tmp_path)})   # cat only — no jq, no vendor CLI
+    assert r.returncode == 0 and r.stdout.startswith("usage: open-pr.sh"), r.stderr
+    for header in ("Common options:", "Subcommands:", "Exit codes:"):
+        assert header in r.stdout
+
+
+def test_unknown_subcommand_points_at_help():
+    r = run("nope")
+    assert r.returncode == 1 and "see --help" in r.stderr
+
+
 # ---------------------------------------------------------------- target ----
 
 @pytest.mark.parametrize("url,vendor,owner,repo,n", [

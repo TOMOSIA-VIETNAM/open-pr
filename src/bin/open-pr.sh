@@ -6,15 +6,13 @@
 # checking out the PR head, gating the tree against the head SHA, confirming line
 # numbers, and posting through each vendor's own publish flow.
 #
-# Contract (what src/core/cli.md documents for the prompts):
+# Contract:
+#   - usage() below is the single source for subcommands, options and exit codes;
+#     src/core/cli.md mirrors it (scripts/cli_doc.py --write regenerates the copy).
 #   - stdout is data, stderr is diagnostics; exit codes are part of the interface.
 #   - PR content (title/body/diff/comments) passes through as DATA only — this
 #     script never evaluates or expands it. All request payloads travel via files
 #     or jq-built JSON, never through shell interpolation.
-#   - Exit codes: 0 ok · 2 head-SHA gate failed after its one retry · 3 vendor
-#     checkout error (e.g. force-pushed source) · 4 invalid PR URL · 5 repo
-#     directory not resolvable · 6 missing credentials · 7 data directory not
-#     set · 1 anything else.
 #
 # Dependencies: git, jq, curl, and the vendor CLI the target uses (gh or glab).
 set -eu
@@ -25,8 +23,6 @@ need() {
     command -v "$1" >/dev/null 2>&1 && return 0
     die 1 "open-pr.sh: required tool missing: $1. Install it and call the run again — jq: winget install jqlang.jq (Windows) / brew install jq (macOS) / apt install jq (Debian-Ubuntu); gh: https://cli.github.com; glab: https://gitlab.com/gitlab-org/cli."
 }
-
-need jq
 
 # ---------------------------------------------------------------- args ----
 # Parsed by every subcommand: --key value pairs into ARG_<KEY> (dashes -> _).
@@ -599,26 +595,31 @@ cmd_marker() {
 # Review memory and worktrees live under ONE directory the user picks, recorded
 # in the user-level config — never inside a reviewed repo, so no repo has to
 # .gitignore it. Unset ⇒ exit 7: the caller asks the user, then --set.
-DATA_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/config.json"
+data_conf() {
+    [ -n "${XDG_CONFIG_HOME:-}${HOME:-}" ] || die 1 "open-pr: neither XDG_CONFIG_HOME nor HOME is set"
+    printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/config.json"
+}
 data_dir() {
-    v=$(jq -r '.data_dir // empty' "$DATA_CONF" 2>/dev/null) || v=""
-    [ -n "$v" ] || die 7 "open-pr: data directory not set ($DATA_CONF has no data_dir)"
+    conf_f=$(data_conf)
+    v=$(jq -r '.data_dir // empty' "$conf_f" 2>/dev/null) || v=""
+    [ -n "$v" ] || die 7 "open-pr: data directory not set ($conf_f has no data_dir)"
     printf '%s' "$v"
 }
 cmd_data_dir() {
     parse_args "$@"
     s=$(arg set)
+    conf_f=$(data_conf)
     if [ -n "$s" ]; then
         case "$s" in
-            "~"|"~/"*) s="$HOME${s#\~}" ;;
+            "~"|"~/"*) s="${HOME:?HOME is not set}${s#\~}" ;;
             /*|[A-Za-z]:[\\/]*) ;;
             *) s="$PWD/$s" ;;
         esac
-        mkdir -p "$s" "$(dirname "$DATA_CONF")"
+        mkdir -p "$s" "$(dirname "$conf_f")"
         s=$(cd "$s" && pwd)
-        conf='{}'; [ -s "$DATA_CONF" ] && conf=$(cat "$DATA_CONF")
+        conf='{}'; [ -s "$conf_f" ] && conf=$(cat "$conf_f")
         printf '%s' "$conf" | jq --arg d "$s" '.data_dir = $d' > "$TMPD/config.json"
-        mv "$TMPD/config.json" "$DATA_CONF"
+        mv "$TMPD/config.json" "$conf_f"
     fi
     d=$(data_dir)
     printf '%s\n' "$d"
@@ -750,10 +751,90 @@ cmd_push() {
 }
 
 # ---------------------------------------------------------------- main ----
+# ---------------------------------------------------------------- usage ----
+# Layout is parsed by scripts/cli_doc.py: a section header ends in ":", a
+# subcommand line is indented 2 spaces, its description 6 (wrapped lines join
+# with one space), an exit code line is "  <code>  <meaning>".
+usage() {
+    cat <<'EOF'
+usage: open-pr.sh <subcommand> [--option value ...]
+       open-pr.sh --help
+
+Common options:
+  `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
+  `target`/`locate-repo`/`data-dir`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N`
+  on every networked one; `--host H` where self-hostable.
+
+Subcommands:
+  target <url>
+      validate + parse → `vendor/owner/repo/pull_number/host` lines
+  context [--max-patch-bytes B] [--sections s,…]
+      fetch in safe order (Head SHA before Diff, sizes before patch), print `## <label>` sections.
+      Default `info,head,files,sizes,diff,commits,comments,ci`; also `reviews,account,threads`.
+      `--max-patch-bytes` required with `diff` — omission happens inside the call, never post-hoc
+  locate-repo --owner O --repo R --host H
+      `<repo_dir>` whose git remote matches
+  checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
+      main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
+      against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`
+  verify-line --worktree W --path P --line N --side LEFT|RIGHT --base B
+      print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the
+      caller judges the match
+  post --payload F
+      create the vendor's unpublished stage. Payload, ONE shape everywhere:
+      `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…`
+  publish [--review-id I] [--payload F]
+      make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview
+      first)
+  post-verify [--review-id I] [--marker M]
+      what the PR actually shows (Bitbucket: `--marker` = the finding marker)
+  reply --comment-id C --body-file F [--kind line|top] [--thread-id T]
+      reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the
+      thread holding C
+  resolve --thread-id T
+      resolve a review thread
+  push --branch B [--dir D]
+      `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and
+      STOPS the flow; the plugin never works around credentials
+  react --comment-id C --emoji E
+      `NO-EQUIVALENT` on Bitbucket
+  account
+      login name, or `UNKNOWN` (marker-only detection)
+  commit-url --sha S
+      markdown commit link, for the anchor
+  marker --kind finding|reply
+      the marker literal — end every finding/reply with it
+  data-dir [--set P]
+      print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in
+      the user-level config first
+  settings --repo <repo>
+      `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`.
+      Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
+      was read and whether its `settings.json` was there
+  stacks [--repo-dir D] <path>…
+      `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
+      ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`
+      onto the base stack
+
+Exit codes:
+  0  ok
+  1  other — post errors add a `hint:` line
+  2  head-SHA gate failed after its one retry
+  3  vendor checkout error (e.g. force-push)
+  4  invalid PR URL
+  5  repo dir unresolvable
+  6  missing credentials
+  7  `<data>` not set
+EOF
+}
+
+case "${1:-}" in -h|--help) usage; exit 0 ;; esac
+need jq
+
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr.XXXXXX")
 trap 'rm -rf "$TMPD"' EXIT INT TERM
 
-sub="${1:-}"; [ -n "$sub" ] && shift || die 1 "open-pr.sh: no subcommand"
+sub="${1:-}"; [ -n "$sub" ] && shift || die 1 "open-pr.sh: no subcommand (see --help)"
 case "$sub" in
     target)       cmd_target "$@" ;;
     context)      cmd_context "$@" ;;
@@ -773,5 +854,5 @@ case "$sub" in
     data-dir)     cmd_data_dir "$@" ;;
     settings)     cmd_settings "$@" ;;
     stacks)       cmd_stacks "$@" ;;
-    *) die 1 "open-pr.sh: unknown subcommand: $sub" ;;
+    *) die 1 "open-pr.sh: unknown subcommand: $sub (see --help)" ;;
 esac

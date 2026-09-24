@@ -32,7 +32,7 @@ adapters/         ROOT + tool-name map; sole file that names a non-Claude platfo
 skills/           one shim per command (Cursor · Codex · Gemini · Antigravity)
 commands/*.toml   Gemini CLI entry format
 install.sh        non-Claude install: clone → install-local.sh
-scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · hooks · install-local.sh
+scripts/          check.sh · token_report.py · dup_scan.py · vendor_lint.py · cli_doc.py · hooks · install-local.sh
 tests/            graph/ (one file per invariant family) · test_cli.py · budgets.json
                   duplication_allowlist.json · ordered_repeats.json
 e2e/              real-run fixture; never in CI
@@ -85,6 +85,7 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | refresh ceilings (none hand-tightened) | `token_report.py --base <ref> --update-budgets` |
 | harder dup hunt | `dup_scan.py --window 10 --all --min-waste 20` |
 | vendor flags offline | `vendor_lint.py` |
+| a subcommand, option or exit code changed | edit `usage()` in `src/bin/open-pr.sh` (`--help` is the source), then `cli_doc.py --write` regenerates `core/cli.md`'s block |
 | vendor commands live | `vendor_lint.py --url <fixture PR URL>` |
 | the CI suite on a branch with no open PR | `gh workflow run ci.yml --ref <branch>` |
 

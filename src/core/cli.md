@@ -9,18 +9,15 @@ file-writing tool (never heredoc/echo: they quote attacker-controlled diff).
 
 stderr is for YOU: never quote it raw or fence it when you ASK the user — ask in plain language, no
 exit codes. Exception: text the script wrote FOR the user — exit 6's setup instructions relayed as
-printed, exit 2's two SHAs + worktree path named plainly. Exit ≠ 0 ⇒ act on stderr: 2 = head-SHA gate
-failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 =
-repo dir unresolvable · 6 = missing credentials (relay, STOP) · 7 = `<data>` not set · 1 = other, `hint:` line
-on post errors.
+printed, then STOP; exit 2's two SHAs + worktree path named plainly. Exit ≠ 0 ⇒ act on stderr, read
+by the exit codes below.
 
 `<data>` = what `<op> data-dir` prints: the ONE directory holding every repo's memory
 (`<data>/<repo>/`) and review worktrees, outside every reviewed repo. Resolve it before anything reads
 or writes there; exit 7 ⇒ `Read` `cases/data-dir.md` first.
 
-Elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url`
-included — NOT `target`/`locate-repo`/`data-dir`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N`
-on every networked one; `--host H` where self-hostable.
+<!-- open-pr.sh --help, via scripts/cli_doc.py -->
+Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`data-dir`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one; `--host H` where self-hostable.
 
 | subcommand | does |
 |---|---|
@@ -42,6 +39,9 @@ on every networked one; `--host H` where self-hostable.
 | `data-dir [--set P]` | print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in the user-level config first |
 | `settings --repo <repo>` | `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
+
+Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set.
+<!-- /open-pr.sh --help -->
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line
 `{id, body, user, path, line, side, in_reply_to}`; "Review threads" =
