@@ -10,8 +10,12 @@ token_report.py evolves (a file gets split, a scenario is added), so a rerun yea
 later would quietly rewrite what was published. Frozen rows keep the chart honest
 about what each release actually shipped.
 
+A release PR may prepare its own point before the tag exists: `--add` with the version
+gemini-extension.json declares measures HEAD instead. The tag must then land on that tree.
+
 Usage:
     scripts/token_chart.py --add v1.1.0        # measure that tag, append, redraw
+    scripts/token_chart.py --add v1.2.0        # not tagged yet, = declared version: measure HEAD
     scripts/token_chart.py --add v1.1.0 --commit   # ... then commit + push to main
     scripts/token_chart.py --render            # redraw from the stored numbers only
 """
@@ -84,12 +88,17 @@ def load():
     return json.loads(DATA.read_text(encoding="utf-8"))
 
 
-def measure(tag, encoder):
-    """Group means for `tag`, or None per group whose command is absent there."""
+def declared_tag():
+    """The release gemini-extension.json declares, as a tag name."""
+    return "v" + json.loads((REPO / "gemini-extension.json").read_text(encoding="utf-8"))["version"]
+
+
+def measure(ref, encoder):
+    """Group means for `ref`, or None per group whose command is absent there."""
     count, label = make_counter(encoder)
-    tree = read_tree(tag)
+    tree = read_tree(ref)
     if not tree:
-        raise SystemExit(f"{tag}: nothing under src/ — is that a real tag?")
+        raise SystemExit(f"{ref}: nothing under src/ — is that a real tag?")
     per_file = tokenize_tree(tree, count)
     totals = scenario_totals(per_file)
 
@@ -293,13 +302,17 @@ def main():
     if args.add:
         if any(p["tag"] == args.add for p in data["points"]):
             raise SystemExit(f"{args.add} is already recorded — a point is never remeasured")
+        ref = args.add
         if args.add not in sh("git", "tag", "--list").split():
-            raise SystemExit(f"{args.add} is not a tag in this repo")
-        row, enc = measure(args.add, args.encoder)
+            if args.add != declared_tag():
+                raise SystemExit(f"{args.add} is not a tag in this repo, nor the declared "
+                                 f"{declared_tag()} a release PR may prepare")
+            ref = "HEAD"
+        row, enc = measure(ref, args.encoder)
         data["encoder"] = enc
         data["points"].append({
             "tag": args.add,
-            "date": sh("git", "log", "-1", "--format=%as", args.add),
+            "date": sh("git", "log", "-1", "--format=%as", ref),
             **row,
         })
         data["points"].sort(key=lambda p: version_key(p["tag"]))

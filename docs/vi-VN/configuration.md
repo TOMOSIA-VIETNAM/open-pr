@@ -4,25 +4,21 @@
 
 Những gì plugin ghi nhớ cho từng repo, và chỗ bạn sửa khi cần.
 
-## Đứng ở đâu
+## Dữ liệu nằm ở đâu
+
+Memory, settings và worktree review của mọi repo nằm trong **một thư mục dữ liệu** bạn chọn một lần, ngoài mọi repo — không thêm dòng `.gitignore`, không hiện trong `git status`.
 
 ```
-✅ đứng ở workspace                          ❌ đứng trong repo
-─────────────────────────                    ─────────────────────────
-workspace/            ← gõ ở đây             repo-backend/         ← gõ ở đây
-├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory nằm TRONG dự án
-│   ├── repo-backend/  ngoài mọi repo        ├── .gitignore         +1 dòng — thay đổi thật
-│   └── repo-frontend/                       └── src/
-├── repo-backend/     ← sạch, 0 file lạ
-└── repo-frontend/    ← sạch, 0 file lạ      (repo-frontend? không thấy)
+~/workspace/notebooks/review/   ← thư mục dữ liệu (bạn chọn)
+├── .git                        lịch sử local những gì đã học
+├── repo-backend/               memory + settings + worktrees/
+└── repo-frontend/
+~/workspace/repo-backend/       ← không bị chạm
 ```
 
-`notebooks/review/` (memory + worktree) luôn sinh ra **ngay chỗ bạn gõ command**.
+Khi chưa có thư mục dữ liệu, command đầu tiên sẽ hỏi. Khuyến nghị là `notebooks/review/` ở thư mục ngay bên ngoài repo — với `~/workspace/repo-backend` thì là `~/workspace/notebooks/review/` — hoặc đường dẫn bất kỳ bạn gõ. `notebooks/review/` có sẵn trong repo được **copy** sang đó (trừ worktree) và giữ nguyên tại chỗ. Về sau, repo nào chưa có trong thư mục dữ liệu cũng được tìm như vậy dưới chỗ bạn đứng, và `notebooks/review/<repo>/` của nó được đề nghị import. Lựa chọn lưu ở `data_dir` trong `~/.config/open-pr/config.json` — sửa file đó để đổi chỗ.
 
-| Đứng ở | Hệ quả |
-| --- | --- |
-| **Workspace** (khuyến nghị) | Repo không bị chạm. Các repo nằm cạnh nhau → review được PR **chéo repo** trong một lượt (lần lượt, không song song) |
-| **Trong repo** | `notebooks/review/` nằm trong dự án. Plugin tự thêm 1 dòng `.gitignore` nên `git status` sạch — nhưng dòng đó vẫn là thay đổi thật trong repo |
+Chỗ bạn đứng không ảnh hưởng tới nơi lưu dữ liệu. Đứng ở workspace chứa nhiều repo vẫn review được PR **chéo repo** trong một lượt (lần lượt, không song song):
 
 ```bash
 cd ~/workspace
@@ -35,18 +31,18 @@ cd ~/workspace
 
 | Command | Bạn đứng ở đâu | Nó ghi gì |
 | --- | --- | --- |
-| `/open-pr:review` | workspace chứa repo (nên vậy), hoặc trong repo — tự tìm theo `git remote` | comment trên PR + memory ở `notebooks/review/<repo>/` |
+| `/open-pr:review` | workspace chứa repo, hoặc trong repo — tự tìm theo `git remote` | comment trên PR + memory ở `<data>/<repo>/` |
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
-| `/open-pr:upgrade` | workspace hoặc repo đã setup — nhiều repo thì cho bạn chọn | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | bất kỳ đâu phía trên `notebooks/review/` cần dọn | không ghi gì — chỉ xóa `notebooks/review/*/worktrees/*` |
+| `/open-pr:upgrade` | bất kỳ đâu — mọi repo trong thư mục dữ liệu, hoặc các repo bạn nêu tên | `<data>/<repo>/settings.json` |
+| `/open-pr:clean` | bất kỳ đâu | không ghi gì — chỉ xóa `<data>/*/worktrees/*` |
 | `/open-pr:feedback` | bất kỳ đâu | không ghi gì ở máy — một issue trên tracker của plugin, sau khi bạn duyệt nội dung |
 
 ## Setting
 
-Mọi thứ đã học được index trong `notebooks/review/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `notebooks/review/<repo>/memories/*.md`.
+`<data>` bên dưới là thư mục dữ liệu. Mọi thứ đã học được index trong `<data>/<repo>/memory.md` (mục lục — tiết kiệm token, vẫn nắm toàn cảnh). Chi tiết nằm ở `<data>/<repo>/memories/*.md`.
 
 > [!NOTE]
-> Cả thư mục `notebooks/review/` do một **git local độc lập** quản lý — không remote, không push. Bạn theo dõi được memory đổi qua từng lần review.
+> Cả thư mục dữ liệu do một **git local độc lập** quản lý — không remote, không push. Bạn theo dõi được memory đổi qua từng lần review.
 
 Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định rỗng). Phần còn lại nằm ở `settings.json`:
 

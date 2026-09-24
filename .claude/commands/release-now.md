@@ -177,7 +177,8 @@ Print the release link back to the user.
 
 ## Step 6 — Record the point on the context-cost chart
 
-Official release only; an RC gets no point (its SHA moves when the PR merges).
+Official release only; an RC gets no point (its SHA moves when the PR merges). A point for
+`<version>` already in `tests/token-history.json` ⇒ the release PR prepared it: skip this Step.
 
 ```
 git checkout main && git pull --ff-only origin main

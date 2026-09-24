@@ -83,40 +83,36 @@ def test_emoji_in_output_are_single_codepoint():
     assert not bad, "emoji that render as parts on some clients:\n  " + "\n  ".join(bad)
 
 
-def test_review_writes_at_the_invocation_directory():
-    """Standing in a workspace and reviewing three repos must leave ONE notebooks/review/
-    there holding all three. A version of this that `cd`-ed into the repo put the memory
-    inside the repo instead. So review.md may not `cd`; locate-repo yields a directory and
+def test_review_writes_under_the_data_directory():
+    """Memory and worktrees live in the one user-chosen data directory, outside every reviewed
+    repo, so no repo needs a .gitignore line for them. review.md may not `cd`; locate-repo yields a directory and
     decides nothing (fix.md needs the opposite); and the script aims its git calls with -C
-    while rooting the worktree at $PWD — the invocation directory."""
+    while rooting the worktree at the data directory."""
     review = text(SRC / "commands" / "review.md")
-    assert "FORBIDDEN: `cd`" in review, "review.md must forbid cd — it writes at pwd"
+    assert "FORBIDDEN: `cd`" in review, "review.md must forbid cd"
+    assert "never in the reviewed repo" in " ".join(review.split())
     body = cli_text()
     assert 'git -C "$repo_dir" worktree add' in body, "the worktree add is not aimed with -C"
-    assert 'target="$PWD/notebooks/review/' in body, "the worktree must root at the invocation directory"
+    assert 'target="$data/$REPO/worktrees/' in body, "the worktree must root at the data directory"
     locate = re.search(r"^cmd_locate_repo\(\) \{\n(.*?)^\}", body, re.M | re.S).group(1)
     assert "cd " not in locate, "locate-repo decides for its callers; it must not cd"
 
 
 def test_fix_reuses_what_the_session_already_established():
-    """#123: run from a side worktree, fix re-asked the bootstrap CHOICE and offered only a
-    fresh checkout although the same session had the repo's memory and a gated checkout in
-    hand. Session knowledge comes first in both places; the gate still judges the tree."""
+    """#123: run from a side worktree, fix offered only a fresh checkout although the same
+    session had a gated checkout in hand. Session knowledge comes first; the gate still
+    judges the tree."""
     flat = " ".join(text(SRC / "commands" / "fix.md").split())
-    assert "the one THIS session already established for `<repo>`" in flat
     assert "A checkout THIS session already established that prefix-matches" in flat
-    assert "probes beside the repo's main worktree" in flat
 
 
 def test_fix_reads_the_memory_review_wrote():
-    """review.md writes notebooks/review/<repo> at ITS pwd (the invocation directory); fix.md
-    cd's into the repo — resolving memory relative to the repo there grew a second, drifting
-    settings.json inside the reviewed tree (seen live: the two copies disagreed on
-    git_remote_type). fix must resolve memory at the invocation directory, absolutely."""
+    """fix.md cd's into the repo; resolving memory relative to where it stands grew a second,
+    drifting settings.json inside the reviewed tree (seen live: the two copies disagreed on
+    git_remote_type). fix reads the same `<data>/<repo>` review wrote, whatever its cwd."""
     flat = " ".join(text(SRC / "commands" / "fix.md").split())
-    assert "at THIS invocation directory, ABSOLUTE" in flat
-    assert "FORBIDDEN: resolving memory inside `<repo_dir>`" in flat
-    assert "run FROM the invocation directory so the worktree lands under `<memory-dir>`" in flat
+    assert "`<memory-dir>` = `<data>/<repo>`, wherever this runs from" in flat
+    assert "`<op> settings --repo <repo>`" in flat
 
 
 def test_fix_matches_findings_in_one_pass():

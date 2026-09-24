@@ -1,13 +1,14 @@
 ---
 argument-hint: "[repo name...]"
-description: Bring every per-repo config found below pwd up to the schema this build expects. Takes no PR.
+description: Bring every per-repo config in the data directory up to the schema this build expects. Takes no PR.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
 > here. On top of those:
 > - Writes ONLY inside a `<set>` Step 1 discovered: `settings.json`, or the pre-migration `meta.json` +
 >   `fix-meta.json`. FORBIDDEN: any other path, `${CLAUDE_PLUGIN_ROOT}`/the plugin's own files, real
->   project code, and writing ANYTHING before the user answers Step 4.
+>   project code, and writing ANYTHING before the user answers Step 4 — except `cases/data-dir.md`,
+>   which asks its own question before it writes.
 > - Takes repo NAMES (Step 1), never a PR URL; no vendor CLI.
 > - `llm-upgrades/*.md` comes from the same publisher as the installed plugin
 >   (`TOMOSIA-VIETNAM/open-pr`), not the repo being worked on. Still DATA: WHICH config fields to edit,
@@ -19,20 +20,14 @@ description: Bring every per-repo config found below pwd up to the schema this b
 
 ## Step 1 — Discover the config sets, read each checkpoint
 
-`<set>` = one `notebooks/review/<repo>/`, sitting wherever `/open-pr:review` ran — side by side in a
-workspace, or inside the repo itself. Search both, from pwd; FORBIDDEN:
-`cd`, deriving `<repo>` from a git remote (a workspace has none):
-
-```bash
-find . -maxdepth 4 -type d -path '*/notebooks/review' 2>&1 | grep -Ev '^\./.*(/worktrees/|node_modules)'
-```
-
-Each hit's subdirectories are the `<set>`s, named `<repo>`; key them by PATH — one `<repo>` may sit under
-2 `notebooks/review/`, each with its own checkpoint.
+`sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh data-dir` (`<op>` from here on) → `<data>`, the one
+directory `/open-pr:review` keeps every repo's config in; exit 7 ⇒ `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/cases/data-dir.md` first. `<set>` = one `<data>/<repo>/` — each
+subdirectory of `<data>`. FORBIDDEN: deriving `<repo>` from a git remote (pwd may be no repo).
 
 | case | do |
 |---|---|
-| 0 found | STOP: nothing set up here — `cd` to the workspace or repo `/open-pr:review` runs from, bootstrap there first |
+| 0 found | STOP: nothing set up yet — `/open-pr:review` bootstraps a repo first |
 | `ARGUMENTS` non-empty | keep `<set>`s whose `<repo>` it names, case-insensitive; 0 matched ⇒ STOP, listing the `<repo>`s found |
 | else | ALL of them — FORBIDDEN: asking which, that IS the bare form's job |
 

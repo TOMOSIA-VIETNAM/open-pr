@@ -1,24 +1,24 @@
-# Bootstrap `notebooks/review/<repo>/`
+# Bootstrap `<data>/<repo>/`
 
-Everything below happens at the directory `<op> locate-repo` established — FORBIDDEN: `cd` elsewhere,
-inferring `<repo>` from any directory's basename (`<repo>` = `core/pr-target.md` §4). `cp` for a verbatim
-file copy (never Read+Write through context), `mkdir -p` for directories.
+Every path below sits under `<data>` (`core/cli.md`) — FORBIDDEN: `cd`, inferring `<repo>` from any
+directory's basename (`<repo>` = `core/pr-target.md` §4). `cp` for a verbatim file copy (never
+Read+Write through context), `mkdir -p` for directories.
 
 ## 0. Pre-migration?
 
-`notebooks/review/<repo>/meta.json` exists ⇒ an older build configured this repo. STOP, write nothing:
+`<data>/<repo>/meta.json` exists ⇒ an older build configured this repo. STOP, write nothing:
 user runs `/open-pr:upgrade` once, then re-invokes. Bootstrapping over it re-asks settled answers.
 
 ## 1. Skeleton
 
-- `cp "${CLAUDE_PLUGIN_ROOT}/seeds/memory.md" "notebooks/review/<repo>/memory.md"` — an empty index
+- `cp "${CLAUDE_PLUGIN_ROOT}/seeds/memory.md" "<data>/<repo>/memory.md"` — an empty index
   whose own comment defines the entry format every later write follows.
 - `memories/.gitkeep`, `templates/.gitkeep` — empty.
-- `notebooks/review/.gitignore` MUST contain the line `worktrees/` (`Write` it when absent, `Edit` to
+- `<data>/.gitignore` MUST contain the line `worktrees/` (`Write` it when absent, `Edit` to
   append when the file exists without it). This is the NESTED repo's ignore file, separate from the
   reviewed repo's own: it keeps the ephemeral worktree out of the memory repo, which only ever holds
   rules/memory/templates.
-- `cp "${CLAUDE_PLUGIN_ROOT}/seeds/ALWAYS_RULE.md" "notebooks/review/<repo>/ALWAYS_RULE.md"` — an
+- `cp "${CLAUDE_PLUGIN_ROOT}/seeds/ALWAYS_RULE.md" "<data>/<repo>/ALWAYS_RULE.md"` — an
   empty file for the team's own rules, theirs from here on. The plugin's baseline criteria are NOT in
   it (`core/review-criteria.md` owns those) — FORBIDDEN: writing criteria into this copy.
 
@@ -51,8 +51,8 @@ SEQUENTIAL calls of at most 4 (q1-4, then q5-8, then the rest), finishing one be
 - FORBIDDEN: creating `.fix` here (`fix.md`'s own bootstrap owns it). An existing `.fix`/
   `.shared.chat_language` from a prior `/open-pr:fix` run stays untouched.
 
-## 4. Ignore + commit
+## 4. Commit
 
-`.gitignore` at pwd per `core/repo-settings.md`, then `core/memory-commit.md` with message
+`core/memory-commit.md` with message
 `chore: init review memory for <repo>` (nested repo just created) or
 `chore: add review memory for <repo>` (it already existed from another repo's review).

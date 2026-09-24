@@ -3,18 +3,27 @@
 import re
 
 from _common import SRC, VENDORS, text, all_text, cli_text
+import cli_doc  # on sys.path via _common
 
 
 def test_cli_contract_names_only_real_subcommands():
-    """core/cli.md is the runtime contract: every subcommand its table names must exist in the
-    script's dispatch, and every dispatched subcommand must be documented — an undocumented one
-    is dead weight, a documented ghost sends the agent into exit 1."""
-    doc = text(SRC / "core" / "cli.md")
-    documented = set(re.findall(r"^\| `([a-z-]+)[ <`]", doc, re.M))
+    """`open-pr.sh --help` is the runtime contract: every subcommand it names must exist in the
+    script's dispatch, and every dispatched subcommand must be in it — an undocumented one is
+    dead weight, a documented ghost sends the agent into exit 1."""
+    subcommands = cli_doc.sections(cli_doc.help_text())["Subcommands"]
+    documented = {l.split()[0] for l in subcommands if not l.startswith("      ")}
     dispatched = set(re.findall(r"^    ([a-z-]+)\)\s+cmd_", cli_text(), re.M))
-    dispatched.discard("version")
     assert documented == dispatched, (
-        f"doc-only: {documented - dispatched}, script-only: {dispatched - documented}")
+        f"help-only: {documented - dispatched}, script-only: {dispatched - documented}")
+
+
+def test_cli_md_mirrors_the_help():
+    """core/cli.md is what an agent has in context before its first call; `--help` is what the
+    script actually takes. The block between cli.md's markers is rendered from `--help`, so the
+    two cannot drift — edit usage() in the script, then run scripts/cli_doc.py --write."""
+    doc = text(SRC / "core" / "cli.md")
+    assert cli_doc.current(doc).group(0) == cli_doc.render(), \
+        "cli.md drifted from `open-pr.sh --help` — run scripts/cli_doc.py --write"
 
 
 def test_every_vendor_branches_in_every_api_subcommand():

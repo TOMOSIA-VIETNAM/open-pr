@@ -1,17 +1,9 @@
-# Repo settings — `notebooks/review/<repo>/settings.json` at run time
+# Repo settings — `<data>/<repo>/settings.json` at run time
 
 `<op> settings` is how a run READS this file: it applies every read-time default and computes
 `doctor_due`, so a field it prints may not exist on disk. Full schema + field classification live in
 `reference/settings-schema.md` — FORBIDDEN: `Read`ing that file during a review/fix run, nothing here
 needs it.
-
-## memory_found: false — new repo, or wrong directory?
-
-The defaults for the two are identical, so BEFORE any bootstrap runs, ONE CHOICE per
-`core/guardrails.md`: `First run from this directory (Recommended)` — continue to the caller's
-bootstrap — vs the user ran it from the wrong directory ⇒ STOP, print `memory_dir` and say to call
-again from the directory whose `notebooks/review/` holds this repo. A repo bootstrapped elsewhere
-answers to defaults here, and re-asking setup is the symptom the user sees.
 
 ## Node ownership (invariant)
 

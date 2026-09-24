@@ -38,6 +38,37 @@ def make_shim(dirp, name, body):
     return p
 
 
+@pytest.fixture(autouse=True)
+def data_dir(tmp_path, monkeypatch):
+    """Every run reads its data directory from an isolated user-level config, never the
+    developer's real one."""
+    conf = tmp_path / "xdg"
+    data = tmp_path / "open-pr-data"
+    (conf / "open-pr").mkdir(parents=True)
+    (conf / "open-pr" / "config.json").write_text(json.dumps({"data_dir": str(data)}))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(conf))
+    return data
+
+
+# ------------------------------------------------------------------ help ----
+
+@pytest.mark.parametrize("flag", ["--help", "-h"])
+def test_help_prints_the_contract_without_any_dependency(flag, tmp_path):
+    """--help must answer even where jq is missing — it is how a user learns what to install."""
+    (tmp_path / "cat").symlink_to(subprocess.run(["sh", "-c", "command -v cat"], capture_output=True,
+                                                 text=True, check=True).stdout.strip())
+    r = subprocess.run(["/bin/sh", str(CLI), flag], capture_output=True, text=True,
+                       env={"PATH": str(tmp_path)})   # cat only — no jq, no vendor CLI
+    assert r.returncode == 0 and r.stdout.startswith("usage: open-pr.sh"), r.stderr
+    for header in ("Common options:", "Subcommands:", "Exit codes:"):
+        assert header in r.stdout
+
+
+def test_unknown_subcommand_points_at_help():
+    r = run("nope")
+    assert r.returncode == 1 and "see --help" in r.stderr
+
+
 # ---------------------------------------------------------------- target ----
 
 @pytest.mark.parametrize("url,vendor,owner,repo,n", [
@@ -95,7 +126,7 @@ def fixture_repo(tmp_path):
     return {"clone": clone, "head": head, "tmp": tmp_path}
 
 
-def test_checkout_gates_and_fetches_the_base_ref(fixture_repo):
+def test_checkout_gates_and_fetches_the_base_ref(fixture_repo, data_dir):
     cwd = fixture_repo["tmp"]
     r = run("checkout", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5",
             "--repo-dir", str(fixture_repo["clone"]), "--head-sha", fixture_repo["head"],
@@ -103,8 +134,8 @@ def test_checkout_gates_and_fetches_the_base_ref(fixture_repo):
     vals = dict(line.split("=", 1) for line in r.stdout.splitlines())
     assert vals["head"] == fixture_repo["head"]
     wt = Path(vals["worktree"])
-    assert wt.is_dir() and str(wt).startswith(str(cwd)), \
-        "the worktree must root at the invocation directory"
+    assert wt.is_dir() and wt.parent == data_dir / "r" / "worktrees", \
+        "the worktree must root at the data directory, outside the reviewed repo"
     # the explicit refspec created origin/main inside the worktree's ref space
     mb = subprocess.run(["git", "-C", str(wt), "merge-base", "origin/main", "HEAD"],
                         capture_output=True, text=True)
@@ -350,8 +381,65 @@ esac
 
 # ------------------------------------------------- settings and stacks ----
 
-def test_settings_applies_read_time_defaults(tmp_path):
-    d = tmp_path / "notebooks" / "review" / "demo"
+def test_data_dir_is_set_once_and_read_everywhere(tmp_path, monkeypatch):
+    """Memory and worktrees live in one user-chosen directory outside every repo. Unset is
+    its own exit code so the caller asks instead of guessing a directory."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "fresh-xdg"))
+    unset = run("data-dir")
+    assert unset.returncode == 7, "an unset data directory must be told apart from any other error"
+    assert run("settings", "--repo", "demo").returncode == 7, "settings must not guess a directory"
+    tilde = run("data-dir", "--set", "~/open-pr-data", check=True).stdout.strip()
+    assert tilde == str(home / "open-pr-data") and Path(tilde).is_dir(), "~ must expand to HOME"
+    assert run("data-dir", cwd=tmp_path, check=True).stdout.strip() == tilde, \
+        "the stored value must be read back from any directory"
+    rel = run("data-dir", "--set", "rel-data", cwd=home, check=True).stdout.strip()
+    assert rel == str(home / "rel-data"), "a relative path is stored absolute, never cwd-relative"
+
+
+def test_a_config_that_is_not_a_json_object_stops_instead_of_reading_as_unset(tmp_path, monkeypatch):
+    """jq 1.6 exits 0 on a parse error, so a broken config would read as "unset" and the
+    --set that follows would overwrite whatever the user had in it."""
+    conf = tmp_path / "broken-xdg" / "open-pr" / "config.json"
+    conf.parent.mkdir(parents=True)
+    conf.write_text("{broken")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "broken-xdg"))
+    assert run("data-dir").returncode == 1, "a broken config must not read as unset (exit 7)"
+    target = tmp_path / "never-created"
+    assert run("data-dir", "--set", str(target)).returncode == 1
+    assert conf.read_text() == "{broken", "--set overwrote a config it could not read"
+    assert not target.exists(), "--set created the directory before checking the config"
+
+
+def test_find_memory_reports_existing_memory_one_repo_deep(tmp_path):
+    """The data-dir cases offer existing notebooks/review/ memory for import. The search is the
+    script's, so no prompt types a find and no stray cd can move where it looks."""
+    ws = tmp_path / "ws"
+    (ws / "notebooks" / "review" / "repo-b").mkdir(parents=True)
+    (ws / "repo-a" / "notebooks" / "review" / "repo-a" / "worktrees" / "pr1-1" / "notebooks" /
+     "review" / "repo-a").mkdir(parents=True)
+    (ws / "node_modules" / "x" / "notebooks" / "review").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(ws / "repo-a")], check=True)
+
+    def lines(*args, cwd):
+        return run("find-memory", *args, cwd=cwd, check=True).stdout.splitlines()
+
+    bare = lines(cwd=ws)
+    assert bare[0] == f"suggest={ws}/notebooks/review", "outside any repo the cwd holds the memory"
+    assert sorted(bare[1:]) == sorted([f"found={ws}/notebooks/review",
+                                       f"found={ws}/repo-a/notebooks/review"]), \
+        "one repo deep counts; node_modules and worktree checkouts never do"
+    inside = lines(cwd=ws / "repo-a")
+    assert inside[0] == f"suggest={ws}/notebooks/review", "inside a repo, memory goes beside it"
+    assert lines("--repo", "repo-a", cwd=ws) == [f"found={ws}/repo-a/notebooks/review/repo-a"]
+    assert lines("--repo", "ghost", cwd=ws) == [], "nothing found prints nothing"
+    assert run("find-memory", "--repo", "a b", cwd=ws).returncode == 4
+
+
+def test_settings_applies_read_time_defaults(tmp_path, data_dir):
+    d = data_dir / "demo"
     d.mkdir(parents=True)
     (d / "settings.json").write_text(json.dumps(
         {"review": {"bootstrapped": True, "doctored": True, "doctor_schedule": "never"},
@@ -371,65 +459,20 @@ def test_settings_applies_read_time_defaults(tmp_path):
     off = json.loads(run("settings", "--repo", "demo", cwd=tmp_path, check=True).stdout)
     assert off["review"]["post_lgtm"] is False, \
         "explicit false flipped to true — the repo would get the LGTM review it opted out of"
-    (d / "settings.json").write_text(json.dumps(
-        {"review": {"bootstrapped": True, "doctored": True, "doctor_schedule": "never"},
-         "shared": {"output_language": "English"}}))
     assert out["doctor_due"] is False, '"never" is never due on a schedule'
     fresh = json.loads(run("settings", "--repo", "ghost", cwd=tmp_path, check=True).stdout)
     assert fresh["doctor_due"] is True, "an unbootstrapped repo is always due"
-    # a wrong cwd must be distinguishable from a never-bootstrapped repo: the
+    # memory kept elsewhere must be distinguishable from a never-bootstrapped repo: the
     # resolved directory and whether it existed ride along with the values
-    assert fresh["memory_found"] is False and fresh["memory_dir"].startswith(str(tmp_path)), \
+    assert fresh["memory_found"] is False and fresh["memory_dir"] == str(data_dir / "ghost"), \
         "settings must say which directory it read and that nothing was there"
     assert out["memory_found"] is True and out["memory_dir"] == str(d), \
         "a real read reports the directory it found"
-    # --dir reads the memory directory itself — the fix flow stands INSIDE a review
-    # worktree, where a cwd-relative notebooks/review/<repo> resolves into the
-    # reviewed tree and read defaults would silently re-trigger fix-bootstrap
+    # the cwd plays no part: a run from inside some other tree reads the same file
     elsewhere = tmp_path / "worktree-standin"
     elsewhere.mkdir()
-    byd = json.loads(run("settings", "--dir", str(d), cwd=elsewhere, check=True).stdout)
-    assert byd["shared"]["output_language"] == "English", "--dir did not read the real file"
-
-
-def test_settings_probes_beside_the_main_worktree(fixture_repo, tmp_path):
-    """Running fix from a linked git worktree resolves memory relative to that worktree,
-    finds nothing, and used to re-ask setup the session had already answered (#123). With
-    --repo-dir and --repo, a miss probes beside the repo's MAIN worktree and its parent
-    workspace — where review actually wrote the memory — before declaring it absent."""
-    clone = fixture_repo["clone"]           # workspace = its parent tmp dir
-    workspace = clone.parent
-    mem = workspace / "notebooks" / "review" / "r"
-    mem.mkdir(parents=True)
-    (mem / "settings.json").write_text(json.dumps(
-        {"review": {"bootstrapped": True}, "shared": {"output_language": "English"}}))
-    wt = tmp_path / "side-worktree"
-    subprocess.run(["git", "-C", str(clone), "worktree", "add", str(wt), "--detach"],
-                   capture_output=True, check=True)
-    miss_dir = wt / "notebooks" / "review" / "r"   # what invocation-relative resolution yields
-    out = json.loads(run("settings", "--dir", str(miss_dir), "--repo", "r",
-                         "--repo-dir", str(wt), cwd=wt, check=True).stdout)
-    assert out["memory_found"] is True, "the probe must find the workspace memory"
-    assert out["memory_dir"] == str(mem)
-    assert out["shared"]["output_language"] == "English"
-    # both copies exist -> the parent workspace wins: the in-repo copy is the
-    # drifting one fix.md forbids resolving
-    inrepo = clone / "notebooks" / "review" / "r"
-    inrepo.mkdir(parents=True)
-    (inrepo / "settings.json").write_text(json.dumps(
-        {"review": {"bootstrapped": True}, "shared": {"output_language": "IN-REPO"}}))
-    both = json.loads(run("settings", "--dir", str(miss_dir), "--repo", "r",
-                          "--repo-dir", str(wt), cwd=wt, check=True).stdout)
-    assert both["memory_dir"] == str(mem), "the workspace copy must win over the in-repo copy"
-    # --repo-dir that is no git tree must never fall back to probing the CWD
-    plain = tmp_path / "isolated" / "plain-dir"; plain.mkdir(parents=True)
-    ws_cwd = workspace  # cwd holds real memory a cwd-relative probe would wrongly find
-    nogit = json.loads(run("settings", "--dir", str(plain / "notebooks/review/r"), "--repo", "r",
-                           "--repo-dir", str(plain), cwd=ws_cwd, check=True).stdout)
-    assert nogit["memory_found"] is False, "a non-git --repo-dir probed the cwd"
-    # no probe args -> the old behaviour stands: a miss is a miss
-    bare = json.loads(run("settings", "--dir", str(miss_dir), cwd=wt, check=True).stdout)
-    assert bare["memory_found"] is False
+    there = json.loads(run("settings", "--repo", "demo", cwd=elsewhere, check=True).stdout)
+    assert there["memory_found"] is True, "settings resolved memory relative to the cwd"
 
 
 def test_stacks_maps_extensions_and_overlays(tmp_path):

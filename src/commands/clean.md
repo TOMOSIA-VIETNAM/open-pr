@@ -4,10 +4,10 @@ description: Remove the git worktrees review checked PR code out into. Each one 
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` FIRST — shared rules, not repeated
-> here. On top of those:
-> - Deletes ONLY directories under `notebooks/review/*/worktrees/`. FORBIDDEN, in the same tree and
+> here. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`. On top of those:
+> - Deletes ONLY directories under `<data>/*/worktrees/`. FORBIDDEN, in the same tree and
 >   unrecoverable: `memory.md`, `memories/`, `templates/`, `ALWAYS_RULE.md`, `settings.json`,
->   `notebooks/review/.git`, and any path outside `notebooks/review/*/worktrees/`.
+>   `<data>/.git`, and any path outside `<data>/*/worktrees/`.
 > - FORBIDDEN: deleting anything before the user answers Step 3.
 > - Reads no PR and needs no vendor CLI.
 >
@@ -15,11 +15,11 @@ description: Remove the git worktrees review checked PR code out into. Each one 
 
 ## Step 1 — Find the worktrees
 
-Same layout `/open-pr:upgrade` searches: `notebooks/review/` sits wherever `/open-pr:review` ran, from
-pwd or one level down. FORBIDDEN: `cd`.
+`<op> data-dir` → `<data>`, where `/open-pr:review` puts every worktree; exit 7 ⇒ `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/cases/data-dir.md` first. FORBIDDEN: `cd`.
 
 ```bash
-find . -maxdepth 6 -type d -path '*/notebooks/review/*/worktrees/*' 2>&1 | grep -Ev '^\./.*/worktrees/[^/]+/'
+find "<data>" -mindepth 3 -maxdepth 3 -type d -path '*/worktrees/*' 2>&1
 ```
 
 None → say there is nothing to clean, STOP.
@@ -63,7 +63,7 @@ Finish with `git -C "<repo>" worktree prune` per distinct repo — drops stale r
 
 ## Step 5 — Report
 
-Per repo: how many worktrees went and how much disk came back. Then, once: `notebooks/review/` still
+Per repo: how many worktrees went and how much disk came back. Then, once: `<data>` still
 holds this repo's memory and settings — only the checkouts were removed.
 
 ARGUMENTS: $ARGUMENTS
