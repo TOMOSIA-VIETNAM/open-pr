@@ -599,10 +599,19 @@ data_conf() {
     [ -n "${XDG_CONFIG_HOME:-}${HOME:-}" ] || die 1 "open-pr: neither XDG_CONFIG_HOME nor HOME is set"
     printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/config.json"
 }
+# The config as JSON; absent or empty ⇒ {}. Anything else that is not a JSON
+# object stops the run — read as "unset", a later --set would overwrite it.
+conf_json() {
+    f=$(data_conf)
+    [ -s "$f" ] || { printf '{}'; return 0; }
+    jq -e 'type == "object"' "$f" >/dev/null 2>&1 \
+        || die 1 "open-pr: $f is not a JSON object — fix it or delete it"
+    cat "$f"
+}
 data_dir() {
-    conf_f=$(data_conf)
-    v=$(jq -r '.data_dir // empty' "$conf_f" 2>/dev/null) || v=""
-    [ -n "$v" ] || die 7 "open-pr: data directory not set ($conf_f has no data_dir)"
+    c=$(conf_json)
+    v=$(printf '%s' "$c" | jq -r '.data_dir // empty')
+    [ -n "$v" ] || die 7 "open-pr: data directory not set ($(data_conf) has no data_dir)"
     printf '%s' "$v"
 }
 cmd_data_dir() {
@@ -610,6 +619,7 @@ cmd_data_dir() {
     s=$(arg set)
     conf_f=$(data_conf)
     if [ -n "$s" ]; then
+        conf=$(conf_json)
         case "$s" in
             "~"|"~/"*) s="${HOME:?HOME is not set}${s#\~}" ;;
             /*|[A-Za-z]:[\\/]*) ;;
@@ -617,12 +627,32 @@ cmd_data_dir() {
         esac
         mkdir -p "$s" "$(dirname "$conf_f")"
         s=$(cd "$s" && pwd)
-        conf='{}'; [ -s "$conf_f" ] && conf=$(cat "$conf_f")
         printf '%s' "$conf" | jq --arg d "$s" '.data_dir = $d' > "$TMPD/config.json"
         mv "$TMPD/config.json" "$conf_f"
     fi
     d=$(data_dir)
     printf '%s\n' "$d"
+}
+
+# --------------------------------------------------------- find-memory ----
+# Existing notebooks/review/ memory below the cwd, for the data-dir cases to
+# offer as an import. No --repo: a suggested data directory (notebooks/review
+# beside the repo, or at the cwd outside any repo) plus each notebooks/review/
+# up to one repo deep. --repo R: each notebooks/review/R. Paths are absolute.
+cmd_find_memory() {
+    parse_args "$@"
+    r=$(arg repo)
+    if [ -n "$r" ]; then
+        check_ident '^[A-Za-z0-9_.-]+$' "$r"
+        pat="*/notebooks/review/$r"; depth=4
+    else
+        if top=$(git rev-parse --show-toplevel 2>/dev/null); then base=$(dirname "$top"); else base=$PWD; fi
+        printf 'suggest=%s/notebooks/review\n' "$base"
+        pat="*/notebooks/review"; depth=3
+    fi
+    find . -maxdepth "$depth" -type d -path "$pat" 2>/dev/null \
+        | grep -Ev '/(node_modules|worktrees)/' \
+        | while IFS= read -r d; do printf 'found=%s\n' "$PWD/${d#./}"; done
 }
 
 # ------------------------------------------------------------ settings ----
@@ -762,7 +792,7 @@ usage: open-pr.sh <subcommand> [--option value ...]
 
 Common options:
   `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
-  `target`/`locate-repo`/`data-dir`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N`
+  `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N`
   on every networked one; `--host H` where self-hostable.
 
 Subcommands:
@@ -806,7 +836,11 @@ Subcommands:
       the marker literal — end every finding/reply with it
   data-dir [--set P]
       print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in
-      the user-level config first
+      the user-level config first. A config that is not a JSON object stops with exit 1
+  find-memory [--repo R]
+      memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or
+      at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`:
+      `found=<path>` per `notebooks/review/R`
   settings --repo <repo>
       `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`.
       Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
@@ -852,6 +886,7 @@ case "$sub" in
     commit-url)   cmd_commit_url "$@" ;;
     marker)       cmd_marker "$@" ;;
     data-dir)     cmd_data_dir "$@" ;;
+    find-memory)  cmd_find_memory "$@" ;;
     settings)     cmd_settings "$@" ;;
     stacks)       cmd_stacks "$@" ;;
     *) die 1 "open-pr.sh: unknown subcommand: $sub (see --help)" ;;

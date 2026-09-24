@@ -17,7 +17,7 @@ by the exit codes below.
 or writes there; exit 7 ⇒ `Read` `cases/data-dir.md` first.
 
 <!-- open-pr.sh --help, via scripts/cli_doc.py -->
-Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`data-dir`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one; `--host H` where self-hostable.
+Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one; `--host H` where self-hostable.
 
 | subcommand | does |
 |---|---|
@@ -36,7 +36,8 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
 | `marker --kind finding\|reply` | the marker literal — end every finding/reply with it |
-| `data-dir [--set P]` | print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in the user-level config first |
+| `data-dir [--set P]` | print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in the user-level config first. A config that is not a JSON object stops with exit 1 |
+| `find-memory [--repo R]` | memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`: `found=<path>` per `notebooks/review/R` |
 | `settings --repo <repo>` | `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 

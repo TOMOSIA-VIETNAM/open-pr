@@ -399,6 +399,45 @@ def test_data_dir_is_set_once_and_read_everywhere(tmp_path, monkeypatch):
     assert rel == str(home / "rel-data"), "a relative path is stored absolute, never cwd-relative"
 
 
+def test_a_config_that_is_not_a_json_object_stops_instead_of_reading_as_unset(tmp_path, monkeypatch):
+    """jq 1.6 exits 0 on a parse error, so a broken config would read as "unset" and the
+    --set that follows would overwrite whatever the user had in it."""
+    conf = tmp_path / "broken-xdg" / "open-pr" / "config.json"
+    conf.parent.mkdir(parents=True)
+    conf.write_text("{broken")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "broken-xdg"))
+    assert run("data-dir").returncode == 1, "a broken config must not read as unset (exit 7)"
+    target = tmp_path / "never-created"
+    assert run("data-dir", "--set", str(target)).returncode == 1
+    assert conf.read_text() == "{broken", "--set overwrote a config it could not read"
+    assert not target.exists(), "--set created the directory before checking the config"
+
+
+def test_find_memory_reports_existing_memory_one_repo_deep(tmp_path):
+    """The data-dir cases offer existing notebooks/review/ memory for import. The search is the
+    script's, so no prompt types a find and no stray cd can move where it looks."""
+    ws = tmp_path / "ws"
+    (ws / "notebooks" / "review" / "repo-b").mkdir(parents=True)
+    (ws / "repo-a" / "notebooks" / "review" / "repo-a" / "worktrees" / "pr1-1" / "notebooks" /
+     "review" / "repo-a").mkdir(parents=True)
+    (ws / "node_modules" / "x" / "notebooks" / "review").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(ws / "repo-a")], check=True)
+
+    def lines(*args, cwd):
+        return run("find-memory", *args, cwd=cwd, check=True).stdout.splitlines()
+
+    bare = lines(cwd=ws)
+    assert bare[0] == f"suggest={ws}/notebooks/review", "outside any repo the cwd holds the memory"
+    assert sorted(bare[1:]) == sorted([f"found={ws}/notebooks/review",
+                                       f"found={ws}/repo-a/notebooks/review"]), \
+        "one repo deep counts; node_modules and worktree checkouts never do"
+    inside = lines(cwd=ws / "repo-a")
+    assert inside[0] == f"suggest={ws}/notebooks/review", "inside a repo, memory goes beside it"
+    assert lines("--repo", "repo-a", cwd=ws) == [f"found={ws}/repo-a/notebooks/review/repo-a"]
+    assert lines("--repo", "ghost", cwd=ws) == [], "nothing found prints nothing"
+    assert run("find-memory", "--repo", "a b", cwd=ws).returncode == 4
+
+
 def test_settings_applies_read_time_defaults(tmp_path, data_dir):
     d = data_dir / "demo"
     d.mkdir(parents=True)
