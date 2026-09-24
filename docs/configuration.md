@@ -4,25 +4,21 @@
 
 Everything the plugin keeps per repo, and where you change it.
 
-## Where to stand
+## Where the data lives
+
+Memory, settings and review worktrees for every repo sit in **one data directory** you pick once, outside every repo — no `.gitignore` line, nothing in `git status`.
 
 ```
-✅ standing in the workspace                 ❌ standing inside the repo
-─────────────────────────                    ─────────────────────────
-workspace/            ← type here            repo-backend/         ← type here
-├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory sits INSIDE the project
-│   ├── repo-backend/  outside every repo    ├── .gitignore         +1 line — a real change
-│   └── repo-frontend/                       └── src/
-├── repo-backend/     ← clean, 0 stray files
-└── repo-frontend/    ← clean, 0 stray files (repo-frontend? out of sight)
+~/workspace/notebooks/review/   ← data directory (your choice)
+├── .git                        local history of what it learned
+├── repo-backend/               memory + settings + worktrees/
+└── repo-frontend/
+~/workspace/repo-backend/       ← untouched
 ```
 
-`notebooks/review/` (memory + worktree) is always created **right where you type the command**.
+With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. The choice is stored as `data_dir` in `~/.config/open-pr/config.json` — edit it to point elsewhere.
 
-| Where you stand | Consequence |
-| --- | --- |
-| **Workspace** (recommended) | Repo untouched. Repos sit side by side → can review **cross-repo** PRs in one run (one after another, not in parallel) |
-| **Inside the repo** | `notebooks/review/` lands in the project. Plugin adds 1 line to `.gitignore` so `git status` stays clean — but that line is still a real change in the repo |
+Where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):
 
 ```bash
 cd ~/workspace
@@ -35,18 +31,18 @@ cd ~/workspace
 
 | Command | Where you stand | What it writes |
 | --- | --- | --- |
-| `/open-pr:review` | workspace holding the repo (preferred), or inside the repo — finds it by `git remote` | comments on the PR + memory under `notebooks/review/<repo>/` |
+| `/open-pr:review` | workspace holding the repo, or inside the repo — finds it by `git remote` | comments on the PR + memory under `<data>/<repo>/` |
 | `/open-pr:fix` | in that repo / workspace holding it — but **the repo must be on the PR's branch** | real code in the repo + replies on the PR |
-| `/open-pr:upgrade` | workspace or repo already set up — several repos → lets you pick | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | anywhere above the `notebooks/review/` to clean | writes nothing — only deletes `notebooks/review/*/worktrees/*` |
+| `/open-pr:upgrade` | anywhere — every repo in the data directory, or the ones you name | `<data>/<repo>/settings.json` |
+| `/open-pr:clean` | anywhere | writes nothing — only deletes `<data>/*/worktrees/*` |
 | `/open-pr:feedback` | anywhere | writes nothing locally — one issue on the plugin's own tracker, after you approve the text |
 
 ## Setting
 
-Everything learned is indexed in `notebooks/review/<repo>/memory.md` (table of contents — cheap in tokens, still the whole picture). Details live under `notebooks/review/<repo>/memories/*.md`.
+`<data>` below is the data directory. Everything learned is indexed in `<data>/<repo>/memory.md` (table of contents — cheap in tokens, still the whole picture). Details live under `<data>/<repo>/memories/*.md`.
 
 > [!NOTE]
-> The whole `notebooks/review/` directory is managed by an **independent local git** — no remote, never pushed. You can follow how memory changed from one review to the next.
+> The whole data directory is managed by an **independent local git** — no remote, never pushed. You can follow how memory changed from one review to the next.
 
 Team rules go into `ALWAYS_RULE.md` as plain prose (empty by default). Everything else lives in `settings.json`:
 

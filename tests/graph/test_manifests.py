@@ -34,13 +34,12 @@ def test_upgrade_confirms_before_writing():
 
 def test_upgrade_finds_its_targets_without_a_git_remote():
     """The command takes no PR URL, and users call it from the workspace they review from —
-    a directory with no git remote of its own. Config sits under notebooks/review/ either
-    there or one level down inside each repo, so the search must span both depths. Bare form
-    takes every set found; a named repo filters them."""
+    a directory with no git remote of its own. Config sits in the data directory, one
+    subdirectory per repo. Bare form takes every set found; a named repo filters them."""
     up = text(SRC / "commands" / "upgrade.md")
     flat = " ".join(up.split())
-    assert "-path '*/notebooks/review'" in flat and "-maxdepth" in flat, \
-        "a depth-spanning search is what finds config in both layouts"
+    assert "open-pr.sh data-dir" in flat and "each subdirectory of `<data>`" in flat, \
+        "the sets are read from the data directory, not searched for below pwd"
     assert "deriving `<repo>` from a git remote" in flat, \
         "a workspace has no remote to derive from — the ban must be stated"
     assert "FORBIDDEN: asking which" in flat, \
@@ -138,7 +137,7 @@ def test_submodules_are_checked_out_only_when_bumped():
         assert "--recursive" not in c, f"nested submodules are out of scope: {c}"
         assert '-- "$sub"' in c, f"a bare --init checks out every submodule: {c}"
     sub = " ".join(text(SRC / "cases" / "submodule-review.md").split())
-    assert "never gets a `notebooks/` of its own" in sub, \
+    assert "never gets a memory directory of its own" in sub, \
         "the worktree sits beside the project repo; a submodule holds no memory directory"
 
 
@@ -187,7 +186,7 @@ def test_clean_deletes_worktrees_and_nothing_else():
     flat = " ".join(c.split())
     for keep in ("memory.md", "memories/", "ALWAYS_RULE.md", "settings.json", "templates/"):
         assert keep in flat.split("## Step 1")[0], f"the CRITICAL block must rule out {keep}"
-    assert "notebooks/review/*/worktrees/" in flat, "the only deletable path must be named"
+    assert "<data>/*/worktrees/" in flat, "the only deletable path must be named"
     ask = c.index("## Step 3")
     assert c.index("## Step 4 — Remove") > ask, "the ask must come before the removal"
     assert "(Recommended)" in c and "`Keep them`" in c, "two options, one of them recommended"

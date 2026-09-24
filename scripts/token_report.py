@@ -83,6 +83,7 @@ ROLES = {
     "case-pr-template": ["cases/pr-template-checklist.md"],
     "case-submodule": ["cases/submodule-review.md"],
     "case-multi-pr-fix": ["cases/multi-pr-fix.md"],
+    "case-data-dir": ["cases/data-dir.md"],
     "tpl-rails": ["templates/rails.md"],
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
@@ -100,6 +101,12 @@ SCENARIOS = {
     "review/known-repo-github-clean": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "criteria", "always-rule", "tpl-rails",
+    ],
+    # no data directory set yet: the user picks one and any notebooks/review/ at pwd is
+    # imported, once per user
+    "review/data-dir-unset-github": [
+        "review-cmd", "guardrails", "cli", "case-data-dir", "memory-commit", "locate-repo", "pr-target",
+        "repo-settings", "stack", "gh-fetch", "gh-worktree", "gh-post", "criteria", "always-rule", "tpl-rails",
     ],
     "review/known-repo-gitlab-rereview": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gl-fetch", "gl-worktree",

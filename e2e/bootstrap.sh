@@ -137,25 +137,19 @@ clone_to() {  # $1 = url -> echoes dir
   echo "$d"
 }
 
-# The fix flow needs a working copy on the fixture branch, and needs the reviewed repo's
-# memory to be there if it is to fix in line with a learned convention — that memory sits
-# under the pwd the REVIEW ran from, which is this project, not the clone.
-checkout_only() {  # $1 = clone url, $2 = repo slug
+# The fix flow needs a working copy on the fixture branch. The learned convention it fixes
+# against is already reachable: memory lives in the plugin's data directory, not the clone.
+checkout_only() {  # $1 = clone url
   local d; d=$(clone_to "$1")
   git -C "$d" fetch -q origin "$BRANCH"
   git -C "$d" checkout -q -B "$BRANCH" "origin/$BRANCH"
-  local mem="notebooks/review/${2##*/}"
-  if [ -d "$mem" ] && [ ! -d "$d/$mem" ]; then
-    mkdir -p "$d/notebooks/review" && cp -R "$mem" "$d/notebooks/review/"
-    echo "          copied $mem into the clone, so the fix run sees the learned convention"
-  fi
   echo "working copy → $d  (on $BRANCH)"
   echo "          cd $d   then   /open-pr:fix <fixture url>"
 }
 
 run_github() {
   local repo="${REPO_OVERRIDE:-$GITHUB_REPO}"
-  $CHECKOUT && { checkout_only "git@github.com:$repo.git" "$repo"; return; }
+  $CHECKOUT && { checkout_only "git@github.com:$repo.git"; return; }
   [ "$(gh api "repos/$repo" --jq '.permissions.push // false')" = true ] \
     || { echo "github: no push access to $repo — fork it and pass --repo <your-fork>" >&2; return 1; }
   local d; d=$(clone_to "git@github.com:$repo.git")
@@ -171,7 +165,7 @@ run_github() {
 
 run_gitlab() {
   local repo="${REPO_OVERRIDE:-$GITLAB_REPO}"
-  $CHECKOUT && { checkout_only "git@$GITLAB_HOST:$repo.git" "$repo"; return; }
+  $CHECKOUT && { checkout_only "git@$GITLAB_HOST:$repo.git"; return; }
   # `glab api` has no --jq (that is gh's flag) — pipe instead. A personal-namespace owner
   # can report project_access null, hence taking the max across both access fields.
   local lvl; lvl=$(glab api "projects/${repo//\//%2F}" 2>/dev/null \
@@ -216,7 +210,7 @@ bb_pr_id() {  # $1 = repo
 
 run_bitbucket() {
   local repo="${REPO_OVERRIDE:-$BITBUCKET_REPO}"
-  $CHECKOUT && { checkout_only "git@bitbucket.org:$repo.git" "$repo"; return; }
+  $CHECKOUT && { checkout_only "git@bitbucket.org:$repo.git"; return; }
   bb "$BB_API/repositories/$repo?fields=full_name" >/dev/null \
     || { echo "bitbucket: cannot read $repo — check the token's scopes, or pass --repo <your-fork>" >&2; return 1; }
   ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@bitbucket.org 2>&1 | grep -qi 'logged in as' \

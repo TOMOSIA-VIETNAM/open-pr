@@ -2,11 +2,11 @@
 
 4 layers. All load together; on conflict the higher one wins:
 
-1. `notebooks/review/<repo>/ALWAYS_RULE.md` — the team's own rules, edited by hand. Read it exactly as
+1. `<data>/<repo>/ALWAYS_RULE.md` — the team's own rules, edited by hand. Read it exactly as
    authored, whatever shape it has taken; empty is normal and means the team has added nothing yet.
-2. `notebooks/review/<repo>/memory.md` + each `memories/<lesson>.md` tagged with a stack in play. A
+2. `<data>/<repo>/memory.md` + each `memories/<lesson>.md` tagged with a stack in play. A
    REFERENCE line points at a path inside the reviewed repo — read that path, it is the live source.
-3. `notebooks/review/<repo>/templates/<stack>.md` for every detected stack, plus overlays. FORBIDDEN:
+3. `<data>/<repo>/templates/<stack>.md` for every detected stack, plus overlays. FORBIDDEN:
    `${CLAUDE_PLUGIN_ROOT}/templates/` — the LOCAL copy is the one that counts.
 4. The baseline below, owned by the plugin and therefore always current.
 

@@ -4,25 +4,21 @@
 
 插件为每个仓库保存的全部内容，以及在哪里修改它们。
 
-## 该站在哪里
+## 数据放在哪里
+
+所有仓库的 memory、settings 和评审用 worktree 都放在你只需选一次的 **一个数据目录** 里，位于所有仓库之外 —— 不用加 `.gitignore`，`git status` 里也看不到。
 
 ```
-✅ 站在 workspace 里                          ❌ 站在仓库里面
-─────────────────────────                    ─────────────────────────
-workspace/            ← 在这里敲命令          repo-backend/         ← 在这里敲命令
-├── notebooks/review/  memory + worktree     ├── notebooks/review/  memory 落在项目内部
-│   ├── repo-backend/  在所有仓库之外         ├── .gitignore         +1 行 —— 真实的改动
-│   └── repo-frontend/                       └── src/
-├── repo-backend/     ← 干净，0 个多余文件
-└── repo-frontend/    ← 干净，0 个多余文件（repo-frontend？看不见）
+~/workspace/notebooks/review/   ← 数据目录（你来选）
+├── .git                        学到内容的本地历史
+├── repo-backend/               memory + settings + worktrees/
+└── repo-frontend/
+~/workspace/repo-backend/       ← 不受影响
 ```
 
-`notebooks/review/`（memory + worktree）永远创建在 **你敲命令的那个位置**。
+尚未设置数据目录时，第一条命令会询问路径。推荐的是仓库外面紧邻那一层目录里的 `notebooks/review/` —— 对 `~/workspace/repo-backend` 来说就是 `~/workspace/notebooks/review/` —— 也可以输入任意路径。仓库里已有的 `notebooks/review/` 会被 **复制** 过去（不含 worktree），原目录保持不动。选择保存在 `~/.config/open-pr/config.json` 的 `data_dir` 里 —— 想换位置就编辑这个文件。
 
-| 你站在哪里 | 后果 |
-| --- | --- |
-| **Workspace**（推荐） | 仓库不受影响。多个仓库并排放着 → 一次运行就能评审 **跨仓库** 的 PR（一个接一个，不是并行） |
-| **仓库里面** | `notebooks/review/` 落进项目里。插件会往 `.gitignore` 加 1 行让 `git status` 保持干净 —— 但那一行仍然是仓库里的真实改动 |
+你站在哪里不影响数据放在哪里。站在装着多个仓库的 workspace 里，仍然可以一次运行评审 **跨仓库** 的 PR（一个接一个，不是并行）：
 
 ```bash
 cd ~/workspace
@@ -35,18 +31,18 @@ cd ~/workspace
 
 | 命令 | 你站在哪里 | 它写什么 |
 | --- | --- | --- |
-| `/open-pr:review` | 装着该仓库的 workspace（首选），或仓库里面 —— 靠 `git remote` 找到它 | PR 上的评论 + `notebooks/review/<repo>/` 下的 memory |
+| `/open-pr:review` | 装着该仓库的 workspace，或仓库里面 —— 靠 `git remote` 找到它 | PR 上的评论 + `<data>/<repo>/` 下的 memory |
 | `/open-pr:fix` | 在该仓库里 / 装着它的 workspace 里 —— 但 **仓库必须处在 PR 的分支上** | 仓库里的真实代码 + PR 上的回复 |
-| `/open-pr:upgrade` | 已配置过的 workspace 或仓库 —— 有多个仓库时让你挑 | `notebooks/review/<repo>/settings.json` |
-| `/open-pr:clean` | 要清理的那个 `notebooks/review/` 之上的任意位置 | 什么都不写 —— 只删除 `notebooks/review/*/worktrees/*` |
+| `/open-pr:upgrade` | 任意位置 —— 数据目录里的所有仓库，或你点名的那些 | `<data>/<repo>/settings.json` |
+| `/open-pr:clean` | 任意位置 | 什么都不写 —— 只删除 `<data>/*/worktrees/*` |
 | `/open-pr:feedback` | 任意位置 | 本地什么都不写 —— 在你批准文本之后，往插件自己的 tracker 发一条 issue |
 
 ## 设置
 
-学到的一切都索引在 `notebooks/review/<repo>/memory.md` 里（目录式 —— token 便宜，但全貌仍在）。细节存放在 `notebooks/review/<repo>/memories/*.md`。
+下文的 `<data>` 指数据目录。学到的一切都索引在 `<data>/<repo>/memory.md` 里（目录式 —— token 便宜，但全貌仍在）。细节存放在 `<data>/<repo>/memories/*.md`。
 
 > [!NOTE]
-> 整个 `notebooks/review/` 目录由一个 **独立的本地 git** 管理 —— 没有 remote，永远不会被 push。你可以追溯 memory 从上一次评审到这一次是怎么变的。
+> 整个数据目录由一个 **独立的本地 git** 管理 —— 没有 remote，永远不会被 push。你可以追溯 memory 从上一次评审到这一次是怎么变的。
 
 团队规则以普通文字写进 `ALWAYS_RULE.md`（默认为空）。其余一切都在 `settings.json` 里：
 

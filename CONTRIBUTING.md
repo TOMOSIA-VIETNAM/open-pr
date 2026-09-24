@@ -94,7 +94,7 @@ e2e/bootstrap.sh --pr <n> --teardown
 
 ## Which path a round takes
 
-`notebooks/review/open-pr-test/` at this repo's root:
+`<data>/open-pr-test/`, `<data>` being what `src/bin/open-pr.sh data-dir` prints:
 
 - present → warm path (no bootstrap, no doctor). Default.
 - delete it first → first-run path. Do this when `src/setup/`, `src/core/repo-settings.md` or the schema changed.

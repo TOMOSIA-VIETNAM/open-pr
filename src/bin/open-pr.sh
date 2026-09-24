@@ -13,7 +13,8 @@
 #     or jq-built JSON, never through shell interpolation.
 #   - Exit codes: 0 ok · 2 head-SHA gate failed after its one retry · 3 vendor
 #     checkout error (e.g. force-pushed source) · 4 invalid PR URL · 5 repo
-#     directory not resolvable · 6 missing credentials · 1 anything else.
+#     directory not resolvable · 6 missing credentials · 7 data directory not
+#     set · 1 anything else.
 #
 # Dependencies: git, jq, curl, and the vendor CLI the target uses (gh or glab).
 set -eu
@@ -355,7 +356,8 @@ cmd_checkout() {
         REMOTE=$(find_remote "$target" "$HOST" "$OWNER/$REPO")
     else
         repo_dir=$(req repo_dir)
-        target="$PWD/notebooks/review/$REPO/worktrees/pr$N-$$$(awk 'BEGIN{srand();printf "%d", rand()*32768}')"
+        data=$(data_dir)
+        target="$data/$REPO/worktrees/pr$N-$$$(awk 'BEGIN{srand();printf "%d", rand()*32768}')"
         git -C "$repo_dir" worktree add "$target" --detach >&2
         REMOTE=$(find_remote "$repo_dir" "$HOST" "$OWNER/$REPO")
     fi
@@ -593,34 +595,45 @@ cmd_marker() {
     esac
 }
 
+# ------------------------------------------------------------ data-dir ----
+# Review memory and worktrees live under ONE directory the user picks, recorded
+# in the user-level config — never inside a reviewed repo, so no repo has to
+# .gitignore it. Unset ⇒ exit 7: the caller asks the user, then --set.
+DATA_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/config.json"
+data_dir() {
+    v=$(jq -r '.data_dir // empty' "$DATA_CONF" 2>/dev/null) || v=""
+    [ -n "$v" ] || die 7 "open-pr: data directory not set ($DATA_CONF has no data_dir)"
+    printf '%s' "$v"
+}
+cmd_data_dir() {
+    parse_args "$@"
+    s=$(arg set)
+    if [ -n "$s" ]; then
+        case "$s" in
+            "~"|"~/"*) s="$HOME${s#\~}" ;;
+            /*|[A-Za-z]:[\\/]*) ;;
+            *) s="$PWD/$s" ;;
+        esac
+        mkdir -p "$s" "$(dirname "$DATA_CONF")"
+        s=$(cd "$s" && pwd)
+        conf='{}'; [ -s "$DATA_CONF" ] && conf=$(cat "$DATA_CONF")
+        printf '%s' "$conf" | jq --arg d "$s" '.data_dir = $d' > "$TMPD/config.json"
+        mv "$TMPD/config.json" "$DATA_CONF"
+    fi
+    d=$(data_dir)
+    printf '%s\n' "$d"
+}
+
 # ------------------------------------------------------------ settings ----
 # Prints the repo's settings.json with every read-time default applied, plus
 # the computed doctor_due. Never writes anything.
 cmd_settings() {
     parse_args "$@"
-    # --dir wins: a caller standing inside a review worktree passes the memory
-    # directory it located (../../ from the worktree), where a cwd-relative
-    # notebooks/review/<repo> would resolve inside the reviewed tree instead.
-    d=$(arg dir)
-    if [ -n "$d" ]; then f="$d/settings.json"; else f="notebooks/review/$(req repo)/settings.json"; fi
-    # A worktree or subdirectory invocation misses the memory the review created
-    # at its own workspace — with --repo-dir and --repo, probe beside the repo's
-    # MAIN worktree (and its parent workspace) before declaring memory absent.
-    if [ ! -s "$f" ] && [ -n "$(arg repo_dir)" ] && [ -n "$(arg repo)" ]; then
-        common=$(git -C "$(arg repo_dir)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || common=""
-        common=${common:-$(arg repo_dir)/.git}   # not a git tree: stay beside repo_dir, never cwd
-        main_wt=$(dirname "$common")
-        # parent workspace FIRST: the in-repo copy is the drifting one fix.md forbids
-        for cand in "$(dirname "$main_wt")/notebooks/review/$(arg repo)" "$main_wt/notebooks/review/$(arg repo)"; do
-            [ -s "$cand/settings.json" ] && { f="$cand/settings.json"; break; }
-        done
-    fi
-    # The caller must be able to tell "never bootstrapped" from "read from the
-    # wrong directory" — the defaults for the two are byte-identical otherwise.
-    mem_dir=$(cd "$(dirname "$f")" 2>/dev/null && pwd) || {
-        mem_dir=$(dirname "$f")
-        case "$mem_dir" in /*) ;; *) mem_dir="$PWD/$mem_dir" ;; esac
-    }
+    data=$(data_dir)
+    # memory_dir rides along: "never bootstrapped" and "memory kept somewhere
+    # else" print byte-identical defaults otherwise.
+    mem_dir="$data/$(req repo)"
+    f="$mem_dir/settings.json"
     if [ -s "$f" ]; then raw=$(cat "$f"); found=true; else raw='{}'; found=false; fi
     now=$(date +%s)
     d_at=$(printf '%s' "$raw" | jq -r '.review.doctored_at // empty')
@@ -757,6 +770,7 @@ case "$sub" in
     account)      cmd_account "$@" ;;
     commit-url)   cmd_commit_url "$@" ;;
     marker)       cmd_marker "$@" ;;
+    data-dir)     cmd_data_dir "$@" ;;
     settings)     cmd_settings "$@" ;;
     stacks)       cmd_stacks "$@" ;;
     *) die 1 "open-pr.sh: unknown subcommand: $sub" ;;
