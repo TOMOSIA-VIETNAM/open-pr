@@ -77,7 +77,7 @@ already computed. `<vendor>` is already reconciled, never re-asked. Persisting i
 
 Branch:
 
-- `memory_found: false` → `core/repo-settings.md` "memory_found" rule FIRST — it may STOP
+- `memory_found: false` → `Read` `cases/data-dir.md` "memory_found: false" FIRST — it may import or STOP
 - no file || no `.review` || `.review.bootstrapped` != `true` → `Read`
   `setup/bootstrap.md`, then `setup/doctor.md`
 - `bootstrapped: true` && `doctor_due` → `setup/doctor.md` only, FORBIDDEN: re-asking bootstrap

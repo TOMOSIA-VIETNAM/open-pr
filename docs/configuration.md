@@ -16,7 +16,7 @@ Memory, settings and review worktrees for every repo sit in **one data directory
 ~/workspace/repo-backend/       ← untouched
 ```
 
-With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. The choice is stored as `data_dir` in `~/.config/open-pr/config.json` — edit it to point elsewhere.
+With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. Later, a repo missing from the data directory gets the same lookup under the directory you stand in, and its `notebooks/review/<repo>/` is offered for import. The choice is stored as `data_dir` in `~/.config/open-pr/config.json` — edit it to point elsewhere.
 
 Where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):
 

@@ -16,7 +16,7 @@
 ~/workspace/repo-backend/       ← 不受影响
 ```
 
-尚未设置数据目录时，第一条命令会询问路径。推荐的是仓库外面紧邻那一层目录里的 `notebooks/review/` —— 对 `~/workspace/repo-backend` 来说就是 `~/workspace/notebooks/review/` —— 也可以输入任意路径。仓库里已有的 `notebooks/review/` 会被 **复制** 过去（不含 worktree），原目录保持不动。选择保存在 `~/.config/open-pr/config.json` 的 `data_dir` 里 —— 想换位置就编辑这个文件。
+尚未设置数据目录时，第一条命令会询问路径。推荐的是仓库外面紧邻那一层目录里的 `notebooks/review/` —— 对 `~/workspace/repo-backend` 来说就是 `~/workspace/notebooks/review/` —— 也可以输入任意路径。仓库里已有的 `notebooks/review/` 会被 **复制** 过去（不含 worktree），原目录保持不动。之后，数据目录里还没有的仓库也会在你所在位置下面照样查找，找到的 `notebooks/review/<repo>/` 会提议导入。选择保存在 `~/.config/open-pr/config.json` 的 `data_dir` 里 —— 想换位置就编辑这个文件。
 
 你站在哪里不影响数据放在哪里。站在装着多个仓库的 workspace 里，仍然可以一次运行评审 **跨仓库** 的 PR（一个接一个，不是并行）：
 

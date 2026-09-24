@@ -16,7 +16,7 @@
 ~/workspace/repo-backend/       ← 触れない
 ```
 
-データディレクトリが未設定なら、最初のコマンドがそのパスを尋ねます。推奨はリポジトリのすぐ外側のディレクトリにある `notebooks/review/` です — `~/workspace/repo-backend` なら `~/workspace/notebooks/review/`。任意のパスも指定できます。リポジトリ内に既にある `notebooks/review/` はそこへ **コピー** され（worktree は除く）、元の場所にも残ります。選択は `~/.config/open-pr/config.json` の `data_dir` に保存されます — 場所を変えるにはこのファイルを編集します。
+データディレクトリが未設定なら、最初のコマンドがそのパスを尋ねます。推奨はリポジトリのすぐ外側のディレクトリにある `notebooks/review/` です — `~/workspace/repo-backend` なら `~/workspace/notebooks/review/`。任意のパスも指定できます。リポジトリ内に既にある `notebooks/review/` はそこへ **コピー** され（worktree は除く）、元の場所にも残ります。その後も、データディレクトリにまだないリポジトリは立っている場所の下で同じように探され、見つかった `notebooks/review/<repo>/` の取り込みを提案します。選択は `~/.config/open-pr/config.json` の `data_dir` に保存されます — 場所を変えるにはこのファイルを編集します。
 
 立つ場所はデータの置き場所に影響しません。複数リポジトリを含むワークスペースからなら、1 回の実行で **リポジトリ横断** PR をレビューできます（並列ではなく順番に）：
 

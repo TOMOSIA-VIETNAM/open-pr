@@ -16,7 +16,7 @@ Memory, settings và worktree review của mọi repo nằm trong **một thư m
 ~/workspace/repo-backend/       ← không bị chạm
 ```
 
-Khi chưa có thư mục dữ liệu, command đầu tiên sẽ hỏi. Khuyến nghị là `notebooks/review/` ở thư mục ngay bên ngoài repo — với `~/workspace/repo-backend` thì là `~/workspace/notebooks/review/` — hoặc đường dẫn bất kỳ bạn gõ. `notebooks/review/` có sẵn trong repo được **copy** sang đó (trừ worktree) và giữ nguyên tại chỗ. Lựa chọn lưu ở `data_dir` trong `~/.config/open-pr/config.json` — sửa file đó để đổi chỗ.
+Khi chưa có thư mục dữ liệu, command đầu tiên sẽ hỏi. Khuyến nghị là `notebooks/review/` ở thư mục ngay bên ngoài repo — với `~/workspace/repo-backend` thì là `~/workspace/notebooks/review/` — hoặc đường dẫn bất kỳ bạn gõ. `notebooks/review/` có sẵn trong repo được **copy** sang đó (trừ worktree) và giữ nguyên tại chỗ. Về sau, repo nào chưa có trong thư mục dữ liệu cũng được tìm như vậy dưới chỗ bạn đứng, và `notebooks/review/<repo>/` của nó được đề nghị import. Lựa chọn lưu ở `data_dir` trong `~/.config/open-pr/config.json` — sửa file đó để đổi chỗ.
 
 Chỗ bạn đứng không ảnh hưởng tới nơi lưu dữ liệu. Đứng ở workspace chứa nhiều repo vẫn review được PR **chéo repo** trong một lượt (lần lượt, không song song):
 

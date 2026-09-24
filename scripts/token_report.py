@@ -93,7 +93,8 @@ ROLES = {
 # A "load set" = what a single run of one command Reads into context.
 SCENARIOS = {
     "review/new-repo-github": [
-        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "setup-bootstrap",
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "case-data-dir", "stack",
+        "setup-bootstrap",
         "setup-doctor", "memory-commit", "upgrades-index", "case-language-choice", "gh-fetch", "gh-worktree",
         "gh-post",
         "criteria", "always-rule", "setup-template", "tpl-rails",

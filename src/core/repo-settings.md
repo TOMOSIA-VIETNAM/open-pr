@@ -5,14 +5,6 @@
 `reference/settings-schema.md` — FORBIDDEN: `Read`ing that file during a review/fix run, nothing here
 needs it.
 
-## memory_found: false — new repo, or memory kept elsewhere?
-
-The defaults for the two are identical, so BEFORE any bootstrap runs, ONE CHOICE per
-`core/guardrails.md`: `First run for this repo (Recommended)` — continue to the caller's bootstrap —
-vs its memory sits in another directory ⇒ STOP, print `memory_dir` and say to copy that repo's memory
-there. A repo bootstrapped elsewhere answers to defaults here, and re-asking setup is the symptom the
-user sees.
-
 ## Node ownership (invariant)
 
 `review.md` ⇄ `.review`; `fix.md` ⇄ `.fix`; both ⇄ `.shared`. Neither ever writes the other's node.

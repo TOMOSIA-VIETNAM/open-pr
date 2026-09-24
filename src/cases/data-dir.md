@@ -1,11 +1,15 @@
-# `<data>` not set — pick it once, import existing memory
+# `<data>` — pick it once, import existing memory
 
-Read when `<op> data-dir` exits 7. The answer is stored per user, not per repo: every later run, from any
-directory, reuses it.
+Two ways in: `<op> data-dir` exited 7 → "Not set"; `<op> settings` printed `memory_found: false` →
+"memory_found: false". FORBIDDEN: `cd` anywhere below.
 
-1. Look for existing memory in `notebooks/review/` below the invocation directory (FORBIDDEN: `cd`):
+## Not set
+
+The answer is stored per user, not per repo: every later run, from any directory, reuses it.
+
+1. Look for existing memory below the invocation directory:
    ```bash
-   find . -maxdepth 2 -type d -path '*/notebooks/review' 2>&1 | grep -Ev 'node_modules'
+   find . -maxdepth 3 -type d -path '*/notebooks/review' 2>&1 | grep -Ev 'node_modules|/worktrees/'
    ```
    Each hit = one `<src>`; its subdirectories are the `<repo>`s it holds.
 2. `<rec>` = `notebooks/review` inside the directory just OUTSIDE the repo — the parent of
@@ -16,17 +20,41 @@ directory, reuses it.
      the repo, which keeps its `.gitignore` line
    - free text = any path the user types
 3. `<op> data-dir --set <answer>` → `<data>`.
-4. Per `<src>` other than `<data>`, copy what `<data>` lacks — worktrees stay behind (git registered
-   them at their current path).
-   `<data>` empty ⇒ everything, `.git` included, so history is kept:
-   ```bash
-   tar -C "<src>" --exclude='*/worktrees' -cf - . | tar -C "<data>" -xf -
-   ```
-   `<data>` already holds files ⇒ each `<repo>` absent from `<data>`, then `core/memory-commit.md` with
-   `chore: import <repo> memory`; a `<repo>` already in `<data>` stays as is — name it:
-   ```bash
-   tar -C "<src>" --exclude='*/worktrees' -cf - "<repo>" | tar -C "<data>" -xf -
-   ```
-5. Tell the user, once: where `<data>` is; what was copied; each copied `<src>` is untouched and can be
-   deleted (then `git worktree prune` in each reviewed repo), along with its `notebooks/review/` line
-   in `.gitignore`. Continue the calling command.
+4. Each `<src>` other than `<data>` → "Import". Then continue the calling command.
+
+## memory_found: false — new repo, or memory kept elsewhere?
+
+The defaults for the two are identical, so BEFORE any bootstrap runs, look for this repo's memory below
+the invocation directory:
+
+```bash
+find . -maxdepth 4 -type d -path '*/notebooks/review/<repo>' 2>&1 | grep -Ev 'node_modules|/worktrees/'
+```
+
+- hit → ONE CHOICE per `core/guardrails.md`, one per hit: `Import <hit> (Recommended)` → "Import" with
+  `<src>` = the hit's parent, this `<repo>` only, then `<op> settings --repo <repo>` again (the file was
+  WRITTEN since) — vs `First run for this repo` → the caller's bootstrap
+- none → ONE CHOICE: `First run for this repo (Recommended)` → the caller's bootstrap — vs its memory
+  sits in another directory ⇒ STOP, print `memory_dir` and say to copy that repo's memory there
+
+A repo bootstrapped elsewhere answers to defaults here, and re-asking setup is the symptom the user sees.
+
+## Import
+
+Copy what `<data>` lacks from `<src>` — worktrees stay behind (git registered them at their current
+path). `<data>` empty ⇒ everything, `.git` included, so history is kept:
+
+```bash
+tar -C "<src>" --exclude='*/worktrees' -cf - . | tar -C "<data>" -xf -
+```
+
+`<data>` already holds files ⇒ each `<repo>` absent from `<data>`, then `core/memory-commit.md` with
+`chore: import <repo> memory`; a `<repo>` already in `<data>` stays as is — name it:
+
+```bash
+tar -C "<src>" --exclude='*/worktrees' -cf - "<repo>" | tar -C "<data>" -xf -
+```
+
+Tell the user, once: where `<data>` is; what was copied; each copied `<src>` is untouched and can be
+deleted (then `git worktree prune` in each reviewed repo), along with its `notebooks/review/` line in
+`.gitignore`.
