@@ -327,6 +327,7 @@ EOF
          + (if $note == "" then {} else {note: $note} end)'
 }
 status_all() {   # JSONL for every tracked session (or just $1)
+    CLAUDE_AGENTS=""   # one listing per pass: `wait` polls many times in one process
     if [ -n "${1:-}" ]; then
         [ -n "$(session_field "$1" runner)" ] && status_one "$1"
         return 0
@@ -468,7 +469,7 @@ poll_once() {   # GOT=1 when events were printed and committed
     since=$(jq -n -r --arg c "$cursor" '$c | fromdateiso8601 - 1 | todateiso8601')
     rc=0
     opr triggers --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} \
-        --since "$since" > "$TMPD/triggers" || rc=$?
+        --since "$since" --mark-file "$TMPD/mark" > "$TMPD/triggers" || rc=$?
     if [ "$rc" != 0 ]; then
         err "open-pr-watch.sh: triggers failed (exit $rc); retrying next poll"
         [ -z "$(arg once)" ] || exit "$rc"
@@ -490,11 +491,17 @@ poll_once() {   # GOT=1 when events were printed and committed
     jq -c -s --slurpfile st "$TMPD/state.in" '
         .[] | select(.state != ($st[0].sessions[(.pr | tostring)].last_state // null))
         | {event: "session", pr, state, open} + (if .note then {note} else {} end)' "$TMPD/status" > "$TMPD/sess"
+    # The cursor also moves to the newest comment fetched, trigger or not: a quiet repo
+    # would otherwise re-fetch everything since the watcher started, every poll.
+    mark=$(cat "$TMPD/mark" 2>/dev/null || true)
     if [ ! -s "$TMPD/new" ] && [ ! -s "$TMPD/sess" ]; then
-        remember_ids "$TMPD/status"; unlock; return 0
+        remember_ids "$TMPD/status"
+        [ -z "$mark" ] || state_update --arg m "$mark" \
+            'if $m > .cursor then .cursor = $m | .seen = [] else . end'
+        unlock; return 0
     fi
-    jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/status" '
-        ([.cursor] + [$new[]._k] | max) as $c
+    jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/status" --arg m "$mark" '
+        ([.cursor, $m] + [$new[]._k] | map(select(. != "")) | max) as $c
         | .seen = (if $c == .cursor then (.seen // []) else [] end
                    + [$new[] | select(._k == $c) | .comment_id | tostring] | unique)
         | .cursor = $c

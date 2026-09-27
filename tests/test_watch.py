@@ -28,7 +28,10 @@ case "$1" in
     data-dir) printf '%s\n' "$FAKE_HOME/data" ;;
     repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
                  printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
-    triggers) cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
+    triggers) printf '%s\n' "$*" >> "$FAKE_HOME/triggers.args"
+              mf=$(printf '%s\n' "$@" | sed -n '/^--mark-file$/{n;p;}')
+              [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
+              cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
     settings) cat "$FAKE_HOME/settings.json" 2>/dev/null || printf '{}\n' ;;
     *) exit 1 ;;
 esac
@@ -308,6 +311,45 @@ def test_wait_reports_a_session_state_change_once(w):
     assert ev == [{"event": "session", "repo": "o/r", "pr": 5, "state": "posted", "open": f"claude attach {sp['id']}"}]
     assert w.run("wait", "--once").stdout == ""
 
+
+
+def test_a_running_wait_sees_a_session_change_between_its_own_polls(w):
+    """`wait` polls many times in one process; a listing cached from its first poll would keep
+    reporting `working` until some trigger made it exit."""
+    w.settings(poll_interval_seconds=1)
+    sp = w.spawn(5)
+    assert w.run("wait", "--once").stdout == ""
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        time.sleep(2.5)                      # at least one poll with the session still working
+        assert proc.poll() is None, "wait exited before anything changed"
+        w.claude_set(sp["id"], "done")
+        w.status_file(5, state="posted", url="https://github.com/o/r/pull/5")
+        out, _ = proc.communicate(timeout=20)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    assert [json.loads(l)["state"] for l in out.splitlines() if l.strip()] == ["posted"]
+
+
+def test_a_quiet_repo_moves_the_cursor_to_the_newest_comment_fetched(w):
+    """No trigger for days must not leave --since at the watcher's start: every poll would
+    re-fetch every comment since then."""
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "mark.txt").write_text("2026-01-02T08:00:00Z\n")
+    assert w.run("wait", "--once").stdout == ""
+    assert w.state()["cursor"] == "2026-01-02T08:00:00Z"
+    w.run("wait", "--once")
+    assert "--since 2026-01-02T07:59:59Z" in (w.home / "triggers.args").read_text().splitlines()[-1]
+    (w.home / "mark.txt").write_text("")
+    w.run("wait", "--once")
+    assert w.state()["cursor"] == "2026-01-02T08:00:00Z", "nothing fetched leaves the cursor alone"
+    w.triggers(trig("21", "2026-01-02T08:00:00Z"))
+    (w.home / "mark.txt").write_text("2026-01-02T08:00:00Z\n")
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["21"], \
+        "a trigger in the mark's own second still arrives once"
+    assert w.run("wait", "--once").stdout == ""
 
 # ------------------------------------------------------- spawn / resume ----
 

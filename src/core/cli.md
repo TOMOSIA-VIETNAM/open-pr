@@ -26,7 +26,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `locate-repo --owner O --repo R --host H` | `<repo_dir>` whose git remote matches |
 | `repo-target --repo-dir D [--remote R]` | D's git remote R (default origin, else the only one) → `vendor/owner/repo/host` lines |
 | `list-repos [--dir D]` | every hosted remote of every repo at or below D (default cwd, 3 levels), TSV: dir, remote, vendor, owner, repo, host, last commit ISO-8601 |
-| `triggers [--since T]` | `/open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in reference/vendor-interface.md |
+| `triggers [--since T] [--mark-file F]` | `/open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in reference/vendor-interface.md. F ← newest created_at of every comment fetched |
 | `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per repo at a time: waits `--lock-timeout` s (120), then exit 1 |
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
 | `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |

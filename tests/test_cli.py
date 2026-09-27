@@ -743,6 +743,13 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
     assert "pwned" not in shims["log"].read_text(), "a comment body reached an argv"
 
 
+def test_triggers_mark_file_holds_the_newest_comment_fetched(shims, tmp_path):
+    """Non-trigger comments count too: the watcher's cursor moves on a repo with no triggers."""
+    serve(shims, "gh", GH_ROUTES)
+    mark = tmp_path / "mark"
+    triggers(shims, "github", "--mark-file", str(mark))
+    assert mark.read_text().strip() == "2026-01-01T00:00:09Z"
+
 def test_triggers_since_is_strict_and_narrows_the_fetch(shims):
     serve(shims, "gh", GH_ROUTES)
     rows = triggers(shims, "github", "--since", "2026-01-01T00:00:02Z")

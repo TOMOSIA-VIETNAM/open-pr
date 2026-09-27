@@ -14,7 +14,7 @@ same `<data>/<repo>/`; the watcher that opened this one is the ONLY writer there
   |---|---|
   | bootstrap (`bootstrapped` != `true`), `memory_found: false`, `<op> data-dir` exit 7 | STOP, `state` `failed`, `note`: run `/open-pr:review <url>` once in a normal session |
   | doctor (`doctor_due`) | skip it this run |
-  | copy a template (Step 4) | use `${CLAUDE_PLUGIN_ROOT}/templates/<stack>.md` in place as that stack's layer; none there ⇒ no stack layer. Name the stack in `note` |
+  | copy a template (Step 4) | use the plugin's own `templates/<stack>.md` in place as that stack's layer — for this run it replaces `core/review-criteria.md`'s local-copy rule; none there ⇒ no stack layer. Name the stack in `note` |
   | log a lesson (`setup/lesson.md`) | put the lesson's text — content + stack tag — into `lessons`; the watcher asks the user and logs it |
 
 - **Status file.** Every end of this run — Step 9's report, any STOP, any error — ends with 1 `Write`

@@ -716,7 +716,7 @@ trg_fetch() {
 }
 cmd_triggers() {
     parse_args "$@"
-    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); SINCE=$(arg since)
+    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); SINCE=$(arg since); MARK=$(arg mark_file)
     check_ident '^[A-Za-z0-9_.-]+$' "$OWNER"; check_ident '^[A-Za-z0-9_.-]+$' "$REPO"
     case "$V" in
         github) need gh ;; gitlab) gl_init "$OWNER" "$REPO" ;; bitbucket) bb_init "$OWNER" "$REPO" ;;
@@ -729,6 +729,11 @@ cmd_triggers() {
     fi
     mf=$(cmd_marker --vendor "$V" --kind finding); mr=$(cmd_marker --vendor "$V" --kind reply)
     trg_fetch > "$TMPD/tr.all"
+    # --mark-file: the newest created_at among EVERY comment fetched, trigger or not, UTC at
+    # second precision — lets the caller move its cursor on a quiet repo, so each poll
+    # fetches only what is new. Empty when nothing was fetched.
+    [ -z "$MARK" ] || jq -r -s "$JQ_EPOCH"' map(.created_at | epoch) | max // empty | floor | todate' \
+        "$TMPD/tr.all" > "$MARK"
     # plugin-authored comments carry a marker — excluded, so a posted review never
     # triggers the next one. The watcher's own account may ask: one person can be
     # both the developer and the reviewer.
@@ -1019,9 +1024,9 @@ Subcommands:
   list-repos [--dir D]
       every hosted remote of every repo at or below D (default cwd, 3 levels), TSV: dir, remote,
       vendor, owner, repo, host, last commit ISO-8601
-  triggers [--since T]
+  triggers [--since T] [--mark-file F]
       `/open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in
-      reference/vendor-interface.md
+      reference/vendor-interface.md. F ← newest created_at of every comment fetched
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
       against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per

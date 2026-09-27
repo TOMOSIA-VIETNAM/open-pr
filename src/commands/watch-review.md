@@ -74,8 +74,8 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
 3. `<watch> paths --pr N` → `prompts=`, `status_file=`. `Write` `<prompts>/pr-N.hint.md` = the comment
    `body`, then `<prompts>/pr-N.md`:
    - `claude`: `/open-pr:review <url> --status-file <status_file> --hint-file <hint file>`
-   - any other runner: `Read <ROOT>/commands/review.md and obey it VERBATIM. ARGUMENTS: <url> --status-file <status_file> --hint-file <hint file> --unattended`
-     — `<ROOT>` absolute.
+   - any other runner: `ROOT: <ROOT>. Read <ROOT>/../adapters/root.md, then <ROOT>/commands/review.md and obey it VERBATIM. ARGUMENTS: <url> --status-file <status_file> --hint-file <hint file> --unattended`
+     — `<ROOT>` absolute: the adapter maps `${CLAUDE_PLUGIN_ROOT}` and the tool names the review needs.
 4. `<watch> spawn --runner <runner> --pr N --name "review <owner>/<repo>#N" --prompt-file <prompt file>`:
    - `queued` ⇒ 1 chat line with its `reason` (slots full, or that PR's session is still running — it
      re-reviews once that session is done).
@@ -91,10 +91,10 @@ Per session `{"event":"session",…}` — always with its `open` command; "notif
 | `question`, other runner | notify `question`; ask the user the status file's `question`, prefixed `[owner/repo#N]`; `Write` their answer as the new prompt file; `<watch> spawn` again (it resumes that session) |
 | `draft` | notify `draft_ready`; chat: link + counts. User wants it published ⇒ they do it in the session, or you `spawn` again with a prompt file saying the user approved publishing |
 | `posted`, `lgtm_chat` | notify `posted`; 1 chat line |
-| `failed` | notify `question`; the status file's `note` in chat |
+| `failed`, `stopped` | notify `question`; the status file's `note`, else the event's `note`, in chat |
 
 Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`. A session in
-`draft`, `posted`, `lgtm_chat` or `failed` frees a slot ⇒ `<watch> next`; a PR printed ⇒ step 4 with the
+`draft`, `posted`, `lgtm_chat`, `failed` or `stopped` frees a slot ⇒ `<watch> next`; a PR printed ⇒ step 4 with the
 `prompt_file` and `name` it prints.
 
 ## User messages while watching
