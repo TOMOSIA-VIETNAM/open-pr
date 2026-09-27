@@ -1,7 +1,7 @@
 #!/bin/sh
 # open-pr watch runtime — orchestration for /open-pr:watch-review.
 #
-# The main watch session never reviews: it waits for `@open-pr` trigger comments,
+# The main watch session never reviews: it waits for `/open-pr` trigger comments,
 # opens one review session per PR, and relays each session's outcome to the
 # reviewer. This script owns the deterministic half of that loop: the trigger
 # cursor, the PR -> session map, the slot limit and its queue, OS notifications,
@@ -502,7 +502,9 @@ poll_once() {   # GOT=1 when events were printed and committed
               .sessions[($s.pr | tostring)] |= (.last_state = $s.state | .id = (.id // $s.id)
                                                 | .session_id = (.session_id // $s.session_id))
           else . end)' "$TMPD/state.in" > "$STATE.tmp" || die 1 "open-pr-watch.sh: state update failed"
-    { jq -c '{event: "trigger"} + del(._k)' "$TMPD/new"; cat "$TMPD/sess"; } > "$TMPD/events"
+    # `repo` names the watched repo: one watcher may run a `wait` per repo.
+    { jq -c '{event: "trigger"} + del(._k)' "$TMPD/new"; cat "$TMPD/sess"; } \
+        | jq -c --arg r "$OWNER/$REPO" '{event, repo: $r} + del(.event)' > "$TMPD/events"
     cat "$TMPD/events"
     mv "$STATE.tmp" "$STATE"
     unlock
@@ -573,8 +575,9 @@ Common options:
 Subcommands:
   wait [--once]
       poll every `watch_review.poll_interval_seconds` until something happens, print it, exit 0:
-      `{"event":"trigger",<trigger fields>}` per new `@open-pr` comment, `{"event":"session","pr",
-      "state","open"}` per session whose state changed. The first run starts the cursor at now (no
+      `{"event":"trigger","repo",<trigger fields>}` per new `/open-pr` comment,
+      `{"event":"session","repo","pr","state","open"}` per session whose state changed; `repo` =
+      owner/repo. The first run starts the cursor at now (no
       replay). Events count as delivered only when wait exits 0 — act on no other output. `--once`:
       one poll, exit 0 with nothing printed when nothing happened
   spawn --runner R --pr N --name S --prompt-file F

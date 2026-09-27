@@ -1,6 +1,6 @@
 ---
 name: open-pr-watch-review
-description: Watch the current repo's PRs for an "@open-pr" comment and open one review session per PR on this machine, then relay questions, drafts and results here. Use when asked to watch or auto-review a repo's PRs; takes no URL.
+description: Watch the PRs of one or more repos in this workspace for an "/open-pr" comment and open one review session per PR on this machine, then relay questions, drafts and results here. Use when asked to watch or auto-review a repo's PRs; takes no URL.
 ---
 
 1. `Read` `../../adapters/root.md` (relative to this file) → `ROOT` + this platform's tool names and

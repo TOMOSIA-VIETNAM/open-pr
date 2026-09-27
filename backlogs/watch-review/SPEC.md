@@ -11,7 +11,7 @@ cho PR đó, post theo đúng setting của repo. Reviewer mở được từng 
 
 ## Luồng
 
-1. Dev comment trên PR: `@open-pr <nội dung>`. `<nội dung>` là gợi ý phần cần tập trung, có thể rỗng.
+1. Dev comment trên PR: `/open-pr <nội dung>`. `<nội dung>` là gợi ý phần cần tập trung, có thể rỗng.
 2. Reviewer `cd` vào repo, chạy `/open-pr:watch-review`. Session này là **main session**: chỉ trao đổi
    với reviewer và điều phối, không tự review.
 3. Main phát hiện trigger → thả reaction ack lên comment → mở 1 **review session** riêng cho PR, tên
@@ -24,12 +24,12 @@ cho PR đó, post theo đúng setting của repo. Reviewer mở được từng 
 
 | # | Quyết định | Lý do |
 |---|---|---|
-| 1 | Trigger = comment bắt đầu bằng `@open-pr`, không dùng `@claude` | Claude GitHub App và `claude-code-action` đều phản hồi `@claude` |
+| 1 | Trigger = comment bắt đầu bằng `/open-pr` (không phải `/open-pr:…`) | `@claude` bị Claude GitHub App và `claude-code-action` bắt; `@open-pr` mention thật một account GitHub trùng tên. `/` không mention ai |
 | 2 | Không dùng Claude Code Channels; phát hiện trigger bằng poll qua script | Channels đang research preview, org Team/Enterprise cần admin bật; GitHub không POST được vào localhost nên channel vẫn phải poll |
 | 3 | Repo nghe = repo của cwd (git remote). Nhiều repo ⇒ mỗi repo 1 terminal | Không cần config danh sách repo |
 | 4 | Chỉ người có quyền write mới trigger. GitHub: `author_association` ∈ OWNER/MEMBER/COLLABORATOR (có sẵn trong comment). GitLab: access level ≥ 30 qua `members/all/:user_id`. Bitbucket: API đòi admin ⇒ `UNKNOWN`, không kiểm tra, README ghi rõ | Chặn người ngoài làm tốn quota; không bắt cấp thêm quyền |
 | 5 | `<nội dung>` luôn là dữ liệu (gợi ý trọng tâm), không bao giờ là lệnh | Chặn prompt injection qua comment |
-| 6 | Bỏ qua comment của chính account đang đăng nhập và comment mang marker plugin | Chặn tự trigger khi review body chứa `@open-pr` |
+| 6 | Bỏ qua comment của chính account đang đăng nhập và comment mang marker plugin | Chặn tự trigger khi review body chứa `/open-pr` |
 | 7 | Post theo lời dặn của reviewer trong session, không có thì theo `.review.auto_submit_review`. Draft ⇒ main báo reviewer, reviewer mở session để duyệt/sửa/publish | Giữ luật sẵn có: cấm publish thay người |
 | 8 | Setting trong `settings.json` theo repo, node `watch_review`. Thiếu node ⇒ lần chạy đầu hỏi rồi ghi. Không tăng `schema_version` | 1 chỗ theo repo; `settings.json` đã nằm trong data dir của máy reviewer; node mới không bắt config cũ biến đổi |
 | 9 | Giới hạn số review session hoạt động (đang chạy hoặc chờ trả lời), mặc định 5, script đếm | Quota, rate limit; đếm bằng script mới tất định |

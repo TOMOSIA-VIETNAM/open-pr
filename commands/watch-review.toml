@@ -1,4 +1,4 @@
-description = "Watch this repo's PRs for an @open-pr comment and open one review session per PR on this machine."
+description = "Watch the PRs of one or more repos for an /open-pr comment and open one review session per PR on this machine."
 
 prompt = """
 Locate the plugin: `ls -d ~/.gemini/extensions/*/adapters/root.md 2>/dev/null`.

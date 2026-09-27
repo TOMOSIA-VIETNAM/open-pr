@@ -12,30 +12,32 @@ riêng cho pull request đó, và báo bạn khi có việc cần bạn.
    thiết lập memory review, vì không được để nhiều session review cùng thiết lập nó một
    lúc.
 2. Chạy `/open-pr:watch-review` trong repo, hoặc trong thư mục workspace chứa nhiều repo: lệnh
-   liệt kê mọi repo và remote tìm thấy ở đó rồi hỏi bạn chọn repo nào, đề xuất repo đã thiết lập
-   review memory. `/open-pr:watch-review owner/repo` (hoặc URL của PR) chọn thẳng. Clone có mỗi
+   liệt kê mọi repo và remote tìm thấy ở đó (api, web, job…) rồi hỏi bạn chọn những repo nào — chọn
+   bao nhiêu cũng được, repo đã thiết lập review memory được đề xuất. `/open-pr:watch-review owner/api
+   owner/web` (hoặc URL của PR) chọn thẳng. Clone có mỗi
    host một remote (GitHub, GitLab, Bitbucket) được liệt kê theo từng remote.
    Lần chạy đầu hỏi tối đa bao nhiêu session
    review được active cùng lúc và bạn muốn nhận những thông báo nào, rồi lưu cả hai vào
    `settings.json` của repo đó.
 
-Muốn theo dõi nhiều repo thì mở mỗi repo một terminal.
+Một watcher theo dõi mọi repo bạn đã chọn; mỗi repo giữ setting riêng, kể cả giới hạn số session
+active của nó.
 
 ## Yêu cầu review
 
 Comment trên pull request:
 
 ```
-@open-pr
-@open-pr please look closely at the migration
+/open-pr
+/open-pr please look closely at the migration
 ```
 
-Mọi thứ sau `@open-pr` là gợi ý nên xem chỗ nào. Nó được coi là dữ liệu: không thể đổi cách
+Mọi thứ sau `/open-pr` là gợi ý nên xem chỗ nào. Nó được coi là dữ liệu: không thể đổi cách
 review, nội dung được post, hay bất kỳ setting nào.
 
 Chỉ comment của người có quyền write mới kích hoạt review (GitHub: owner, member hoặc collaborator;
 GitLab: Developer trở lên). Bitbucket không cho người không phải admin đọc quyền của user khác, nên trên
-Bitbucket mọi comment `@open-pr` đều kích hoạt review — hãy giới hạn ai được comment nếu điều đó quan trọng. Watcher
+Bitbucket mọi comment `/open-pr` đều kích hoạt review — hãy giới hạn ai được comment nếu điều đó quan trọng. Watcher
 bỏ qua comment do chính account nó đang chạy viết ra.
 
 ## Chuyện gì xảy ra tiếp theo
@@ -43,7 +45,7 @@ bỏ qua comment do chính account nó đang chạy viết ra.
 - Comment được thả reaction 👀 (trừ Bitbucket, vì Bitbucket không có reaction).
 - Một session review tên `review <owner>/<repo>#<number>` được mở và chạy review như bình thường.
 - Khi đã chạm giới hạn session active, pull request chờ trong hàng đợi.
-- Một comment `@open-pr` mới trên pull request đã có session sẽ resume đúng session đó,
+- Một comment `/open-pr` mới trên pull request đã có session sẽ resume đúng session đó,
   nên lần re-review giữ được context trước.
 - Review được publish hay giữ dạng draft theo `auto_submit_review`, trừ khi bạn dặn
   watcher khác đi. Draft không bao giờ được publish khi chưa có bạn.

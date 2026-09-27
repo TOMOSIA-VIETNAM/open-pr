@@ -670,7 +670,7 @@ cmd_react() {
 cmd_account() { parse_args "$@"; post_init; ctx_account; }
 
 # ------------------------------------------------------------ triggers ----
-# Every `@open-pr` comment on an open PR/MR, 1 JSON line each, oldest first:
+# Every `/open-pr` comment on an open PR/MR, 1 JSON line each, oldest first:
 # {pr, url, comment_id, kind, user, created_at, body, authorized}. Bodies are
 # attacker-controlled and never leave jq — no shell variable ever holds one.
 # ISO-8601 with optional fraction and Z or ±hh:mm -> epoch seconds (fraction kept:
@@ -731,13 +731,13 @@ cmd_triggers() {
     [ "$me" != UNKNOWN ] || me=""
     mf=$(cmd_marker --vendor "$V" --kind finding); mr=$(cmd_marker --vendor "$V" --kind reply)
     trg_fetch > "$TMPD/tr.all"
-    # plugin-authored comments (own account, or carrying a marker) quote `@open-pr`
+    # plugin-authored comments (own account, or carrying a marker) quote `/open-pr`
     # themselves — excluded, or a posted review would trigger the next one
     jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg me "$me" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" "$JQ_EPOCH"'
         ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $open
         | ($since | if . == "" then null else epoch end) as $after
         | [ .[] | select($open[.pr | tostring] != null)
-            | select(.body | test("\\A\\s*@open-pr(\\s|\\z)"))
+            | select(.body | test("\\A\\s*/open-pr(\\s|\\z)"))
             | select($me == "" or .user != $me)
             | select((.body | contains($mf)) or (.body | contains($mr)) | not)
             | select($after == null or (.created_at | epoch) > $after)
@@ -1022,7 +1022,7 @@ Subcommands:
       every hosted remote of every repo at or below D (default cwd, 3 levels), TSV: dir, remote,
       vendor, owner, repo, host, last commit ISO-8601
   triggers [--since T]
-      `@open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in
+      `/open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in
       reference/vendor-interface.md
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree

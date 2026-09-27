@@ -32,7 +32,7 @@ Kết quả ghi trong `SPEC.md` mục "Runner theo nền tảng".
 - `repo-target --repo-dir D` ⇒ in `vendor/owner/repo/host` từ git remote của D, cùng dạng dòng như `target`.
 - `triggers --vendor V --owner O --repo R [--host H] [--since ISO]` ⇒ JSONL, mỗi dòng
   `{"pr":N,"url":"…","comment_id":"…","user":"…","created_at":"ISO","body":"…","authorized":"yes|no|UNKNOWN"}`,
-  sắp theo `created_at` tăng dần; chỉ PR đang mở; body bắt đầu bằng `@open-pr` (bỏ khoảng trắng đầu);
+  sắp theo `created_at` tăng dần; chỉ PR đang mở; body bắt đầu bằng `/open-pr` (bỏ khoảng trắng đầu);
   bỏ comment của account đang đăng nhập và comment chứa marker plugin. GitHub: issue comment + review
   comment, `authorized` từ `author_association`. GitLab: notes của MR, access level ≥ 30 qua
   `members/all/:user_id` (cache theo user trong 1 lần gọi). Bitbucket: `UNKNOWN`.
@@ -132,5 +132,5 @@ rồi `spawn` lại với câu trả lời; xong ⇒ `next`. Reviewer đổi set
   `draft` khi có) → resume 2 lần giữ nguyên id. Phát hiện lúc chạy thật: sau `claude stop`, session rời
   danh sách ngay nhưng worker còn sống vài trăm ms ⇒ resume bị coi là "already running" và tạo bản sao.
   Đã sửa: chờ cả pid của worker, tạo bản sao thì dọn và thử lại 1 lần.
-- Chưa chạy: `e2e-loop` cho review có `--status-file`; vòng đầy đủ trên PR fixture thật (comment `@open-pr`,
+- Chưa chạy: `e2e-loop` cho review có `--status-file`; vòng đầy đủ trên PR fixture thật (comment `/open-pr`,
   reaction, review post) — có tác động lên GitHub, cần user cho phép; runner headless chỉ test bằng CLI giả.

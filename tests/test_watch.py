@@ -210,7 +210,7 @@ class Watch:
         raise AssertionError(f"pid {pid} still alive")
 
 
-def trig(cid, at, pr=1, body="@open-pr look at auth"):
+def trig(cid, at, pr=1, body="/open-pr look at auth"):
     return {"pr": pr, "url": f"https://github.com/o/r/pull/{pr}", "comment_id": cid, "user": "dev",
             "created_at": at, "body": body, "authorized": "yes"}
 
@@ -268,7 +268,7 @@ def test_a_new_trigger_is_emitted_once_across_polls(w):
     w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
     w.triggers(trig("11", "2026-01-01T00:00:05Z"))
     ev = w.jsonl("wait", "--once")
-    assert ev == [{"event": "trigger", **trig("11", "2026-01-01T00:00:05Z")}]
+    assert ev == [{"event": "trigger", "repo": "o/r", **trig("11", "2026-01-01T00:00:05Z")}]
     assert w.run("wait", "--once").stdout == ""
     since = [l for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("triggers")][-1]
     assert "--since 2026-01-01T00:00:04Z" in since, "--since is strict: a comment in the cursor's second is lost"
@@ -305,7 +305,7 @@ def test_wait_reports_a_session_state_change_once(w):
     w.claude_set(sp["id"], "done")
     w.status_file(5, state="posted", url="https://github.com/o/r/pull/5")
     ev = w.jsonl("wait", "--once")
-    assert ev == [{"event": "session", "pr": 5, "state": "posted", "open": f"claude attach {sp['id']}"}]
+    assert ev == [{"event": "session", "repo": "o/r", "pr": 5, "state": "posted", "open": f"claude attach {sp['id']}"}]
     assert w.run("wait", "--once").stdout == ""
 
 

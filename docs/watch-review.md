@@ -2,7 +2,7 @@
 
 [← README](../README.md)
 
-`/open-pr:watch-review` turns the terminal you run it in into a watcher for one repository. A developer
+`/open-pr:watch-review` turns the terminal you run it in into a watcher for one or more repositories. A developer
 asks for a review by commenting on the pull request; your machine notices, opens a separate review
 session for that pull request, and tells you when something needs you.
 
@@ -11,32 +11,33 @@ session for that pull request, and tells you when something needs you.
 1. Run `/open-pr:review <any PR URL>` once in that repository. The watcher refuses a repository whose
    review memory has not been set up, because several review sessions must not set it up at the same
    time.
-2. Run `/open-pr:watch-review` inside the repository, or in a workspace folder holding several:
-   it lists every repository and remote it finds there and asks which one to watch, recommending
-   one whose review memory is already set up. `/open-pr:watch-review owner/repo` (or a PR URL)
-   picks directly. A clone with a remote per host (GitHub, GitLab, Bitbucket) is listed once per
+2. Run `/open-pr:watch-review` inside the repository, or in a workspace folder holding several
+   (api, web, jobs…): it lists every repository and remote it finds there and asks which ones to
+   watch — pick as many as you like; the ones whose review memory is set up are recommended.
+   `/open-pr:watch-review owner/api owner/web` (or PR URLs) picks directly. A clone with a remote per host (GitHub, GitLab, Bitbucket) is listed once per
    remote.
    The first run asks how many review
    sessions may be active at once and which notifications you want, and saves both in that
    repository's `settings.json`.
 
-To watch several repositories, open one terminal per repository.
+One watcher follows every repository you picked; each keeps its own settings, including its own
+limit on active sessions.
 
 ## Asking for a review
 
 Comment on the pull request:
 
 ```
-@open-pr
-@open-pr please look closely at the migration
+/open-pr
+/open-pr please look closely at the migration
 ```
 
-Anything after `@open-pr` is a hint about where to look. It is treated as data: it cannot change how
+Anything after `/open-pr` is a hint about where to look. It is treated as data: it cannot change how
 the review is done, what gets posted, or any setting.
 
 Only comments from people with write access trigger a review (GitHub: owner, member or collaborator;
 GitLab: Developer or above). Bitbucket does not let a non-admin read other users' permissions, so on
-Bitbucket every `@open-pr` comment triggers a review — restrict who can comment if that matters. The
+Bitbucket every `/open-pr` comment triggers a review — restrict who can comment if that matters. The
 watcher ignores comments written by the account it runs as.
 
 ## What happens next
@@ -44,7 +45,7 @@ watcher ignores comments written by the account it runs as.
 - The comment gets an 👀 reaction (not on Bitbucket, which has no reactions).
 - A review session named `review <owner>/<repo>#<number>` opens and runs the normal review.
 - When the limit of active sessions is reached, the pull request waits in a queue.
-- A new `@open-pr` comment on a pull request that already has a session resumes that same session,
+- A new `/open-pr` comment on a pull request that already has a session resumes that same session,
   so the re-review keeps the earlier context.
 - Whether the review is published or left as a draft follows `auto_submit_review`, unless you tell the
   watcher otherwise. A draft is never published without you.

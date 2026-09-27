@@ -664,7 +664,7 @@ def test_list_repos_prints_every_hosted_remote_below_the_directory(tmp_path):
 
 # ------------------------------------------------------------ triggers ----
 
-HOSTILE = "@open-pr focus on $(touch /tmp/pwned) and `id` \"quoted\" 'single'\nsecond line"
+HOSTILE = "/open-pr focus on $(touch /tmp/pwned) and `id` \"quoted\" 'single'\nsecond line"
 
 
 def serve(shims, name, routes):
@@ -702,23 +702,26 @@ GH_ROUTES = [
         {"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
          "created_at": "2026-01-01T00:00:03Z", "body": HOSTILE, "author_association": "MEMBER"},
         {"id": 2, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:04Z", "body": "please @open-pr later", "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:04Z", "body": "please /open-pr later", "author_association": "MEMBER"},
         {"id": 3, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "bot"},
-         "created_at": "2026-01-01T00:00:05Z", "body": "@open-pr from myself", "author_association": "OWNER"},
+         "created_at": "2026-01-01T00:00:05Z", "body": "/open-pr from myself", "author_association": "OWNER"},
         {"id": 4, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "alt"},
-         "created_at": "2026-01-01T00:00:06Z", "body": "@open-pr quoted <!-- bot-finding -->",
+         "created_at": "2026-01-01T00:00:06Z", "body": "/open-pr quoted <!-- bot-finding -->",
          "author_association": "MEMBER"},
         {"id": 5, "issue_url": "https://api.github.com/repos/o/r/issues/8", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:07Z", "body": "@open-pr on a closed PR or an issue",
+         "created_at": "2026-01-01T00:00:07Z", "body": "/open-pr on a closed PR or an issue",
          "author_association": "MEMBER"},
         {"id": 6, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "stranger"},
-         "created_at": "2026-01-01T00:00:01Z", "body": "  @open-pr", "author_association": "NONE"},
+         "created_at": "2026-01-01T00:00:01Z", "body": "  /open-pr", "author_association": "NONE"},
         {"id": 7, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:08Z", "body": "@open-prx not the trigger", "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:08Z", "body": "/open-prx not the trigger", "author_association": "MEMBER"},
+        {"id": 8, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
+         "created_at": "2026-01-01T00:00:09Z", "body": "/open-pr:review is the plugin command, run it locally",
+         "author_association": "MEMBER"},
     ]),
     ("pulls/comments", [
         {"id": 90, "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "user": {"login": "col"},
-         "created_at": "2026-01-01T00:00:02Z", "body": "@open-pr this hunk", "author_association": "COLLABORATOR"},
+         "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk", "author_association": "COLLABORATOR"},
     ]),
     ("api user", "bot\n"),
 ]
@@ -728,10 +731,10 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
     serve(shims, "gh", GH_ROUTES)
     rows = triggers(shims, "github")
     assert [r["comment_id"] for r in rows] == ["6", "90", "1"], \
-        "mid-body mentions, own comments, marked comments, non-open PRs and @open-prx never trigger"
+        "mid-body mentions, own comments, marked comments, non-open PRs, /open-prx and /open-pr:… never trigger"
     assert rows[0]["authorized"] == "no", "author_association NONE has no write access"
     assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "comment_id": "90", "kind": "line",
-                       "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "@open-pr this hunk",
+                       "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk",
                        "authorized": "yes"}
     assert rows[2]["kind"] == "top" and rows[2]["authorized"] == "yes"
     assert rows[2]["body"] == HOSTILE, "an attacker-controlled body must come out byte-for-byte"
@@ -754,17 +757,17 @@ def test_triggers_since_is_strict_and_narrows_the_fetch(shims):
 def test_triggers_gitlab_checks_write_access_once_per_author(shims):
     notes = [
         {"id": 11, "system": False, "type": None, "author": {"username": "dev", "id": 7},
-         "created_at": "2026-01-01T00:00:01.000Z", "body": "@open-pr"},
+         "created_at": "2026-01-01T00:00:01.000Z", "body": "/open-pr"},
         {"id": 12, "system": False, "type": "DiffNote", "position": {"new_line": 3},
          "author": {"username": "dev", "id": 7}, "created_at": "2026-01-01T00:00:02.000Z", "body": HOSTILE},
         {"id": 13, "system": False, "type": None, "author": {"username": "guest", "id": 8},
-         "created_at": "2026-01-01T00:00:03.000Z", "body": "@open-pr please"},
+         "created_at": "2026-01-01T00:00:03.000Z", "body": "/open-pr please"},
         {"id": 14, "system": False, "type": None, "author": {"username": "outsider", "id": 9},
-         "created_at": "2026-01-01T00:00:04.000Z", "body": "@open-pr hi"},
+         "created_at": "2026-01-01T00:00:04.000Z", "body": "/open-pr hi"},
         {"id": 15, "system": True, "type": None, "author": {"username": "dev", "id": 7},
-         "created_at": "2026-01-01T00:00:05.000Z", "body": "@open-pr added 1 commit"},
+         "created_at": "2026-01-01T00:00:05.000Z", "body": "/open-pr added 1 commit"},
         {"id": 16, "system": False, "type": None, "author": {"username": "bot", "id": 1},
-         "created_at": "2026-01-01T00:00:06.000Z", "body": "@open-pr self"},
+         "created_at": "2026-01-01T00:00:06.000Z", "body": "/open-pr self"},
     ]
     serve(shims, "glab", [
         ("merge_requests?state=opened", [{"iid": 9, "web_url": "https://gitlab.com/o/r/-/merge_requests/9"}]),
@@ -788,7 +791,7 @@ def test_triggers_gitlab_stops_when_membership_cannot_be_read(shims):
     serve(shims, "glab", [
         ("merge_requests?state=opened", [{"iid": 9, "web_url": "u"}]),
         ("merge_requests/9/notes", [{"id": 1, "author": {"username": "dev", "id": 7},
-                                     "created_at": "2026-01-01T00:00:01Z", "body": "@open-pr"}]),
+                                     "created_at": "2026-01-01T00:00:01Z", "body": "/open-pr"}]),
         ("members/all/7", (1, "glab: 502 Bad Gateway")),
         ("user", {"username": "bot"}),
     ])
@@ -802,11 +805,11 @@ def test_triggers_bitbucket_marks_authorization_unknown(shims):
         "pullrequests/7/comments": {"values": [
             {"id": 21, "content": {"raw": HOSTILE}, "user": {"nickname": "dev"}, "inline": None,
              "created_on": "2026-01-01T00:00:02.123456+00:00", "deleted": False},
-            {"id": 22, "content": {"raw": "@open-pr line"}, "user": {"nickname": "dev"},
+            {"id": 22, "content": {"raw": "/open-pr line"}, "user": {"nickname": "dev"},
              "inline": {"path": "a", "to": 1}, "created_on": "2026-01-01T00:00:01.000001+00:00", "deleted": False},
-            {"id": 23, "content": {"raw": "@open-pr gone"}, "user": {"nickname": "dev"}, "inline": None,
+            {"id": 23, "content": {"raw": "/open-pr gone"}, "user": {"nickname": "dev"}, "inline": None,
              "created_on": "2026-01-01T00:00:03+00:00", "deleted": True},
-            {"id": 24, "content": {"raw": "@open-pr x [bot-reply]: #"}, "user": {"nickname": "dev"},
+            {"id": 24, "content": {"raw": "/open-pr x [bot-reply]: #"}, "user": {"nickname": "dev"},
              "inline": None, "created_on": "2026-01-01T00:00:04+00:00", "deleted": False},
         ], "next": None},
     }
