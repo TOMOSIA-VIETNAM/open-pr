@@ -25,8 +25,8 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 
 `triggers` prints 1 JSON per line, identical on every vendor:
 `{"pr","url","comment_id","kind","user","created_at","body","authorized"}` — `kind` = `line|top`, what
-`react --kind` takes; `authorized` = `yes|no|UNKNOWN` (write access); `--since` is strict. It drops, on every vendor, the logged-in account's comments (none under a Bitbucket workspace
-token, where `account` is UNKNOWN) and any comment carrying a marker. `checkout` holds a `mkdir` lock
+`react --kind` takes; `authorized` = `yes|no|UNKNOWN` (write access); `--since` is strict. It drops, on every vendor, any comment carrying a marker — the plugin's own posts. The
+logged-in account's plain comments count: one person may be both developer and reviewer. `checkout` holds a `mkdir` lock
 in the repo's git common dir around every fetch and `worktree add`, since all worktrees share that
 `.git`; a lock whose pid is gone is reclaimed.
 

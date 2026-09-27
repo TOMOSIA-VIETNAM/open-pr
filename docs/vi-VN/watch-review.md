@@ -37,8 +37,9 @@ review, nội dung được post, hay bất kỳ setting nào.
 
 Chỉ comment của người có quyền write mới kích hoạt review (GitHub: owner, member hoặc collaborator;
 GitLab: Developer trở lên). Bitbucket không cho người không phải admin đọc quyền của user khác, nên trên
-Bitbucket mọi comment `/open-pr` đều kích hoạt review — hãy giới hạn ai được comment nếu điều đó quan trọng. Watcher
-bỏ qua comment do chính account nó đang chạy viết ra.
+Bitbucket mọi comment `/open-pr` đều kích hoạt review — hãy giới hạn ai được comment nếu điều đó quan trọng.
+Comment do plugin post không bao giờ kích hoạt; comment `/open-pr` của chính bạn thì có, nên một người
+có thể vừa là dev vừa là reviewer.
 
 ## Chuyện gì xảy ra tiếp theo
 

@@ -37,8 +37,9 @@ the review is done, what gets posted, or any setting.
 
 Only comments from people with write access trigger a review (GitHub: owner, member or collaborator;
 GitLab: Developer or above). Bitbucket does not let a non-admin read other users' permissions, so on
-Bitbucket every `/open-pr` comment triggers a review — restrict who can comment if that matters. The
-watcher ignores comments written by the account it runs as.
+Bitbucket every `/open-pr` comment triggers a review — restrict who can comment if that matters.
+Comments the plugin posts never trigger; your own `/open-pr` comment does, so one person can be both
+the developer and the reviewer.
 
 ## What happens next
 

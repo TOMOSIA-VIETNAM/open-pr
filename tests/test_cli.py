@@ -730,8 +730,9 @@ GH_ROUTES = [
 def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
     serve(shims, "gh", GH_ROUTES)
     rows = triggers(shims, "github")
-    assert [r["comment_id"] for r in rows] == ["6", "90", "1"], \
-        "mid-body mentions, own comments, marked comments, non-open PRs, /open-prx and /open-pr:… never trigger"
+    assert [r["comment_id"] for r in rows] == ["6", "90", "1", "3"], \
+        "mid-body mentions, marked comments, non-open PRs, /open-prx and /open-pr:… never trigger; " \
+        "the watcher's own account may ask (one person can be developer and reviewer)"
     assert rows[0]["authorized"] == "no", "author_association NONE has no write access"
     assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "comment_id": "90", "kind": "line",
                        "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk",
@@ -745,11 +746,11 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
 def test_triggers_since_is_strict_and_narrows_the_fetch(shims):
     serve(shims, "gh", GH_ROUTES)
     rows = triggers(shims, "github", "--since", "2026-01-01T00:00:02Z")
-    assert [r["comment_id"] for r in rows] == ["1"], "a comment AT the cursor was already handled"
+    assert [r["comment_id"] for r in rows] == ["1", "3"], "a comment AT the cursor was already handled"
     assert "since=2026-01-01T00:00:02Z" in shims["log"].read_text()
     # an offset form of the same instant compares by time, not by string
     rows = triggers(shims, "github", "--since", "2026-01-01T09:00:02.5+09:00")
-    assert [r["comment_id"] for r in rows] == ["1"]
+    assert [r["comment_id"] for r in rows] == ["1", "3"]
     bad = triggers(shims, "github", "--since", "yesterday", check=False)
     assert bad.returncode == 1 and "ISO-8601" in bad.stderr
 
@@ -775,12 +776,14 @@ def test_triggers_gitlab_checks_write_access_once_per_author(shims):
         ("members/all/7", {"access_level": 30}),
         ("members/all/8", {"access_level": 20}),
         ("members/all/9", (1, "glab: 404 Not Found (HTTP 404)")),
+        ("members/all/1", {"access_level": 40}),
         ("user", {"username": "bot"}),
     ])
     rows = triggers(shims, "gitlab")
     got = {r["comment_id"]: (r["kind"], r["authorized"]) for r in rows}
-    assert got == {"11": ("top", "yes"), "12": ("line", "yes"), "13": ("top", "no"), "14": ("top", "no")}, \
-        "Developer+ is yes; Reporter and non-members are no; system notes and own notes never trigger"
+    assert got == {"11": ("top", "yes"), "12": ("line", "yes"), "13": ("top", "no"), "14": ("top", "no"),
+                   "16": ("top", "yes")}, \
+        "Developer+ is yes; Reporter and non-members are no; system notes never trigger; own notes do"
     assert [r for r in rows if r["comment_id"] == "12"][0]["body"] == HOSTILE
     calls = shims["log"].read_text()
     assert calls.count("members/all/7") == 1, "one membership call per distinct author"

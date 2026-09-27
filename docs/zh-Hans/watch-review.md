@@ -33,8 +33,8 @@
 
 只有具备 write 权限的人的评论才会触发评审（GitHub：owner、member 或 collaborator；
 GitLab：Developer 及以上）。Bitbucket 不允许非管理员读取其他用户的权限，所以在
-Bitbucket 上每条 `/open-pr` 评论都会触发评审 —— 如果这很重要，请限制谁可以评论。watcher
-会忽略它自己所用账号写的评论。
+Bitbucket 上每条 `/open-pr` 评论都会触发评审 —— 如果这很重要，请限制谁可以评论。
+插件发布的评论不会触发；你自己的 `/open-pr` 评论会触发，因此一个人可以同时是开发者和评审者。
 
 ## 接下来会发生什么
 

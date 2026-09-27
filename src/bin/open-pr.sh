@@ -727,18 +727,16 @@ cmd_triggers() {
         SINCE_Z=$(jq -rn --arg s "$SINCE" "$JQ_EPOCH"' $s | epoch | floor | todate' 2>/dev/null) && [ -n "$SINCE_Z" ] \
             || die 1 "open-pr.sh triggers: --since must be ISO-8601 (e.g. 2026-01-31T09:00:00Z): $SINCE"
     fi
-    me=$(ctx_account) || die 1 "open-pr.sh triggers: could not read the logged-in account"
-    [ "$me" != UNKNOWN ] || me=""
     mf=$(cmd_marker --vendor "$V" --kind finding); mr=$(cmd_marker --vendor "$V" --kind reply)
     trg_fetch > "$TMPD/tr.all"
-    # plugin-authored comments (own account, or carrying a marker) quote `/open-pr`
-    # themselves — excluded, or a posted review would trigger the next one
-    jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg me "$me" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" "$JQ_EPOCH"'
+    # plugin-authored comments carry a marker — excluded, so a posted review never
+    # triggers the next one. The watcher's own account may ask: one person can be
+    # both the developer and the reviewer.
+    jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" "$JQ_EPOCH"'
         ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $open
         | ($since | if . == "" then null else epoch end) as $after
         | [ .[] | select($open[.pr | tostring] != null)
             | select(.body | test("\\A\\s*/open-pr(\\s|\\z)"))
-            | select($me == "" or .user != $me)
             | select((.body | contains($mf)) or (.body | contains($mr)) | not)
             | select($after == null or (.created_at | epoch) > $after)
             | . + {url: $open[.pr | tostring]} ]
