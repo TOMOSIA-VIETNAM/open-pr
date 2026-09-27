@@ -66,7 +66,9 @@ load_repo() {
     D=$(arg repo_dir); [ -n "$D" ] || D=.
     [ -d "$D" ] || die 1 "open-pr-watch.sh: no such directory: $D"
     D=$(cd "$D" && pwd)
-    rt=$(opr repo-target --repo-dir "$D") || exit $?
+    RM=$(arg remote)
+    if [ -n "$RM" ]; then rt=$(opr repo-target --repo-dir "$D" --remote "$RM") || exit $?
+    else rt=$(opr repo-target --repo-dir "$D") || exit $?; fi
     VENDOR=$(printf '%s\n' "$rt" | sed -n 's/^vendor=//p')
     OWNER=$(printf '%s\n' "$rt" | sed -n 's/^owner=//p')
     REPO=$(printf '%s\n' "$rt" | sed -n 's/^repo=//p')
@@ -564,8 +566,9 @@ usage: open-pr-watch.sh <subcommand> [--option value ...]
        open-pr-watch.sh --help
 
 Common options:
-  `--repo-dir D` (default: the cwd) names the watched repo; its git remote picks `<repo>`, and state
-  lives in `<data>/<repo>/watch-review/`. Output is JSON lines unless stated.
+  `--repo-dir D` (default: the cwd) names the watched repo; its git remote (`--remote R`, default
+  origin, else the only one) picks vendor and `<repo>`, and state lives in
+  `<data>/<repo>/watch-review/`. Output is JSON lines unless stated.
 
 Subcommands:
   wait [--once]

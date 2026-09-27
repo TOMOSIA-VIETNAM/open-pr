@@ -630,6 +630,38 @@ def test_repo_target_exits_5_when_no_remote_proves_a_repo(tmp_path):
         "with no origin, the only remote there is counts"
 
 
+
+def test_repo_target_remote_picks_one_of_several(tmp_path):
+    """A fixture clone carries a remote per vendor; origin is not always the one to watch."""
+    d = tmp_path / "w"
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    for name, url in (("origin", "git@bitbucket.org:w/r.git"), ("github", "git@github.com:o/r.git")):
+        subprocess.run(["git", "-C", str(d), "remote", "add", name, url], check=True)
+    out = run("repo-target", "--repo-dir", str(d), "--remote", "github", check=True).stdout
+    assert "vendor=github" in out and "owner=o" in out
+    assert "vendor=bitbucket" in run("repo-target", "--repo-dir", str(d), check=True).stdout
+    assert run("repo-target", "--repo-dir", str(d), "--remote", "nope").returncode == 5
+
+
+def test_list_repos_prints_every_hosted_remote_below_the_directory(tmp_path):
+    ws = tmp_path / "ws"
+    a, b, plain = ws / "a", ws / "group" / "b", ws / "notes"
+    plain.mkdir(parents=True)
+    for d in (a, b):
+        subprocess.run(["git", "init", "-q", str(d)], check=True)
+    subprocess.run(["git", "-C", str(a), "remote", "add", "origin", "git@bitbucket.org:w/a.git"], check=True)
+    subprocess.run(["git", "-C", str(a), "remote", "add", "github", "https://github.com/o/a.git"], check=True)
+    subprocess.run(["git", "-C", str(a), "remote", "add", "local", "/srv/mirror.git"], check=True)
+    subprocess.run(["git", "-C", str(b), "remote", "add", "origin", "git@gitlab.example.com:g/b.git"], check=True)
+    rows = [l.split("\t") for l in run("list-repos", "--dir", str(ws), check=True).stdout.splitlines()]
+    got = sorted((r[0], r[1], r[2], r[3], r[4], r[5]) for r in rows)
+    assert got == sorted([
+        (str(a.resolve()), "github", "github", "o", "a", "github.com"),
+        (str(a.resolve()), "origin", "bitbucket", "w", "a", "bitbucket.org"),
+        (str(b.resolve()), "origin", "gitlab", "g", "b", "gitlab.example.com"),
+    ]), "a local-path remote names no host and is skipped"
+    assert all(len(r) == 7 for r in rows)
+
 # ------------------------------------------------------------ triggers ----
 
 HOSTILE = "@open-pr focus on $(touch /tmp/pwned) and `id` \"quoted\" 'single'\nsecond line"

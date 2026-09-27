@@ -1,6 +1,6 @@
 ---
-argument-hint: ""
-description: Watch this repo's PRs for an `@open-pr` comment and open one review session per PR on this machine — you answer, approve drafts and change settings here.
+argument-hint: "[PR URL | owner/repo | repo directory]"
+description: Watch one repo's PRs for an `@open-pr` comment and open one review session per PR on this machine — you answer, approve drafts and change settings here.
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` and `core/cli.md` FIRST — shared
@@ -16,13 +16,23 @@ description: Watch this repo's PRs for an `@open-pr` comment and open one review
 
 ## Step 1 — Repo and setup
 
-`<op> repo-target --repo-dir <pwd>` → `vendor/owner/repo/host`; exit 5 ⇒ STOP: run this from inside the
-repo to watch. `<repo>` = its `repo`. `<op> data-dir` → `<data>` (exit 7 ⇒ `Read` `cases/data-dir.md`
-first), then `<op> settings --repo <repo>`:
+`<op> list-repos` → 1 TSV line per hosted remote of each repo at or below pwd: `dir`, `remote`,
+`vendor`, `owner`, `repo`, `host`, last commit. `ARGUMENTS` non-empty ⇒ keep only the lines it names — a
+PR URL via `<op> target` (vendor/owner/repo), else `owner/repo`, a repo name or a directory.
+
+| lines left | do |
+|---|---|
+| 0 | STOP: name what was found (or that pwd holds no repo) and ask for the repo to watch |
+| 1 | that one — say which |
+| ≥2 | ONE CHOICE, each option `owner/repo · vendor (remote <remote>) — <dir>`, at most 4, ordered by: bootstrapped (`.review.bootstrapped` in `<op> settings --repo <repo>`) first, then the `dir` holding pwd, then the latest commit. The first is `(Recommended)` |
+
+The chosen line gives `<repo_dir>`, `<remote>`, `<repo>`. Every `<watch>` call below takes
+`--repo-dir <repo_dir> --remote <remote>`. `<op> data-dir` → `<data>` (exit 7 ⇒ `Read`
+`cases/data-dir.md` first), then `<op> settings --repo <repo>`:
 
 | settings say | do |
 |---|---|
-| `memory_found: false` or `.review.bootstrapped` != `true` | STOP: run `/open-pr:review <any PR URL of this repo>` here once, then this command again |
+| `memory_found: false` or `.review.bootstrapped` != `true` | STOP: run `/open-pr:review <any PR URL of this repo>` once, then this command again |
 | `doctor_due` | `Read` `setup/doctor.md`, run it now — once, before any session opens |
 | no `chat_language` | resolve it per `core/repo-settings.md` |
 | `watch_review_configured: false` | Step 2 |
@@ -46,11 +56,10 @@ unaffected.
 Tell the user once, in `chat_language`: the repo watched, that a PR comment starting with `@open-pr`
 asks for a review, and that they can say here: `status`, `snooze <duration>`, change a setting, `stop`.
 
-Run `<watch> wait --repo-dir <pwd>` as a background command — you are woken when it exits: 1 JSON
-per line. Exit 0 ⇒ handle every line, then run it again; any other exit ⇒ its stderr in chat, and its
-lines are NOT events (the next `wait` prints them again). Every `<watch>` call below takes
-`--repo-dir <pwd>`. Run `<watch> spawn` with the shell sandbox off where your shell has one — a
-session started inside it never gets past starting.
+Run `<watch> wait` as a background command — you are woken when it exits: 1 JSON per line. Exit 0 ⇒
+handle every line, then run it again; any other exit ⇒ its stderr in chat, and its lines are NOT events
+(the next `wait` prints them again). Run `<watch> spawn` with the shell sandbox off where your shell has
+one — a session started inside it never gets past starting.
 
 Per trigger `{"event":"trigger",…}` (`pr` = N):
 

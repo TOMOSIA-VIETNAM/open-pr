@@ -10,7 +10,10 @@
 
 1. 在该仓库里运行一次 `/open-pr:review <any PR URL>`。评审 memory 尚未建立的仓库会被 watcher
    拒绝，因为不能让多个评审会话同时去建立它。
-2. `cd` 进入仓库并运行 `/open-pr:watch-review`。首次运行会询问最多允许多少个评审
+2. 在仓库内，或在包含多个仓库的工作区目录中运行 `/open-pr:watch-review`：它会列出找到的所有仓库和远程，
+   询问要监视哪一个，并推荐已设置好评审记忆的那个。`/open-pr:watch-review owner/repo`（或 PR URL）可直接指定。
+   每个托管平台各有一个远程的克隆（GitHub、GitLab、Bitbucket）会按远程分别列出。
+   首次运行会询问最多允许多少个评审
    会话同时活跃、你想接收哪些通知，并把两者都保存在该
    仓库的 `settings.json` 里。
 

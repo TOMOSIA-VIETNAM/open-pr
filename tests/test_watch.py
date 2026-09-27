@@ -26,7 +26,8 @@ FAKE_OPEN_PR = r"""#!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_HOME/open-pr.calls"
 case "$1" in
     data-dir) printf '%s\n' "$FAKE_HOME/data" ;;
-    repo-target) printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
+    repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
+                 printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
     triggers) cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
     settings) cat "$FAKE_HOME/settings.json" 2>/dev/null || printf '{}\n' ;;
     *) exit 1 ;;
@@ -244,6 +245,14 @@ def test_watch_state_is_kept_out_of_the_memory_repo(w):
     w.run("paths", "--pr", "8")
     gi = (w.sd.parent.parent / ".gitignore").read_text().splitlines()
     assert gi.count("watch-review/") == 1
+
+
+def test_remote_reaches_repo_target(w):
+    """A clone with a remote per vendor is watched through the remote the user chose, not origin."""
+    w.run("paths", "--pr", "7", "--remote", "github")
+    w.run("paths", "--pr", "7")
+    args = (w.home / "repo-target.args").read_text().splitlines()
+    assert args[0].endswith("--remote github") and "--remote" not in args[1]
 
 # ---------------------------------------------------------------- wait ----
 

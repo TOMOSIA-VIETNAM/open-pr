@@ -293,18 +293,47 @@ cmd_locate_repo() {
     esac
 }
 
+# ----------------------------------------------------------- list-repos ----
+# Every hosted remote of every git repo at or below --dir (3 levels), one TSV line each:
+# dir, remote, vendor, owner, repo, host, last commit (ISO-8601, empty for a repo with none).
+# A remote repo-target cannot read is skipped.
+cmd_list_repos() {
+    parse_args "$@"
+    D=$(arg dir); [ -n "$D" ] || D=.
+    [ -d "$D" ] || die 5 "open-pr.sh list-repos: no such directory: $D"
+    D=$(cd "$D" && pwd)
+    find "$D" -maxdepth 4 -name .git 2>/dev/null \
+        | grep -Ev '/(node_modules|notebooks/review|worktrees)/' | sort \
+        | while IFS= read -r g; do
+            d=${g%/.git}
+            last=$(git -C "$d" log -1 --format=%cI 2>/dev/null || true)
+            for r in $(git -C "$d" remote 2>/dev/null); do
+                rt=$( (cmd_repo_target --repo-dir "$d" --remote "$r") 2>/dev/null) || continue
+                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$d" "$r" \
+                    "$(printf '%s\n' "$rt" | sed -n 's/^vendor=//p')" "$(printf '%s\n' "$rt" | sed -n 's/^owner=//p')" \
+                    "$(printf '%s\n' "$rt" | sed -n 's/^repo=//p')" "$(printf '%s\n' "$rt" | sed -n 's/^host=//p')" "$last"
+            done
+        done
+}
+
 # ---------------------------------------------------------- repo-target ----
 # The git remote of --repo-dir -> vendor/owner/repo/host, the lines target
 # prints minus pull_number. origin first, else the only remote there is.
 cmd_repo_target() {
     parse_args "$@"
-    D=$(req repo_dir)
-    url=$(git -C "$D" remote get-url origin 2>/dev/null) || {
-        rs=$(git -C "$D" remote 2>/dev/null) || rs=""
-        [ -n "$rs" ] && [ "$(printf '%s\n' "$rs" | grep -c .)" = 1 ] \
-            || die 5 "open-pr.sh repo-target: $D has no origin remote and not exactly one other"
-        url=$(git -C "$D" remote get-url "$rs")
-    }
+    D=$(req repo_dir); RM=$(arg remote)
+    if [ -n "$RM" ]; then
+        check_ident '^[A-Za-z0-9_.-]+$' "$RM"
+        url=$(git -C "$D" remote get-url "$RM" 2>/dev/null) \
+            || die 5 "open-pr.sh repo-target: $D has no remote named $RM"
+    else
+        url=$(git -C "$D" remote get-url origin 2>/dev/null) || {
+            rs=$(git -C "$D" remote 2>/dev/null) || rs=""
+            [ -n "$rs" ] && [ "$(printf '%s\n' "$rs" | grep -c .)" = 1 ] \
+                || die 5 "open-pr.sh repo-target: $D has no origin remote and not exactly one other"
+            url=$(git -C "$D" remote get-url "$rs")
+        }
+    fi
     # https://[user@]host[:port]/o/r · ssh://[user@]host[:port]/o/r · [user@]host:o/r
     case "$url" in
         https://*|http://*) hp=${url#*://}; auth=${hp%%/*}; path=${hp#*/}; host=${auth##*@} ;;
@@ -974,7 +1003,7 @@ usage: open-pr.sh <subcommand> [--option value ...]
 
 Common options:
   `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
-  `target`/`locate-repo`/`repo-target`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
+  `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
   `--owner O --repo R --pr N` on every networked one (`triggers`: no `--pr`); `--host H` where
   self-hostable.
 
@@ -987,8 +1016,11 @@ Subcommands:
       `--max-patch-bytes` required with `diff` — omission happens inside the call, never post-hoc
   locate-repo --owner O --repo R --host H
       `<repo_dir>` whose git remote matches
-  repo-target --repo-dir D
-      D's git remote (origin, else the only one) → `vendor/owner/repo/host` lines
+  repo-target --repo-dir D [--remote R]
+      D's git remote R (default origin, else the only one) → `vendor/owner/repo/host` lines
+  list-repos [--dir D]
+      every hosted remote of every repo at or below D (default cwd, 3 levels), TSV: dir, remote,
+      vendor, owner, repo, host, last commit ISO-8601
   triggers [--since T]
       `@open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in
       reference/vendor-interface.md
@@ -1066,6 +1098,7 @@ case "$sub" in
     context)      cmd_context "$@" ;;
     locate-repo)  cmd_locate_repo "$@" ;;
     repo-target)  cmd_repo_target "$@" ;;
+    list-repos)   cmd_list_repos "$@" ;;
     triggers)     cmd_triggers "$@" ;;
     checkout)     cmd_checkout "$@" ;;
     verify-line)  cmd_verify_line "$@" ;;

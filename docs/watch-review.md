@@ -11,7 +11,12 @@ session for that pull request, and tells you when something needs you.
 1. Run `/open-pr:review <any PR URL>` once in that repository. The watcher refuses a repository whose
    review memory has not been set up, because several review sessions must not set it up at the same
    time.
-2. `cd` into the repository and run `/open-pr:watch-review`. The first run asks how many review
+2. Run `/open-pr:watch-review` inside the repository, or in a workspace folder holding several:
+   it lists every repository and remote it finds there and asks which one to watch, recommending
+   one whose review memory is already set up. `/open-pr:watch-review owner/repo` (or a PR URL)
+   picks directly. A clone with a remote per host (GitHub, GitLab, Bitbucket) is listed once per
+   remote.
+   The first run asks how many review
    sessions may be active at once and which notifications you want, and saves both in that
    repository's `settings.json`.
 

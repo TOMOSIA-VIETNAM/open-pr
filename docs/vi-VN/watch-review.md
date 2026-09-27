@@ -11,7 +11,11 @@ riêng cho pull request đó, và báo bạn khi có việc cần bạn.
 1. Chạy `/open-pr:review <any PR URL>` một lần trong repo đó. Watcher từ chối repo chưa được
    thiết lập memory review, vì không được để nhiều session review cùng thiết lập nó một
    lúc.
-2. `cd` vào repo và chạy `/open-pr:watch-review`. Lần chạy đầu hỏi tối đa bao nhiêu session
+2. Chạy `/open-pr:watch-review` trong repo, hoặc trong thư mục workspace chứa nhiều repo: lệnh
+   liệt kê mọi repo và remote tìm thấy ở đó rồi hỏi bạn chọn repo nào, đề xuất repo đã thiết lập
+   review memory. `/open-pr:watch-review owner/repo` (hoặc URL của PR) chọn thẳng. Clone có mỗi
+   host một remote (GitHub, GitLab, Bitbucket) được liệt kê theo từng remote.
+   Lần chạy đầu hỏi tối đa bao nhiêu session
    review được active cùng lúc và bạn muốn nhận những thông báo nào, rồi lưu cả hai vào
    `settings.json` của repo đó.
 
