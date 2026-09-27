@@ -32,7 +32,7 @@ def _schema_groups():
     would make the JSON the only source: a table naming a field the JSON never declares would
     vanish rather than fail."""
     rows = []
-    for m in re.finditer(r"^\| ([A-Z][a-z-]+(?: [a-z]+)*) \| `\.([a-z]+)` \| (.+?) \|",
+    for m in re.finditer(r"^\| ([A-Z][a-z-]+(?: [a-z]+)*) \| `\.([a-z_]+)` \| (.+?) \|",
                          text(SETTINGS_SCHEMA), re.M):
         rows.append((m.group(1), m.group(2), re.findall(r"`([a-z_]+)`", m.group(3))))
     assert rows, "the schema doc must carry the field-group table"
@@ -94,8 +94,11 @@ def _runtime_defaults():
     reported as a field with no default rather than matching."""
     body = cli_text()
     out = {}
-    for m in re.finditer(r"^ +([a-z_]+): \(\.(?:review|fix)\.\1 // ([^)]+)\)", body, re.M):
+    for m in re.finditer(r"^ +([a-z_]+): \(\.(?:review|fix|watch_review)\.\1 // ([^)]+)\)", body, re.M):
         out[m.group(1)] = m.group(2).strip()
+    # an object field: stored keys merged over per-key defaults, e.g. `.watch_review.notify`
+    for m in re.finditer(r"^ +([a-z_]+): \(\(\.(?:review|fix|watch_review)\.\1 // \{\}\) \+", body, re.M):
+        out[m.group(1)] = "{}"
     for m in re.finditer(r'^ +([a-z_]+): default_bool\(\.(?:review|fix); "\1"; ([^)]+)\)', body, re.M):
         out[m.group(1)] = m.group(2).strip()
     return out
@@ -177,7 +180,10 @@ def test_bootstrap_asks_exactly_the_user_config_fields():
             f".{node}: bootstrap writes {sorted(fields)}, "
             f"the schema classifies {sorted(user_config.get(node, set()))} as its User config")
     unwritten = set(user_config) - set(written)
-    assert unwritten == {"fix"}, f"User config nodes bootstrap never writes: {sorted(unwritten)}"
+    # `.fix` belongs to fix's own bootstrap; `.watch_review` is written by watch-review on its
+    # first run in a repo — a review-only repo never needs it
+    assert unwritten == {"fix", "watch_review"}, \
+        f"User config nodes bootstrap never writes: {sorted(unwritten)}"
     assert "FORBIDDEN: creating `.fix` here" in " ".join(body.split()), \
         "the one node bootstrap skips must say so, and name the bootstrap that owns it"
 

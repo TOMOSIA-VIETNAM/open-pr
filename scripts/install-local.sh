@@ -54,7 +54,7 @@ Usage: scripts/install-local.sh [--platform NAME] [--target DIR] [--copy]
   --uninstall      remove only what this script installed, then exit
   --all            with --uninstall: sweep every platform above
 
-Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean, open-pr-feedback.
+Skills installed: open-pr-review, open-pr-fix, open-pr-upgrade, open-pr-clean, open-pr-feedback, open-pr-watch-review.
 Never overwrites a file this script did not create.
 EOF
 }
@@ -505,7 +505,7 @@ fi
 case " $MEMBERS " in
   *" claude "*) ;;
   *)
-    say '\nInvoke as /open-pr-review, /open-pr-fix, /open-pr-upgrade, /open-pr-clean, /open-pr-feedback (Codex: $open-pr-review).\n'
+    say '\nInvoke as /open-pr-review, /open-pr-fix, /open-pr-upgrade, /open-pr-clean, /open-pr-feedback, /open-pr-watch-review (Codex: $open-pr-review).\n'
     if [ "$MODE" = link ]; then
       say 'Update:    %s --update\n' "$0"
     else

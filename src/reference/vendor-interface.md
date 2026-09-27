@@ -17,8 +17,18 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | FILE-level reviews | review objects | NO-EQUIVALENT | NO-EQUIVALENT |
 | account | login | username | nickname, or UNKNOWN under a workspace token (401 on /user is BY DESIGN) |
 | threads | GraphQL reviewThreads | discussions (`resolved` flag) | root comment + `parent` chains, `resolution` on the ROOT only |
-| react | reactions API | award_emoji | NO-EQUIVALENT |
+| react (`--kind line\|top`) | reactions on the review comment (`line`) or the issue comment (`top`) — separate id spaces | award_emoji on the MR note | NO-EQUIVALENT |
+| repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
+| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's notes; system notes skipped; DiffNote = `line` | open PRs, then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: `authorized` | `author_association` ∈ OWNER/MEMBER/COLLABORATOR, no extra call | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |
 | markers | HTML comments | HTML comments | link reference definitions (raw HTML is escaped there) |
+
+`triggers` prints 1 JSON per line, identical on every vendor:
+`{"pr","url","comment_id","kind","user","created_at","body","authorized"}` — `kind` = `line|top`, what
+`react --kind` takes; `authorized` = `yes|no|UNKNOWN` (write access); `--since` is strict. It drops, on every vendor, the logged-in account's comments (none under a Bitbucket workspace
+token, where `account` is UNKNOWN) and any comment carrying a marker. `checkout` holds a `mkdir` lock
+in the repo's git common dir around every fetch and `worktree add`, since all worktrees share that
+`.git`; a lock whose pid is gone is reclaimed.
 
 Credentials: gh/glab bring their own login. Bitbucket needs `BITBUCKET_EMAIL`+`BITBUCKET_API_TOKEN`
 (user identity) or `BITBUCKET_TOKEN` (workspace token, no identity); missing ⇒ exit 6 with setup

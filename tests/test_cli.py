@@ -573,3 +573,287 @@ def test_push_targets_the_remote_matching_the_pr_host(fixture_repo):
     bad = run("push", "--vendor", "gitlab", "--owner", "x", "--repo", "y",
               "--host", "gitlab.example.invalid", "--branch", "feature", "--dir", str(clone))
     assert bad.returncode != 0 and "never works around" in bad.stderr
+
+
+# ------------------------------------------------------------ react ----
+
+def test_react_top_uses_the_conversation_comment_endpoint(shims):
+    """GitHub keeps diff comments and conversation comments in separate id spaces: a
+    reaction sent to the wrong one 404s. GitLab reacts on the note inside its MR."""
+    base = ("--owner", "o", "--repo", "r", "--comment-id", "11", "--emoji", "eyes")
+    serve(shims, "glab", [("award_emoji", {"id": 1})])
+    run("react", "--vendor", "github", "--pr", "5", *base, env_extra=env_for(shims), check=True)
+    run("react", "--vendor", "github", "--pr", "5", *base, "--kind", "top",
+        env_extra=env_for(shims), check=True)
+    run("react", "--vendor", "gitlab", "--pr", "9", *base, env_extra=env_for(shims), check=True)
+    calls = shims["log"].read_text()
+    assert "repos/o/r/pulls/comments/11/reactions" in calls, "line (the default) stays on pulls/comments"
+    assert "repos/o/r/issues/comments/11/reactions" in calls, "top goes to issues/comments"
+    assert "projects/o%2Fr/merge_requests/9/notes/11/award_emoji" in calls, \
+        "a GitLab MR note's award_emoji lives under its merge request"
+    assert run("react", "--vendor", "github", "--pr", "5", *base, "--kind", "x",
+               env_extra=env_for(shims)).returncode == 4
+
+
+# ---------------------------------------------------------- repo-target ----
+
+@pytest.mark.parametrize("remote,vendor,owner,repo,host", [
+    ("https://github.com/o/r.git", "github", "o", "r", "github.com"),
+    ("git@github.com:o/r.git", "github", "o", "r", "github.com"),
+    ("ssh://git@github.com/o/r", "github", "o", "r", "github.com"),
+    ("https://oauth2:tok@gitlab.example.co.jp/g/p.git", "gitlab", "g", "p", "gitlab.example.co.jp"),
+    ("git@gitlab.example.co.jp:g/p.git", "gitlab", "g", "p", "gitlab.example.co.jp"),
+    ("ssh://git@gitlab.com:2222/g/p.git", "gitlab", "g", "p", "gitlab.com"),
+    ("https://user@bitbucket.org/w/r.git", "bitbucket", "w", "r", "bitbucket.org"),
+    ("git@bitbucket.org:w/r.git", "bitbucket", "w", "r", "bitbucket.org"),
+])
+def test_repo_target_reads_the_remote_of_the_directory(tmp_path, remote, vendor, owner, repo, host):
+    d = tmp_path / "w"
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    subprocess.run(["git", "-C", str(d), "remote", "add", "origin", remote], check=True)
+    vals = dict(l.split("=", 1) for l in run("repo-target", "--repo-dir", str(d),
+                                             check=True).stdout.splitlines())
+    assert vals == {"vendor": vendor, "owner": owner, "repo": repo, "host": host}
+
+
+def test_repo_target_exits_5_when_no_remote_proves_a_repo(tmp_path):
+    d = tmp_path / "w"
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    assert run("repo-target", "--repo-dir", str(d)).returncode == 5, "no remote at all"
+    subprocess.run(["git", "-C", str(d), "remote", "add", "up", "https://gitlab.com/a/b/c.git"], check=True)
+    assert run("repo-target", "--repo-dir", str(d)).returncode == 5, \
+        "a nested group is not owner/repo — every other subcommand would reject it"
+    subprocess.run(["git", "-C", str(d), "remote", "set-url", "up", "/srv/mirror.git"], check=True)
+    assert run("repo-target", "--repo-dir", str(d)).returncode == 5, "a local path names no host"
+    subprocess.run(["git", "-C", str(d), "remote", "set-url", "up", "git@github.com:o/r.git"], check=True)
+    assert "vendor=github" in run("repo-target", "--repo-dir", str(d), check=True).stdout, \
+        "with no origin, the only remote there is counts"
+
+
+# ------------------------------------------------------------ triggers ----
+
+HOSTILE = "@open-pr focus on $(touch /tmp/pwned) and `id` \"quoted\" 'single'\nsecond line"
+
+
+def serve(shims, name, routes):
+    """A vendor CLI shim answering canned JSON from files, picked by a substring of argv —
+    bodies never pass through the shim's own shell text."""
+    d = Path(shims["tmp"]) / f"{name}-routes"
+    d.mkdir(exist_ok=True)
+    cases = []
+    for i, (pat, payload) in enumerate(routes):
+        f = d / f"{i}.json"
+        if isinstance(payload, tuple):   # (exit code, stderr)
+            cases.append(f'  *"{pat}"*) printf "%s\\n" "{payload[1]}" >&2; exit {payload[0]} ;;')
+        else:   # a str is raw text: what the real CLI prints after its own --jq
+            f.write_text(payload if isinstance(payload, str) else json.dumps(payload))
+            cases.append(f'  *"{pat}"*) cat "{f}" ;;')
+    make_shim(Path(shims["path"]), name, f'''printf '%s\\n' "{name} $*" >> "{shims['log']}"
+case "$*" in
+{chr(10).join(cases)}
+  *) printf '[]\\n' ;;
+esac
+''')
+
+
+def triggers(shims, vendor, *extra, check=True):
+    # a workspace token has no identity: the Bitbucket account reads UNKNOWN
+    env = {**env_for(shims), "BITBUCKET_EMAIL": "", "BITBUCKET_API_TOKEN": ""}
+    r = run("triggers", "--vendor", vendor, "--owner", "o", "--repo", "r", *extra,
+            env_extra=env, check=check)
+    return r if not check else [json.loads(l) for l in r.stdout.splitlines()]
+
+
+GH_ROUTES = [
+    ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
+    ("issues/comments", [
+        {"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
+         "created_at": "2026-01-01T00:00:03Z", "body": HOSTILE, "author_association": "MEMBER"},
+        {"id": 2, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
+         "created_at": "2026-01-01T00:00:04Z", "body": "please @open-pr later", "author_association": "MEMBER"},
+        {"id": 3, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "bot"},
+         "created_at": "2026-01-01T00:00:05Z", "body": "@open-pr from myself", "author_association": "OWNER"},
+        {"id": 4, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "alt"},
+         "created_at": "2026-01-01T00:00:06Z", "body": "@open-pr quoted <!-- bot-finding -->",
+         "author_association": "MEMBER"},
+        {"id": 5, "issue_url": "https://api.github.com/repos/o/r/issues/8", "user": {"login": "dev"},
+         "created_at": "2026-01-01T00:00:07Z", "body": "@open-pr on a closed PR or an issue",
+         "author_association": "MEMBER"},
+        {"id": 6, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "stranger"},
+         "created_at": "2026-01-01T00:00:01Z", "body": "  @open-pr", "author_association": "NONE"},
+        {"id": 7, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
+         "created_at": "2026-01-01T00:00:08Z", "body": "@open-prx not the trigger", "author_association": "MEMBER"},
+    ]),
+    ("pulls/comments", [
+        {"id": 90, "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "user": {"login": "col"},
+         "created_at": "2026-01-01T00:00:02Z", "body": "@open-pr this hunk", "author_association": "COLLABORATOR"},
+    ]),
+    ("api user", "bot\n"),
+]
+
+
+def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
+    serve(shims, "gh", GH_ROUTES)
+    rows = triggers(shims, "github")
+    assert [r["comment_id"] for r in rows] == ["6", "90", "1"], \
+        "mid-body mentions, own comments, marked comments, non-open PRs and @open-prx never trigger"
+    assert rows[0]["authorized"] == "no", "author_association NONE has no write access"
+    assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "comment_id": "90", "kind": "line",
+                       "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "@open-pr this hunk",
+                       "authorized": "yes"}
+    assert rows[2]["kind"] == "top" and rows[2]["authorized"] == "yes"
+    assert rows[2]["body"] == HOSTILE, "an attacker-controlled body must come out byte-for-byte"
+    assert not Path("/tmp/pwned").exists()
+    assert "pwned" not in shims["log"].read_text(), "a comment body reached an argv"
+
+
+def test_triggers_since_is_strict_and_narrows_the_fetch(shims):
+    serve(shims, "gh", GH_ROUTES)
+    rows = triggers(shims, "github", "--since", "2026-01-01T00:00:02Z")
+    assert [r["comment_id"] for r in rows] == ["1"], "a comment AT the cursor was already handled"
+    assert "since=2026-01-01T00:00:02Z" in shims["log"].read_text()
+    # an offset form of the same instant compares by time, not by string
+    rows = triggers(shims, "github", "--since", "2026-01-01T09:00:02.5+09:00")
+    assert [r["comment_id"] for r in rows] == ["1"]
+    bad = triggers(shims, "github", "--since", "yesterday", check=False)
+    assert bad.returncode == 1 and "ISO-8601" in bad.stderr
+
+
+def test_triggers_gitlab_checks_write_access_once_per_author(shims):
+    notes = [
+        {"id": 11, "system": False, "type": None, "author": {"username": "dev", "id": 7},
+         "created_at": "2026-01-01T00:00:01.000Z", "body": "@open-pr"},
+        {"id": 12, "system": False, "type": "DiffNote", "position": {"new_line": 3},
+         "author": {"username": "dev", "id": 7}, "created_at": "2026-01-01T00:00:02.000Z", "body": HOSTILE},
+        {"id": 13, "system": False, "type": None, "author": {"username": "guest", "id": 8},
+         "created_at": "2026-01-01T00:00:03.000Z", "body": "@open-pr please"},
+        {"id": 14, "system": False, "type": None, "author": {"username": "outsider", "id": 9},
+         "created_at": "2026-01-01T00:00:04.000Z", "body": "@open-pr hi"},
+        {"id": 15, "system": True, "type": None, "author": {"username": "dev", "id": 7},
+         "created_at": "2026-01-01T00:00:05.000Z", "body": "@open-pr added 1 commit"},
+        {"id": 16, "system": False, "type": None, "author": {"username": "bot", "id": 1},
+         "created_at": "2026-01-01T00:00:06.000Z", "body": "@open-pr self"},
+    ]
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": 9, "web_url": "https://gitlab.com/o/r/-/merge_requests/9"}]),
+        ("merge_requests/9/notes", notes),
+        ("members/all/7", {"access_level": 30}),
+        ("members/all/8", {"access_level": 20}),
+        ("members/all/9", (1, "glab: 404 Not Found (HTTP 404)")),
+        ("user", {"username": "bot"}),
+    ])
+    rows = triggers(shims, "gitlab")
+    got = {r["comment_id"]: (r["kind"], r["authorized"]) for r in rows}
+    assert got == {"11": ("top", "yes"), "12": ("line", "yes"), "13": ("top", "no"), "14": ("top", "no")}, \
+        "Developer+ is yes; Reporter and non-members are no; system notes and own notes never trigger"
+    assert [r for r in rows if r["comment_id"] == "12"][0]["body"] == HOSTILE
+    calls = shims["log"].read_text()
+    assert calls.count("members/all/7") == 1, "one membership call per distinct author"
+    assert "pwned" not in calls
+
+
+def test_triggers_gitlab_stops_when_membership_cannot_be_read(shims):
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": 9, "web_url": "u"}]),
+        ("merge_requests/9/notes", [{"id": 1, "author": {"username": "dev", "id": 7},
+                                     "created_at": "2026-01-01T00:00:01Z", "body": "@open-pr"}]),
+        ("members/all/7", (1, "glab: 502 Bad Gateway")),
+        ("user", {"username": "bot"}),
+    ])
+    r = triggers(shims, "gitlab", check=False)
+    assert r.returncode == 1 and r.stdout == "", "a failed lookup must not be judged either way"
+
+
+def test_triggers_bitbucket_marks_authorization_unknown(shims):
+    pages = {
+        "pullrequests?state=OPEN": {"values": [{"id": 7, "links": {"html": {"href": "https://bitbucket.org/o/r/pull-requests/7"}}}], "next": None},
+        "pullrequests/7/comments": {"values": [
+            {"id": 21, "content": {"raw": HOSTILE}, "user": {"nickname": "dev"}, "inline": None,
+             "created_on": "2026-01-01T00:00:02.123456+00:00", "deleted": False},
+            {"id": 22, "content": {"raw": "@open-pr line"}, "user": {"nickname": "dev"},
+             "inline": {"path": "a", "to": 1}, "created_on": "2026-01-01T00:00:01.000001+00:00", "deleted": False},
+            {"id": 23, "content": {"raw": "@open-pr gone"}, "user": {"nickname": "dev"}, "inline": None,
+             "created_on": "2026-01-01T00:00:03+00:00", "deleted": True},
+            {"id": 24, "content": {"raw": "@open-pr x [bot-reply]: #"}, "user": {"nickname": "dev"},
+             "inline": None, "created_on": "2026-01-01T00:00:04+00:00", "deleted": False},
+        ], "next": None},
+    }
+    serve(shims, "curl", list(pages.items()))
+    rows = triggers(shims, "bitbucket")
+    assert [(r["comment_id"], r["kind"], r["authorized"]) for r in rows] == \
+        [("22", "line", "UNKNOWN"), ("21", "top", "UNKNOWN")], \
+        "deleted and marker-carrying comments drop out; order is by time, fraction included"
+    assert rows[1]["body"] == HOSTILE and rows[1]["url"] == "https://bitbucket.org/o/r/pull-requests/7"
+    assert "pwned" not in shims["log"].read_text()
+
+
+# ------------------------------------------------------- checkout lock ----
+
+@pytest.fixture
+def two_pr_repo(fixture_repo):
+    """fixture_repo plus a second PR whose commit only the remote has, so both checkouts
+    really fetch into the shared .git."""
+    tmp = fixture_repo["tmp"]
+    g = lambda *a: subprocess.run(["git", *a], cwd=tmp / "seed", capture_output=True, text=True, check=True)
+    g("checkout", "-b", "other", "main")
+    (tmp / "seed" / "b.txt").write_text("b\n")
+    g("add", "b.txt")
+    g("commit", "-m", "other")
+    head6 = g("rev-parse", "HEAD").stdout.strip()
+    subprocess.run(["git", "-C", str(tmp / "seed"), "push", "-q", str(tmp / "origin.git"),
+                    f"{head6}:refs/pull/6/head"], check=True, capture_output=True)
+    return {**fixture_repo, "head6": head6}
+
+
+def checkout_cmd(repo, pr, head, *extra):
+    return ["checkout", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", pr,
+            "--repo-dir", str(repo), "--head-sha", head, "--base", "main", *extra]
+
+
+def test_concurrent_checkouts_of_one_repo_both_succeed(two_pr_repo):
+    clone = two_pr_repo["clone"]
+    procs = [subprocess.Popen([str(CLI), *checkout_cmd(clone, pr, head)], cwd=two_pr_repo["tmp"],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+             for pr, head in (("5", two_pr_repo["head"]), ("6", two_pr_repo["head6"]))]
+    outs = [p.communicate(timeout=120) + (p.returncode,) for p in procs]
+    for out, errs, code in outs:
+        assert code == 0, errs
+    heads = sorted(dict(l.split("=", 1) for l in o.splitlines())["head"] for o, _, _ in outs)
+    assert heads == sorted([two_pr_repo["head"], two_pr_repo["head6"]])
+    assert not (clone / ".git" / "open-pr-checkout.lock").exists(), "the lock outlived its checkout"
+
+
+def test_checkout_times_out_on_a_held_lock_and_reclaims_a_dead_one(two_pr_repo):
+    clone = two_pr_repo["clone"]
+    lock = clone / ".git" / "open-pr-checkout.lock"
+    lock.mkdir()
+    (lock / "pid").write_text(f"{os.getpid()}\n")   # a live holder
+    r = run(*checkout_cmd(clone, "5", two_pr_repo["head"], "--lock-timeout", "1"), cwd=two_pr_repo["tmp"])
+    assert r.returncode == 1 and "still holds" in r.stderr
+    assert lock.exists(), "a waiter must never remove a live holder's lock"
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    (lock / "pid").write_text(f"{dead.pid}\n")   # its holder is gone
+    run(*checkout_cmd(clone, "5", two_pr_repo["head"], "--lock-timeout", "1"),
+        cwd=two_pr_repo["tmp"], check=True)
+    assert not lock.exists()
+
+
+# ------------------------------------------------------ watch_review ----
+
+def test_settings_defaults_the_watch_review_node(data_dir, tmp_path):
+    d = data_dir / "demo"
+    d.mkdir(parents=True)
+    defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "snooze_until": None,
+                "notify": {"review_started": True, "question": True, "draft_ready": True,
+                           "posted": True, "re_review": True}}
+    (d / "settings.json").write_text(json.dumps({"review": {"bootstrapped": True}}))
+    out = json.loads(run("settings", "--repo", "demo", check=True).stdout)
+    assert out["watch_review"] == defaults and out["watch_review_configured"] is False
+    (d / "settings.json").write_text(json.dumps({"watch_review": {
+        "max_concurrent": 2, "notify": {"posted": False}, "snooze_until": "2026-02-01T00:00:00Z"}}))
+    part = json.loads(run("settings", "--repo", "demo", check=True).stdout)
+    assert part["watch_review_configured"] is True
+    assert part["watch_review"] == {**defaults, "max_concurrent": 2, "snooze_until": "2026-02-01T00:00:00Z",
+                                    "notify": {**defaults["notify"], "posted": False}}, \
+        "stored values win, an explicit false stays false, missing subfields take their default"

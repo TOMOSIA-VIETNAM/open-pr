@@ -142,6 +142,7 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:fix <PR_URL>` | Reads findings → weighs right/wrong → fixes → **1** commit → replies. 🔵 / 📝 always ask first |
 | `/open-pr:upgrade` | Brings local config up to the current schema — summarises, then asks; nothing written until you agree |
 | `/open-pr:clean` | Removes worktrees that `review` checked out (asks first). Memory / settings untouched |
+| `/open-pr:watch-review` | Watches this repo for a PR comment starting with `@open-pr` and opens **1** review session per PR on your machine; you open any session to answer or approve its draft. [Details](./docs/watch-review.md) |
 | `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |
 
 > [!WARNING]

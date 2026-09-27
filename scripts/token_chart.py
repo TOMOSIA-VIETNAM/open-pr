@@ -51,6 +51,8 @@ LINES = [
      "cmd_role": "clean-cmd"},
     {"key": "feedback", "label": "/open-pr:feedback", "colour": "#57534e", "dark": "#dcd6cf",
      "cmd_role": "feedback-cmd"},
+    {"key": "watch-review", "label": "/open-pr:watch-review", "colour": "#4d5b8c", "dark": "#aab8e8",
+     "cmd_role": "watch-review-cmd"},
 ]
 
 NOTE = (
