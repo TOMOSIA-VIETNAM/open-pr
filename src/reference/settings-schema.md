@@ -1,8 +1,10 @@
 # `settings.json` schema
 
 One file per reviewed repo: `<data>/<repo>/settings.json`, 1 node per feature — `<data>` being the
-directory `open-pr.sh data-dir` prints, recorded as `data_dir` in the user-level
-`${XDG_CONFIG_HOME:-~/.config}/open-pr/config.json`. Reference
+directory `open-pr.sh data-dir` prints for that repo, recorded in the user-level
+`${XDG_CONFIG_HOME:-~/.config}/open-pr/config.json`: `data_dirs`, an array of
+`{"root": <abs dir>, "dir": <abs data dir>}` where the longest `root` at or above the repo wins,
+else the default `data_dir` — so separate workspaces keep separate memory. Reference
 for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the file by hand.
 `review.md`/`fix.md` never `Read` this file — their run-time view is `core/repo-settings.md`.
 

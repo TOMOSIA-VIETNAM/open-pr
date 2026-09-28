@@ -40,12 +40,12 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
 | `marker --kind finding\|reply\|claim [--comment-id C]` | the marker literal — end every finding/reply with it; `claim` needs C |
-| `data-dir [--set P]` | print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in the user-level config first. A config that is not a JSON object stops with exit 1 |
+| `data-dir [--repo-dir D] \| --set P \| --add-root R --dir P \| --all` | print `<data>` for D (default cwd), absolute: the `data_dirs` entry whose `root` is D or its nearest ancestor (symlinks resolved), else the default `data_dir`. `--set` records P as the default; `--add-root` maps repos at or below R to P (replacing R's entry); both expand `~` and relative, create P, print P. `--all`: every distinct `<data>`, one per line. A config that is not a JSON object stops with exit 1 |
 | `find-memory [--repo R]` | memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`: `found=<path>` per `notebooks/review/R` |
-| `settings --repo <repo>` | `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_review_configured` = node in the file |
+| `settings --repo <repo> [--repo-dir D]` | `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_review_configured` = node in the file |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 
-Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set · 9 = vendor rate limit (`triggers`) — poll again later.
+Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set for that location · 9 = vendor rate limit (`triggers`) — poll again later.
 <!-- /open-pr.sh --help -->
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line

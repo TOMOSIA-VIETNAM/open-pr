@@ -20,8 +20,11 @@ description: Watch the PRs of one or more repos for an `/open-pr` comment and op
 `<op> list-repos` → 1 TSV line per hosted remote of each repo at or below pwd: `dir`, `remote`,
 `vendor`, `owner`, `repo`, `host`, last commit. `ARGUMENTS` non-empty ⇒ keep only the lines it names —
 each PR URL via `<op> target` (vendor/owner/repo), else `owner/repo`, a repo name or a directory — and
-watch all of them. `<op> data-dir` → `<data>` (exit 7 ⇒ `Read` `cases/data-dir.md` first). Per line,
-`<op> settings --repo <repo>` tells whether it is bootstrapped (`.review.bootstrapped`).
+watch all of them. Per line, `<op> settings --repo <repo> --repo-dir <dir>` — resolved in that repo's
+own data dir, which follows the repo's location — tells whether it is bootstrapped
+(`.review.bootstrapped`). FORBIDDEN: `<op> data-dir --set`/`--add-root` here — a repo missing from its
+data dir is reported, never fixed by pointing the data dir elsewhere (that moves every other repo's
+memory). `<op> data-dir --repo-dir <dir>` exit 7 ⇒ `Read` `cases/data-dir.md` for that repo.
 
 | lines left | do |
 |---|---|
@@ -35,7 +38,7 @@ every `<watch>` call for it takes `--repo-dir <repo_dir> --remote <remote>`. Per
 
 | settings say | do |
 |---|---|
-| `memory_found: false` or `.review.bootstrapped` != `true` | drop it from the set: tell the user to run `/open-pr:review <any PR URL of it>` once. Set empty ⇒ STOP |
+| `memory_found: false` or `.review.bootstrapped` != `true` | drop it from the set: tell the user to run `/open-pr:review <any PR URL of it>` once from that repo's workspace, and which data dir was searched (`<op> data-dir --repo-dir <dir>`). Set empty ⇒ STOP |
 | `doctor_due` | `Read` `setup/doctor.md`, run it for that repo — one repo at a time, before any session opens |
 | no `chat_language` | resolve it per `core/repo-settings.md` |
 | `watch_review_configured: false` | Step 2 |

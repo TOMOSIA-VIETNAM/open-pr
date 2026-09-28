@@ -18,8 +18,9 @@
 #     element read from a file, notification text as argv to osascript /
 #     notify-send, JSON through jq. Nothing fetched is ever evaluated.
 #
-# State lives under <data>/<repo>/watch-review/ (see `paths`); what belongs to the machine
-# rather than one repo — the toast snooze, the menu bar's pid — under <data>/.watch/. Every
+# State lives under <data>/<repo>/watch-review/ (see `paths`), <data> resolved for the watched
+# repo's own location; what belongs to the machine rather than one repo — the toast snooze, the
+# menu bar's pid — under ${XDG_CONFIG_HOME:-~/.config}/open-pr/watch/. Every
 # write goes to a temp file and is renamed into place, under a mkdir lock.
 #
 # Dependencies: jq, and the CLI of the runner in use.
@@ -93,19 +94,19 @@ load_repo() {
     REPO=$(printf '%s\n' "$rt" | sed -n 's/^repo=//p')
     HOST=$(printf '%s\n' "$rt" | sed -n 's/^host=//p')
     check_ident '^[A-Za-z0-9_.-]+$' "$REPO"
-    data=$(opr data-dir) || exit $?
+    data=$(opr data-dir --repo-dir "$D") || exit $?
     SD="$data/$REPO/watch-review"
     STATE="$SD/state.json"
     mkdir -p "$SD/prompts"
     # Watch state and prompts (they quote PR comments) stay out of the review-memory repo.
     grep -qx 'watch-review/' "$data/.gitignore" 2>/dev/null || printf 'watch-review/\n' >> "$data/.gitignore"
 }
-# WD = <data>/.watch, the machine-wide half of the state; DATA = <data>.
+# WD = the machine-wide half of the state, beside open-pr.sh's user-level config: one per
+# machine, whichever data directories the watched repos use.
 watch_dir() {
-    DATA=$(opr data-dir) || exit $?
-    WD="$DATA/.watch"
+    [ -n "${XDG_CONFIG_HOME:-}${HOME:-}" ] || die 1 "open-pr-watch.sh: neither XDG_CONFIG_HOME nor HOME is set"
+    WD="${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/watch"
     mkdir -p "$WD"
-    grep -qx '.watch/' "$DATA/.gitignore" 2>/dev/null || printf '.watch/\n' >> "$DATA/.gitignore"
 }
 status_file() { printf '%s/pr-%s.status.json' "$SD" "$1"; }
 log_file() { printf '%s/pr-%s.log' "$SD" "$1"; }
@@ -113,7 +114,7 @@ log_file() { printf '%s/pr-%s.log' "$SD" "$1"; }
 # ------------------------------------------------------------ settings ----
 SETTINGS=""
 settings() {
-    [ -n "$SETTINGS" ] || SETTINGS=$(opr settings --repo "$REPO") || exit $?
+    [ -n "$SETTINGS" ] || SETTINGS=$(opr settings --repo "$REPO" --repo-dir "$D") || exit $?
     printf '%s' "$SETTINGS"
 }
 # A positive integer from .watch_review.<key>, else the default.
@@ -708,7 +709,7 @@ $detail}"
     fi
     jq -n -c --arg e "$E" --arg via "$via" '{event: $e, sent: true, via: $via}'
 }
-# <data>/.watch/snooze_until: one ISO-8601 line; absent, unreadable or past = not snoozed.
+# $WD/snooze_until: one ISO-8601 line; absent, unreadable or past = not snoozed.
 snoozed() {
     su=$(head -n 1 "$WD/snooze_until" 2>/dev/null || true)
     [ -n "$su" ] && jq -e -n --arg s "$su" "$JQ_UTC"'(try ($s | utc | fromdateiso8601) catch 0) > now' > /dev/null
@@ -757,10 +758,11 @@ cmd_snooze() {
 
 # ------------------------------------------------------------- menubar ----
 # macOS menu bar item (open-pr-menubar.js), one per machine: it reads every repo's state
-# files itself and leaves once no repo has been watched for a while, removing its pid file.
+# files itself, in every data directory `open-pr.sh data-dir --all` knows, and leaves once no repo has been watched for a while, removing its pid file.
 cmd_menubar() {
     parse_args "$@"
     command -v osascript >/dev/null 2>&1 || { printf 'NO-EQUIVALENT\n'; return 0; }
+    dirs=$(opr data-dir --all) || exit $?
     watch_dir
     lock "$WD/.lock"
     pf="$WD/menubar.pid"
@@ -771,8 +773,14 @@ cmd_menubar() {
         printf 'running\n'
         return 0
     fi
-    nohup osascript -l JavaScript "$SELF_DIR/open-pr-menubar.js" "$DATA" "$WD/snooze_until" "$pf" \
-        "$((3 * BACKOFF_CAP))" > /dev/null 2>&1 < /dev/null &
+    # one data directory per argv element (a path holding a newline is not supported)
+    nl='
+'
+    old_ifs=$IFS; IFS=$nl; set -f
+    set -- $dirs
+    IFS=$old_ifs; set +f
+    nohup osascript -l JavaScript "$SELF_DIR/open-pr-menubar.js" "$WD/snooze_until" "$pf" \
+        "$((3 * BACKOFF_CAP))" "$@" > /dev/null 2>&1 < /dev/null &
     printf '%s\n' "$!" > "$pf"
     printf 'started\n'
 }
@@ -807,7 +815,8 @@ usage: open-pr-watch.sh <subcommand> [--option value ...]
 Common options:
   `--repo-dir D` (default: the cwd) names the watched repo; its git remote (`--remote R`, default
   origin, else the only one) picks vendor and `<repo>`, and state lives in
-  `<data>/<repo>/watch-review/` (`snooze`, `menubar`: no repo; machine state in `<data>/.watch/`).
+  `<data>/<repo>/watch-review/`, `<data>` resolved for D (`snooze`, `menubar`: no repo; machine state
+  in `${XDG_CONFIG_HOME:-~/.config}/open-pr/watch/`).
   Output is JSON lines unless stated.
 
 Subcommands:

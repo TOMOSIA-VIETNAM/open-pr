@@ -7,7 +7,8 @@
 //   1h (by ✕)   → no toasts for an hour on this machine (writes the snooze file), then close
 //   hover       → the countdown pauses until the pointer leaves
 // argv: title, summary, detail (may be empty), event, slot (0 = top), seconds, url (may be empty),
-// snooze file (<data>/.watch/snooze_until, one ISO-8601 UTC line — the same file `snooze` writes).
+// snooze file (${XDG_CONFIG_HOME:-~/.config}/open-pr/watch/snooze_until, one ISO-8601 UTC line — the
+// same file `snooze` writes).
 // Every string arrives as argv; nothing here is spliced into source.
 ObjC.import('Cocoa');
 

@@ -413,6 +413,86 @@ def test_a_config_that_is_not_a_json_object_stops_instead_of_reading_as_unset(tm
     assert not target.exists(), "--set created the directory before checking the config"
 
 
+def _conf(tmp_path, monkeypatch, **body):
+    xdg = tmp_path / "map-xdg"
+    (xdg / "open-pr").mkdir(parents=True, exist_ok=True)
+    (xdg / "open-pr" / "config.json").write_text(json.dumps(body))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
+    return xdg / "open-pr" / "config.json"
+
+
+def test_data_dir_is_picked_by_the_longest_root_above_the_repo(tmp_path, monkeypatch):
+    """Two workspaces (two clients) keep separate memory on one machine: a repo uses the entry
+    whose root is its nearest ancestor, anything under no root uses the default."""
+    ws, inner, other = tmp_path / "ws", tmp_path / "ws" / "client-b", tmp_path / "elsewhere"
+    for d in (ws / "repo", inner / "repo", other):
+        d.mkdir(parents=True)
+    _conf(tmp_path, monkeypatch, data_dir="/d/default",
+          data_dirs=[{"root": str(inner), "dir": "/d/b"}, {"root": str(ws) + "/", "dir": "/d/a"}])
+
+    def at(d):
+        return run("data-dir", "--repo-dir", str(d), check=True).stdout.strip()
+
+    assert at(ws) == "/d/a", "the root itself is covered"
+    assert at(ws / "repo") == "/d/a"
+    assert at(inner / "repo") == "/d/b", "the nested (longer) root wins whatever the array order"
+    assert at(other) == "/d/default", "a repo under no root falls back to data_dir"
+    assert run("data-dir", cwd=inner / "repo", check=True).stdout.strip() == "/d/b", \
+        "without --repo-dir the cwd is the location"
+    (tmp_path / "ws-sibling").mkdir()
+    assert at(tmp_path / "ws-sibling") == "/d/default", "a root is a path prefix by component only"
+    link = tmp_path / "link"
+    link.symlink_to(inner)
+    assert at(link / "repo") == "/d/b", "a symlinked path resolves to the root it points into"
+
+
+def test_data_dir_not_covered_anywhere_exits_7(tmp_path, monkeypatch):
+    (tmp_path / "ws").mkdir()
+    (tmp_path / "out").mkdir()
+    _conf(tmp_path, monkeypatch, data_dirs=[{"root": str(tmp_path / "ws"), "dir": "/d/a"}])
+    assert run("data-dir", "--repo-dir", str(tmp_path / "ws"), check=True).stdout.strip() == "/d/a"
+    assert run("data-dir", "--repo-dir", str(tmp_path / "out")).returncode == 7, \
+        "no root above and no default is 'not set for here', not another error"
+    assert run("settings", "--repo", "r", "--repo-dir", str(tmp_path / "out")).returncode == 7
+
+
+def test_add_root_replaces_its_entry_and_all_lists_each_dir_once(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    (home / "ws").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    conf = _conf(tmp_path, monkeypatch)
+    assert run("data-dir", "--all").returncode == 7, "nothing known is 'not set'"
+    first = run("data-dir", "--add-root", "~/ws", "--dir", "mem-a", cwd=home, check=True).stdout.strip()
+    assert first == str(home / "mem-a") and Path(first).is_dir(), "--dir expands like --set"
+    second = run("data-dir", "--add-root", "ws", "--dir", "~/mem-b", cwd=home, check=True).stdout.strip()
+    rows = json.loads(conf.read_text())["data_dirs"]
+    assert rows == [{"root": str((home / "ws").resolve()), "dir": second}], "the same root is replaced"
+    run("data-dir", "--set", "~/mem-b", check=True)
+    run("data-dir", "--add-root", str(tmp_path), "--dir", "~/mem-c", check=True)
+    assert run("data-dir", "--all", check=True).stdout.splitlines() == \
+        [str(home / "mem-b"), str(home / "mem-c")], "one line per distinct data directory"
+    assert run("data-dir", "--add-root", str(tmp_path / "ghost"), "--dir", "x").returncode == 1, \
+        "a root that does not exist is refused"
+    assert run("data-dir", "--add-root", str(home)).returncode == 1, "--add-root needs --dir"
+    assert run("data-dir", "--all", "--set", "x").returncode == 1
+
+
+def test_settings_reads_the_data_dir_of_the_repo_it_names(tmp_path, monkeypatch):
+    (tmp_path / "ws-a").mkdir()
+    (tmp_path / "ws-b").mkdir()
+    a, b = tmp_path / "mem-a", tmp_path / "mem-b"
+    _conf(tmp_path, monkeypatch, data_dirs=[{"root": str(tmp_path / "ws-a"), "dir": str(a)},
+                                            {"root": str(tmp_path / "ws-b"), "dir": str(b)}])
+    (b / "demo").mkdir(parents=True)
+    (b / "demo" / "settings.json").write_text(json.dumps({"review": {"many_files_threshold": 7}}))
+    out = json.loads(run("settings", "--repo", "demo", "--repo-dir", str(tmp_path / "ws-b"),
+                         cwd=tmp_path / "ws-a", check=True).stdout)
+    assert out["memory_dir"] == str(b / "demo") and out["review"]["many_files_threshold"] == 7, \
+        "--repo-dir, not the cwd, picks the data directory"
+    here = json.loads(run("settings", "--repo", "demo", cwd=tmp_path / "ws-a", check=True).stdout)
+    assert here["memory_dir"] == str(a / "demo") and here["memory_found"] is False
+
+
 def test_find_memory_reports_existing_memory_one_repo_deep(tmp_path):
     """The data-dir cases offer existing notebooks/review/ memory for import. The search is the
     script's, so no prompt types a find and no stray cd can move where it looks."""

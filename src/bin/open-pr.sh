@@ -444,7 +444,7 @@ cmd_checkout() {
         REMOTE=$(find_remote "$target" "$HOST" "$OWNER/$REPO")
     else
         repo_dir=$(req repo_dir)
-        data=$(data_dir)
+        data=$(data_dir "$repo_dir")
         target="$data/$REPO/worktrees/pr$N-$$$(awk 'BEGIN{srand();printf "%d", rand()*32768}')"
         repo_lock "$repo_dir"
         git -C "$repo_dir" worktree add "$target" --detach >&2
@@ -905,9 +905,12 @@ cmd_marker() {
 }
 
 # ------------------------------------------------------------ data-dir ----
-# Review memory and worktrees live under ONE directory the user picks, recorded
-# in the user-level config — never inside a reviewed repo, so no repo has to
-# .gitignore it. Unset ⇒ exit 7: the caller asks the user, then --set.
+# Review memory and worktrees live under a directory the user picks, recorded in
+# the user-level config — never inside a reviewed repo, so no repo has to
+# .gitignore it. Config: `data_dir` (the default) plus `data_dirs`, an array of
+# {"root","dir"}: a repo at or below `root` uses `dir`, the longest matching root
+# winning, so separate workspaces keep separate memory. Nothing covers the
+# location ⇒ exit 7: the caller asks the user, then --set or --add-root.
 data_conf() {
     [ -n "${XDG_CONFIG_HOME:-}${HOME:-}" ] || die 1 "open-pr: neither XDG_CONFIG_HOME nor HOME is set"
     printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/config.json"
@@ -921,30 +924,69 @@ conf_json() {
         || die 1 "open-pr: $f is not a JSON object — fix it or delete it"
     cat "$f"
 }
+# `~` and a relative path → absolute (not yet resolved: the caller cd's into it).
+expand_path() {
+    case "$1" in
+        "~"|"~/"*) printf '%s' "${HOME:?HOME is not set}${1#\~}" ;;
+        /*|[A-Za-z]:[\\/]*) printf '%s' "$1" ;;
+        *) printf '%s' "$PWD/$1" ;;
+    esac
+}
+# data_dir [L]: `<data>` for location L (default the cwd), symlinks resolved.
 data_dir() {
-    c=$(conf_json)
-    v=$(printf '%s' "$c" | jq -r '.data_dir // empty')
-    [ -n "$v" ] || die 7 "open-pr: data directory not set ($(data_conf) has no data_dir)"
+    loc=${1:-.}
+    [ -d "$loc" ] || die 1 "open-pr: no such directory: $loc"
+    loc=$(cd "$loc" && pwd -P)
+    c=$(conf_json) || exit $?
+    v=$(printf '%s' "$c" | jq -r --arg l "$loc" '. as $c
+        | [(.data_dirs // [])[] | objects
+           | select((.root | type) == "string" and .root != "" and (.dir | type) == "string" and .dir != "")
+           | (.root | rtrimstr("/")) as $r
+           | select($r == $l or ($l | startswith($r + "/")))
+           | {n: ($r | length), dir}]
+        | max_by(.n).dir // ($c.data_dir | strings | select(. != ""))')
+    [ -n "$v" ] || die 7 "open-pr: data directory not set for $loc ($(data_conf) has no data_dirs root above it and no data_dir)"
     printf '%s' "$v"
 }
+# Write the config with jq filter $1 applied (--arg d = $2, --arg r = $3).
+conf_write() {
+    conf=$(conf_json); conf_f=$(data_conf)
+    mkdir -p "$(dirname "$conf_f")"
+    printf '%s' "$conf" | jq --arg d "$2" --arg r "${3:-}" "$1" > "$TMPD/config.json"
+    mv "$TMPD/config.json" "$conf_f"
+}
 cmd_data_dir() {
-    parse_args "$@"
-    s=$(arg set)
-    conf_f=$(data_conf)
-    if [ -n "$s" ]; then
-        conf=$(conf_json)
-        case "$s" in
-            "~"|"~/"*) s="${HOME:?HOME is not set}${s#\~}" ;;
-            /*|[A-Za-z]:[\\/]*) ;;
-            *) s="$PWD/$s" ;;
-        esac
-        mkdir -p "$s" "$(dirname "$conf_f")"
-        s=$(cd "$s" && pwd)
-        printf '%s' "$conf" | jq --arg d "$s" '.data_dir = $d' > "$TMPD/config.json"
-        mv "$TMPD/config.json" "$conf_f"
+    if [ "${1:-}" = --all ]; then
+        [ $# -eq 1 ] || die 1 "open-pr.sh data-dir: --all takes no other option"
+        c=$(conf_json) || exit $?
+        all=$(printf '%s' "$c" | jq -r '[((.data_dirs // [])[] | objects | .dir), .data_dir]
+            | map(select(type == "string" and . != ""))
+            | reduce .[] as $d ([]; if index([$d]) then . else . + [$d] end) | .[]')
+        [ -n "$all" ] || die 7 "open-pr: data directory not set ($(data_conf) has no data_dir or data_dirs)"
+        printf '%s\n' "$all"
+        return 0
     fi
-    d=$(data_dir)
-    printf '%s\n' "$d"
+    parse_args "$@"
+    s=$(arg set); ar=$(arg add_root); ad=$(arg dir)
+    [ -z "$ar$ad" ] || { [ -n "$ar" ] && [ -n "$ad" ] && [ -z "$s" ]; } \
+        || die 1 "open-pr.sh data-dir: --add-root R and --dir P go together, without --set"
+    if [ -n "$s" ]; then
+        conf_json >/dev/null
+        s=$(expand_path "$s"); mkdir -p "$s"; s=$(cd "$s" && pwd)
+        conf_write '.data_dir = $d' "$s"
+        printf '%s\n' "$s"
+    elif [ -n "$ar" ]; then
+        conf_json >/dev/null
+        ar=$(expand_path "$ar")
+        [ -d "$ar" ] || die 1 "open-pr: no such directory: $ar"
+        ar=$(cd "$ar" && pwd -P)
+        ad=$(expand_path "$ad"); mkdir -p "$ad"; ad=$(cd "$ad" && pwd)
+        conf_write '.data_dirs = ([(.data_dirs // [])[] | select((objects | .root) != $r)] + [{root: $r, dir: $d}])' "$ad" "$ar"
+        printf '%s\n' "$ad"
+    else
+        d=$(data_dir "$(arg repo_dir)")
+        printf '%s\n' "$d"
+    fi
 }
 
 # --------------------------------------------------------- find-memory ----
@@ -973,7 +1015,7 @@ cmd_find_memory() {
 # the computed doctor_due. Never writes anything.
 cmd_settings() {
     parse_args "$@"
-    data=$(data_dir)
+    data=$(data_dir "$(arg repo_dir)")
     # memory_dir rides along: "never bootstrapped" and "memory kept somewhere
     # else" print byte-identical defaults otherwise.
     mem_dir="$data/$(req repo)"
@@ -1175,15 +1217,18 @@ Subcommands:
       markdown commit link, for the anchor
   marker --kind finding|reply|claim [--comment-id C]
       the marker literal — end every finding/reply with it; `claim` needs C
-  data-dir [--set P]
-      print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in
-      the user-level config first. A config that is not a JSON object stops with exit 1
+  data-dir [--repo-dir D] | --set P | --add-root R --dir P | --all
+      print `<data>` for D (default cwd), absolute: the `data_dirs` entry whose `root` is D or its
+      nearest ancestor (symlinks resolved), else the default `data_dir`. `--set` records P as the
+      default; `--add-root` maps repos at or below R to P (replacing R's entry); both expand `~` and
+      relative, create P, print P. `--all`: every distinct `<data>`, one per line. A config that is
+      not a JSON object stops with exit 1
   find-memory [--repo R]
       memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or
       at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`:
       `found=<path>` per `notebooks/review/R`
-  settings --repo <repo>
-      `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`.
+  settings --repo <repo> [--repo-dir D]
+      `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`.
       Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
       was read and whether its `settings.json` was there; `watch_review_configured` = node in the file
   stacks [--repo-dir D] <path>…
@@ -1199,7 +1244,7 @@ Exit codes:
   4  invalid PR URL
   5  repo dir unresolvable
   6  missing credentials
-  7  `<data>` not set
+  7  `<data>` not set for that location
   9  vendor rate limit (`triggers`) — poll again later
 EOF
 }

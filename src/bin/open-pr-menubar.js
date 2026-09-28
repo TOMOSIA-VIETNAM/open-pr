@@ -1,19 +1,20 @@
 // The open-pr menu bar item on macOS, started by `open-pr-watch.sh menubar`, one per machine.
 // A status item needs no permission. Everything it shows is read, every few seconds, from files
-// the watcher writes:
+// the watcher writes, in every data directory it was given:
 //   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
 //   <data>/<repo>/watch-review/state.json   sessions; active = not finished, working or question
 //   <data>/<repo>/watch-review/feed.jsonl   the recent notifications
-//   <data>/.watch/snooze_until              toasts off until then — the Snooze menu writes it too
+//   ${XDG_CONFIG_HOME:-~/.config}/open-pr/watch/snooze_until   toasts off until then — the Snooze menu writes it too
 // It leaves by itself, removing its pid file, once no repo has been watched for 5 minutes;
 // "Quit menu" leaves at once. Watching goes on either way.
-// argv: data dir, snooze file, pid file, heartbeat age (seconds) past which a repo is not watched.
+// argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, then
+// every data directory (`open-pr.sh data-dir --all`).
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text — never spliced into source.
 ObjC.import('Cocoa');
 
 var REFRESH = 3, IDLE_EXIT = 300, RECENT = 10, CLIP = 90;
-var data = '', snoozeFile = '', pidFile = '', fresh = 2700;
+var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700;
 var item = null, target = null, lastWatched = Date.now();
 
 ObjC.registerSubclass({
@@ -28,8 +29,9 @@ ObjC.registerSubclass({
 });
 
 function run(argv) {
-    data = argv[0] || ''; snoozeFile = argv[1] || ''; pidFile = argv[2] || '';
-    fresh = Number(argv[3]) || fresh;
+    snoozeFile = argv[0] || ''; pidFile = argv[1] || '';
+    fresh = Number(argv[2]) || fresh;
+    dataDirs = argv.slice(3).filter(function (d) { return typeof d === 'string' && d !== ''; });
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
     item = $.NSStatusBar.systemStatusBar.statusItemWithLength(-1);   // -1 = variable length
@@ -66,7 +68,7 @@ function snoozedUntil() {
 // Every watched repo's active sessions and feed, newest notification first.
 function scan() {
     var out = { repos: 0, sessions: [], feed: [] };
-    listDir(data).forEach(function (name) {
+    dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch-review';
         if (ageSeconds(dir + '/heartbeat') > fresh) return;
@@ -84,7 +86,7 @@ function scan() {
             var f = parse(line);
             if (f && typeof f === 'object' && str(f.summary)) out.feed.push(f);
         });
-    });
+    }); });
     out.feed.sort(function (a, b) { return str(b.at) < str(a.at) ? -1 : str(b.at) > str(a.at) ? 1 : 0; });
     out.feed = out.feed.slice(0, RECENT);
     return out;

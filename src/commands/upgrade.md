@@ -20,10 +20,10 @@ description: Bring every per-repo config in the data directory up to the schema 
 
 ## Step 1 — Discover the config sets, read each checkpoint
 
-`sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh data-dir` (`<op>` from here on) → `<data>`, the one
-directory `/open-pr:review` keeps every repo's config in; exit 7 ⇒ `Read`
-`"${CLAUDE_PLUGIN_ROOT}"/cases/data-dir.md` first. `<set>` = one `<data>/<repo>/` — each
-subdirectory of `<data>`. FORBIDDEN: deriving `<repo>` from a git remote (pwd may be no repo).
+`sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh data-dir --all` (`<op>` from here on) → every `<data>`
+`/open-pr:review` keeps repo config in (one per workspace the user mapped, plus the default); none
+printed ⇒ `Read` `"${CLAUDE_PLUGIN_ROOT}"/cases/data-dir.md` first. `<set>` = one `<data>/<repo>/` —
+each subdirectory of `<data>`, for every `<data>`. FORBIDDEN: deriving `<repo>` from a git remote (pwd may be no repo).
 
 | case | do |
 |---|---|

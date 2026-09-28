@@ -26,7 +26,8 @@ WATCH = REPO / "src" / "bin" / "open-pr-watch.sh"
 FAKE_OPEN_PR = r"""#!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_HOME/open-pr.calls"
 case "$1" in
-    data-dir) printf '%s\n' "$FAKE_HOME/data" ;;
+    data-dir) if [ "${2:-}" = --all ]; then printf '%s\n' "$FAKE_HOME/data" "$FAKE_HOME/data2"
+              else printf '%s\n' "$FAKE_HOME/data"; fi ;;
     repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
                  printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
     triggers) printf '%s\n' "$*" >> "$FAKE_HOME/triggers.args"
@@ -57,8 +58,10 @@ import json, os, sys, time
 name = os.path.basename(sys.argv[0])
 home = os.environ["FAKE_HOME"]
 n = len([f for f in os.listdir(home) if f.startswith(name + ".") and f.endswith(".json")])
-with open(os.path.join(home, f"{name}.{n}.json"), "w") as fh:
+dest = os.path.join(home, f"{name}.{n}.json")
+with open(dest + ".tmp", "w") as fh:          # atomic: a test polling for dest never reads it half-written
     json.dump({"argv": sys.argv[1:], "cwd": os.getcwd()}, fh)
+os.replace(dest + ".tmp", dest)
 if name == "agent" and sys.argv[1:] == ["create-chat"]:
     print("chat-abc")
     sys.exit(0)
@@ -150,7 +153,9 @@ class Watch:
         self.repo = tmp / "repo"
         self.repo.mkdir()
         self.sd = self.home / "data" / "r" / "watch-review"
-        self.env = dict(os.environ, FAKE_HOME=str(self.home),
+        # machine-wide watch files (snooze, menu bar pid) live under the user-level config
+        self.watch = tmp / "xdg" / "open-pr" / "watch"
+        self.env = dict(os.environ, FAKE_HOME=str(self.home), XDG_CONFIG_HOME=str(tmp / "xdg"),
                         PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}")
         self.children = []
 
@@ -264,6 +269,19 @@ def test_watch_state_is_kept_out_of_the_memory_repo(w):
     w.run("paths", "--pr", "8")
     gi = (w.sd.parent.parent / ".gitignore").read_text().splitlines()
     assert gi.count("watch-review/") == 1
+
+
+def test_every_data_dir_and_settings_call_names_the_watched_repo(w):
+    """The data directory is resolved per repo location, so a watcher started from a folder
+    above two workspaces must still ask for each repo's own directory, never the cwd's."""
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    w.run("wait", "--once")
+    w.run("notify", "--event", "posted", "--text-file", w.prompt("x"))
+    calls = [l for l in (w.home / "open-pr.calls").read_text().splitlines()
+             if l.split(" ", 1)[0] in ("data-dir", "settings")]
+    assert {l.split(" ", 1)[0] for l in calls} == {"data-dir", "settings"}
+    for c in calls:
+        assert c.endswith(f"--repo-dir {w.repo.resolve()}"), c
 
 
 def test_remote_reaches_repo_target(w):
@@ -651,7 +669,7 @@ def test_osascript_gets_the_text_as_argv_never_as_source(w):
     rec = w.recorded("osascript")            # waits: the toast is detached from the watcher
     assert rec["argv"][:2] == ["-l", "JavaScript"] and rec["argv"][2].endswith("open-pr-toast.js")
     assert rec["argv"][3:7] == ["open-pr · o/r", text, "claude attach 1", "posted"]
-    assert rec["argv"][10] == str(w.home / "data" / ".watch" / "snooze_until"), \
+    assert rec["argv"][10] == str(w.watch / "snooze_until"), \
         "the toast's 1h control writes the one snooze file every notifier reads"
 
 
@@ -876,7 +894,7 @@ def test_the_backoff_stops_at_fifteen_minutes(w):
 # -------------------------------------------------------------- snooze ----
 
 def test_snooze_for_until_and_off_share_one_machine_file(w):
-    f = w.home / "data" / ".watch" / "snooze_until"
+    f = w.watch / "snooze_until"
     out = w.jsonl("snooze", "--for", "2h30m")[0]
     left = datetime.fromisoformat(out["snooze_until"].replace("Z", "+00:00")) - datetime.now(timezone.utc)
     assert 9000 - 60 < left.total_seconds() <= 9000
@@ -885,7 +903,7 @@ def test_snooze_for_until_and_off_share_one_machine_file(w):
     assert f.read_text() == "2026-01-01T00:00:00Z\n"
     assert w.jsonl("snooze", "--off") == [{"snooze_until": None}] and not f.exists()
     assert w.jsonl("snooze", "--off") == [{"snooze_until": None}], "resuming twice is fine"
-    assert ".watch/" in (w.home / "data" / ".gitignore").read_text().splitlines()
+    assert not (w.home / "data").exists(), "machine-wide files stay out of every data directory"
     for bad in (["--for", "soon"], ["--for", "0m"], ["--for", "1h;id"], ["--until", "tomorrow"]):
         assert w.run("snooze", *bad, check=False).returncode == 4, bad
     for bad in ([], ["--off", "--for", "1h"]):
@@ -928,14 +946,16 @@ def test_menubar_without_osascript_is_no_equivalent(w, tmp_path):
 
 def test_menubar_runs_detached_once_per_machine(w):
     env = {"FAKE_SLEEP": "30"}
-    watch = w.home / "data" / ".watch"
+    watch = w.watch
     started = time.time()
     assert w.run("menubar", env_extra=env).stdout == "started\n"
     assert time.time() - started < 10, "menubar waited on the menu bar process"
     assert (REPO / "src" / "bin" / "open-pr-menubar.js").is_file()
     rec = w.recorded("osascript")
-    assert rec["argv"] == ["-l", "JavaScript", str(w.bin / "open-pr-menubar.js"), str(w.home / "data"),
-                           str(watch / "snooze_until"), str(watch / "menubar.pid"), "2700"]
+    assert rec["argv"] == ["-l", "JavaScript", str(w.bin / "open-pr-menubar.js"),
+                           str(watch / "snooze_until"), str(watch / "menubar.pid"), "2700",
+                           str(w.home / "data"), str(w.home / "data2")], \
+        "the menu bar scans every data directory the config knows, one per argv element"
     pid = int((watch / "menubar.pid").read_text())
     try:
         assert w.run("menubar", env_extra=env).stdout == "running\n"
