@@ -17,7 +17,7 @@ session for that pull request, and tells you when something needs you.
    `/open-pr:watch-review owner/api owner/web` (or PR URLs) picks directly. A clone with a remote per host (GitHub, GitLab, Bitbucket) is listed once per
    remote.
    The first run asks how many review
-   sessions may be active at once and which notifications you want, and saves both in that
+   sessions may be active at once and which toasts you want, and saves both in that
    repository's `settings.json`.
 
 One watcher follows every repository you picked; each keeps its own settings, including its own
@@ -43,7 +43,10 @@ the developer and the reviewer.
 
 ## What happens next
 
-- The comment gets an 👀 reaction (not on Bitbucket, which has no reactions).
+- The comment gets an 👀 reaction. That reaction is also the lock when several machines watch the
+  same repository: each one reacts, and only the machine whose 👀 came first reviews; the others
+  say who has it and step back. A 👀 someone added by hand before the watcher counts too — comment
+  `/open-pr` again. Bitbucket has no reactions, so there only one machine should watch a repository.
 - A review session named `review <owner>/<repo>#<number>` opens and runs the normal review.
 - When the limit of active sessions is reached, the pull request waits in a queue.
 - A new `/open-pr` comment on a pull request that already has a session resumes that same session,
@@ -53,7 +56,12 @@ the developer and the reviewer.
 
 ## Opening a session
 
-Every notification and every chat line carries the command that opens that session:
+A toast in the top-right corner of your screen tells you what is happening — "Reviewing PR #12",
+"Posted review on PR #12 — 1 🔴 2 🟠", "LGTM on PR #12", a draft waiting, a session needing an
+answer. Clicking a toast opens the pull request; hovering keeps it on screen; several stack under
+each other. When you have to act, the toast shows the command that opens the session. On macOS the
+watcher draws the toast itself, so no notification permission is needed; on Linux it uses
+`notify-send`. Every chat line carries the command that opens the session:
 
 | platform | kind of session | open it with |
 |---|---|---|
@@ -76,7 +84,7 @@ configured for that platform; the watcher does not grant any.
 | say | effect |
 |---|---|
 | `status` | one line per pull request with its state and open command |
-| `snooze 2h` | no notifications until then; the queue keeps running |
+| `snooze 2h` | no toasts until then; the queue keeps running |
 | a setting change | saved to `settings.json` |
 | start a fresh session for PR 12 | the next trigger on it opens a new session |
 | `stop` | stops watching; open review sessions keep running |
@@ -89,9 +97,9 @@ Stored in `<data>/<repo>/settings.json` under `watch_review`:
 |---|---|---|
 | `max_concurrent` | `5` | review sessions active at once (running or waiting for an answer) |
 | `poll_interval_seconds` | `60` | how often the pull requests are checked |
-| `notify.review_started` | `true` | a review session opened |
-| `notify.question` | `true` | a session needs an answer, or failed |
-| `notify.draft_ready` | `true` | a draft review waits for your approval |
-| `notify.posted` | `true` | a review was posted |
-| `notify.re_review` | `true` | an existing session was resumed for a re-review |
-| `snooze_until` | `null` | UTC time until which notifications stay off |
+| `notify.review_started` | `true` | toast: a review session opened |
+| `notify.question` | `true` | toast: a session needs an answer, or failed |
+| `notify.draft_ready` | `true` | toast: a draft review waits for your approval |
+| `notify.posted` | `true` | toast: a review was posted, or LGTM |
+| `notify.re_review` | `true` | toast: an existing session was resumed for a re-review |
+| `snooze_until` | `null` | UTC time until which toasts stay off |

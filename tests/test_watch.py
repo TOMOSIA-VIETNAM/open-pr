@@ -537,10 +537,33 @@ def test_notify_skips_during_snooze_and_resumes_after(w):
 
 def test_osascript_gets_the_text_as_argv_never_as_source(w):
     text = 'say "hi" & do shell script "touch /tmp/x" $(id) `id`'
-    assert notify(w, text=text)["via"] == "osascript"
-    rec = w.recorded("osascript")
-    assert rec["argv"] == ["-", "open-pr · r", text]
+    assert notify(w, text=text + "\nclaude attach 1")["via"] == "toast"
+    rec = w.recorded("osascript")            # waits: the toast is detached from the watcher
+    assert rec["argv"][:2] == ["-l", "JavaScript"] and rec["argv"][2].endswith("open-pr-toast.js")
+    assert rec["argv"][3:7] == ["open-pr · o/r", text, "claude attach 1", "posted"]
 
+
+
+def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
+    """A toast still showing keeps its place; a new one takes the first free slot, and a slot
+    frees when its toast exits — so toasts never cover each other."""
+    env = {"TMPDIR": str(tmp_path), "FAKE_SLEEP": "30"}
+    f = w.prompt("Reviewing #3\nfix: x", "t.txt")
+    for _ in range(2):
+        w.run("notify", "--event", "review_started", "--text-file", f, "--url", "https://h/o/r/pull/3",
+              env_extra=env)
+    first, second = w.recorded("osascript", 0), w.recorded("osascript", 1)
+    assert (first["argv"][7], second["argv"][7]) == ("0", "1")
+    assert first["argv"][9] == "https://h/o/r/pull/3"
+    os.kill(int((tmp_path / "open-pr-toast" / "0" / "pid").read_text()), 9)
+    time.sleep(0.3)
+    w.run("notify", "--event", "posted", "--text-file", f, env_extra=env)
+    assert w.recorded("osascript", 2)["argv"][7] == "0", "the slot of an exited toast is reused"
+    for d in (tmp_path / "open-pr-toast").iterdir():
+        try:
+            os.kill(int((d / "pid").read_text()), 9)
+        except (OSError, ValueError):
+            pass
 
 def _minimal_path(w, tmp_path, with_notify_send):
     """PATH without the system osascript: only the tools the script needs."""
@@ -559,13 +582,13 @@ def _minimal_path(w, tmp_path, with_notify_send):
 def test_notify_send_gets_title_and_text_after_a_double_dash(w, tmp_path):
     out = notify(w, text="-rf text", path=_minimal_path(w, tmp_path, True))
     assert out["via"] == "notify-send"
-    assert w.recorded("notify-send")["argv"] == ["--", "open-pr · r", "-rf text"]
+    assert w.recorded("notify-send")["argv"] == ["--", "open-pr · o/r", "-rf text"]
 
 
 def test_notify_without_a_notifier_prints_to_stderr(w, tmp_path):
     r = w.run("notify", "--event", "posted", "--text-file", w.prompt("hello", "n.txt"),
               path=_minimal_path(w, tmp_path, False))
-    assert json.loads(r.stdout)["via"] == "stderr" and "[open-pr · r] hello" in r.stderr
+    assert json.loads(r.stdout)["via"] == "stderr" and "[open-pr · o/r] hello" in r.stderr
 
 
 def test_notify_rejects_an_unknown_event(w):

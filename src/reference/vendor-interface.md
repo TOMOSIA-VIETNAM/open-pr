@@ -18,6 +18,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | account | login | username | nickname, or UNKNOWN under a workspace token (401 on /user is BY DESIGN) |
 | threads | GraphQL reviewThreads | discussions (`resolved` flag) | root comment + `parent` chains, `resolution` on the ROOT only |
 | react (`--kind line\|top`) | reactions on the review comment (`line`) or the issue comment (`top`) — separate id spaces | award_emoji on the MR note | NO-EQUIVALENT |
+| claim | 👀 via `react`'s endpoint with `-i`: 201 then the earliest `content=eyes` reaction by id decides; 200 (this account's 👀 already there) = taken | award `eyes`; "already" error = taken; else the earliest `eyes` award by id decides | NO-EQUIVALENT — no reactions, no lock |
 | repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
 | triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's notes; system notes skipped; DiffNote = `line` | open PRs, then each PR's comments; deleted skipped; `inline` = `line` |
 | triggers: `authorized` | `author_association` ∈ OWNER/MEMBER/COLLABORATOR, no extra call | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |

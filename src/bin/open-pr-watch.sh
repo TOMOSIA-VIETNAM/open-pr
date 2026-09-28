@@ -547,23 +547,38 @@ cmd_notify() {
         jq -n -c --arg e "$E" --arg why "$why" '{event: $e, sent: false, reason: $why}'
         return 0
     fi
-    title="open-pr · $REPO"
-    text=$(cat "$F")
-    # Title and text reach the notifier as argv only — never spliced into
-    # AppleScript source or a shell string.
+    # F: line 1 = the summary ("Reviewing PR #12"), line 2 = a detail (the open command).
+    title="open-pr · $OWNER/$REPO"
+    summary=$(sed -n 1p "$F"); detail=$(sed -n 2p "$F")
+    # Title and text reach the notifier as argv only — never spliced into source or a shell string.
     if command -v osascript >/dev/null 2>&1; then
-        via=osascript
-        osascript - "$title" "$text" > /dev/null <<'EOF'
-on run argv
-display notification (item 2 of argv) with title (item 1 of argv)
-end run
-EOF
+        # macOS: a toast this plugin draws itself (open-pr-toast.js), detached so the watcher
+        # never waits on it. Each toast holds a slot (a directory naming its pid) until it
+        # exits, so a new one takes the first free place in the stack and never covers a
+        # toast still showing.
+        via=toast
+        sd="${TMPDIR:-/tmp}/open-pr-toast"; mkdir -p "$sd"; slot=0
+        while [ "$slot" -lt 8 ]; do
+            if mkdir "$sd/$slot" 2>/dev/null; then break; fi
+            pid=$(cat "$sd/$slot/pid" 2>/dev/null || true)
+            # stale: its toast exited, or a notify died before writing the pid (> 1 min ago)
+            if { [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; } \
+                || { [ -z "$pid" ] && [ -n "$(find "$sd/$slot" -maxdepth 0 -mmin +1 2>/dev/null)" ]; }; then
+                rm -rf "$sd/$slot"; mkdir "$sd/$slot" 2>/dev/null && break
+            fi
+            slot=$((slot + 1))
+        done
+        [ "$slot" -lt 8 ] || slot=0
+        nohup osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
+            "$E" "$slot" 8 "$(arg url)" > /dev/null 2>&1 &
+        printf '%s\n' "$!" > "$sd/$slot/pid"
     elif command -v notify-send >/dev/null 2>&1; then
         via=notify-send
-        notify-send -- "$title" "$text"
+        notify-send -- "$title" "$summary${detail:+
+$detail}"
     else
         via=stderr
-        printf '[%s] %s\n' "$title" "$text" >&2
+        printf '[%s] %s%s\n' "$title" "$summary" "${detail:+ — $detail}" >&2
     fi
     jq -n -c --arg e "$E" --arg via "$via" '{event: $e, sent: true, via: $via}'
 }
@@ -602,10 +617,12 @@ Subcommands:
   paths [--pr N]
       `dir=…` `prompts=…` lines; with `--pr` also `status_file=…` (the review session writes it)
       and `log=…`
-  notify --event E --text-file F
-      OS notification titled `open-pr · <repo>`, E one of review_started|question|draft_ready|
-      posted|re_review. Skipped (`"sent":false` + reason) when `watch_review.notify.E` is false or
-      before `watch_review.snooze_until`. macOS osascript, else notify-send, else stderr
+  notify --event E --text-file F [--url U]
+      toast titled `open-pr · <owner>/<repo>`: F line 1 = summary, line 2 = detail; E one of
+      review_started|question|draft_ready|posted|re_review. Skipped (`"sent":false` + reason) when
+      `watch_review.notify.E` is false or before `watch_review.snooze_until`. macOS: drawn by
+      open-pr-toast.js (no Notifications permission; click opens U, hover holds it, toasts stack),
+      else notify-send, else stderr
 
 Runners (`--runner`): claude, codex, gemini, cursor, antigravity.
 

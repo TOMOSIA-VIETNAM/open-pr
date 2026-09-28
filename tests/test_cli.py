@@ -577,6 +577,47 @@ def test_push_targets_the_remote_matching_the_pr_host(fixture_repo):
 
 # ------------------------------------------------------------ react ----
 
+def _claim(shims, vendor, kind="top", check=True):
+    env = {**env_for(shims), "BITBUCKET_EMAIL": "", "BITBUCKET_API_TOKEN": ""}
+    return run("claim", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5",
+               "--comment-id", "9", "--kind", kind, env_extra=env, check=check).stdout.strip()
+
+
+def _posted(code, rid):
+    return f"HTTP/2.0 {code} {'Created' if code == 201 else 'OK'}\r\nContent-Type: application/json\r\n\r\n" \
+           + json.dumps({"id": rid, "content": "eyes", "user": {"login": "me"}})
+
+
+@pytest.mark.parametrize("code, listing, want", [
+    (201, [{"id": 70, "user": {"login": "me"}}, {"id": 71, "user": {"login": "other"}}], "claimed"),
+    (201, [{"id": 60, "user": {"login": "other"}}, {"id": 70, "user": {"login": "me"}}], "taken other"),
+    (200, [{"id": 70, "user": {"login": "me"}}], "taken me"),
+])
+def test_claim_github_the_earliest_eyes_wins(shims, code, listing, want):
+    """Two machines react within the same poll: both see the same ordering, exactly one wins.
+    The same account on two machines gets 200 on its second 👀 and backs off."""
+    serve(shims, "gh", [
+        ("-X POST repos/o/r/issues/comments/9/reactions", _posted(code, 70)),
+        ("issues/comments/9/reactions?content=eyes", listing),
+        ("api user", "me\n"),
+    ])
+    assert _claim(shims, "github") == want
+
+
+def test_claim_gitlab_and_bitbucket(shims):
+    serve(shims, "glab", [
+        ("-X POST projects/o%2Fr/merge_requests/5/notes/9/award_emoji", {"id": 80, "name": "eyes"}),
+        ("notes/9/award_emoji?per_page=100", [{"id": 79, "name": "thumbsup", "user": {"username": "x"}},
+                                             {"id": 80, "name": "eyes", "user": {"username": "me"}}]),
+    ])
+    assert _claim(shims, "gitlab") == "claimed", "another emoji earlier does not count"
+    serve(shims, "glab", [
+        ("-X POST projects/o%2Fr/merge_requests/5/notes/9/award_emoji", (1, "glab: 404 Award Emoji Name has already been taken")),
+        ("user", {"username": "me"}),
+    ])
+    assert _claim(shims, "gitlab").startswith("taken")
+    assert _claim(shims, "bitbucket") == "NO-EQUIVALENT"
+
 def test_react_top_uses_the_conversation_comment_endpoint(shims):
     """GitHub keeps diff comments and conversation comments in separate id spaces: a
     reaction sent to the wrong one 404s. GitLab reacts on the note inside its MR."""

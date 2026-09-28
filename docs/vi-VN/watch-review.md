@@ -17,7 +17,7 @@ riêng cho pull request đó, và báo bạn khi có việc cần bạn.
    owner/web` (hoặc URL của PR) chọn thẳng. Clone có mỗi
    host một remote (GitHub, GitLab, Bitbucket) được liệt kê theo từng remote.
    Lần chạy đầu hỏi tối đa bao nhiêu session
-   review được active cùng lúc và bạn muốn nhận những thông báo nào, rồi lưu cả hai vào
+   review được active cùng lúc và bạn muốn nhận những toast nào, rồi lưu cả hai vào
    `settings.json` của repo đó.
 
 Một watcher theo dõi mọi repo bạn đã chọn; mỗi repo giữ setting riêng, kể cả giới hạn số session
@@ -43,7 +43,10 @@ có thể vừa là dev vừa là reviewer.
 
 ## Chuyện gì xảy ra tiếp theo
 
-- Comment được thả reaction 👀 (trừ Bitbucket, vì Bitbucket không có reaction).
+- Comment được thả reaction 👀. Reaction đó cũng là khóa khi nhiều máy cùng theo dõi một repo:
+  máy nào cũng thả reaction, và chỉ máy có 👀 đến trước mới review; các máy còn lại báo ai đang giữ
+  rồi lùi lại. 👀 do ai đó thả tay trước watcher cũng được tính — hãy comment `/open-pr` lại.
+  Bitbucket không có reaction, nên ở đó chỉ nên để một máy theo dõi mỗi repo.
 - Một session review tên `review <owner>/<repo>#<number>` được mở và chạy review như bình thường.
 - Khi đã chạm giới hạn session active, pull request chờ trong hàng đợi.
 - Một comment `/open-pr` mới trên pull request đã có session sẽ resume đúng session đó,
@@ -53,7 +56,11 @@ có thể vừa là dev vừa là reviewer.
 
 ## Mở một session
 
-Mọi thông báo và mọi dòng chat đều kèm command mở session đó:
+Một toast ở góc trên bên phải màn hình cho bạn biết chuyện gì đang diễn ra — "Reviewing PR #12",
+"Posted review on PR #12 — 1 🔴 2 🟠", "LGTM on PR #12", một draft đang chờ, một session cần câu
+trả lời. Click vào toast để mở pull request; rê chuột vào thì toast được giữ lại; nhiều toast xếp chồng
+lên nhau. Khi bạn cần làm gì đó, toast hiện command mở session. Trên macOS watcher tự vẽ toast, nên
+không cần quyền thông báo; trên Linux nó dùng `notify-send`. Mọi dòng chat đều kèm command mở session:
 
 | nền tảng | loại session | mở bằng |
 |---|---|---|
@@ -76,7 +83,7 @@ cấu hình cho nền tảng đó; watcher không cấp thêm quyền nào.
 | nói | tác dụng |
 |---|---|
 | `status` | mỗi pull request một dòng, kèm trạng thái và command mở |
-| `snooze 2h` | không thông báo cho đến lúc đó; hàng đợi vẫn chạy |
+| `snooze 2h` | không hiện toast cho đến lúc đó; hàng đợi vẫn chạy |
 | một thay đổi setting | lưu vào `settings.json` |
 | mở session mới cho PR 12 | lần kích hoạt tiếp theo trên PR đó mở session mới |
 | `stop` | dừng theo dõi; các session review đang mở vẫn chạy tiếp |
@@ -89,9 +96,9 @@ Lưu ở `<data>/<repo>/settings.json` dưới `watch_review`:
 |---|---|---|
 | `max_concurrent` | `5` | số session review active cùng lúc (đang chạy hoặc đang chờ câu trả lời) |
 | `poll_interval_seconds` | `60` | bao lâu kiểm tra pull request một lần |
-| `notify.review_started` | `true` | một session review vừa mở |
-| `notify.question` | `true` | một session cần câu trả lời, hoặc bị lỗi |
-| `notify.draft_ready` | `true` | một review draft đang chờ bạn duyệt |
-| `notify.posted` | `true` | một review đã được post |
-| `notify.re_review` | `true` | một session có sẵn được resume để re-review |
-| `snooze_until` | `null` | thời điểm UTC mà trước đó thông báo vẫn tắt |
+| `notify.review_started` | `true` | toast: một session review vừa mở |
+| `notify.question` | `true` | toast: một session cần câu trả lời, hoặc bị lỗi |
+| `notify.draft_ready` | `true` | toast: một review draft đang chờ bạn duyệt |
+| `notify.posted` | `true` | toast: một review đã được post, hoặc LGTM |
+| `notify.re_review` | `true` | toast: một session có sẵn được resume để re-review |
+| `snooze_until` | `null` | thời điểm UTC mà trước đó toast vẫn tắt |

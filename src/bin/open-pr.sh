@@ -667,6 +667,42 @@ cmd_react() {
         bitbucket) printf 'NO-EQUIVALENT\n' ;;
     esac
 }
+# ---------------------------------------------------------------- claim ----
+# Several machines may watch one repo: the 👀 on a trigger comment is the lock.
+# Prints `claimed` when this call added the EARLIEST 👀 there, `taken <login>` when an
+# earlier one exists (another machine, a person, or this account already), and
+# `NO-EQUIVALENT` on Bitbucket, which has no reactions.
+cmd_claim() {
+    parse_args "$@"; post_init
+    CID=$(req comment_id); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
+    check_ident '^[0-9]+$' "$CID"; check_ident '^(line|top)$' "$KIND"
+    case "$V" in
+        github)
+            if [ "$KIND" = line ]; then base="repos/$OWNER/$REPO/pulls/comments/$CID/reactions"
+            else base="repos/$OWNER/$REPO/issues/comments/$CID/reactions"; fi
+            gh api -i -X POST "$base" -f content=eyes > "$TMPD/claim.post" \
+                || die 1 "open-pr.sh claim: could not react on comment $CID"
+            code=$(sed -n '1s/^HTTP\/[0-9.]* \([0-9][0-9]*\).*/\1/p' "$TMPD/claim.post")
+            mine=$(awk 'b{print} /^\r?$/{b=1}' "$TMPD/claim.post" | jq -r '.id')
+            # 200 = this account's 👀 was already there: another machine on the same account
+            [ "$code" = 201 ] || { printf 'taken %s\n' "$(ctx_account)"; return 0; }
+            gh api --paginate "$base?content=eyes&per_page=100" > "$TMPD/claim.list"
+            first=$(jq -s -r 'add | sort_by(.id) | .[0] | "\(.id) \(.user.login)"' "$TMPD/claim.list") ;;
+        gitlab)
+            base="projects/$GL_PROJ/merge_requests/$N/notes/$CID/award_emoji"
+            if glab api -X POST "$base" -f name=eyes > "$TMPD/claim.post" 2> "$TMPD/claim.err"; then
+                mine=$(jq -r '.id' "$TMPD/claim.post")
+            elif grep -qi 'already' "$TMPD/claim.err"; then
+                printf 'taken %s\n' "$(ctx_account)"; return 0
+            else
+                cat "$TMPD/claim.err" >&2; die 1 "open-pr.sh claim: could not award on note $CID"
+            fi
+            glab api --paginate "$base?per_page=100" > "$TMPD/claim.list"
+            first=$(jq -s -r 'add | map(select(.name == "eyes")) | sort_by(.id) | .[0] | "\(.id) \(.user.username)"' "$TMPD/claim.list") ;;
+        bitbucket) printf 'NO-EQUIVALENT\n'; return 0 ;;
+    esac
+    if [ "${first%% *}" = "$mine" ]; then printf 'claimed\n'; else printf 'taken %s\n' "${first#* }"; fi
+}
 cmd_account() { parse_args "$@"; post_init; ctx_account; }
 
 # ------------------------------------------------------------ triggers ----
@@ -1052,6 +1088,9 @@ Subcommands:
       STOPS the flow; the plugin never works around credentials
   react --comment-id C --emoji E [--kind line|top]
       `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket
+  claim --comment-id C [--kind line|top]
+      👀 on a trigger comment as a cross-machine lock: `claimed` (this call's 👀 is the earliest) |
+      `taken <login>` | `NO-EQUIVALENT` on Bitbucket
   account
       login name, or `UNKNOWN` (marker-only detection)
   commit-url --sha S
@@ -1112,6 +1151,7 @@ case "$sub" in
     reply)        cmd_reply "$@" ;;
     resolve)      cmd_resolve "$@" ;;
     react)        cmd_react "$@" ;;
+    claim)        cmd_claim "$@" ;;
     account)      cmd_account "$@" ;;
     commit-url)   cmd_commit_url "$@" ;;
     marker)       cmd_marker "$@" ;;

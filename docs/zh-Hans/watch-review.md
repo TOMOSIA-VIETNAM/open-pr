@@ -14,7 +14,7 @@
    询问要监视哪些（api、web、job 等，可多选），并推荐已设置好评审记忆的仓库。`/open-pr:watch-review owner/api owner/web`（或 PR URL）可直接指定。
    每个托管平台各有一个远程的克隆（GitHub、GitLab、Bitbucket）会按远程分别列出。
    首次运行会询问最多允许多少个评审
-   会话同时活跃、你想接收哪些通知，并把两者都保存在该
+   会话同时活跃、你想接收哪些 toast，并把两者都保存在该
    仓库的 `settings.json` 里。
 
 一个监视器会跟踪你选择的所有仓库；每个仓库保留自己的设置，包括各自的活跃会话上限。
@@ -38,7 +38,9 @@ Bitbucket 上每条 `/open-pr` 评论都会触发评审 —— 如果这很重�
 
 ## 接下来会发生什么
 
-- 该评论会被加上 👀 反应（Bitbucket 除外，它没有反应功能）。
+- 该评论会被加上 👀 反应。当多台机器监视同一个仓库时，这个反应也充当锁：每台机器都会加反应，
+  只有 👀 最先加上的那台机器进行评审；其他机器会说明由谁负责并退出。在 watcher 之前有人手动加的 👀
+  也算数 —— 请再评论一次 `/open-pr`。Bitbucket 没有反应功能，所以在那里每个仓库只应由一台机器监视。
 - 一个名为 `review <owner>/<repo>#<number>` 的评审会话打开，并运行常规评审。
 - 活跃会话数达到上限时，pull request 会在队列里等待。
 - 在已有会话的 pull request 上发出新的 `/open-pr` 评论，会 resume 同一个会话，
@@ -48,7 +50,11 @@ Bitbucket 上每条 `/open-pr` 评论都会触发评审 —— 如果这很重�
 
 ## 打开会话
 
-每条通知和每行聊天消息都附带打开该会话的命令：
+屏幕右上角的 toast 会告诉你正在发生什么 —— "Reviewing PR #12"、
+"Posted review on PR #12 — 1 🔴 2 🟠"、"LGTM on PR #12"、一份等待中的草稿、一个需要回答的会话 ——
+点击 toast 会打开 pull request；鼠标悬停时 toast 保持显示；多个 toast 会依次堆叠。
+需要你处理时，toast 会显示打开会话的命令。在 macOS 上 watcher 自己绘制 toast，因此不需要通知权限；
+在 Linux 上它使用 `notify-send`。每行聊天消息都附带打开会话的命令：
 
 | 平台 | 会话类型 | 打开方式 |
 |---|---|---|
@@ -71,7 +77,7 @@ Claude Code 的 shell sandbox 之外启动。non-interactive 会话使用你为�
 | 说 | 效果 |
 |---|---|
 | `status` | 每个 pull request 一行，含状态和打开命令 |
-| `snooze 2h` | 在此之前不发通知；队列照常运行 |
+| `snooze 2h` | 在此之前不显示 toast；队列照常运行 |
 | 某项设置的修改 | 保存到 `settings.json` |
 | PR 12 开一个新会话 | 该 PR 的下一次触发会打开新会话 |
 | `stop` | 停止监视；已打开的评审会话继续运行 |
@@ -84,9 +90,9 @@ Claude Code 的 shell sandbox 之外启动。non-interactive 会话使用你为�
 |---|---|---|
 | `max_concurrent` | `5` | 同时活跃的评审会话数（运行中或等待回答） |
 | `poll_interval_seconds` | `60` | 多久检查一次 pull request |
-| `notify.review_started` | `true` | 打开了一个评审会话 |
-| `notify.question` | `true` | 某个会话需要回答，或失败了 |
-| `notify.draft_ready` | `true` | 一份草稿评审等待你批准 |
-| `notify.posted` | `true` | 一份评审已发布 |
-| `notify.re_review` | `true` | 已有会话被 resume 以重新评审 |
-| `snooze_until` | `null` | 在此 UTC 时间之前通知保持关闭 |
+| `notify.review_started` | `true` | toast：打开了一个评审会话 |
+| `notify.question` | `true` | toast：某个会话需要回答，或失败了 |
+| `notify.draft_ready` | `true` | toast：一份草稿评审等待你批准 |
+| `notify.posted` | `true` | toast：一份评审已发布，或 LGTM |
+| `notify.re_review` | `true` | toast：已有会话被 resume 以重新评审 |
+| `snooze_until` | `null` | 在此 UTC 时间之前 toast 保持关闭 |

@@ -36,6 +36,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `resolve --thread-id T` | resolve a review thread |
 | `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
 | `react --comment-id C --emoji E [--kind line\|top]` | `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket |
+| `claim --comment-id C [--kind line\|top]` | 👀 on a trigger comment as a cross-machine lock: `claimed` (this call's 👀 is the earliest) \| `taken <login>` \| `NO-EQUIVALENT` on Bitbucket |
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
 | `marker --kind finding\|reply` | the marker literal — end every finding/reply with it |

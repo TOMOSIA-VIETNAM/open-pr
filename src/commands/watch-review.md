@@ -69,8 +69,9 @@ notification and question names the PR as `owner/repo#N`.
 Per trigger `{"event":"trigger",…}` (`pr` = N):
 
 1. `authorized: no` ⇒ 1 chat line (who, which PR), nothing else.
-2. `<op> react --vendor … --owner … --repo … --pr N --comment-id <comment_id> --kind <kind> --emoji eyes`;
-   `NO-EQUIVALENT` is fine.
+2. `<op> claim --vendor … --owner … --repo … --pr N --comment-id <comment_id> --kind <kind>` — the 👀
+   is the lock when several machines watch this repo: `taken <login>` ⇒ 1 chat line (who has it),
+   nothing else; `claimed` or `NO-EQUIVALENT` ⇒ go on.
 3. `<watch> paths --pr N` → `prompts=`, `status_file=`. `Write` `<prompts>/pr-N.hint.md` = the comment
    `body`, then `<prompts>/pr-N.md`:
    - `claude`: `/open-pr:review <url> --status-file <status_file> --hint-file <hint file>`
@@ -79,11 +80,15 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
 4. `<watch> spawn --runner <runner> --pr N --name "review <owner>/<repo>#N" --prompt-file <prompt file>`:
    - `queued` ⇒ 1 chat line with its `reason` (slots full, or that PR's session is still running — it
      re-reviews once that session is done).
-   - started ⇒ `<watch> notify --event review_started --text-file <F>` (`re_review` when `resumed`),
-     `<F>` written with PR, title, `open` command; same line in chat. `warning` ⇒ also in chat.
+   - started ⇒ notify `review_started` (`re_review` when `resumed`); same in chat. `warning` ⇒ also in
+     chat.
 
-Per session `{"event":"session",…}` — always with its `open` command; "notify E" =
-`<watch> notify --event E --text-file <F>` with that same text:
+"notify E" = `Write` `<F>` — line 1 a short summary in `chat_language` with `#N` (reviewing, posted
+with the per-severity counts, LGTM when none, draft waiting, needs an answer, failed); line 2 the PR
+title, or the `open` command when the user must act (a question, a draft) — then `<watch> notify
+--event E --text-file <F> --url <PR url>`: a toast titled with the repo; a click opens the PR.
+
+Per session `{"event":"session",…}` — always with its `open` command:
 
 | `state` | do |
 |---|---|

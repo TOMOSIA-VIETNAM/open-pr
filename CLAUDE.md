@@ -20,7 +20,7 @@ Vendors: GitHub, GitLab, Bitbucket.
 ## Layout
 
 ```
-src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners; code, never `Read` into context
+src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast; code, never `Read` into context
 src/commands/     entry points; only these have frontmatter
 src/core/         shared procedure
 src/setup/        bootstrap, doctor, template, lesson
