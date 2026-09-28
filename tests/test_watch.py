@@ -302,6 +302,28 @@ def test_comments_sharing_one_created_at_are_each_emitted_once(w):
     assert w.run("wait", "--once").stdout == ""
 
 
+def test_a_created_at_with_a_utc_offset_moves_the_cursor_in_utc(w):
+    """Self-hosted GitLab prints created_at in its own zone (+09:00). The cursor must be
+    stored in UTC: an offset kept verbatim breaks the next poll's --since and compares
+    wrongly as a string against Z timestamps."""
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    w.triggers(trig("41", "2026-01-01T09:00:05.557+09:00"))
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["41"]
+    assert w.state()["cursor"] == "2026-01-01T00:00:05Z"
+    r = w.run("wait", "--once", check=False)
+    assert r.returncode == 0 and r.stdout == "", r.stderr
+    assert "--since 2026-01-01T00:00:04Z" in (w.home / "triggers.args").read_text().splitlines()[-1]
+
+
+def test_a_cursor_stored_with_an_offset_is_read_back_in_utc(w):
+    """State written before the cursor was kept in UTC must not stop every later wait."""
+    w.put_state({"cursor": "2026-01-01T09:00:05+09:00", "seen": ["41"], "sessions": {}, "queue": []})
+    w.triggers(trig("41", "2026-01-01T09:00:05+09:00"), trig("42", "2026-01-01T00:00:06Z"))
+    r = w.run("wait", "--once", check=False)
+    assert r.returncode == 0, r.stderr
+    assert [json.loads(l)["comment_id"] for l in r.stdout.splitlines()] == ["42"]
+
+
 def test_wait_reports_a_session_state_change_once(w):
     sp = w.spawn(5)
     assert w.run("wait", "--once").stdout == "", "a fresh session is already known to be working"

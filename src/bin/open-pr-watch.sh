@@ -35,6 +35,15 @@ need() {
 }
 opr() { sh "$SELF_DIR/open-pr.sh" "$@"; }
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+# jq `utc`: ISO-8601 with optional fraction and Z or ±hh:mm -> UTC `…Z` at second
+# precision, the only form the cursor is stored and compared in (vendors print their
+# own zone: self-hosted GitLab gives +09:00).
+JQ_UTC='def utc:
+    capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:?[0-9]{2})$") as $c
+    | ($c.d + "Z" | fromdateiso8601)
+      - (if $c.z == "Z" then 0 else ($c.z | capture("(?<s>[+-])(?<h>[0-9]{2}):?(?<m>[0-9]{2})")
+            | (if .s == "+" then 1 else -1 end) * ((.h | tonumber) * 3600 + (.m | tonumber) * 60)) end)
+    | todate;'
 # Sub-second sleep where the platform has it; POSIX only promises integers.
 nap() { sleep 0.2 2>/dev/null || sleep 1; }
 
@@ -456,12 +465,14 @@ cmd_paths() {
 poll_once() {   # GOT=1 when events were printed and committed
     GOT=""
     lock
-    cursor=$(state_json | jq -r '.cursor // empty')
+    cursor=$(state_json | jq -r "$JQ_UTC"' .cursor // empty | utc')
     if [ -z "$cursor" ]; then
         # First run: history before now is never replayed.
         state_update --arg c "$(now_iso)" '.cursor = $c | .seen = []'
         unlock; return 0
     fi
+    # A cursor stored with an offset is rewritten in UTC, so every step below compares like with like.
+    [ "$cursor" = "$(state_json | jq -r '.cursor')" ] || state_update --arg c "$cursor" '.cursor = $c'
     unlock
     # triggers' --since is strict and the cursor has second precision: ask from
     # one second earlier so a comment in the cursor's own second still arrives;
@@ -479,10 +490,9 @@ poll_once() {   # GOT=1 when events were printed and committed
     state_json > "$TMPD/state.in"
     # Vendors print created_at with or without fractions; compare at second
     # precision and let `seen` order the ties.
-    jq -c -s --slurpfile st "$TMPD/state.in" '
-        def norm: sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z");
+    jq -c -s --slurpfile st "$TMPD/state.in" "$JQ_UTC"'
         ($st[0].cursor) as $cur | ($st[0].seen // []) as $seen
-        | map(select(type == "object") | . + {_k: (.created_at | norm)})
+        | map(select(type == "object") | . + {_k: (.created_at | utc)})
         | map(select(._k > $cur or (._k == $cur and ((.comment_id | tostring) as $c | $seen | index([$c]) | not))))
         | reduce .[] as $t ([]; if any(.[]; .comment_id == $t.comment_id) then . else . + [$t] end)
         | sort_by(._k)[]' "$TMPD/triggers" > "$TMPD/new"
@@ -537,8 +547,8 @@ cmd_notify() {
     case " $EVENTS " in *" $E "*) ;; *) die 1 "open-pr-watch.sh: unknown event: $E (valid: $EVENTS)" ;; esac
     [ -r "$F" ] || die 1 "open-pr-watch.sh: text file not readable: $F"
     load_repo
-    why=$(settings | jq -r --arg e "$E" '
-        def epoch: sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601;
+    why=$(settings | jq -r --arg e "$E" "$JQ_UTC"'
+        def epoch: utc | fromdateiso8601;
         (.watch_review // {}) as $w
         | if (($w.notify // {}) | has($e)) and ($w.notify[$e] == false) then "event disabled"
           elif ($w.snooze_until // null) != null and ((try ($w.snooze_until | epoch) catch 0) > now) then "snoozed"
