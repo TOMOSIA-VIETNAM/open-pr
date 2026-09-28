@@ -501,6 +501,13 @@ def test_markers_and_commit_urls_stay_vendor_true():
                check=True).stdout == "<!-- bot-finding -->\n"
     assert run("marker", "--vendor", "bitbucket", "--kind", "reply",
                check=True).stdout == "[bot-reply]: #\n"
+    assert run("marker", "--vendor", "gitlab", "--kind", "claim", "--comment-id", "12",
+               check=True).stdout == "<!-- bot-claim:12 -->\n"
+    assert run("marker", "--vendor", "bitbucket", "--kind", "claim", "--comment-id", "12",
+               check=True).stdout == "[bot-claim:12]: #\n"
+    assert run("marker", "--vendor", "github", "--kind", "claim").returncode == 1, \
+        "a claim marker names the comment it locks"
+    assert run("marker", "--vendor", "github", "--kind", "claim", "--comment-id", "1 x").returncode == 4
     url = run("commit-url", "--vendor", "bitbucket", "--owner", "w", "--repo", "r",
               "--sha", "a" * 40, check=True).stdout
     assert "/commits/" in url, "bitbucket's commit path is /commits/ plural — /commit/ 404s"
@@ -576,47 +583,6 @@ def test_push_targets_the_remote_matching_the_pr_host(fixture_repo):
 
 
 # ------------------------------------------------------------ react ----
-
-def _claim(shims, vendor, kind="top", check=True):
-    env = {**env_for(shims), "BITBUCKET_EMAIL": "", "BITBUCKET_API_TOKEN": ""}
-    return run("claim", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5",
-               "--comment-id", "9", "--kind", kind, env_extra=env, check=check).stdout.strip()
-
-
-def _posted(code, rid):
-    return f"HTTP/2.0 {code} {'Created' if code == 201 else 'OK'}\r\nContent-Type: application/json\r\n\r\n" \
-           + json.dumps({"id": rid, "content": "eyes", "user": {"login": "me"}})
-
-
-@pytest.mark.parametrize("code, listing, want", [
-    (201, [{"id": 70, "user": {"login": "me"}}, {"id": 71, "user": {"login": "other"}}], "claimed"),
-    (201, [{"id": 60, "user": {"login": "other"}}, {"id": 70, "user": {"login": "me"}}], "taken other"),
-    (200, [{"id": 70, "user": {"login": "me"}}], "taken me"),
-])
-def test_claim_github_the_earliest_eyes_wins(shims, code, listing, want):
-    """Two machines react within the same poll: both see the same ordering, exactly one wins.
-    The same account on two machines gets 200 on its second 👀 and backs off."""
-    serve(shims, "gh", [
-        ("-X POST repos/o/r/issues/comments/9/reactions", _posted(code, 70)),
-        ("issues/comments/9/reactions?content=eyes", listing),
-        ("api user", "me\n"),
-    ])
-    assert _claim(shims, "github") == want
-
-
-def test_claim_gitlab_and_bitbucket(shims):
-    serve(shims, "glab", [
-        ("-X POST projects/o%2Fr/merge_requests/5/notes/9/award_emoji", {"id": 80, "name": "eyes"}),
-        ("notes/9/award_emoji?per_page=100", [{"id": 79, "name": "thumbsup", "user": {"username": "x"}},
-                                             {"id": 80, "name": "eyes", "user": {"username": "me"}}]),
-    ])
-    assert _claim(shims, "gitlab") == "claimed", "another emoji earlier does not count"
-    serve(shims, "glab", [
-        ("-X POST projects/o%2Fr/merge_requests/5/notes/9/award_emoji", (1, "glab: 404 Award Emoji Name has already been taken")),
-        ("user", {"username": "me"}),
-    ])
-    assert _claim(shims, "gitlab").startswith("taken")
-    assert _claim(shims, "bitbucket") == "NO-EQUIVALENT"
 
 def test_react_top_uses_the_conversation_comment_endpoint(shims):
     """GitHub keeps diff comments and conversation comments in separate id spaces: a
@@ -708,20 +674,35 @@ def test_list_repos_prints_every_hosted_remote_below_the_directory(tmp_path):
 HOSTILE = "/open-pr focus on $(touch /tmp/pwned) and `id` \"quoted\" 'single'\nsecond line"
 
 
+class Seq(list):
+    """A route answering its items in turn, one per matching call, then the last one again —
+    the same listing read before and after a write."""
+
+
 def serve(shims, name, routes):
     """A vendor CLI shim answering canned JSON from files, picked by a substring of argv —
-    bodies never pass through the shim's own shell text."""
+    bodies never pass through the shim's own shell text. Every request body the script sends
+    (`--input F`, curl's `--data @F`) is appended to calls.log.bodies, one per line."""
     d = Path(shims["tmp"]) / f"{name}-routes"
     d.mkdir(exist_ok=True)
     cases = []
     for i, (pat, payload) in enumerate(routes):
-        f = d / f"{i}.json"
         if isinstance(payload, tuple):   # (exit code, stderr)
             cases.append(f'  *"{pat}"*) printf "%s\\n" "{payload[1]}" >&2; exit {payload[0]} ;;')
-        else:   # a str is raw text: what the real CLI prints after its own --jq
-            f.write_text(payload if isinstance(payload, str) else json.dumps(payload))
-            cases.append(f'  *"{pat}"*) cat "{f}" ;;')
+            continue
+        items = payload if isinstance(payload, Seq) else [payload]
+        for k, item in enumerate(items):   # a str is raw text: what the real CLI prints after its own --jq
+            (d / f"{i}.{k}.json").write_text(item if isinstance(item, str) else json.dumps(item))
+        cases.append(f'''  *"{pat}"*) n=$(cat "{d}/{i}.n" 2>/dev/null || echo 0)
+      f="{d}/{i}.$n.json"; [ -f "$f" ] || f="{d}/{i}.{len(items) - 1}.json"
+      echo $((n + 1)) > "{d}/{i}.n"; cat "$f" ;;''')
     make_shim(Path(shims["path"]), name, f'''printf '%s\\n' "{name} $*" >> "{shims['log']}"
+prev=""
+for a in "$@"; do
+  if [ "$prev" = --input ] && [ "$a" != - ]; then cat "$a" >> "{shims['log']}.bodies"; echo >> "{shims['log']}.bodies"; fi
+  case "$prev/$a" in --data/@*) cat "${{a#@}}" >> "{shims['log']}.bodies"; echo >> "{shims['log']}.bodies" ;; esac
+  prev="$a"
+done
 case "$*" in
 {chr(10).join(cases)}
   *) printf '[]\\n' ;;
@@ -776,7 +757,7 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
         "the watcher's own account may ask (one person can be developer and reviewer)"
     assert rows[0]["authorized"] == "no", "author_association NONE has no write access"
     assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "comment_id": "90", "kind": "line",
-                       "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk",
+                       "thread_id": None, "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk",
                        "authorized": "yes"}
     assert rows[2]["kind"] == "top" and rows[2]["authorized"] == "yes"
     assert rows[2]["body"] == HOSTILE, "an attacker-controlled body must come out byte-for-byte"
@@ -820,7 +801,7 @@ def test_triggers_gitlab_checks_write_access_once_per_author(shims):
     ]
     serve(shims, "glab", [
         ("merge_requests?state=opened", [{"iid": 9, "web_url": "https://gitlab.com/o/r/-/merge_requests/9"}]),
-        ("merge_requests/9/notes", notes),
+        ("merge_requests/9/discussions", [{"id": f"d{n['id']}", "notes": [n]} for n in notes]),
         ("members/all/7", {"access_level": 30}),
         ("members/all/8", {"access_level": 20}),
         ("members/all/9", (1, "glab: 404 Not Found (HTTP 404)")),
@@ -833,6 +814,8 @@ def test_triggers_gitlab_checks_write_access_once_per_author(shims):
                    "16": ("top", "yes")}, \
         "Developer+ is yes; Reporter and non-members are no; system notes never trigger; own notes do"
     assert [r for r in rows if r["comment_id"] == "12"][0]["body"] == HOSTILE
+    assert {r["comment_id"]: r["thread_id"] for r in rows}["12"] == "d12", \
+        "each GitLab note carries its discussion id — a reply lands in the discussion"
     calls = shims["log"].read_text()
     assert calls.count("members/all/7") == 1, "one membership call per distinct author"
     assert "pwned" not in calls
@@ -841,8 +824,8 @@ def test_triggers_gitlab_checks_write_access_once_per_author(shims):
 def test_triggers_gitlab_stops_when_membership_cannot_be_read(shims):
     serve(shims, "glab", [
         ("merge_requests?state=opened", [{"iid": 9, "web_url": "u"}]),
-        ("merge_requests/9/notes", [{"id": 1, "author": {"username": "dev", "id": 7},
-                                     "created_at": "2026-01-01T00:00:01Z", "body": "/open-pr"}]),
+        ("merge_requests/9/discussions", [{"id": "d1", "notes": [{"id": 1, "author": {"username": "dev", "id": 7},
+                                           "created_at": "2026-01-01T00:00:01Z", "body": "/open-pr"}]}]),
         ("members/all/7", (1, "glab: 502 Bad Gateway")),
         ("user", {"username": "bot"}),
     ])
@@ -871,6 +854,177 @@ def test_triggers_bitbucket_marks_authorization_unknown(shims):
         "deleted and marker-carrying comments drop out; order is by time, fraction included"
     assert rows[1]["body"] == HOSTILE and rows[1]["url"] == "https://bitbucket.org/o/r/pull-requests/7"
     assert "pwned" not in shims["log"].read_text()
+
+
+def test_triggers_token_picks_the_trigger_and_a_mention_ignores_case(shims):
+    at = lambda i, body: {"id": i, "issue_url": "https://api.github.com/repos/o/r/issues/5",
+                          "user": {"login": "dev"}, "created_at": f"2026-01-01T00:00:0{i}Z",
+                          "body": body, "author_association": "MEMBER"}
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
+        ("issues/comments", [at(1, "@reviewer please look"), at(2, "@REVIEWER"), at(3, "@reviewer2 no"),
+                             at(4, "cc @reviewer mid-body"), at(5, "/open-pr"), at(6, "/Review x"),
+                             at(7, "/review"), at(8, "@reviewer claimed\n\n<!-- bot-claim:1 -->")]),
+    ])
+    rows = triggers(shims, "github", "--token", "@Reviewer")
+    assert [r["comment_id"] for r in rows] == ["1", "2"], \
+        "a login matches in any case, and only as the whole first word"
+    rows = triggers(shims, "github", "--token", "/review")
+    assert [r["comment_id"] for r in rows] == ["7"], "a /word token keeps its case"
+    rows = triggers(shims, "github")
+    assert [r["comment_id"] for r in rows] == ["5"], "the default token is /open-pr"
+    for bad in ("open-pr", "/Open", "/open pr", "@", "@-x", "/open-pr;id", "$(id)"):
+        r = triggers(shims, "github", "--token", bad, check=False)
+        assert r.returncode == 1 and "--token" in r.stderr, bad
+
+
+def test_triggers_drop_claim_replies_in_either_marker_form(shims):
+    """A claim reply quotes the trigger it locks; it must never become a trigger itself."""
+    pages = {
+        "pullrequests?state=OPEN": {"values": [{"id": 7, "links": {"html": {"href": "u7"}}}], "next": None},
+        "pullrequests/7/comments": {"values": [
+            {"id": 31, "content": {"raw": "/open-pr go"}, "user": {"nickname": "dev"}, "inline": None,
+             "created_on": "2026-01-01T00:00:01+00:00", "deleted": False},
+            {"id": 32, "content": {"raw": "/open-pr go\n\n[bot-claim:31]: #"}, "user": {"nickname": "bot"},
+             "inline": None, "created_on": "2026-01-01T00:00:02+00:00", "deleted": False},
+            {"id": 33, "content": {"raw": "/open-pr go <!-- bot-claim:31 -->"}, "user": {"nickname": "bot"},
+             "inline": None, "created_on": "2026-01-01T00:00:03+00:00", "deleted": False},
+        ], "next": None},
+    }
+    serve(shims, "curl", list(pages.items()))
+    rows = triggers(shims, "bitbucket")
+    assert [(r["comment_id"], r["thread_id"]) for r in rows] == [("31", None)]
+
+
+# --------------------------------------------------------------- claim ----
+
+def claim(shims, vendor, body_file, *extra, check=True):
+    r = run("claim", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5",
+            "--comment-id", "9", "--body-file", str(body_file), *extra,
+            env_extra=env_for(shims), check=check)
+    return r.stdout.strip() if check else r
+
+
+@pytest.fixture
+def claim_body(tmp_path):
+    f = tmp_path / "claim.md"
+    f.write_text("Reviewing on `$(hostname)` — ends `id`")
+    return f
+
+
+def gh_comment(cid, login, at, body):
+    return {"id": cid, "user": {"login": login}, "created_at": at, "body": body}
+
+
+def test_claim_with_no_prior_claim_posts_and_wins(shims, claim_body):
+    ours = gh_comment(500, "me", "2026-01-01T00:00:05Z", "x\n\n<!-- bot-claim:9 -->")
+    serve(shims, "gh", [
+        ("-X POST repos/o/r/issues/5/comments", ours),
+        ("repos/o/r/issues/5/comments?per_page=100", Seq([
+            [gh_comment(9, "dev", "2026-01-01T00:00:01Z", "/open-pr"),
+             gh_comment(10, "x", "2026-01-01T00:00:02Z", "<!-- bot-claim:95 --> another trigger's lock")],
+            [ours]])),
+        ("repos/o/r/pulls/5/comments?per_page=100", []),
+    ])
+    assert claim(shims, "github", claim_body, "--kind", "top") == "claimed 500"
+    sent = json.JSONDecoder().raw_decode((shims["tmp"] / "calls.log.bodies").read_text())[0]
+    assert sent == {"body": "Reviewing on `$(hostname)` — ends `id`\n\n<!-- bot-claim:9 -->\n"}, \
+        "the body file travels verbatim, the claim marker appended"
+    assert "hostname" not in shims["log"].read_text(), "the claim body reached an argv"
+    assert "DELETE" not in shims["log"].read_text()
+
+
+def test_claim_backs_off_when_a_claim_already_exists(shims, claim_body):
+    serve(shims, "gh", [
+        ("repos/o/r/issues/5/comments?per_page=100", []),
+        ("repos/o/r/pulls/5/comments?per_page=100",
+         [gh_comment(70, "other", "2026-01-01T00:00:03Z", "on it\n\n<!-- bot-claim:9 -->")]),
+    ])
+    assert claim(shims, "github", claim_body, "--kind", "line") == "taken other"
+    assert "POST" not in shims["log"].read_text(), "a claim already there means nothing is posted"
+
+
+def test_claim_that_loses_the_race_deletes_its_own_reply(shims, claim_body):
+    """Two machines both saw no claim and both posted: the earliest reply wins everywhere, the
+    loser removes its reply so the PR shows one claim."""
+    ours = gh_comment(501, "me", "2026-01-01T00:00:05Z", "x\n\n<!-- bot-claim:9 -->")
+    theirs = gh_comment(502, "other", "2026-01-01T00:00:04.5Z", "y\n\n<!-- bot-claim:9 -->")
+    serve(shims, "gh", [
+        ("-X POST repos/o/r/pulls/5/comments/9/replies", ours),
+        ("-X DELETE", ""),
+        ("repos/o/r/issues/5/comments?per_page=100", []),
+        ("repos/o/r/pulls/5/comments?per_page=100", Seq([[], [ours, theirs]])),
+    ])
+    assert claim(shims, "github", claim_body, "--kind", "line") == "taken other"
+    assert "-X DELETE repos/o/r/pulls/comments/501" in shims["log"].read_text()
+
+
+def test_claim_ties_on_time_go_to_the_lower_id(shims, claim_body):
+    at = "2026-01-01T00:00:05Z"
+    ours = gh_comment(600, "me", at, "<!-- bot-claim:9 -->")
+    serve(shims, "gh", [
+        ("-X POST repos/o/r/issues/5/comments", ours),
+        ("-X DELETE", ""),
+        ("repos/o/r/issues/5/comments?per_page=100",
+         Seq([[], [gh_comment(601, "other", at, "<!-- bot-claim:9 -->")]])),
+        ("repos/o/r/pulls/5/comments?per_page=100", []),
+    ])
+    assert claim(shims, "github", claim_body, "--kind", "top") == "claimed 600", \
+        "our reply counts even before the listing shows it, and the lower id breaks the tie"
+
+
+def test_claim_gitlab_posts_into_the_discussion_and_deletes_the_note(shims, claim_body):
+    note = lambda nid, user, at: {"id": nid, "author": {"username": user}, "created_at": at,
+                                  "body": "z\n\n<!-- bot-claim:9 -->", "system": False}
+    ours = note(801, "me", "2026-01-01T09:00:05.000+09:00")
+    serve(shims, "glab", [
+        ("-X POST -H Content-Type: application/json projects/o%2Fr/merge_requests/5/discussions/abc/notes", ours),
+        ("-X POST -H Content-Type: application/json projects/o%2Fr/merge_requests/5/notes", ours),
+        ("-X DELETE", ""),
+        ("merge_requests/5/discussions?per_page=100",
+         Seq([[], [{"id": "abc", "notes": [ours, note(800, "other", "2026-01-01T00:00:04Z")]}]])),
+    ])
+    assert claim(shims, "gitlab", claim_body, "--kind", "line", "--thread-id", "abc") == "taken other", \
+        "created_at compares by instant: +09:00 05s is after Z 04s"
+    calls = shims["log"].read_text()
+    assert "merge_requests/5/discussions/abc/notes --input" in calls
+    assert "-X DELETE projects/o%2Fr/merge_requests/5/notes/801" in calls
+    shims["log"].unlink()
+    serve(shims, "glab", [
+        ("-X POST -H Content-Type: application/json projects/o%2Fr/merge_requests/5/notes", ours),
+        ("merge_requests/5/discussions?per_page=100", []),
+    ])
+    assert claim(shims, "gitlab", claim_body, "--kind", "top") == "claimed 801"
+    assert "projects/o%2Fr/merge_requests/5/notes --input" in shims["log"].read_text(), \
+        "no thread given: a top-level MR note"
+
+
+def test_claim_bitbucket_replies_under_the_trigger_and_deletes_by_id(shims, claim_body):
+    row = lambda cid, nick, at: {"id": cid, "user": {"nickname": nick}, "created_on": at,
+                                 "content": {"raw": "w\n\n[bot-claim:9]: #"}, "deleted": False}
+    ours = row(901, "me", "2026-01-01T00:00:05.000001+00:00")
+    serve(shims, "curl", [
+        ("-X POST", ours),
+        ("-X DELETE", ""),
+        ("pullrequests/5/comments?pagelen=100", Seq([
+            {"values": [], "next": None},
+            {"values": [ours, row(900, "other", "2026-01-01T00:00:05+00:00")], "next": None}])),
+    ])
+    assert claim(shims, "bitbucket", claim_body, "--kind", "top") == "taken other"
+    sent = json.loads((shims["tmp"] / "calls.log.bodies").read_text().splitlines()[0])
+    assert sent["parent"] == {"id": 9} and sent["content"]["raw"].endswith("\n\n[bot-claim:9]: #\n")
+    calls = shims["log"].read_text()
+    assert "-X DELETE https://api.bitbucket.org/2.0/repositories/o/r/pullrequests/5/comments/901" in calls
+
+
+def test_claim_rejects_what_it_cannot_prove(shims, claim_body, tmp_path):
+    assert claim(shims, "github", claim_body, check=False).returncode == 1, "--kind is required"
+    assert claim(shims, "github", claim_body, "--kind", "x", check=False).returncode == 4
+    assert claim(shims, "gitlab", claim_body, "--kind", "top", "--thread-id", "a/../b",
+                 check=False).returncode == 4
+    empty = tmp_path / "empty.md"
+    empty.write_text("")
+    assert claim(shims, "github", empty, "--kind", "top", check=False).returncode == 1
 
 
 # ------------------------------------------------------- checkout lock ----
@@ -930,7 +1084,7 @@ def test_checkout_times_out_on_a_held_lock_and_reclaims_a_dead_one(two_pr_repo):
 def test_settings_defaults_the_watch_review_node(data_dir, tmp_path):
     d = data_dir / "demo"
     d.mkdir(parents=True)
-    defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "snooze_until": None,
+    defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "snooze_until": None, "trigger": "/open-pr",
                 "notify": {"review_started": True, "question": True, "draft_ready": True,
                            "posted": True, "re_review": True}}
     (d / "settings.json").write_text(json.dumps({"review": {"bootstrapped": True}}))

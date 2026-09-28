@@ -35,7 +35,7 @@ def test_every_vendor_branches_in_every_api_subcommand():
                "ctx_comments", "ctx_ci", "ctx_reviews", "ctx_account", "ctx_threads",
                "vendor_checkout", "cmd_post", "cmd_publish", "cmd_post_verify", "cmd_reply",
                "cmd_resolve", "cmd_react", "cmd_marker", "cmd_commit_url", "post_error_hint",
-               "trg_fetch", "cmd_triggers"):
+               "trg_fetch", "cmd_triggers", "reply_post", "claim_norm", "claim_rows", "claim_delete"):
         m = re.search(rf"^{fn}\(\)" + r" \{[^\n]*\n(.*?)^\}", body, re.M | re.S)
         assert m, f"function missing from the script: {fn}"
         for v in VENDORS:

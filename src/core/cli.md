@@ -17,7 +17,7 @@ by the exit codes below.
 or writes there; exit 7 ⇒ `Read` `cases/data-dir.md` first.
 
 <!-- open-pr.sh --help, via scripts/cli_doc.py -->
-Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one (`triggers`: no `--pr`); `--host H` where self-hostable.
+Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one (`triggers`, `account`: no `--pr`); `--host H` where self-hostable.
 
 | subcommand | does |
 |---|---|
@@ -26,7 +26,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `locate-repo --owner O --repo R --host H` | `<repo_dir>` whose git remote matches |
 | `repo-target --repo-dir D [--remote R]` | D's git remote R (default origin, else the only one) → `vendor/owner/repo/host` lines |
 | `list-repos [--dir D]` | every hosted remote of every repo at or below D (default cwd, 3 levels), TSV: dir, remote, vendor, owner, repo, host, last commit ISO-8601 |
-| `triggers [--since T] [--mark-file F]` | `/open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in reference/vendor-interface.md. F ← newest created_at of every comment fetched |
+| `triggers [--since T] [--mark-file F] [--token K]` | comments on open PRs whose first word is K (default `/open-pr`; `/word`, or `@login` in any case), JSONL, oldest first — read by open-pr-watch.sh; shape in reference/vendor-interface.md. F ← newest created_at of every comment fetched |
 | `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per repo at a time: waits `--lock-timeout` s (120), then exit 1 |
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
 | `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |
@@ -36,10 +36,10 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `resolve --thread-id T` | resolve a review thread |
 | `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
 | `react --comment-id C --emoji E [--kind line\|top]` | `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket |
-| `claim --comment-id C [--kind line\|top]` | 👀 on a trigger comment as a cross-machine lock: `claimed` (this call's 👀 is the earliest) \| `taken <login>` \| `NO-EQUIVALENT` on Bitbucket |
+| `claim --comment-id C --kind line\|top --body-file F [--thread-id T]` | cross-machine lock on trigger C: a claim for C exists ⇒ `taken <login>`; else reply F + claim marker (GitLab: into discussion T, else top-level); earliest claim wins ⇒ `claimed <reply id>`, else own reply deleted ⇒ `taken <login>` |
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
-| `marker --kind finding\|reply` | the marker literal — end every finding/reply with it |
+| `marker --kind finding\|reply\|claim [--comment-id C]` | the marker literal — end every finding/reply with it; `claim` needs C |
 | `data-dir [--set P]` | print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in the user-level config first. A config that is not a JSON object stops with exit 1 |
 | `find-memory [--repo R]` | memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`: `found=<path>` per `notebooks/review/R` |
 | `settings --repo <repo>` | `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_review_configured` = node in the file |

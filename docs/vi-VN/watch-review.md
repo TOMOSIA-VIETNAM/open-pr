@@ -17,8 +17,12 @@ riêng cho pull request đó, và báo bạn khi có việc cần bạn.
    owner/web` (hoặc URL của PR) chọn thẳng. Clone có mỗi
    host một remote (GitHub, GitLab, Bitbucket) được liệt kê theo từng remote.
    Lần chạy đầu hỏi tối đa bao nhiêu session
-   review được active cùng lúc và bạn muốn nhận những toast nào, rồi lưu cả hai vào
-   `settings.json` của repo đó.
+   review được active cùng lúc, cái gì yêu cầu review (`/open-pr` hay một lần mention bạn) và bạn
+   muốn nhận những toast nào, rồi lưu chúng vào `settings.json` của repo đó.
+3. Trên Claude Code, mỗi repo phải là trusted workspace, nếu không session review của nó không khởi
+   động được. Trust không truyền từ thư mục cha xuống các repo bên trong. Watcher kiểm tra điều này
+   khi khởi động và nêu tên từng repo cần mở `claude` một lần (`cd <repo> && claude`, chấp nhận
+   lời hỏi trust).
 
 Một watcher theo dõi mọi repo bạn đã chọn; mỗi repo giữ setting riêng, kể cả giới hạn số session
 active của nó.
@@ -35,21 +39,27 @@ Comment trên pull request:
 Mọi thứ sau `/open-pr` là gợi ý nên xem chỗ nào. Nó được coi là dữ liệu: không thể đổi cách
 review, nội dung được post, hay bất kỳ setting nào.
 
+Project nào không muốn hiện command của tool trên pull request có thể chọn "một lần mention tôi"
+thay thế: comment mở đầu bằng `@<your login>` sẽ yêu cầu review, giống như nhờ một đồng nghiệp —
+`@minh review giúp`. Watcher đọc comment đó và chỉ nhận khi nó thật sự nhờ bạn review pull
+request này; `@minh cảm ơn` bị bỏ qua.
+
 Chỉ comment của người có quyền write mới kích hoạt review (GitHub: owner, member hoặc collaborator;
 GitLab: Developer trở lên). Bitbucket không cho người không phải admin đọc quyền của user khác, nên trên
 Bitbucket mọi comment `/open-pr` đều kích hoạt review — hãy giới hạn ai được comment nếu điều đó quan trọng.
-Comment do plugin post không bao giờ kích hoạt; comment `/open-pr` của chính bạn thì có, nên một người
-có thể vừa là dev vừa là reviewer.
+Comment do plugin post không bao giờ kích hoạt; comment của chính bạn thì có, nên một người có thể
+vừa là dev vừa là reviewer.
 
 ## Chuyện gì xảy ra tiếp theo
 
-- Comment được thả reaction 👀. Reaction đó cũng là khóa khi nhiều máy cùng theo dõi một repo:
-  máy nào cũng thả reaction, và chỉ máy có 👀 đến trước mới review; các máy còn lại báo ai đang giữ
-  rồi lùi lại. 👀 do ai đó thả tay trước watcher cũng được tính — hãy comment `/open-pr` lại.
-  Bitbucket không có reaction, nên ở đó chỉ nên để một máy theo dõi mỗi repo.
+- Watcher reply vào comment — "reviewing (commit abc1234)", bằng ngôn ngữ của lời yêu cầu —
+  nêu commit mà pull request đang ở khi nó nhận yêu cầu. Reply đó cũng là khóa khi nhiều máy cùng
+  theo dõi một repo: reply đầu tiên thắng, máy nào thấy đã có reply thì lùi lại, và máy thua trong
+  một cuộc đua sát nút sẽ xóa reply của chính nó. Cách này chạy giống nhau trên GitHub, GitLab và
+  Bitbucket.
 - Một session review tên `review <owner>/<repo>#<number>` được mở và chạy review như bình thường.
 - Khi đã chạm giới hạn session active, pull request chờ trong hàng đợi.
-- Một comment `/open-pr` mới trên pull request đã có session sẽ resume đúng session đó,
+- Một yêu cầu mới trên pull request đã có session sẽ resume đúng session đó,
   nên lần re-review giữ được context trước.
 - Review được publish hay giữ dạng draft theo `auto_submit_review`, trừ khi bạn dặn
   watcher khác đi. Draft không bao giờ được publish khi chưa có bạn.
@@ -102,3 +112,4 @@ Lưu ở `<data>/<repo>/settings.json` dưới `watch_review`:
 | `notify.posted` | `true` | toast: một review đã được post, hoặc LGTM |
 | `notify.re_review` | `true` | toast: một session có sẵn được resume để re-review |
 | `snooze_until` | `null` | thời điểm UTC mà trước đó toast vẫn tắt |
+| `trigger` | `/open-pr` | cái gì yêu cầu review: `/open-pr`, hoặc `@me` cho một lần mention account mà watcher đang chạy |

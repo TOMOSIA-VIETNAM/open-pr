@@ -523,11 +523,16 @@ cmd_verify_line() {
 # publish-> make it visible (GitHub: event=COMMENT; GitLab: bulk_publish;
 #           Bitbucket: one POST per part, overview first).
 # verify -> report what the PR actually shows.
-post_init() {
-    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); N=$(req pr)
-    check_ident '^[A-Za-z0-9_.-]+$' "$OWNER"; check_ident '^[A-Za-z0-9_.-]+$' "$REPO"; check_ident '^[0-9]+$' "$N"
-    case "$V" in github) need gh ;; gitlab) gl_init "$OWNER" "$REPO" ;; bitbucket) bb_init "$OWNER" "$REPO" ;; esac
+# vendor_init: the repo-level half (vendor, owner, repo, credentials); post_init adds the PR.
+vendor_init() {
+    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo)
+    check_ident '^[A-Za-z0-9_.-]+$' "$OWNER"; check_ident '^[A-Za-z0-9_.-]+$' "$REPO"
+    case "$V" in
+        github) need gh ;; gitlab) gl_init "$OWNER" "$REPO" ;; bitbucket) bb_init "$OWNER" "$REPO" ;;
+        *) die 1 "open-pr.sh: unknown vendor: $V" ;;
+    esac
 }
+post_init() { vendor_init; N=$(req pr); check_ident '^[0-9]+$' "$N"; }
 post_error_hint() {
     case "$V" in
         github) err "hint: 422 = a comments[] entry off the diff (missing line, line outside every hunk, or wrong side). commit_id rejected = force-pushed since the diff was read — no payload fix exists, the run must be called again." ;;
@@ -614,32 +619,41 @@ cmd_post_verify() {
 }
 
 # -------------------------------------------------------------- thread ----
+# reply_post <body file> <kind> <comment id> <thread id> -> the vendor's JSON for the new
+# comment in $TMPD/reply.out. GitLab: the reply lands in the DISCUSSION (not on a note id),
+# or top-level on the MR when no thread is given. Bodies travel via --input/--data files:
+# argv is readable through `ps`, and the text quotes the PR.
+reply_post() {
+    case "$V" in
+        github)
+            jq -Rs '{body: .}' "$1" > "$TMPD/reply.json"
+            if [ "$2" = line ]; then
+                check_ident '^[0-9]+$' "$3"
+                gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments/$3/replies" --input "$TMPD/reply.json" > "$TMPD/reply.out"
+            else
+                gh api -X POST "repos/$OWNER/$REPO/issues/$N/comments" --input "$TMPD/reply.json" > "$TMPD/reply.out"
+            fi ;;
+        gitlab)
+            jq -Rs '{body: .}' "$1" > "$TMPD/reply.json"
+            [ -z "$4" ] || check_ident '^[A-Za-z0-9_-]+$' "$4"
+            if [ -n "$4" ]; then ep="merge_requests/$N/discussions/$4/notes"; else ep="merge_requests/$N/notes"; fi
+            glab api -X POST -H "Content-Type: application/json" \
+                "projects/$GL_PROJ/$ep" --input "$TMPD/reply.json" > "$TMPD/reply.out" ;;
+        bitbucket)
+            check_ident '^[0-9]+$' "$3"
+            jq -Rs -c '{content: {raw: .}, parent: {id: '"$3"'}}' "$1" > "$TMPD/reply.json"
+            bb_curl -X POST -H "Content-Type: application/json" \
+                "$BB_API/pullrequests/$N/comments" --data @"$TMPD/reply.json" > "$TMPD/reply.out" ;;
+    esac
+}
 cmd_reply() {
     parse_args "$@"; post_init
     F=$(req body_file); [ -s "$F" ] || die 1 "open-pr.sh reply: body file missing/empty"
     CID=$(arg comment_id); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
-    case "$V" in
-        github)
-            if [ "$KIND" = line ]; then
-                check_ident '^[0-9]+$' "$CID"
-                jq -Rs '{body: .}' "$F" | gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments/$CID/replies" --input - --jq '.id'
-            else
-                jq -Rs '{body: .}' "$F" | gh api -X POST "repos/$OWNER/$REPO/issues/$N/comments" --input - --jq '.id'
-            fi ;;
-        gitlab)
-            # The reply lands in the DISCUSSION (not on a note id) — the caller maps
-            # the comment to its thread via the "Review threads" section. Body via
-            # --input: argv is readable through `ps`, and the text quotes the PR.
-            T=$(req thread_id)
-            jq -Rs '{body: .}' "$F" > "$TMPD/gl.reply.json"
-            glab api -X POST -H "Content-Type: application/json" \
-                "projects/$GL_PROJ/merge_requests/$N/discussions/$T/notes" --input "$TMPD/gl.reply.json" | jq -r '.id' ;;
-        bitbucket)
-            check_ident '^[0-9]+$' "$CID"
-            jq -Rs -c '{content: {raw: .}, parent: {id: '"$CID"'}}' "$F" > "$TMPD/bb.reply.json"
-            bb_curl -X POST -H "Content-Type: application/json" \
-                "$BB_API/pullrequests/$N/comments" --data @"$TMPD/bb.reply.json" | jq -r '.id' ;;
-    esac
+    # GitLab: the caller maps the comment to its thread via the "Review threads" section
+    case "$V" in gitlab) T=$(req thread_id) ;; github|bitbucket) T="" ;; esac
+    reply_post "$F" "$KIND" "$CID" "$T"
+    jq -r '.id' "$TMPD/reply.out"
 }
 cmd_resolve() {
     parse_args "$@"; post_init
@@ -668,46 +682,78 @@ cmd_react() {
     esac
 }
 # ---------------------------------------------------------------- claim ----
-# Several machines may watch one repo: the 👀 on a trigger comment is the lock.
-# Prints `claimed` when this call added the EARLIEST 👀 there, `taken <login>` when an
-# earlier one exists (another machine, a person, or this account already), and
-# `NO-EQUIVALENT` on Bitbucket, which has no reactions.
-cmd_claim() {
-    parse_args "$@"; post_init
-    CID=$(req comment_id); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
-    check_ident '^[0-9]+$' "$CID"; check_ident '^(line|top)$' "$KIND"
+# Several machines may watch one repo: a reply carrying the claim marker for the trigger
+# comment is the lock. The EARLIEST such reply (created_at, then id) holds it — one order
+# every machine computes alike. A loser deletes its own reply, so one claim stays visible.
+# claim_rows: every PR comment as {id, user, created_at, body}, one JSON line each.
+claim_norm() {
+    case "$V" in
+        github)    printf '%s' '{id, user: .user.login, created_at, body: (.body // "")}' ;;
+        gitlab)    printf '%s' '{id, user: .author.username, created_at, body: (.body // "")}' ;;
+        bitbucket) printf '%s' '{id, user: .user.nickname, created_at: .created_on, body: (.content.raw // "")}' ;;
+    esac
+}
+claim_rows() {
     case "$V" in
         github)
-            if [ "$KIND" = line ]; then base="repos/$OWNER/$REPO/pulls/comments/$CID/reactions"
-            else base="repos/$OWNER/$REPO/issues/comments/$CID/reactions"; fi
-            gh api -i -X POST "$base" -f content=eyes > "$TMPD/claim.post" \
-                || die 1 "open-pr.sh claim: could not react on comment $CID"
-            code=$(sed -n '1s/^HTTP\/[0-9.]* \([0-9][0-9]*\).*/\1/p' "$TMPD/claim.post")
-            mine=$(awk 'b{print} /^\r?$/{b=1}' "$TMPD/claim.post" | jq -r '.id')
-            # 200 = this account's 👀 was already there: another machine on the same account
-            [ "$code" = 201 ] || { printf 'taken %s\n' "$(ctx_account)"; return 0; }
-            gh api --paginate "$base?content=eyes&per_page=100" > "$TMPD/claim.list"
-            first=$(jq -s -r 'add | sort_by(.id) | .[0] | "\(.id) \(.user.login)"' "$TMPD/claim.list") ;;
+            gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments?per_page=100" > "$TMPD/claim.page"
+            jq -c ".[] | $(claim_norm)" "$TMPD/claim.page"
+            gh api --paginate "repos/$OWNER/$REPO/pulls/$N/comments?per_page=100" > "$TMPD/claim.page"
+            jq -c ".[] | $(claim_norm)" "$TMPD/claim.page" ;;
         gitlab)
-            base="projects/$GL_PROJ/merge_requests/$N/notes/$CID/award_emoji"
-            if glab api -X POST "$base" -f name=eyes > "$TMPD/claim.post" 2> "$TMPD/claim.err"; then
-                mine=$(jq -r '.id' "$TMPD/claim.post")
-            elif grep -qi 'already' "$TMPD/claim.err"; then
-                printf 'taken %s\n' "$(ctx_account)"; return 0
-            else
-                cat "$TMPD/claim.err" >&2; die 1 "open-pr.sh claim: could not award on note $CID"
-            fi
-            glab api --paginate "$base?per_page=100" > "$TMPD/claim.list"
-            first=$(jq -s -r 'add | map(select(.name == "eyes")) | sort_by(.id) | .[0] | "\(.id) \(.user.username)"' "$TMPD/claim.list") ;;
-        bitbucket) printf 'NO-EQUIVALENT\n'; return 0 ;;
+            glab api --paginate "projects/$GL_PROJ/merge_requests/$N/discussions?per_page=100" > "$TMPD/claim.page"
+            jq -c ".[] | .notes[]? | select(.system != true) | $(claim_norm)" "$TMPD/claim.page" ;;
+        bitbucket)
+            bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.deleted" \
+                ".values[] | select(.deleted != true) | $(claim_norm) | @json" ;;
     esac
-    if [ "${first%% *}" = "$mine" ]; then printf 'claimed\n'; else printf 'taken %s\n' "${first#* }"; fi
 }
-cmd_account() { parse_args "$@"; post_init; ctx_account; }
+# claim_first <rows file>: "<id> <login>" of the earliest comment carrying bot-claim:$CID
+# in either vendor form, or nothing.
+claim_first() {
+    jq -r -s --arg c "$CID" "$JQ_EPOCH"'
+        map(select(.body | test("bot-claim:" + $c + "(\\s*-->|\\]:)")))
+        | sort_by([(.created_at | epoch), (.id | tonumber)]) | .[0] // empty | "\(.id) \(.user)"' "$1"
+}
+claim_delete() {   # $1 = our comment id
+    check_ident '^[0-9]+$' "$1"
+    case "$V" in
+        github)
+            if [ "$KIND" = line ]; then gh api -X DELETE "repos/$OWNER/$REPO/pulls/comments/$1" > /dev/null
+            else gh api -X DELETE "repos/$OWNER/$REPO/issues/comments/$1" > /dev/null; fi ;;
+        gitlab) glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/notes/$1" > /dev/null ;;
+        bitbucket) bb_curl -X DELETE "$BB_API/pullrequests/$N/comments/$1" > /dev/null ;;
+    esac
+}
+cmd_claim() {
+    parse_args "$@"; post_init
+    CID=$(req comment_id); KIND=$(req kind); F=$(req body_file); T=$(arg thread_id)
+    check_ident '^[0-9]+$' "$CID"; check_ident '^(line|top)$' "$KIND"
+    [ -s "$F" ] || die 1 "open-pr.sh claim: body file missing/empty"
+    claim_rows > "$TMPD/claim.before"
+    first=$(claim_first "$TMPD/claim.before")
+    [ -z "$first" ] || { printf 'taken %s\n' "${first#* }"; return 0; }
+    m=$(cmd_marker --vendor "$V" --kind claim --comment-id "$CID")
+    { cat "$F"; printf '\n\n%s\n' "$m"; } > "$TMPD/claim.body"
+    reply_post "$TMPD/claim.body" "$KIND" "$CID" "$T" \
+        || die 1 "open-pr.sh claim: could not post the claim reply on comment $CID"
+    mine=$(jq -r '.id' "$TMPD/reply.out")
+    check_ident '^[0-9]+$' "$mine"
+    # our own reply joins the listing even before the vendor lists it
+    claim_rows > "$TMPD/claim.after"
+    jq -c "$(claim_norm)" "$TMPD/reply.out" >> "$TMPD/claim.after"
+    jq -c -s 'unique_by(.id) | .[]' "$TMPD/claim.after" > "$TMPD/claim.rows"
+    first=$(claim_first "$TMPD/claim.rows")
+    if [ "${first%% *}" = "$mine" ]; then printf 'claimed %s\n' "$mine"; return 0; fi
+    claim_delete "$mine" || err "open-pr.sh claim: could not delete the losing claim reply $mine — remove it by hand"
+    printf 'taken %s\n' "${first#* }"
+}
+cmd_account() { parse_args "$@"; vendor_init; ctx_account; }
 
 # ------------------------------------------------------------ triggers ----
-# Every `/open-pr` comment on an open PR/MR, 1 JSON line each, oldest first:
-# {pr, url, comment_id, kind, user, created_at, body, authorized}. Bodies are
+# Every comment starting with the trigger token (`--token`, default `/open-pr`) on an
+# open PR/MR, 1 JSON line each, oldest first:
+# {pr, url, comment_id, kind, thread_id, user, created_at, body, authorized}. Bodies are
 # attacker-controlled and never leave jq — no shell variable ever holds one.
 # ISO-8601 with optional fraction and Z or ±hh:mm -> epoch seconds (fraction kept:
 # the strict --since comparison must not drop a comment inside the same second).
@@ -718,7 +764,7 @@ JQ_EPOCH='def epoch:
       - (if $c.z == "Z" then 0 else ($c.z | capture("(?<s>[+-])(?<h>[0-9]{2}):?(?<m>[0-9]{2})")
             | (if .s == "+" then 1 else -1 end) * ((.h | tonumber) * 3600 + (.m | tonumber) * 60)) end);'
 # Open PRs -> $TMPD/tr.prs ({pr, url} lines); their comments -> stdout as
-# {pr, comment_id, kind, user, created_at, body, authorized, uid}. $SINCE_Z only
+# {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid}. $SINCE_Z only
 # narrows the fetch (the vendors filter on update time, a superset).
 trg_fetch() {
     case "$V" in
@@ -728,17 +774,18 @@ trg_fetch() {
             q="per_page=100"; [ -z "$SINCE_Z" ] || q="$q&since=$SINCE_Z"
             auth='(if .author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR" then "yes" else "no" end)'
             gh api --paginate "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page"
+            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page"
             gh api --paginate "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page" ;;
+            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page" ;;
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
             glab api --paginate "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
             jq -c '.[] | {pr: .iid, url: .web_url}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r iid; do
                 check_ident '^[0-9]+$' "$iid"
-                glab api --paginate "projects/$GL_PROJ/merge_requests/$iid/notes?per_page=100" > "$TMPD/tr.page"
-                jq -c --argjson pr "$iid" '.[] | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id}' "$TMPD/tr.page"
+                # discussions, not notes: each note needs its discussion id to be replied to
+                glab api --paginate "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
+                jq -c --argjson pr "$iid" '.[] | .id as $tid | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id}' "$TMPD/tr.page"
             done ;;
         bitbucket)
             bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href" \
@@ -746,18 +793,16 @@ trg_fetch() {
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r id; do
                 check_ident '^[0-9]+$' "$id"
                 bb_paged "$BB_API/pullrequests/$id/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted" \
-                    ".values[] | select(.deleted != true) | {pr: $id, comment_id: (.id | tostring), kind: (if .inline != null then \"line\" else \"top\" end), user: .user.nickname, created_at: .created_on, body: (.content.raw // \"\"), authorized: \"UNKNOWN\", uid: null} | @json"
+                    ".values[] | select(.deleted != true) | {pr: $id, comment_id: (.id | tostring), kind: (if .inline != null then \"line\" else \"top\" end), thread_id: null, user: .user.nickname, created_at: .created_on, body: (.content.raw // \"\"), authorized: \"UNKNOWN\", uid: null} | @json"
             done ;;
     esac
 }
 cmd_triggers() {
     parse_args "$@"
-    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); SINCE=$(arg since); MARK=$(arg mark_file)
-    check_ident '^[A-Za-z0-9_.-]+$' "$OWNER"; check_ident '^[A-Za-z0-9_.-]+$' "$REPO"
-    case "$V" in
-        github) need gh ;; gitlab) gl_init "$OWNER" "$REPO" ;; bitbucket) bb_init "$OWNER" "$REPO" ;;
-        *) die 1 "open-pr.sh: unknown vendor: $V" ;;
-    esac
+    vendor_init; SINCE=$(arg since); MARK=$(arg mark_file)
+    TOKEN=$(arg token); [ -n "$TOKEN" ] || TOKEN=/open-pr
+    printf '%s' "$TOKEN" | grep -Eq '^(/[a-z][a-z0-9-]*|@[A-Za-z0-9][A-Za-z0-9_.-]*)$' \
+        || die 1 "open-pr.sh triggers: --token must be /word (lowercase, digits, dashes) or @login: $TOKEN"
     SINCE_Z=""
     if [ -n "$SINCE" ]; then
         SINCE_Z=$(jq -rn --arg s "$SINCE" "$JQ_EPOCH"' $s | epoch | floor | todate' 2>/dev/null) && [ -n "$SINCE_Z" ] \
@@ -770,15 +815,19 @@ cmd_triggers() {
     # fetches only what is new. Empty when nothing was fetched.
     [ -z "$MARK" ] || jq -r -s "$JQ_EPOCH"' map(.created_at | epoch) | max // empty | floor | todate' \
         "$TMPD/tr.all" > "$MARK"
-    # plugin-authored comments carry a marker — excluded, so a posted review never
-    # triggers the next one. The watcher's own account may ask: one person can be
-    # both the developer and the reviewer.
-    jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" "$JQ_EPOCH"'
+    # plugin-authored comments carry a marker (finding, reply, or a claim in either
+    # vendor form) — excluded, so a posted review never triggers the next one. The
+    # watcher's own account may ask: one person can be both the developer and the
+    # reviewer. An @login token matches case-insensitively, as logins are.
+    jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" \
+        --arg tok "$TOKEN" "$JQ_EPOCH"'
         ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $open
         | ($since | if . == "" then null else epoch end) as $after
+        | ("\\A\\s*" + ($tok | gsub("(?<c>[^A-Za-z0-9_])"; "\\\(.c)")) + "(\\s|\\z)") as $re
+        | (if ($tok | startswith("@")) then "i" else "" end) as $fl
         | [ .[] | select($open[.pr | tostring] != null)
-            | select(.body | test("\\A\\s*/open-pr(\\s|\\z)"))
-            | select((.body | contains($mf)) or (.body | contains($mr)) | not)
+            | select(.body | test($re; $fl))
+            | select((.body | contains($mf)) or (.body | contains($mr)) or (.body | contains("bot-claim:")) | not)
             | select($after == null or (.created_at | epoch) > $after)
             | . + {url: $open[.pr | tostring]} ]
         | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
@@ -802,7 +851,7 @@ cmd_triggers() {
     fi
     jq -c --slurpfile a "$TMPD/tr.auth" '
         (if .uid != null then ($a[0][.uid | tostring] // "no") else .authorized end) as $auth
-        | {pr, url, comment_id, kind, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
+        | {pr, url, comment_id, kind, thread_id, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
 }
 
 cmd_commit_url() {
@@ -819,12 +868,14 @@ cmd_commit_url() {
 cmd_marker() {
     parse_args "$@"
     V=$(req vendor); K=$(req kind)
+    # claim markers name the trigger comment they lock: bot-claim:<comment id>
+    if [ "$K" = claim ]; then C=$(req comment_id); check_ident '^[0-9]+$' "$C"; K="claim:$C"; fi
     case "$V/$K" in
-        github/finding|gitlab/finding) printf '<!-- bot-finding -->\n' ;;
-        github/reply|gitlab/reply)     printf '<!-- bot-reply -->\n' ;;
-        bitbucket/finding)             printf '[bot-finding]: #\n' ;;
-        bitbucket/reply)               printf '[bot-reply]: #\n' ;;
-        *) die 1 "open-pr.sh marker: --kind finding|reply" ;;
+        github/finding|github/reply|github/claim:*|gitlab/finding|gitlab/reply|gitlab/claim:*)
+            printf '<!-- bot-%s -->\n' "$K" ;;
+        bitbucket/finding|bitbucket/reply|bitbucket/claim:*)
+            printf '[bot-%s]: #\n' "$K" ;;
+        *) die 1 "open-pr.sh marker: --kind finding|reply|claim (claim takes --comment-id)" ;;
     esac
 }
 
@@ -939,6 +990,7 @@ cmd_settings() {
             watch_review: ((.watch_review // {}) + {
                 max_concurrent: (.watch_review.max_concurrent // 5),
                 poll_interval_seconds: (.watch_review.poll_interval_seconds // 60),
+                trigger: (.watch_review.trigger // "/open-pr"),
                 notify: ((.watch_review.notify // {}) + {
                     review_started: default_bool(.watch_review.notify; "review_started"; true),
                     question: default_bool(.watch_review.notify; "question"; true),
@@ -1043,8 +1095,8 @@ usage: open-pr.sh <subcommand> [--option value ...]
 Common options:
   `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
   `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
-  `--owner O --repo R --pr N` on every networked one (`triggers`: no `--pr`); `--host H` where
-  self-hostable.
+  `--owner O --repo R --pr N` on every networked one (`triggers`, `account`: no `--pr`); `--host H`
+  where self-hostable.
 
 Subcommands:
   target <url>
@@ -1060,9 +1112,10 @@ Subcommands:
   list-repos [--dir D]
       every hosted remote of every repo at or below D (default cwd, 3 levels), TSV: dir, remote,
       vendor, owner, repo, host, last commit ISO-8601
-  triggers [--since T] [--mark-file F]
-      `/open-pr` comments on open PRs, JSONL, oldest first — read by open-pr-watch.sh; shape in
-      reference/vendor-interface.md. F ← newest created_at of every comment fetched
+  triggers [--since T] [--mark-file F] [--token K]
+      comments on open PRs whose first word is K (default `/open-pr`; `/word`, or `@login` in any
+      case), JSONL, oldest first — read by open-pr-watch.sh; shape in reference/vendor-interface.md.
+      F ← newest created_at of every comment fetched
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
       against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per
@@ -1088,15 +1141,16 @@ Subcommands:
       STOPS the flow; the plugin never works around credentials
   react --comment-id C --emoji E [--kind line|top]
       `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket
-  claim --comment-id C [--kind line|top]
-      👀 on a trigger comment as a cross-machine lock: `claimed` (this call's 👀 is the earliest) |
-      `taken <login>` | `NO-EQUIVALENT` on Bitbucket
+  claim --comment-id C --kind line|top --body-file F [--thread-id T]
+      cross-machine lock on trigger C: a claim for C exists ⇒ `taken <login>`; else reply F + claim
+      marker (GitLab: into discussion T, else top-level); earliest claim wins ⇒ `claimed <reply id>`,
+      else own reply deleted ⇒ `taken <login>`
   account
       login name, or `UNKNOWN` (marker-only detection)
   commit-url --sha S
       markdown commit link, for the anchor
-  marker --kind finding|reply
-      the marker literal — end every finding/reply with it
+  marker --kind finding|reply|claim [--comment-id C]
+      the marker literal — end every finding/reply with it; `claim` needs C
   data-dir [--set P]
       print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in
       the user-level config first. A config that is not a JSON object stops with exit 1

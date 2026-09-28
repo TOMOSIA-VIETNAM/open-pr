@@ -14,8 +14,11 @@
    询问要监视哪些（api、web、job 等，可多选），并推荐已设置好评审记忆的仓库。`/open-pr:watch-review owner/api owner/web`（或 PR URL）可直接指定。
    每个托管平台各有一个远程的克隆（GitHub、GitLab、Bitbucket）会按远程分别列出。
    首次运行会询问最多允许多少个评审
-   会话同时活跃、你想接收哪些 toast，并把两者都保存在该
+   会话同时活跃、用什么来请求评审（`/open-pr` 或提及你）以及你想接收哪些 toast，并把这些都保存在该
    仓库的 `settings.json` 里。
+3. 在 Claude Code 上，每个仓库都必须是 trusted workspace，否则它的评审会话无法启动。
+   信任不会从父文件夹传递给其中的仓库。watcher 启动时会检查这一点，并逐一列出需要打开一次
+   `claude` 的仓库（`cd <repo> && claude`，接受信任提示）。
 
 一个监视器会跟踪你选择的所有仓库；每个仓库保留自己的设置，包括各自的活跃会话上限。
 
@@ -31,19 +34,23 @@
 `/open-pr` 后面的任何内容都是关于该看哪里的提示。它被当作数据处理：无法改变评审
 的方式、发布的内容，也无法改变任何设置。
 
+不希望在 pull request 上显示工具命令的项目，可以改选“提及我”：以 `@<your login>` 开头的评论
+就会请求评审，就像请同事帮忙一样 —— `@minh 帮忙评审一下`。watcher 会读取这样的评论，只有当它确实
+是请你评审这个 pull request 时才接手；`@minh 谢谢` 会被忽略。
+
 只有具备 write 权限的人的评论才会触发评审（GitHub：owner、member 或 collaborator；
 GitLab：Developer 及以上）。Bitbucket 不允许非管理员读取其他用户的权限，所以在
 Bitbucket 上每条 `/open-pr` 评论都会触发评审 —— 如果这很重要，请限制谁可以评论。
-插件发布的评论不会触发；你自己的 `/open-pr` 评论会触发，因此一个人可以同时是开发者和评审者。
+插件发布的评论不会触发；你自己的评论会触发，因此一个人可以同时是开发者和评审者。
 
 ## 接下来会发生什么
 
-- 该评论会被加上 👀 反应。当多台机器监视同一个仓库时，这个反应也充当锁：每台机器都会加反应，
-  只有 👀 最先加上的那台机器进行评审；其他机器会说明由谁负责并退出。在 watcher 之前有人手动加的 👀
-  也算数 —— 请再评论一次 `/open-pr`。Bitbucket 没有反应功能，所以在那里每个仓库只应由一台机器监视。
+- watcher 会回复该评论 —— "reviewing (commit abc1234)"，使用请求所用的语言 —— 写明它接手请求时
+  pull request 所在的提交。当多台机器监视同一个仓库时，这条回复也充当锁：第一条回复获胜，发现已有回复的
+  机器会退出，在势均力敌的竞争中落败的机器会删除自己的回复。这在 GitHub、GitLab 和 Bitbucket 上都一样。
 - 一个名为 `review <owner>/<repo>#<number>` 的评审会话打开，并运行常规评审。
 - 活跃会话数达到上限时，pull request 会在队列里等待。
-- 在已有会话的 pull request 上发出新的 `/open-pr` 评论，会 resume 同一个会话，
+- 在已有会话的 pull request 上发出新的请求，会 resume 同一个会话，
   因此重新评审会保留之前的上下文。
 - 评审是发布还是留作草稿，遵循 `auto_submit_review`，除非你另行告诉
   watcher。没有你，草稿永远不会被发布。
@@ -96,3 +103,4 @@ Claude Code 的 shell sandbox 之外启动。non-interactive 会话使用你为�
 | `notify.posted` | `true` | toast：一份评审已发布，或 LGTM |
 | `notify.re_review` | `true` | toast：已有会话被 resume 以重新评审 |
 | `snooze_until` | `null` | 在此 UTC 时间之前 toast 保持关闭 |
+| `trigger` | `/open-pr` | 用什么来请求评审：`/open-pr`，或 `@me` 表示提及 watcher 运行所用的账号 |

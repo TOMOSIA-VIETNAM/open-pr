@@ -33,6 +33,7 @@ case "$1" in
               [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
               cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
     settings) cat "$FAKE_HOME/settings.json" 2>/dev/null || printf '{}\n' ;;
+    account) cat "$FAKE_HOME/account.txt" 2>/dev/null || printf 'UNKNOWN\n' ;;
     *) exit 1 ;;
 esac
 """
@@ -65,6 +66,9 @@ a = sys.argv[1:]
 with open(os.path.join(home, "claude.calls"), "a") as fh:
     fh.write(json.dumps({"argv": a, "cwd": os.getcwd()}) + "\n")
 ACTIVE = ("working", "blocked", "done")
+if a[:1] == ["--bg"] and os.environ.get("FAKE_CLAUDE_UNTRUSTED"):
+    print("Workspace not trusted. Run `claude` in %s once and accept the trust prompt, then retry." % os.getcwd())
+    sys.exit(1)
 
 def save():
     json.dump(db, open(db_path, "w"))
@@ -223,7 +227,7 @@ def trig(cid, at, pr=1, body="/open-pr look at auth"):
 def test_help_prints_every_subcommand(w):
     r = w.run("--help")
     assert r.stdout.startswith("usage: open-pr-watch.sh")
-    for sub in ("wait", "spawn", "status", "next", "forget", "paths", "notify"):
+    for sub in ("wait", "spawn", "status", "next", "forget", "paths", "notify", "trust"):
         assert f"\n  {sub}" in r.stdout
 
 
@@ -258,6 +262,37 @@ def test_remote_reaches_repo_target(w):
     assert args[0].endswith("--remote github") and "--remote" not in args[1]
 
 # ---------------------------------------------------------------- wait ----
+
+def last_triggers_call(w):
+    return (w.home / "triggers.args").read_text().splitlines()[-1]
+
+
+@pytest.mark.parametrize("stored,account,want", [
+    (None, None, "--token /open-pr"),
+    ("/review", None, "--token /review"),
+    ("@me", "Alice", "--token @Alice"),
+])
+def test_wait_passes_the_repos_trigger_token(w, stored, account, want):
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    if stored:
+        w.settings(trigger=stored)
+    if account:
+        (w.home / "account.txt").write_text(account + "\n")
+    w.run("wait", "--once")
+    call = last_triggers_call(w)
+    assert call.endswith(want) and "--mark-file" in call
+    if stored == "@me":
+        acc = [l for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("account")]
+        assert acc == ["account --vendor github --owner o --repo r --host github.com"]
+
+
+def test_a_mention_of_me_needs_a_readable_account(w):
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    w.settings(trigger="@me")
+    r = w.run("wait", "--once", check=False)
+    assert r.returncode == 1 and "@me" in r.stderr and "cannot be read" in r.stderr
+    assert not (w.home / "triggers.args").exists(), "no poll runs on a trigger nobody can type"
+
 
 def test_first_wait_starts_the_cursor_at_now_without_replaying_history(w):
     w.triggers(trig("1", "2020-01-01T00:00:00Z"))
@@ -616,3 +651,45 @@ def test_notify_without_a_notifier_prints_to_stderr(w, tmp_path):
 def test_notify_rejects_an_unknown_event(w):
     r = w.run("notify", "--event", "nope", "--text-file", w.prompt("x"), check=False)
     assert r.returncode == 1 and "review_started" in r.stderr
+
+
+# --------------------------------------------------------------- trust ----
+
+def trust(w, config, runner="claude", repo_dir=None):
+    cfg = w.home / "claude.json"
+    if config is None:
+        cfg.unlink(missing_ok=True)
+    else:
+        cfg.write_text(config if isinstance(config, str) else json.dumps(config))
+    args = ["trust", "--runner", runner] + (["--repo-dir", str(repo_dir)] if repo_dir else [])
+    return w.run(*args, env_extra={"OPEN_PR_CLAUDE_CONFIG": str(cfg)}).stdout.splitlines()
+
+
+def test_trust_reads_claudes_own_record_for_the_exact_directory(w):
+    repo = str(w.repo.resolve())
+    parent = str(w.repo.resolve().parent)
+    before = {"projects": {repo: {"hasTrustDialogAccepted": True}}}
+    assert trust(w, before) == ["trusted"]
+    assert json.loads((w.home / "claude.json").read_text()) == before, "trust never writes claude's file"
+    assert trust(w, {"projects": {parent: {"hasTrustDialogAccepted": True}}}) == \
+        ["untrusted", f"run: cd {repo} && claude"], "a trusted parent does not cover the repo"
+    assert trust(w, {"projects": {repo: {"hasTrustDialogAccepted": False}}})[0] == "untrusted"
+    assert trust(w, {}) == ["untrusted", f"run: cd {repo} && claude"]
+    assert trust(w, None) == ["unknown"], "no config file"
+    assert trust(w, "{not json") == ["unknown"]
+    assert trust(w, before, repo_dir=w.home) == ["untrusted", f"run: cd {w.home.resolve()} && claude"]
+
+
+@pytest.mark.parametrize("runner", ["codex", "gemini", "cursor", "antigravity"])
+def test_trust_is_not_applicable_to_headless_runners(w, runner):
+    assert trust(w, None, runner=runner) == ["n/a"]
+
+
+def test_an_untrusted_workspace_stops_spawn_with_exit_8(w):
+    r = w.run("spawn", "--runner", "claude", "--pr", "3", "--name", "review o/r#3",
+              "--prompt-file", w.prompt("p"), env_extra={"FAKE_CLAUDE_UNTRUSTED": "1"}, check=False)
+    assert r.returncode == 8
+    assert f"workspace not trusted: run `cd {w.repo.resolve()} && claude` once and accept the trust prompt" \
+        in r.stderr
+    assert not (w.sd / "state.json").exists() or not w.state()["sessions"], \
+        "a refused launch records no session"

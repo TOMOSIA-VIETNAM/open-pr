@@ -4,6 +4,9 @@ A marker ends every finding and reply this plugin posts — its identity across 
 shape (emoji, layout, length all drift). Match `bot-finding`/`bot-reply` inside EITHER an HTML comment or
 a link reference definition — the literal is the vendor's, and a long-lived PR spans a change of form.
 
+`bot-claim:<comment id>` marks the "reviewing (commit …)" reply `/open-pr:watch-review` posts when it
+takes a review request — neither a finding nor a reply: skip it everywhere below.
+
 ## A past LINE finding
 
 A TOP-LEVEL comment (`in_reply_to: null`) whose `user` == the "Account" section — `UNKNOWN` there means there is no author to test, so the Marker branch below is the ONLY test

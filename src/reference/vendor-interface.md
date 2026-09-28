@@ -18,19 +18,31 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | account | login | username | nickname, or UNKNOWN under a workspace token (401 on /user is BY DESIGN) |
 | threads | GraphQL reviewThreads | discussions (`resolved` flag) | root comment + `parent` chains, `resolution` on the ROOT only |
 | react (`--kind line\|top`) | reactions on the review comment (`line`) or the issue comment (`top`) — separate id spaces | award_emoji on the MR note | NO-EQUIVALENT |
-| claim | 👀 via `react`'s endpoint with `-i`: 201 then the earliest `content=eyes` reaction by id decides; 200 (this account's 👀 already there) = taken | award `eyes`; "already" error = taken; else the earliest `eyes` award by id decides | NO-EQUIVALENT — no reactions, no lock |
+| claim: list | `issues/:n/comments` + `pulls/:n/comments`, paginated | `merge_requests/:iid/discussions`, every non-system note | `pullrequests/:id/comments`, deleted skipped |
+| claim: post | `line`: `pulls/:n/comments/:c/replies`; `top`: `issues/:n/comments` | `--thread-id T`: `discussions/T/notes`; else `merge_requests/:iid/notes` | `pullrequests/:id/comments` with `parent.id` = C |
+| claim: delete (lost race) | `line`: DELETE `pulls/comments/:id`; `top`: DELETE `issues/comments/:id` | DELETE `merge_requests/:iid/notes/:id` | DELETE `pullrequests/:id/comments/:id` |
 | repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
-| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's notes; system notes skipped; DiffNote = `line` | open PRs, then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs, then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: `thread_id` | null | the note's discussion id — what `reply`/`claim --thread-id` take | null |
 | triggers: `authorized` | `author_association` ∈ OWNER/MEMBER/COLLABORATOR, no extra call | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |
 | markers | HTML comments | HTML comments | link reference definitions (raw HTML is escaped there) |
 
 `triggers` prints 1 JSON per line, identical on every vendor:
-`{"pr","url","comment_id","kind","user","created_at","body","authorized"}` — `kind` = `line|top`, what
-`react --kind` takes; `authorized` = `yes|no|UNKNOWN` (write access); `--since` is strict; `--mark-file`
-gets the newest `created_at` among every comment fetched, trigger or not. It drops, on every vendor, any comment carrying a marker — the plugin's own posts. The
+`{"pr","url","comment_id","kind","thread_id","user","created_at","body","authorized"}` — `kind` =
+`line|top`, what `react`/`claim --kind` takes; `authorized` = `yes|no|UNKNOWN` (write access); `--since`
+is strict; `--mark-file` gets the newest `created_at` among every comment fetched, trigger or not. A
+trigger is a body whose first word is the `--token` (default `/open-pr`): `/open-pr:review` and
+`/open-prx` are not `/open-pr`; an `@login` token ignores case. It drops, on every vendor, any comment
+carrying a finding or reply marker, or a claim marker in either form — the plugin's own posts. The
 logged-in account's plain comments count: one person may be both developer and reviewer. `checkout` holds a `mkdir` lock
 in the repo's git common dir around every fetch and `worktree add`, since all worktrees share that
 `.git`; a lock whose pid is gone is reclaimed.
+
+`claim` is a reply lock, the same on every vendor: a comment carrying `bot-claim:<C>` (either marker
+form) means trigger C is taken. It lists first and posts nothing when one exists; else it posts, lists
+again, and the earliest claim by `created_at` (compared as instants), then id, holds the lock — its own
+reply counts even before the listing shows it. A loser deletes its reply; a failed delete is reported
+on stderr and still prints `taken`.
 
 Credentials: gh/glab bring their own login. Bitbucket needs `BITBUCKET_EMAIL`+`BITBUCKET_API_TOKEN`
 (user identity) or `BITBUCKET_TOKEN` (workspace token, no identity); missing ⇒ exit 6 with setup

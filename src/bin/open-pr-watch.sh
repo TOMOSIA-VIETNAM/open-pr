@@ -1,7 +1,8 @@
 #!/bin/sh
 # open-pr watch runtime — orchestration for /open-pr:watch-review.
 #
-# The main watch session never reviews: it waits for `/open-pr` trigger comments,
+# The main watch session never reviews: it waits for trigger comments (`/open-pr` or the
+# repo's `watch_review.trigger`),
 # opens one review session per PR, and relays each session's outcome to the
 # reviewer. This script owns the deterministic half of that loop: the trigger
 # cursor, the PR -> session map, the slot limit and its queue, OS notifications,
@@ -233,9 +234,16 @@ claude_bg_id() {
     sed "s/${esc}\[[0-9;]*[A-Za-z]//g" "$1" | LC_ALL=C sed -n 's/.*backgrounded · \([A-Za-z0-9_-]*\).*/\1/p' | tail -n 1
 }
 CLAUDE_HANG="claude --bg did not return within 30s. Started from inside Claude Code's Bash sandbox a background session hangs at starting… — run open-pr-watch.sh outside that sandbox."
+# claude refuses a directory whose trust prompt was never accepted THERE — a trusted parent
+# does not count. Exit 8, so the caller can tell the reviewer the one command that fixes it.
+claude_untrusted() {   # $1 output file
+    grep -q 'Workspace not trusted' "$1" || return 0
+    die 8 "workspace not trusted: run \`cd $D && claude\` once and accept the trust prompt"
+}
 claude_launch() {   # sets RID SID; $1 name, $2 prompt
     rc=0; run_bounded 30 "$TMPD/claude.out" claude --bg -n "$1" "$2" || rc=$?
     [ "$rc" != 124 ] || die 1 "$CLAUDE_HANG"
+    claude_untrusted "$TMPD/claude.out"
     RID=$(claude_bg_id "$TMPD/claude.out")
     [ "$rc" = 0 ] && [ -n "$RID" ] || die 1 "claude --bg failed (exit $rc): $(cat "$TMPD/claude.out")"
     SID=$(claude_sid "$RID")
@@ -263,6 +271,7 @@ claude_resume() {   # sets RID SID WARNING; $1 id, $2 session id, $3 prompt
         done
         rc=0; run_bounded 30 "$TMPD/claude.out" claude --bg --resume "$SID" "$3" || rc=$?
         [ "$rc" != 124 ] || die 1 "$CLAUDE_HANG"
+        claude_untrusted "$TMPD/claude.out"
         [ "$rc" = 0 ] || die 1 "claude --bg --resume failed (exit $rc): $(cat "$TMPD/claude.out")"
         grep -q 'started a copy' "$TMPD/claude.out" || return 0
         [ "$attempt" = 1 ] || break
@@ -456,6 +465,18 @@ cmd_paths() {
 }
 
 # ---------------------------------------------------------------- wait ----
+# The trigger token from `watch_review.trigger`; "@me" = a mention of the account the
+# watcher is logged in as. open-pr.sh triggers validates whatever this returns.
+TOKEN=""
+trigger_token() {
+    t=$(settings | jq -r '.watch_review.trigger // "/open-pr"')
+    [ "$t" = "@me" ] || { printf '%s' "$t"; return 0; }
+    who=$(opr account --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"}) || exit $?
+    case "$who" in
+        ""|UNKNOWN) die 1 "open-pr-watch.sh: watch_review.trigger is @me, but the account this machine is logged in as cannot be read (Bitbucket under a workspace token has no identity) — use a user credential, or set the trigger to @<login> or a /word" ;;
+    esac
+    printf '@%s' "$who"
+}
 # Delivery rule: a batch of events counts as delivered only when `wait` exits 0.
 # The batch is printed first and the state that marks it processed (cursor,
 # seen ids, last session states) is renamed into place right after, then the
@@ -478,9 +499,10 @@ poll_once() {   # GOT=1 when events were printed and committed
     # one second earlier so a comment in the cursor's own second still arrives;
     # the filter below drops the ones already processed.
     since=$(jq -n -r --arg c "$cursor" '$c | fromdateiso8601 - 1 | todateiso8601')
+    [ -n "$TOKEN" ] || TOKEN=$(trigger_token)
     rc=0
     opr triggers --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} \
-        --since "$since" --mark-file "$TMPD/mark" > "$TMPD/triggers" || rc=$?
+        --since "$since" --mark-file "$TMPD/mark" --token "$TOKEN" > "$TMPD/triggers" || rc=$?
     if [ "$rc" != 0 ]; then
         err "open-pr-watch.sh: triggers failed (exit $rc); retrying next poll"
         [ -z "$(arg once)" ] || exit "$rc"
@@ -593,6 +615,27 @@ $detail}"
     jq -n -c --arg e "$E" --arg via "$via" '{event: $e, sent: true, via: $via}'
 }
 
+# --------------------------------------------------------------- trust ----
+# Whether the runner will open a session in the repo dir without asking first. Read-only:
+# the trust prompt is the user's to accept, never this script's to write.
+cmd_trust() {
+    parse_args "$@"
+    RUNNER=$(req runner); check_runner "$RUNNER"
+    D=$(arg repo_dir); [ -n "$D" ] || D=.
+    [ -d "$D" ] || die 1 "open-pr-watch.sh: no such directory: $D"
+    D=$(cd "$D" && pwd)
+    [ "$RUNNER" = claude ] || { printf 'n/a\n'; return 0; }
+    # trust is recorded per exact directory: a trusted parent does not cover its children
+    cf="${OPEN_PR_CLAUDE_CONFIG:-${HOME:-}/.claude.json}"
+    # judged by what jq printed: some jq builds exit 0 on a parse error, printing nothing
+    v=$(jq -r --arg d "$D" '.projects[$d].hasTrustDialogAccepted // false | tostring' "$cf" 2>/dev/null || true)
+    case "$v" in
+        true)  printf 'trusted\n' ;;
+        false) printf 'untrusted\nrun: cd %s && claude\n' "$D" ;;
+        *)     printf 'unknown\n' ;;
+    esac
+}
+
 # ---------------------------------------------------------------- usage ----
 usage() {
     cat <<'EOF'
@@ -607,7 +650,9 @@ Common options:
 Subcommands:
   wait [--once]
       poll every `watch_review.poll_interval_seconds` until something happens, print it, exit 0:
-      `{"event":"trigger","repo",<trigger fields>}` per new `/open-pr` comment,
+      `{"event":"trigger","repo",<trigger fields>}` per new comment starting with the trigger
+      (`watch_review.trigger`, default `/open-pr`; `@me` = a mention of this machine's own account,
+      exit 1 when that account cannot be read),
       `{"event":"session","repo","pr","state","open"}` per session whose state changed; `repo` =
       owner/repo. The first run starts the cursor at now (no
       replay). Events count as delivered only when wait exits 0 — act on no other output. `--once`:
@@ -633,6 +678,10 @@ Subcommands:
       `watch_review.notify.E` is false or before `watch_review.snooze_until`. macOS: drawn by
       open-pr-toast.js (no Notifications permission; click opens U, hover holds it, toasts stack),
       else notify-send, else stderr
+  trust --runner R
+      will R open a session in the repo dir without a prompt? claude: `trusted` | `untrusted` plus
+      a `run: cd <dir> && claude` line (trust is per exact directory, a trusted parent does not
+      count) | `unknown` (its config unreadable); other runners: `n/a`. Plain lines, read-only
 
 Runners (`--runner`): claude, codex, gemini, cursor, antigravity.
 
@@ -641,6 +690,7 @@ Exit codes:
   1  other
   4  invalid value
   7  `<data>` not set
+  8  the runner refuses the repo dir as untrusted — the message names the command to run once
 EOF
 }
 
@@ -661,5 +711,6 @@ case "$sub" in
     forget)  cmd_forget "$@" ;;
     paths)   cmd_paths "$@" ;;
     notify)  cmd_notify "$@" ;;
+    trust)   cmd_trust "$@" ;;
     *) die 1 "open-pr-watch.sh: unknown subcommand: $sub (see --help)" ;;
 esac
