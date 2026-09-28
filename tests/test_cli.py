@@ -896,6 +896,53 @@ def test_triggers_drop_claim_replies_in_either_marker_form(shims):
     assert [(r["comment_id"], r["thread_id"]) for r in rows] == [("31", None)]
 
 
+RATE_LIMITS = [
+    ("github", "gh", [("pulls?state=open", (1, "gh: API rate limit exceeded for user ID 1. (HTTP 403)"))]),
+    ("github", "gh", [("pulls?state=open", [{"number": 5, "html_url": "u5"}]),
+                      ("issues/comments", (1, "gh: You have exceeded a secondary rate limit. (HTTP 403)"))]),
+    ("github", "gh", [("pulls?state=open", (1, "gh: API rate limit exceeded (HTTP 429)"))]),
+    ("gitlab", "glab", [("merge_requests?state=opened", (1, "glab: 429 Too Many Requests (HTTP 429)"))]),
+    ("gitlab", "glab", [
+        ("merge_requests?state=opened", [{"iid": 9, "web_url": "u"}]),
+        ("merge_requests/9/discussions", [{"id": "d1", "notes": [{"id": 1, "author": {"username": "dev", "id": 7},
+                                           "created_at": "2026-01-01T00:00:01Z", "body": "/open-pr"}]}]),
+        ("members/all/7", (1, "glab: 429 Too Many Requests (HTTP 429)"))]),
+    ("bitbucket", "curl", [("pullrequests?state=OPEN", (22, "curl: (22) The requested URL returned error: 429"))]),
+    ("bitbucket", "curl", [
+        ("pullrequests?state=OPEN", {"values": [{"id": 7, "links": {"html": {"href": "u7"}}}], "next": None}),
+        ("pullrequests/7/comments", (22, "curl: (22) The requested URL returned error: 429"))]),
+]
+
+
+@pytest.mark.parametrize("vendor,cli,routes", RATE_LIMITS)
+def test_triggers_exits_9_on_a_vendor_rate_limit(shims, vendor, cli, routes):
+    serve(shims, cli, routes)
+    r = triggers(shims, vendor, check=False)
+    assert (r.returncode, r.stdout) == (9, "") and "rate limited" in r.stderr, r.stderr
+
+
+@pytest.mark.parametrize("vendor,cli,routes", [
+    ("github", "gh", [("pulls?state=open", (1, "gh: Resource not accessible by integration (HTTP 403)"))]),
+    ("gitlab", "glab", [("merge_requests?state=opened", (1, "glab: 500 Internal Server Error (HTTP 500)"))]),
+    ("bitbucket", "curl", [("pullrequests?state=OPEN", (22, "curl: (22) The requested URL returned error: 403"))]),
+])
+def test_triggers_keeps_any_other_failure_as_it_is(shims, vendor, cli, routes):
+    serve(shims, cli, routes)
+    r = triggers(shims, vendor, check=False)
+    assert r.returncode not in (0, 9) and routes[0][1][1] in r.stderr
+
+
+def test_triggers_bitbucket_lists_only_the_prs_updated_since(shims):
+    """One comments call per open PR each poll would eat the hourly quota on a busy repo."""
+    serve(shims, "curl", [("pullrequests?state=OPEN", {"values": [], "next": None})])
+    triggers(shims, "bitbucket", "--since", "2026-01-01T09:00:02+09:00")
+    assert "pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href" \
+           "&q=updated_on%20%3E%202026-01-01T00%3A00%3A02%2B00%3A00" in shims["log"].read_text()
+    shims["log"].write_text("")
+    triggers(shims, "bitbucket")
+    assert "q=updated_on" not in shims["log"].read_text()
+
+
 # --------------------------------------------------------------- claim ----
 
 def claim(shims, vendor, body_file, *extra, check=True):
@@ -1084,16 +1131,16 @@ def test_checkout_times_out_on_a_held_lock_and_reclaims_a_dead_one(two_pr_repo):
 def test_settings_defaults_the_watch_review_node(data_dir, tmp_path):
     d = data_dir / "demo"
     d.mkdir(parents=True)
-    defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "snooze_until": None, "trigger": "/open-pr",
+    defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "trigger": "/open-pr",
                 "notify": {"review_started": True, "question": True, "draft_ready": True,
                            "posted": True, "re_review": True}}
     (d / "settings.json").write_text(json.dumps({"review": {"bootstrapped": True}}))
     out = json.loads(run("settings", "--repo", "demo", check=True).stdout)
     assert out["watch_review"] == defaults and out["watch_review_configured"] is False
     (d / "settings.json").write_text(json.dumps({"watch_review": {
-        "max_concurrent": 2, "notify": {"posted": False}, "snooze_until": "2026-02-01T00:00:00Z"}}))
+        "max_concurrent": 2, "notify": {"posted": False}}}))
     part = json.loads(run("settings", "--repo", "demo", check=True).stdout)
     assert part["watch_review_configured"] is True
-    assert part["watch_review"] == {**defaults, "max_concurrent": 2, "snooze_until": "2026-02-01T00:00:00Z",
+    assert part["watch_review"] == {**defaults, "max_concurrent": 2,
                                     "notify": {**defaults["notify"], "posted": False}}, \
         "stored values win, an explicit false stays false, missing subfields take their default"

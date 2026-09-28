@@ -4,8 +4,10 @@
 // methods, which need no Accessibility permission either.
 //   click       → open `url` in the browser, then close
 //   ✕ (corner)  → close
+//   1h (by ✕)   → no toasts for an hour on this machine (writes the snooze file), then close
 //   hover       → the countdown pauses until the pointer leaves
-// argv: title, summary, detail (may be empty), event, slot (0 = top), seconds, url (may be empty).
+// argv: title, summary, detail (may be empty), event, slot (0 = top), seconds, url (may be empty),
+// snooze file (<data>/.watch/snooze_until, one ISO-8601 UTC line — the same file `snooze` writes).
 // Every string arrives as argv; nothing here is spliced into source.
 ObjC.import('Cocoa');
 
@@ -19,6 +21,7 @@ function run(argv) {
     var title = argv[0] || 'open-pr', summary = argv[1] || '', detail = argv[2] || '';
     var accent = ACCENT[argv[3]] || [0.91, 0.27, 0.06];
     var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8), url = argv[6] || '';
+    var snoozeFile = argv[7] || '';
 
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
@@ -61,7 +64,8 @@ function run(argv) {
         t.setLineBreakMode($.NSLineBreakByTruncatingTail);
         view.addSubview(t);
     }
-    label(title, 18, 12, W - 60, 12, true, 0.7);
+    label(title, 18, 12, W - 90, 12, true, 0.7);
+    if (snoozeFile) label('1h', W - 56, 10, 22, 12, false, 0.55);
     label('✕', W - 26, 10, 16, 12, false, 0.55);
     label(summary, 18, 32, W - 30, 14, true, 1);
     if (detail) label(detail, 18, 56, W - 30, 12, false, 0.75);
@@ -79,8 +83,11 @@ function run(argv) {
         if (inside !== hovering) { hovering = inside; paint(inside); }
         var down = ($.NSEvent.pressedMouseButtons & 1) === 1;
         if (wasDown && !down && inside) {           // a click released on the toast
-            var onClose = p.x >= x + W - 30 && p.y >= y + H - 30;
-            if (!onClose && url) $.NSWorkspace.sharedWorkspace.openURL($.NSURL.URLWithString(url));
+            var top = p.y >= y + H - 30;
+            var onClose = top && p.x >= x + W - 30;
+            var onSnooze = snoozeFile && top && !onClose && p.x >= x + W - 62;
+            if (onSnooze) snoozeHour(snoozeFile);
+            else if (!onClose && url) $.NSWorkspace.sharedWorkspace.openURL($.NSURL.URLWithString(url));
             break;
         }
         wasDown = down;
@@ -89,6 +96,11 @@ function run(argv) {
     }
     for (i = 9; i >= 0; i--) { win.setAlphaValue(i / 10); pause(0.03); }
     win.orderOut(null);
+}
+
+function snoozeHour(file) {   // atomic write: a reader never sees half a line
+    var until = new Date(Date.now() + 3600 * 1000).toISOString().replace(/\.\d+Z$/, 'Z');
+    $(until + '\n').writeToFileAtomicallyEncodingError(file, true, $.NSUTF8StringEncoding, null);
 }
 
 function pause(s) {

@@ -46,8 +46,7 @@ for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the fil
       "draft_ready": true,
       "posted": true,
       "re_review": true
-    },
-    "snooze_until": null
+    }
   }
 }
 ```
@@ -69,7 +68,7 @@ every run, so a repo whose doctor has never run still detects a bump.
 |---|---|---|---|
 | User config | `.review` | `auto_submit_review`, `auto_resolve_fixed_findings`, `post_lgtm`, `doctor_schedule`, `review_ci_status`, `many_files_threshold`, `big_file_threshold_kb` | read-time default only; the file is upgraded by `/open-pr:upgrade` alone |
 | User config | `.fix` | `decline_needs_confirmation`, `auto_push` | same, owned by `fix.md` |
-| User config | `.watch_review` | `max_concurrent`, `poll_interval_seconds`, `trigger`, `notify`, `snooze_until` | read-time default; `/open-pr:watch-review` writes the whole node on its first run in a repo (asked, then stored), never `/open-pr:upgrade` — no `schema_version` bump |
+| User config | `.watch_review` | `max_concurrent`, `poll_interval_seconds`, `trigger`, `notify` | read-time default; `/open-pr:watch-review` writes the whole node on its first run in a repo (asked, then stored), never `/open-pr:upgrade` — no `schema_version` bump |
 | User config | `.shared` | `git_remote_type`, `output_language` | reconciled per run against the PR URL's own shape (`core/pr-target.md` §2), so a stale value is caught rather than trusted |
 | Doctor-detected | `.review` | `project_docs_found`, `templates_copied`, `pr_template_paths` | heals itself on the next doctor run; `/open-pr:upgrade` never touches these |
 | Detected-once | `.shared` | `chat_language` | detected on demand by whichever command runs first; no fixed default |

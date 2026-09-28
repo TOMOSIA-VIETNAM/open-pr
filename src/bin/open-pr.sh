@@ -69,7 +69,7 @@ bb_paged() {
     next="$1"
     while [ -n "$next" ]; do
         page=$(bb_curl -L "$next") || { err "paged: $page"; return 1; }
-        printf '%s' "$page" | jq -r "$2"
+        printf '%s' "$page" | jq -r "$2" || return 1
         next=$(printf '%s' "$page" | jq -r '.next // empty')
     done
 }
@@ -763,36 +763,59 @@ JQ_EPOCH='def epoch:
       + (if $c.f then ("0" + $c.f | tonumber) else 0 end)
       - (if $c.z == "Z" then 0 else ($c.z | capture("(?<s>[+-])(?<h>[0-9]{2}):?(?<m>[0-9]{2})")
             | (if .s == "+" then 1 else -1 end) * ((.h | tonumber) * 3600 + (.m | tonumber) * 60)) end);'
+# A vendor answer that means "slow down", judged from the failed call's stderr (curl's with
+# the body `bb_paged` echoes). GitHub: 403/429 naming a rate limit (primary or secondary), or
+# an exhausted X-RateLimit-Remaining; GitLab and Bitbucket: 429.
+rate_limited() {   # $1 stderr file
+    case "$V" in
+        github) grep -Eiq 'x-ratelimit-remaining: *0([^0-9]|$)' "$1" \
+                    || { grep -Eq 'HTTP (403|429)' "$1" && grep -Eiq 'rate limit' "$1"; } ;;
+        gitlab) grep -Eq 'HTTP 429|(^|[^0-9])429 Too Many Requests' "$1" ;;
+        bitbucket) grep -Eq 'returned error: 429([^0-9]|$)|HTTP 429' "$1" ;;
+    esac
+}
+# rl <command…>: one vendor call inside `triggers`. A rate limit exits 9 (`rate limited`) so
+# the watcher backs off instead of polling into the limit; any other failure keeps its own
+# stderr and exit code.
+rl() {
+    rc=0; "$@" 2> "$TMPD/rl.err" || rc=$?
+    [ "$rc" = 0 ] || ! rate_limited "$TMPD/rl.err" || die 9 "rate limited"
+    cat "$TMPD/rl.err" >&2
+    return "$rc"
+}
 # Open PRs -> $TMPD/tr.prs ({pr, url} lines); their comments -> stdout as
 # {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid}. $SINCE_Z only
-# narrows the fetch (the vendors filter on update time, a superset).
+# narrows the fetch (the vendors filter on update time, a superset): GitLab and Bitbucket
+# list only the PRs updated since, as a new comment updates its PR.
 trg_fetch() {
     case "$V" in
         github)
-            gh api --paginate "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
+            rl gh api --paginate "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
             jq -c '.[] | {pr: .number, url: .html_url}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             q="per_page=100"; [ -z "$SINCE_Z" ] || q="$q&since=$SINCE_Z"
             auth='(if .author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR" then "yes" else "no" end)'
-            gh api --paginate "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
+            rl gh api --paginate "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
             jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page"
-            gh api --paginate "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
+            rl gh api --paginate "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
             jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page" ;;
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
-            glab api --paginate "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
+            rl glab api --paginate "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
             jq -c '.[] | {pr: .iid, url: .web_url}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r iid; do
                 check_ident '^[0-9]+$' "$iid"
                 # discussions, not notes: each note needs its discussion id to be replied to
-                glab api --paginate "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
+                rl glab api --paginate "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
                 jq -c --argjson pr "$iid" '.[] | .id as $tid | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id}' "$TMPD/tr.page"
             done ;;
         bitbucket)
-            bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href" \
+            # BBQL: `updated_on > <instant>`, URL-encoded; the offset form, not Z
+            q=""; [ -z "$SINCE_Z" ] || q="&q=updated_on%20%3E%20$(printf '%s' "${SINCE_Z%Z}" | sed 's/:/%3A/g')%2B00%3A00"
+            rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href$q" \
                 '.values[] | {pr: .id, url: .links.html.href} | @json' > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r id; do
                 check_ident '^[0-9]+$' "$id"
-                bb_paged "$BB_API/pullrequests/$id/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted" \
+                rl bb_paged "$BB_API/pullrequests/$id/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted" \
                     ".values[] | select(.deleted != true) | {pr: $id, comment_id: (.id | tostring), kind: (if .inline != null then \"line\" else \"top\" end), thread_id: null, user: .user.nickname, created_at: .created_on, body: (.content.raw // \"\"), authorized: \"UNKNOWN\", uid: null} | @json"
             done ;;
     esac
@@ -839,6 +862,8 @@ cmd_triggers() {
             check_ident '^[0-9]+$' "$uid"
             if glab api "projects/$GL_PROJ/members/all/$uid" > "$TMPD/gl.member" 2> "$TMPD/gl.member.err"; then
                 a=$(jq -r 'if (.access_level // 0) >= 30 then "yes" else "no" end' "$TMPD/gl.member")
+            elif rate_limited "$TMPD/gl.member.err"; then
+                die 9 "rate limited"
             elif grep -q '404' "$TMPD/gl.member.err"; then
                 a=no
             else
@@ -997,8 +1022,7 @@ cmd_settings() {
                     draft_ready: default_bool(.watch_review.notify; "draft_ready"; true),
                     posted: default_bool(.watch_review.notify; "posted"; true),
                     re_review: default_bool(.watch_review.notify; "re_review"; true)
-                }),
-                snooze_until: (.watch_review.snooze_until // null)
+                })
             }),
             watch_review_configured: has("watch_review"),
             schema_version: (.schema_version // null),
@@ -1115,7 +1139,7 @@ Subcommands:
   triggers [--since T] [--mark-file F] [--token K]
       comments on open PRs whose first word is K (default `/open-pr`; `/word`, or `@login` in any
       case), JSONL, oldest first — read by open-pr-watch.sh; shape in reference/vendor-interface.md.
-      F ← newest created_at of every comment fetched
+      F ← newest created_at of every comment fetched. A vendor rate limit ⇒ exit 9
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
       against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per
@@ -1176,6 +1200,7 @@ Exit codes:
   5  repo dir unresolvable
   6  missing credentials
   7  `<data>` not set
+  9  vendor rate limit (`triggers`) — poll again later
 EOF
 }
 

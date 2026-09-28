@@ -22,7 +22,8 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | claim: post | `line`: `pulls/:n/comments/:c/replies`; `top`: `issues/:n/comments` | `--thread-id T`: `discussions/T/notes`; else `merge_requests/:iid/notes` | `pullrequests/:id/comments` with `parent.id` = C |
 | claim: delete (lost race) | `line`: DELETE `pulls/comments/:id`; `top`: DELETE `issues/comments/:id` | DELETE `merge_requests/:iid/notes/:id` | DELETE `pullrequests/:id/comments/:id` |
 | repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
-| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs, then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: rate limit ⇒ exit 9 | HTTP 403/429 naming a rate limit (primary or secondary), or `X-RateLimit-Remaining: 0` | HTTP 429, the membership lookup included | HTTP 429 |
 | triggers: `thread_id` | null | the note's discussion id — what `reply`/`claim --thread-id` take | null |
 | triggers: `authorized` | `author_association` ∈ OWNER/MEMBER/COLLABORATOR, no extra call | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |
 | markers | HTML comments | HTML comments | link reference definitions (raw HTML is escaped there) |

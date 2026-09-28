@@ -15,6 +15,7 @@ import stat
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,12 @@ case "$1" in
     repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
                  printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
     triggers) printf '%s\n' "$*" >> "$FAKE_HOME/triggers.args"
+              # triggers.rc: one outcome per call, consumed in order — 9 = rate limited, quiet = nothing
+              if [ -s "$FAKE_HOME/triggers.rc" ]; then
+                  rc=$(head -n 1 "$FAKE_HOME/triggers.rc")
+                  sed 1d "$FAKE_HOME/triggers.rc" > "$FAKE_HOME/triggers.rc.n"; mv "$FAKE_HOME/triggers.rc.n" "$FAKE_HOME/triggers.rc"
+                  case "$rc" in 9) printf 'rate limited\n' >&2; exit 9 ;; quiet) exit 0 ;; esac
+              fi
               mf=$(printf '%s\n' "$@" | sed -n '/^--mark-file$/{n;p;}')
               [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
               cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
@@ -227,7 +234,7 @@ def trig(cid, at, pr=1, body="/open-pr look at auth"):
 def test_help_prints_every_subcommand(w):
     r = w.run("--help")
     assert r.stdout.startswith("usage: open-pr-watch.sh")
-    for sub in ("wait", "spawn", "status", "next", "forget", "paths", "notify", "trust"):
+    for sub in ("wait", "spawn", "status", "next", "forget", "paths", "notify", "trust", "snooze", "menubar"):
         assert f"\n  {sub}" in r.stdout
 
 
@@ -585,10 +592,13 @@ def test_notify_skips_a_disabled_event(w):
     assert notify(w, event="question")["sent"] is True
 
 
-def test_notify_skips_during_snooze_and_resumes_after(w):
-    w.settings(snooze_until="2999-01-01T00:00:00Z")
-    assert notify(w)["reason"] == "snoozed"
-    w.settings(snooze_until="2000-01-01T00:00:00.000Z")
+def test_notify_is_skipped_while_this_machine_is_snoozed(w):
+    w.run("snooze", "--for", "1h")
+    assert notify(w) == {"event": "posted", "sent": False, "reason": "snoozed"}
+    assert not list(w.home.glob("osascript.*.json"))
+    w.run("snooze", "--until", "2000-01-01T00:00:00.000Z")
+    assert notify(w)["sent"] is True
+    w.run("snooze", "--off")
     assert notify(w)["sent"] is True
 
 
@@ -598,6 +608,8 @@ def test_osascript_gets_the_text_as_argv_never_as_source(w):
     rec = w.recorded("osascript")            # waits: the toast is detached from the watcher
     assert rec["argv"][:2] == ["-l", "JavaScript"] and rec["argv"][2].endswith("open-pr-toast.js")
     assert rec["argv"][3:7] == ["open-pr · o/r", text, "claude attach 1", "posted"]
+    assert rec["argv"][10] == str(w.home / "data" / ".watch" / "snooze_until"), \
+        "the toast's 1h control writes the one snooze file every notifier reads"
 
 
 
@@ -693,3 +705,181 @@ def test_an_untrusted_workspace_stops_spawn_with_exit_8(w):
         in r.stderr
     assert not (w.sd / "state.json").exists() or not w.state()["sessions"], \
         "a refused launch records no session"
+
+
+# ------------------------------------------------------------ finished ----
+
+def finish(w, pr=5):
+    """A claude session whose result `wait` has delivered."""
+    sp = w.spawn(pr)
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "done")
+    w.status_file(pr, state="posted", url=f"https://github.com/o/r/pull/{pr}")
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["posted"]
+    return sp
+
+
+def test_a_finished_session_stays_silent_while_the_user_chats_in_it(w):
+    """After its result the session is the user's: their own turns there must not toast
+    "needs an answer" or "posted" again."""
+    sp = finish(w)
+    assert w.state()["sessions"]["5"]["finished"] is True
+    for live in ("working", "blocked", "done"):
+        w.claude_set(sp["id"], live)
+        assert w.run("wait", "--once").stdout == "", f"a finished session reported {live}"
+    assert w.jsonl("status") == [{"pr": 5, "runner": "claude", "id": sp["id"], "state": "posted",
+                                  "open": f"claude attach {sp['id']}", "finished": True}]
+
+
+def test_a_resumed_session_reports_again(w):
+    sp = finish(w)
+    w.claude_set(sp["id"], "done")
+    again = w.spawn(5, text="second look")
+    assert again["resumed"] is True
+    assert w.state()["sessions"]["5"]["finished"] is False
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "blocked")
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["question"]
+
+
+def test_a_new_request_never_cuts_a_conversation_in_a_finished_session(w):
+    """The user is talking in the finished session: a new request queues instead of
+    `claude stop`-ing it, and `wait` says `ready` once the session is idle again."""
+    sp = finish(w)
+    w.claude_set(sp["id"], "working")
+    out = w.spawn(5, text="second look")
+    assert out.get("queued") is True and out["reason"] == "session in use"
+    assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "the conversation was stopped"
+    assert w.run("wait", "--once").stdout == "", "not ready while the user is still talking"
+    w.claude_set(sp["id"], "done")
+    assert [(e["event"], e["pr"]) for e in w.jsonl("wait", "--once")] == [("ready", 5)]
+    assert w.jsonl("next")[0]["pr"] == 5
+
+def test_a_finished_session_holds_no_slot_whatever_its_live_state(w):
+    w.settings(max_concurrent=1)
+    sp = finish(w, 1)
+    w.claude_set(sp["id"], "working")
+    assert "queued" not in w.spawn(2)
+
+
+def test_spawn_keeps_what_the_menu_bar_shows(w):
+    url = "https://github.com/o/r/pull/3"
+    sp = w.jsonl("spawn", "--runner", "claude", "--pr", "3", "--name", "review o/r#3",
+                 "--prompt-file", w.prompt("p"), "--url", url)[0]
+    s = w.state()["sessions"]["3"]
+    assert (s["repo"], s["url"], s["open"], s["finished"]) == ("o/r", url, f"claude attach {sp['id']}", False)
+
+
+# ---------------------------------------------------------- rate limit ----
+
+def test_wait_once_passes_a_rate_limit_through_and_still_beats(w):
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("9\n")
+    r = w.run("wait", "--once", check=False)
+    assert r.returncode == 9 and "rate limited" in r.stderr
+    assert (w.sd / "heartbeat").exists(), "the menu bar would count this repo as no longer watched"
+
+
+def test_wait_backs_off_on_a_rate_limit_and_recovers(w):
+    w.settings(poll_interval_seconds=1)
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("9\n9\nquiet\n9\n")
+    w.triggers(trig("51", "2026-01-01T00:00:05Z"))
+    r = w.run("wait")
+    assert [json.loads(l)["comment_id"] for l in r.stdout.splitlines()] == ["51"]
+    assert [l for l in r.stderr.splitlines() if "rate limited" in l] == [
+        "rate limited — next poll in 2s", "rate limited — next poll in 4s",
+        "rate limited — next poll in 2s"], "doubles per limit; a good poll resets to the interval"
+
+
+def test_the_backoff_stops_at_fifteen_minutes(w):
+    w.settings(poll_interval_seconds=500)
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("9\n")
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        line = proc.stderr.readline()
+    finally:
+        os.killpg(proc.pid, 9)
+        proc.wait()
+    assert line.strip() == "rate limited — next poll in 900s"
+
+
+# -------------------------------------------------------------- snooze ----
+
+def test_snooze_for_until_and_off_share_one_machine_file(w):
+    f = w.home / "data" / ".watch" / "snooze_until"
+    out = w.jsonl("snooze", "--for", "2h30m")[0]
+    left = datetime.fromisoformat(out["snooze_until"].replace("Z", "+00:00")) - datetime.now(timezone.utc)
+    assert 9000 - 60 < left.total_seconds() <= 9000
+    assert f.read_text() == out["snooze_until"] + "\n"
+    assert w.jsonl("snooze", "--until", "2026-01-01T09:00:00+09:00") == [{"snooze_until": "2026-01-01T00:00:00Z"}]
+    assert f.read_text() == "2026-01-01T00:00:00Z\n"
+    assert w.jsonl("snooze", "--off") == [{"snooze_until": None}] and not f.exists()
+    assert w.jsonl("snooze", "--off") == [{"snooze_until": None}], "resuming twice is fine"
+    assert ".watch/" in (w.home / "data" / ".gitignore").read_text().splitlines()
+    for bad in (["--for", "soon"], ["--for", "0m"], ["--for", "1h;id"], ["--until", "tomorrow"]):
+        assert w.run("snooze", *bad, check=False).returncode == 4, bad
+    for bad in ([], ["--off", "--for", "1h"]):
+        assert w.run("snooze", *bad, check=False).returncode == 1, bad
+
+
+# ---------------------------------------------------------------- feed ----
+
+def test_notify_feeds_the_last_fifty_notifications_sent_or_snoozed(w):
+    w.sd.mkdir(parents=True)
+    (w.sd / "feed.jsonl").write_text("".join(json.dumps({"summary": f"old {i}"}) + "\n" for i in range(50)))
+    w.settings(notify={"question": False})
+    f = w.prompt("PR #3 posted\nclaude attach 1", "n.txt")
+    w.run("notify", "--event", "question", "--text-file", f, "--pr", "3")
+    assert len((w.sd / "feed.jsonl").read_text().splitlines()) == 50, "a disabled event is no notification"
+    w.run("notify", "--event", "posted", "--text-file", f, "--pr", "3", "--url", "https://h/o/r/pull/3")
+    w.run("snooze", "--for", "1h")
+    w.run("notify", "--event", "review_started", "--text-file", w.prompt("Reviewing #4", "m.txt"))
+    rows = [json.loads(l) for l in (w.sd / "feed.jsonl").read_text().splitlines()]
+    assert len(rows) == 50 and rows[0] == {"summary": "old 2"}
+    at = rows[-2].pop("at")
+    assert datetime.fromisoformat(at.replace("Z", "+00:00")).tzinfo is not None
+    assert rows[-2] == {"repo": "o/r", "pr": 3, "event": "posted", "summary": "PR #3 posted",
+                        "detail": "claude attach 1", "url": "https://h/o/r/pull/3"}
+    assert (rows[-1]["event"], rows[-1]["pr"], rows[-1]["url"], rows[-1]["detail"]) == \
+        ("review_started", None, None, ""), "a snoozed notification is still recent history"
+
+
+def test_notify_rejects_a_pr_that_is_not_a_number(w):
+    r = w.run("notify", "--event", "posted", "--text-file", w.prompt("x"), "--pr", "3;id", check=False)
+    assert r.returncode == 4
+
+
+# ------------------------------------------------------------- menubar ----
+
+def test_menubar_without_osascript_is_no_equivalent(w, tmp_path):
+    r = w.run("menubar", path=_minimal_path(w, tmp_path, False))
+    assert r.stdout == "NO-EQUIVALENT\n"
+
+
+def test_menubar_runs_detached_once_per_machine(w):
+    env = {"FAKE_SLEEP": "30"}
+    watch = w.home / "data" / ".watch"
+    started = time.time()
+    assert w.run("menubar", env_extra=env).stdout == "started\n"
+    assert time.time() - started < 10, "menubar waited on the menu bar process"
+    assert (REPO / "src" / "bin" / "open-pr-menubar.js").is_file()
+    rec = w.recorded("osascript")
+    assert rec["argv"] == ["-l", "JavaScript", str(w.bin / "open-pr-menubar.js"), str(w.home / "data"),
+                           str(watch / "snooze_until"), str(watch / "menubar.pid"), "2700"]
+    pid = int((watch / "menubar.pid").read_text())
+    try:
+        assert w.run("menubar", env_extra=env).stdout == "running\n"
+        assert not (w.home / "osascript.1.json").exists(), "a second menu bar was started"
+    finally:
+        os.kill(pid, 9)
+        w.wait_dead(pid)
+    assert w.run("menubar", env_extra=env).stdout == "started\n", "a dead pid is not a running menu bar"
+    pid = int((watch / "menubar.pid").read_text())
+    os.kill(pid, 9)
+    w.wait_dead(pid)
+    (watch / "menubar.pid").write_text(f"{os.getpid()}\n")
+    assert w.run("menubar", env_extra=env).stdout == "started\n", "a reused pid is not the menu bar"
+    os.kill(int((watch / "menubar.pid").read_text()), 9)

@@ -54,12 +54,14 @@ Bitbucket 上每条 `/open-pr` 评论都会触发评审 —— 如果这很重�
   因此重新评审会保留之前的上下文。
 - 评审是发布还是留作草稿，遵循 `auto_submit_review`，除非你另行告诉
   watcher。没有你，草稿永远不会被发布。
+- 会话一旦报告了结果，就归你了：你在其中继续对话时，watcher 不会再就它说任何话，也永远不会读取你在
+  那里写的内容。该 pull request 上的下一次请求会把它交还给 watcher。
 
 ## 打开会话
 
 屏幕右上角的 toast 会告诉你正在发生什么 —— "Reviewing PR #12"、
 "Posted review on PR #12 — 1 🔴 2 🟠"、"LGTM on PR #12"、一份等待中的草稿、一个需要回答的会话 ——
-点击 toast 会打开 pull request；鼠标悬停时 toast 保持显示；多个 toast 会依次堆叠。
+点击 toast 会打开 pull request；鼠标悬停时 toast 保持显示；多个 toast 会依次堆叠；toast 上的 "1h" 按钮会关闭 toast 一小时。
 需要你处理时，toast 会显示打开会话的命令。在 macOS 上 watcher 自己绘制 toast，因此不需要通知权限；
 在 Linux 上它使用 `notify-send`。每行聊天消息都附带打开会话的命令：
 
@@ -79,15 +81,33 @@ Claude Code 后台会话要求仓库是 trusted workspace，并且必须在
 Claude Code 的 shell sandbox 之外启动。non-interactive 会话使用你为该平台配置的
 权限设置；watcher 不授予任何权限。
 
+## 菜单栏（macOS）
+
+watcher 运行期间，macOS 菜单栏上会有一个 `open-pr` 项，并显示进行中的评审数（`open-pr ·2`）。
+它的菜单列出：
+
+- 进行中的评审 —— 点击一项打开 pull request，或复制打开其会话的命令；
+- 最近十条 toast，这样多条同时到达时也不会遗漏 —— 点击一项打开其 pull request；
+- 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
+
+最后一个 watcher 停止几分钟后，它会自行消失。Windows 和 Linux 上没有菜单栏：
+在聊天中向 watcher 请求同样的操作（`status`、`snooze 1h`）。
+
 ## 与 watcher 对话
 
 | 说 | 效果 |
 |---|---|
 | `status` | 每个 pull request 一行，含状态和打开命令 |
-| `snooze 2h` | 在此之前不显示 toast；队列照常运行 |
+| `snooze 2h` / `resume toasts` | 在此之前本机不显示 toast —— 与 toast 的 "1h" 和菜单栏的暂停提醒是同一个开关；队列照常运行 |
 | 某项设置的修改 | 保存到 `settings.json` |
 | PR 12 开一个新会话 | 该 PR 的下一次触发会打开新会话 |
 | `stop` | 停止监视；已打开的评审会话继续运行 |
+
+## 速率限制
+
+每次轮询会消耗几次 API 调用：GitHub 上是三次；GitLab 和 Bitbucket 上是一次，外加自上次轮询以来每个有更新的
+pull request 一次。当托管平台回复该账号已被限速时，watcher 会把轮询间隔加倍（最多 15 分钟），并在下一次
+轮询成功后恢复为 `poll_interval_seconds`。
 
 ## 设置
 
@@ -102,5 +122,4 @@ Claude Code 的 shell sandbox 之外启动。non-interactive 会话使用你为�
 | `notify.draft_ready` | `true` | toast：一份草稿评审等待你批准 |
 | `notify.posted` | `true` | toast：一份评审已发布，或 LGTM |
 | `notify.re_review` | `true` | toast：已有会话被 resume 以重新评审 |
-| `snooze_until` | `null` | 在此 UTC 时间之前 toast 保持关闭 |
 | `trigger` | `/open-pr` | 用什么来请求评审：`/open-pr`，或 `@me` 表示提及 watcher 运行所用的账号 |

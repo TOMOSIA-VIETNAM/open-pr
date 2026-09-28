@@ -63,13 +63,16 @@ vừa là dev vừa là reviewer.
   nên lần re-review giữ được context trước.
 - Review được publish hay giữ dạng draft theo `auto_submit_review`, trừ khi bạn dặn
   watcher khác đi. Draft không bao giờ được publish khi chưa có bạn.
+- Khi một session đã báo kết quả, nó thuộc về bạn: watcher không nói gì thêm về nó trong lúc bạn
+  tiếp tục trò chuyện trong đó, và không bao giờ đọc những gì bạn viết ở đó. Yêu cầu tiếp theo trên
+  pull request đó sẽ trao nó lại cho watcher.
 
 ## Mở một session
 
 Một toast ở góc trên bên phải màn hình cho bạn biết chuyện gì đang diễn ra — "Reviewing PR #12",
 "Posted review on PR #12 — 1 🔴 2 🟠", "LGTM on PR #12", một draft đang chờ, một session cần câu
 trả lời. Click vào toast để mở pull request; rê chuột vào thì toast được giữ lại; nhiều toast xếp chồng
-lên nhau. Khi bạn cần làm gì đó, toast hiện command mở session. Trên macOS watcher tự vẽ toast, nên
+lên nhau; nút "1h" trên toast tắt toast trong một giờ. Khi bạn cần làm gì đó, toast hiện command mở session. Trên macOS watcher tự vẽ toast, nên
 không cần quyền thông báo; trên Linux nó dùng `notify-send`. Mọi dòng chat đều kèm command mở session:
 
 | nền tảng | loại session | mở bằng |
@@ -88,15 +91,36 @@ Session nền của Claude Code cần repo là trusted workspace, và phải đ�
 bên ngoài shell sandbox của Claude Code. Session non-interactive dùng setting quyền bạn đã
 cấu hình cho nền tảng đó; watcher không cấp thêm quyền nào.
 
+## Menu bar (macOS)
+
+Trong lúc watcher chạy, một mục `open-pr` nằm trên menu bar của macOS, kèm số review đang
+chạy (`open-pr ·2`). Menu của nó liệt kê:
+
+- các review đang chạy — click một mục để mở pull request, hoặc copy command mở session
+  của nó;
+- mười toast gần nhất, nên không mất gì khi nhiều toast đến cùng lúc — click một mục để mở pull
+  request của nó;
+- snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
+
+Mục này tự biến mất vài phút sau khi watcher cuối cùng dừng. Trên Windows và Linux không có menu
+bar: hãy nhắn watcher trong chat để làm những việc tương tự (`status`, `snooze 1h`).
+
 ## Nói chuyện với watcher
 
 | nói | tác dụng |
 |---|---|
 | `status` | mỗi pull request một dòng, kèm trạng thái và command mở |
-| `snooze 2h` | không hiện toast cho đến lúc đó; hàng đợi vẫn chạy |
+| `snooze 2h` / `resume toasts` | không hiện toast trên máy này cho đến lúc đó — cùng một công tắc với nút "1h" trên toast và Snooze trên menu bar; hàng đợi vẫn chạy |
 | một thay đổi setting | lưu vào `settings.json` |
 | mở session mới cho PR 12 | lần kích hoạt tiếp theo trên PR đó mở session mới |
 | `stop` | dừng theo dõi; các session review đang mở vẫn chạy tiếp |
+
+## Giới hạn rate
+
+Mỗi lần poll tốn vài API call: ba trên GitHub, còn trên GitLab và Bitbucket là một cộng thêm một cho mỗi pull
+request được cập nhật kể từ lần poll trước. Khi host trả lời rằng account đã bị giới hạn rate, watcher
+tăng gấp đôi khoảng thời gian poll (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll
+thành công tiếp theo.
 
 ## Setting
 
@@ -111,5 +135,4 @@ Lưu ở `<data>/<repo>/settings.json` dưới `watch_review`:
 | `notify.draft_ready` | `true` | toast: một review draft đang chờ bạn duyệt |
 | `notify.posted` | `true` | toast: một review đã được post, hoặc LGTM |
 | `notify.re_review` | `true` | toast: một session có sẵn được resume để re-review |
-| `snooze_until` | `null` | thời điểm UTC mà trước đó toast vẫn tắt |
 | `trigger` | `/open-pr` | cái gì yêu cầu review: `/open-pr`, hoặc `@me` cho một lần mention account mà watcher đang chạy |

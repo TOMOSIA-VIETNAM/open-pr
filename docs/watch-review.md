@@ -63,13 +63,17 @@ and the reviewer.
   so the re-review keeps the earlier context.
 - Whether the review is published or left as a draft follows `auto_submit_review`, unless you tell the
   watcher otherwise. A draft is never published without you.
+- Once a session has reported its result, it is yours: the watcher says nothing more about it while you
+  keep talking in it, and never reads what you write there. The next request on that pull request
+  hands it back.
 
 ## Opening a session
 
 A toast in the top-right corner of your screen tells you what is happening — "Reviewing PR #12",
 "Posted review on PR #12 — 1 🔴 2 🟠", "LGTM on PR #12", a draft waiting, a session needing an
 answer. Clicking a toast opens the pull request; hovering keeps it on screen; several stack under
-each other. When you have to act, the toast shows the command that opens the session. On macOS the
+each other; its "1h" control turns toasts off for an hour. When you have to act, the toast shows the
+command that opens the session. On macOS the
 watcher draws the toast itself, so no notification permission is needed; on Linux it uses
 `notify-send`. Every chat line carries the command that opens the session:
 
@@ -89,15 +93,36 @@ Claude Code background sessions need the repository to be a trusted workspace, a
 outside Claude Code's shell sandbox. Non-interactive sessions use the permission settings you have
 configured for that platform; the watcher does not grant any.
 
+## Menu bar (macOS)
+
+While the watcher runs, an `open-pr` item sits in the macOS menu bar, with the number of reviews in
+progress (`open-pr ·2`). Its menu lists:
+
+- the reviews in progress — click one to open the pull request, or copy the command that opens its
+  session;
+- the last ten toasts, so nothing is lost when several arrive at once — click one to open its pull
+  request;
+- snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
+
+It leaves on its own a few minutes after the last watcher stops. On Windows and Linux there is no menu
+bar: ask the watcher in chat for the same things (`status`, `snooze 1h`).
+
 ## Talking to the watcher
 
 | say | effect |
 |---|---|
 | `status` | one line per pull request with its state and open command |
-| `snooze 2h` | no toasts until then; the queue keeps running |
+| `snooze 2h` / `resume toasts` | no toasts on this machine until then — the same switch as the toast's "1h" and the menu bar's Snooze; the queue keeps running |
 | a setting change | saved to `settings.json` |
 | start a fresh session for PR 12 | the next trigger on it opens a new session |
 | `stop` | stops watching; open review sessions keep running |
+
+## Rate limits
+
+Each poll costs a few API calls: three on GitHub, and on GitLab and Bitbucket one plus one per pull
+request updated since the last poll. When a host answers that the account is rate limited, the watcher
+doubles its interval (up to 15 minutes) and returns to `poll_interval_seconds` after the next
+successful poll.
 
 ## Settings
 
@@ -112,5 +137,4 @@ Stored in `<data>/<repo>/settings.json` under `watch_review`:
 | `notify.draft_ready` | `true` | toast: a draft review waits for your approval |
 | `notify.posted` | `true` | toast: a review was posted, or LGTM |
 | `notify.re_review` | `true` | toast: an existing session was resumed for a re-review |
-| `snooze_until` | `null` | UTC time until which toasts stay off |
 | `trigger` | `/open-pr` | what asks for a review: `/open-pr`, or `@me` for a mention of the account the watcher runs as |

@@ -41,6 +41,9 @@ cho PR đó, post theo đúng setting của repo. Reviewer mở được từng 
 | 17 | `trigger` trong setting: `/open-pr` (mặc định) hoặc `@me` (mention account watcher). Mention phải mở đầu comment, rồi main session nhận định comment có thật sự nhờ review không | Dự án không muốn lộ lệnh tool trên PR; mention như nhờ đồng nghiệp |
 | 18 | Kiểm tra trust lúc bắt đầu (`<watch> trust` đọc `~/.claude.json`, chỉ đọc); repo chưa trust ⇒ báo lệnh `cd <repo> && claude`. Không tự ghi trust | Trust không kế thừa từ thư mục cha (đã kiểm chứng); tự trust là bỏ qua màn xác nhận bảo mật |
 | 16 | Thông báo là toast tự vẽ ở góc trên phải màn hình (macOS: cửa sổ JXA `open-pr-toast.js`, không cần quyền Notifications; Linux: `notify-send`), xếp chồng khi có nhiều cái; snooze áp cho toast | Người dùng đang làm việc khác vẫn thấy watcher đang làm gì; notification hệ thống trên macOS đòi quyền và hiện dưới tên Script Editor |
+| 19 | Menu bar macOS (`open-pr-menubar.js`, JXA NSStatusBar, không cần quyền): hiện khi watcher chạy, số review đang chạy, 10 toast gần nhất, snooze; tự tắt vài phút sau khi watcher cuối dừng. Windows/Linux: `NO-EQUIVALENT`, mọi việc qua chat | Xem lại toast đến dồn dập, quản lý snooze không cần mở terminal |
+| 20 | Session đã báo kết quả là của user: watcher không báo gì thêm cho đến request mới, không đọc transcript/log | Tránh cảm giác người thứ ba nghe lén; tránh toast lặp khi user chat tiếp trong session |
+| 21 | Rate limit (mọi vendor): `triggers` exit 9, `wait` nhân đôi chu kỳ tới 900 s rồi trở lại khi poll thành công. Bitbucket chỉ lấy PR cập nhật từ `--since` | Bitbucket 1000 req/giờ, trước đây mỗi poll tốn 1 call cho mỗi PR mở |
 | 14 | Runner theo nền tảng: Claude Code dùng session nền tương tác (`claude --bg`); nền tảng khác chưa có dạng này ⇒ headless + resume | Reviewer mở được session; nền tảng nào có dạng như `--bg` thì thêm runner cùng kiểu |
 
 ## Runner theo nền tảng
@@ -106,14 +109,13 @@ Antigravity https://antigravity.google/docs/cli/headless.
     "draft_ready": true,
     "posted": true,
     "re_review": true
-  },
-  "snooze_until": null
+  }
 }
 ```
 
 - Nhóm "User config" trong `src/reference/settings-schema.md`, nhưng `watch-review` ghi node ở lần chạy
   đầu (giống bootstrap ghi `.review`), không chờ `/open-pr:upgrade`.
-- `snooze_until`: ISO-8601 UTC hoặc `null`. Trong snooze, notify tắt; hàng đợi vẫn chạy.
+- Snooze không nằm trong setting: file `<data>/.watch/snooze_until` (một cho cả máy), ghi từ chat (`<watch> snooze`), nút "1h" trên toast, hoặc menu bar.
 
 ## State của watch (không phải setting)
 

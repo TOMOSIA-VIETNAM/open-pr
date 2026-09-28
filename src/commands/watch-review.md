@@ -58,20 +58,23 @@ the events one by one. `Edit` the whole `watch_review` node into each such `<dat
 — its `settings` output's node with those 3 answers — then `core/memory-commit.md`. Each repo keeps its
 own limit. Fields: `max_concurrent` = sessions running or awaiting an answer (more queue) ·
 `poll_interval_seconds` · `notify.<event>` (`review_started`, `question`, `draft_ready`, `posted`,
-`re_review`) · `snooze_until` = ISO-8601 UTC or `null`, notifications off until then, queue unaffected ·
-`trigger` = `/open-pr`, or `@me` for a mention of the account the watcher runs as.
+`re_review`) · `trigger` = `/open-pr`, or `@me` for a mention of the account the watcher runs as.
 
 ## Step 3 — Watch
 
 Tell the user once, in `chat_language`: the repos watched, what asks for a review in each (a PR comment
-opening with its `trigger` — `@me` shown as `@<account>`), and that they can say here: `status`, `snooze <duration>`, change a setting, `stop`.
+opening with its `trigger` — `@me` shown as `@<account>`), and that they can say here: `status`,
+`snooze <duration>`, change a setting, `stop`. Then `<watch> menubar`: `started`/`running` ⇒ add that the
+menu bar shows active reviews, recent toasts and snooze; `NO-EQUIVALENT` ⇒ say nothing — chat covers it.
 
 Run 1 `<watch> wait` per watched repo, each as its own background command — you are woken when one
 exits: 1 JSON per line, its `repo` field naming the repo; handle it with that repo's values. Exit 0 ⇒
 handle every line, then run that repo's `wait` again; any other exit ⇒ its stderr in chat, and its
 lines are NOT events (the next `wait` prints them again). Run `<watch> spawn` with the shell sandbox
 off where your shell has one — a session started inside it never gets past starting. Every chat line,
-notification and question names the PR as `owner/repo#N`.
+notification and question names the PR as `owner/repo#N`. A review session is watched only for its
+result: once that is reported the session is the user's, and `<watch>` stays silent about it until a
+new request resumes it. FORBIDDEN: reading a session's transcript or logs.
 
 Per trigger `{"event":"trigger",…}` (`pr` = N):
 
@@ -89,16 +92,17 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
    - `claude`: `/open-pr:review <url> --status-file <status_file> --hint-file <hint file>`
    - any other runner: `ROOT: <ROOT>. Read <ROOT>/../adapters/root.md, then <ROOT>/commands/review.md and obey it VERBATIM. ARGUMENTS: <url> --status-file <status_file> --hint-file <hint file> --unattended`
      — `<ROOT>` absolute: the adapter maps `${CLAUDE_PLUGIN_ROOT}` and the tool names the review needs.
-6. `<watch> spawn --runner <runner> --pr N --name "review <owner>/<repo>#N" --prompt-file <prompt file>`:
-   - `queued` ⇒ 1 chat line with its `reason` (slots full, or that PR's session is still running — it
-     re-reviews once that session is done).
+6. `<watch> spawn --runner <runner> --pr N --name "review <owner>/<repo>#N" --prompt-file <prompt file>
+   --url <url>`:
+   - `queued` ⇒ 1 chat line with its `reason` (slots full; its session still running; or the user
+     talking in its session, which is never cut) — `ready` brings it back.
    - started ⇒ notify `review_started` (`re_review` when `resumed`); same in chat. `warning` ⇒ also in
      chat.
 
 "notify E" = `Write` `<F>` — line 1 a short summary in `chat_language` with `#N` (reviewing, posted
 with the per-severity counts, LGTM when none, draft waiting, needs an answer, failed); line 2 the PR
 title, or the `open` command when the user must act (a question, a draft) — then `<watch> notify
---event E --text-file <F> --url <PR url>`: a toast titled with the repo; a click opens the PR.
+--event E --text-file <F> --pr N --url <PR url>`: a toast titled with the repo; a click opens the PR.
 
 Per session `{"event":"session",…}` — always with its `open` command:
 
@@ -110,16 +114,17 @@ Per session `{"event":"session",…}` — always with its `open` command:
 | `posted`, `lgtm_chat` | notify `posted`; 1 chat line |
 | `failed`, `stopped` | notify `question`; the status file's `note`, else the event's `note`, in chat |
 
-Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`. A session in
-`draft`, `posted`, `lgtm_chat`, `failed` or `stopped` frees a slot ⇒ `<watch> next`; a PR printed ⇒ step 6 with the
-`prompt_file` and `name` it prints.
+Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`.
+
+Per `{"event":"ready",…}` — a queued PR's turn (a slot freed, or the user stopped talking in its
+session): `<watch> next`; a PR printed ⇒ step 6 with the `prompt_file` and `name` it prints.
 
 ## User messages while watching
 
 | user says | do |
 |---|---|
 | `status` | `<watch> status` per watched repo, 1 line per PR with its `open` command |
-| `snooze <duration>` | `snooze_until` = now + duration, UTC ISO-8601, in every watched repo (or the one named); `Edit` + `core/memory-commit.md` |
+| `snooze <duration>` / resume | `<watch> snooze --for <duration>` / `--off` — one switch for this machine's toasts, shared with the toast's snooze button and the menu bar |
 | a setting change | `Edit` that field in the repo it names (every watched repo when none) + `core/memory-commit.md` |
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
-| stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say that open review sessions keep running and how to open them |
+| stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say that open review sessions keep running and how to open them, and that the menu bar leaves on its own |
