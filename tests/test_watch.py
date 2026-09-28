@@ -30,11 +30,16 @@ case "$1" in
     repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
                  printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
     triggers) printf '%s\n' "$*" >> "$FAKE_HOME/triggers.args"
-              # triggers.rc: one outcome per call, consumed in order — 9 = rate limited, quiet = nothing
+              # triggers.rc: one outcome per call, consumed in order — 9 = rate limited, 1 = no
+              # network, quiet = nothing
               if [ -s "$FAKE_HOME/triggers.rc" ]; then
                   rc=$(head -n 1 "$FAKE_HOME/triggers.rc")
                   sed 1d "$FAKE_HOME/triggers.rc" > "$FAKE_HOME/triggers.rc.n"; mv "$FAKE_HOME/triggers.rc.n" "$FAKE_HOME/triggers.rc"
-                  case "$rc" in 9) printf 'rate limited\n' >&2; exit 9 ;; quiet) exit 0 ;; esac
+                  case "$rc" in
+                      9) printf 'rate limited\n' >&2; exit 9 ;;
+                      1) printf 'error connecting to api.github.com\n' >&2; exit 1 ;;
+                      quiet) exit 0 ;;
+                  esac
               fi
               mf=$(printf '%s\n' "$@" | sed -n '/^--mark-file$/{n;p;}')
               [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
@@ -415,6 +420,43 @@ def test_a_quiet_repo_moves_the_cursor_to_the_newest_comment_fetched(w):
         "a trigger in the mark's own second still arrives once"
     assert w.run("wait", "--once").stdout == ""
 
+
+def _long_wait(w):
+    w.settings(poll_interval_seconds=30)
+    w.run("wait", "--once")                                   # cursor set: nothing to deliver
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    w.children.append(proc)
+    for _ in range(50):                  # exec keeps the pid: the copy has taken over when it writes it
+        pf = w.sd / "wait.pid"
+        if pf.exists() and pf.read_text().strip() == str(proc.pid):
+            break
+        time.sleep(0.1)
+    return proc
+
+
+def test_a_second_wait_on_the_same_repo_is_refused(w):
+    """Two waits would share state.json and split the triggers between them."""
+    proc = _long_wait(w)
+    try:
+        r = w.run("wait", "--once", check=False)
+        assert r.returncode == 10 and "already watched" in r.stderr
+    finally:
+        proc.kill(); proc.wait()
+    assert w.run("wait", "--once", check=False).returncode == 0, "a dead holder frees the repo"
+
+
+def test_a_running_wait_survives_an_edit_of_its_script(w):
+    """sh reads a script as it runs; an update under a long wait must not break it."""
+    proc = _long_wait(w)
+    try:
+        script = w.bin / "open-pr-watch.sh"
+        script.write_text(script.read_text().replace("cmd_wait()", "cmd_wait( ) ((( broken", 1))
+        time.sleep(0.5)
+        assert proc.poll() is None, proc.stderr.read() if proc.poll() is not None else ""
+    finally:
+        proc.kill(); proc.wait()
+
 # ------------------------------------------------------- spawn / resume ----
 
 def test_claude_spawn_records_the_session_and_its_open_command(w):
@@ -463,6 +505,7 @@ def test_full_slots_queue_and_next_pops_after_a_session_finishes(w):
     w.claude_set(first["id"], "done")
     w.status_file(1, state="posted")
     popped = w.jsonl("next")
+    assert popped[0].pop("queued_at").endswith("Z")
     assert popped == [{"pr": 2, "runner": "claude", "name": "review o/r#2",
                        "prompt_file": str(w.home / "p2.txt")}]
     assert w.state()["queue"] == []
@@ -755,6 +798,20 @@ def test_a_new_request_never_cuts_a_conversation_in_a_finished_session(w):
     assert [(e["event"], e["pr"]) for e in w.jsonl("wait", "--once")] == [("ready", 5)]
     assert w.jsonl("next")[0]["pr"] == 5
 
+
+def test_a_question_left_unanswered_holds_a_new_request_only_for_a_while(w):
+    """The user walked away from a question in a finished session: a new request waits the grace
+    period, then goes ahead (stop + resume) instead of queueing forever."""
+    sp = finish(w)
+    w.claude_set(sp["id"], "blocked")
+    assert w.spawn(5, text="again")["reason"] == "session in use"
+    assert w.run("wait", "--once").stdout == "", "within the grace period"
+    st = w.state()
+    st["queue"][0]["queued_at"] = "2026-01-01T00:00:00Z"   # queued long ago
+    w.put_state(st)
+    assert [(e["event"], e["pr"]) for e in w.jsonl("wait", "--once")] == [("ready", 5)]
+    assert w.spawn(5, text="again")["resumed"] is True
+
 def test_a_finished_session_holds_no_slot_whatever_its_live_state(w):
     w.settings(max_concurrent=1)
     sp = finish(w, 1)
@@ -791,6 +848,16 @@ def test_wait_backs_off_on_a_rate_limit_and_recovers(w):
         "rate limited — next poll in 2s", "rate limited — next poll in 4s",
         "rate limited — next poll in 2s"], "doubles per limit; a good poll resets to the interval"
 
+
+
+def test_a_failure_that_persists_ends_the_wait_so_the_watcher_can_say_so(w):
+    """No network (or a sandbox) used to leave `wait` retrying forever while the chat looked idle."""
+    w.settings(poll_interval_seconds=1)
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("1\nquiet\n1\n1\n1\n")
+    r = w.run("wait", check=False)
+    assert r.returncode == 1 and "triggers failed 3 polls in a row" in r.stderr, r.stderr
+    assert r.stderr.count("retrying next poll") == 3, "a success in between resets the count"
 
 def test_the_backoff_stops_at_fifteen_minutes(w):
     w.settings(poll_interval_seconds=500)

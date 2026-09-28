@@ -68,10 +68,17 @@ opening with its `trigger` — `@me` shown as `@<account>`), and that they can s
 menu bar shows active reviews, recent toasts and snooze; `NO-EQUIVALENT` ⇒ say nothing — chat covers it.
 
 Run 1 `<watch> wait` per watched repo, each as its own background command — you are woken when one
-exits: 1 JSON per line, its `repo` field naming the repo; handle it with that repo's values. Exit 0 ⇒
-handle every line, then run that repo's `wait` again; any other exit ⇒ its stderr in chat, and its
-lines are NOT events (the next `wait` prints them again). Run `<watch> spawn` with the shell sandbox
-off where your shell has one — a session started inside it never gets past starting. Every chat line,
+exits: 1 JSON per line, its `repo` field naming the repo; handle it with that repo's values. Run every
+`<watch>` call with the shell sandbox off where your shell has one: inside it `wait` reaches no host and
+a session never gets past starting.
+
+| `wait` exit | do |
+|---|---|
+| 0 | handle every line, then run that repo's `wait` again |
+| 10 | another watcher on this machine already has that repo: tell the user now — the repo and the pid from stderr, and that its requests go to that watcher — and stop watching it here. FORBIDDEN: running it again |
+| any other | its stderr in chat now; its lines are NOT events (the next `wait` prints them again); run it again |
+
+Every chat line,
 notification and question names the PR as `owner/repo#N`. A review session is watched only for its
 result: once that is reported the session is the user's, and `<watch>` stays silent about it until a
 new request resumes it. FORBIDDEN: reading a session's transcript or logs.

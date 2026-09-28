@@ -25,7 +25,9 @@ session for that pull request, and tells you when something needs you.
    trust prompt).
 
 One watcher follows every repository you picked; each keeps its own settings, including its own
-limit on active sessions.
+limit on active sessions. A repository has at most one watcher per machine: a second one started for
+it says which process already has it and leaves that repository alone. When the host stays
+unreachable (no network, an expired login), the watcher tells you instead of waiting in silence.
 
 ## Asking for a review
 

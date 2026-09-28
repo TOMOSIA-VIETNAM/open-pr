@@ -25,7 +25,9 @@
 # Dependencies: jq, and the CLI of the runner in use.
 set -eu
 
-SELF_DIR=$(cd "$(dirname "$0")" && pwd)
+# A long-running `wait` runs from a private copy of this file (see the dispatch below), so
+# SELF_DIR — where open-pr.sh and the JS files live — is handed over rather than derived.
+SELF_DIR=${OPEN_PR_WATCH_SELF_DIR:-$(cd "$(dirname "$0")" && pwd)}
 RUNNERS="claude codex gemini cursor antigravity"
 EVENTS="review_started question draft_ready posted re_review"
 # A session in one of these has reported its result (see `finished` under state).
@@ -341,8 +343,8 @@ EOF
         if [ "$runner" = claude ]; then
             [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
             cs=$(printf '%s' "$CLAUDE_AGENTS" | jq -r --arg id "$id" '[.[]? | select(.id == $id)][0].state // empty' 2>/dev/null || true)
-            case "$cs" in working|blocked) inuse=true ;; esac
-        elif pid_alive "$pid"; then inuse=true; fi
+            case "$cs" in working|blocked) inuse=$cs ;; esac
+        elif pid_alive "$pid"; then inuse=working; fi
     elif [ "$runner" = claude ]; then
         [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
         entry=$(printf '%s' "$CLAUDE_AGENTS" | jq -c --arg id "$id" '[.[]? | select(.id == $id)][0] // empty')
@@ -372,7 +374,7 @@ EOF
           open: (if $open == "" then null else $open end)}
          + (if $note == "" then {} else {note: $note} end)
          + (if $fin == "true" then {finished: true} else {} end)
-         + (if $inuse == "true" then {in_use: true} else {} end)'
+         + (if $inuse == "" then {} else {in_use: $inuse} end)'
 }
 status_all() {   # JSONL for every tracked session (or just $1)
     CLAUDE_AGENTS=""   # one listing per pass: `wait` polls many times in one process
@@ -405,9 +407,23 @@ cmd_status() {
 }
 
 # --------------------------------------------------------------- spawn ----
+# A finished session the user left `blocked` (a question or permission prompt nobody answers)
+# holds a request back for IN_USE_GRACE seconds after it was queued — then the request goes
+# ahead (stop + resume keeps the conversation). A `working` session is never cut.
+IN_USE_GRACE=600
+# jq: the PRs a queued request must still wait for — $s = status rows, $q = queue, $now epoch.
+JQ_BUSY='def busy($s; $q; $now):
+    [$s[] | . as $r
+     | select(.state == "working" or .in_use == "working"
+              or (.in_use == "blocked"
+                  and (([$q[]? | select(.pr == $r.pr) | .queued_at // empty][0] // null) as $at
+                       | $at == null or ($now - ($at | fromdateiso8601)) < '"$IN_USE_GRACE"')))
+     | .pr];'
 enqueue() {   # $1 pr, $2 reason
-    state_update --argjson pr "$1" --arg runner "$RUNNER" --arg name "$NAME" --arg f "$PF" \
-        '.queue = ([.queue[] | select(.pr != $pr)] + [{pr: $pr, runner: $runner, name: $name, prompt_file: $f}])'
+    state_update --argjson pr "$1" --arg runner "$RUNNER" --arg name "$NAME" --arg f "$PF" --arg at "$(now_iso)" \
+        '(([.queue[] | select(.pr == $pr) | .queued_at][0]) // $at) as $since
+         | .queue = ([.queue[] | select(.pr != $pr)]
+                     + [{pr: $pr, runner: $runner, name: $name, prompt_file: $f, queued_at: $since}])'
     jq -n -c --argjson pr "$1" --arg why "$2" '{pr: $pr, queued: true, reason: $why}'
 }
 cmd_spawn() {
@@ -428,11 +444,11 @@ cmd_spawn() {
     fi
     if [ -n "$have" ]; then
         cur=$(jq -r --argjson pr "$N" 'select(.pr == $pr) | .state' "$TMPD/status")
-        inuse=$(jq -r --argjson pr "$N" 'select(.pr == $pr) | .in_use // false' "$TMPD/status")
         # A review still running finishes first, and a conversation the user is having in
         # a finished session is never cut: the re-review waits its turn (`wait` says `ready`).
         [ "$cur" != working ] || { enqueue "$N" "session still running"; return 0; }
-        [ "$inuse" != true ] || { enqueue "$N" "session in use"; return 0; }
+        busy=$(state_json | jq -r --slurpfile s "$TMPD/status" "$JQ_BUSY"' busy($s; .queue; now) | index('"$N"') != null')
+        [ "$busy" != true ] || { enqueue "$N" "session in use"; return 0; }
     fi
     [ "$(active_count "$TMPD/status" "$N")" -lt "$max" ] || { enqueue "$N" "all $max slots busy"; return 0; }
 
@@ -478,8 +494,8 @@ cmd_next() {
     remember_ids "$TMPD/status"
     [ "$(active_count "$TMPD/status")" -lt "$max" ] || return 0
     # First entry whose PR has no session still running — that one keeps its place.
-    busy=$(jq -s -c '[.[] | select(.state == "working" or .in_use == true) | .pr]' "$TMPD/status")
-    pick=$(state_json | jq -c --argjson busy "$busy" '[.queue[] | select(.pr as $p | $busy | index($p) | not)][0] // empty')
+    pick=$(state_json | jq -c --slurpfile s "$TMPD/status" "$JQ_BUSY"'
+        busy($s; .queue; now) as $busy | [.queue[] | select(.pr as $p | $busy | index($p) | not)][0] // empty')
     [ -n "$pick" ] || return 0
     state_update --argjson pick "$pick" '.queue = [.queue[] | select(.pr != $pick.pr)]'
     printf '%s\n' "$pick"
@@ -520,7 +536,7 @@ trigger_token() {
 # batch again — the caller acts only on a `wait` that exited 0, so a comment is
 # neither lost nor handled twice.
 poll_once() {   # GOT=1 when events were printed and committed; LIMITED=1 when the vendor rate-limited
-    GOT=""; LIMITED=""
+    GOT=""; LIMITED=""; : "${FAILS:=0}"
     touch "$SD/heartbeat"   # the menu bar's proof that this repo is still watched
     lock
     cursor=$(state_json | jq -r "$JQ_UTC"' .cursor // empty | utc')
@@ -543,10 +559,15 @@ poll_once() {   # GOT=1 when events were printed and committed; LIMITED=1 when t
     if [ "$rc" = 9 ] && [ -z "$(arg once)" ]; then LIMITED=1; return 0; fi
     cat "$TMPD/triggers.err" >&2
     if [ "$rc" != 0 ]; then
-        err "open-pr-watch.sh: triggers failed (exit $rc); retrying next poll"
         [ -z "$(arg once)" ] || exit "$rc"
+        # A blip retries quietly; a failure that persists (no network, a sandbox, an expired
+        # login) ends the wait so the watcher can tell the user instead of looking idle.
+        FAILS=$((FAILS + 1))
+        [ "$FAILS" -lt 3 ] || die 1 "open-pr-watch.sh: $OWNER/$REPO: triggers failed $FAILS polls in a row (exit $rc): $(tail -n 1 "$TMPD/triggers.err")"
+        err "open-pr-watch.sh: triggers failed (exit $rc); retrying next poll"
         return 0
     fi
+    FAILS=0
     lock
     state_json > "$TMPD/state.in"
     # Vendors print created_at with or without fractions; compare at second
@@ -565,10 +586,10 @@ poll_once() {   # GOT=1 when events were printed and committed; LIMITED=1 when t
     # A queued PR whose turn has come (a slot free, its session neither running nor in
     # use): `ready`, so the watcher runs `next` — nothing else would wake it.
     max=$(setting_int max_concurrent 5)
-    jq -c -s --slurpfile st "$TMPD/state.in" --argjson max "$max" '
+    jq -c -s --slurpfile st "$TMPD/state.in" --argjson max "$max" "$JQ_BUSY"'
         . as $s
         | ([$s[] | select(.finished != true and (.state == "working" or .state == "question"))] | length) as $active
-        | [$s[] | select(.state == "working" or .in_use == true) | .pr] as $busy
+        | busy($s; $st[0].queue; now) as $busy
         | if $active < $max then
               ([$st[0].queue[]? | select(.pr as $p | $busy | index($p) | not)][0] // empty)
               | {event: "ready", pr}
@@ -605,6 +626,15 @@ poll_once() {   # GOT=1 when events were printed and committed; LIMITED=1 when t
 cmd_wait() {
     parse_args "$@"
     load_repo
+    # One `wait` per repo on this machine: two would share state.json and split the events
+    # between them — a trigger taken by the other one never reaches this watcher.
+    wp="$SD/wait.pid"
+    old=$(cat "$wp" 2>/dev/null || true)
+    if [ -n "$old" ] && [ "$old" != "$$" ] && kill -0 "$old" 2>/dev/null \
+        && ps -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
+        die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched on this machine (wait pid $old) — stop that watcher first"
+    fi
+    printf '%s\n' "$$" > "$wp"
     interval=$(setting_int poll_interval_seconds 60); delay=$interval
     while :; do
         # Not an `if` condition: set -e must still stop on a failed step inside.
@@ -838,6 +868,8 @@ Exit codes:
   7  `<data>` not set
   8  the runner refuses the repo dir as untrusted — the message names the command to run once
   9  `wait --once` hit a vendor rate limit
+  10 another `wait` already watches this repo on this machine — the message names its pid
+     (`wait` also exits 1 once triggers has failed 3 polls in a row, naming the last error)
 EOF
 }
 
@@ -845,13 +877,23 @@ case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 need jq
 
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr-watch.XXXXXX")
-trap 'unlock; rm -rf "$TMPD"' EXIT
+# OPEN_PR_WATCH_COPY: the directory holding the copy a `wait` runs from, removed with it.
+trap 'unlock; rm -rf "$TMPD" ${OPEN_PR_WATCH_COPY:+"$OPEN_PR_WATCH_COPY"}' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
 sub="${1:-}"; [ -n "$sub" ] && shift || die 1 "open-pr-watch.sh: no subcommand (see --help)"
 case "$sub" in
-    wait)    cmd_wait "$@" ;;
+    wait)
+        # sh reads a script as it runs: a plugin update (or edit) under a `wait` that polls for
+        # hours would make it execute a mix of two files. Run from a private copy instead.
+        if [ -z "${OPEN_PR_WATCH_COPY:-}" ]; then
+            cp "$0" "$TMPD/open-pr-watch.sh"
+            OPEN_PR_WATCH_COPY="$TMPD"; OPEN_PR_WATCH_SELF_DIR="$SELF_DIR"
+            export OPEN_PR_WATCH_COPY OPEN_PR_WATCH_SELF_DIR
+            exec sh "$TMPD/open-pr-watch.sh" wait "$@"
+        fi
+        cmd_wait "$@" ;;
     spawn)   cmd_spawn "$@" ;;
     status)  cmd_status "$@" ;;
     next)    cmd_next "$@" ;;

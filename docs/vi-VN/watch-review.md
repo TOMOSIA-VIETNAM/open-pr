@@ -25,7 +25,9 @@ riêng cho pull request đó, và báo bạn khi có việc cần bạn.
    lời hỏi trust).
 
 Một watcher theo dõi mọi repo bạn đã chọn; mỗi repo giữ setting riêng, kể cả giới hạn số session
-active của nó.
+active của nó. Mỗi repo có tối đa một watcher trên một máy: watcher thứ hai mở cho repo đó sẽ báo
+tiến trình nào đang giữ repo rồi bỏ qua repo đó. Khi không kết nối được host (mất mạng, login hết hạn),
+watcher báo cho bạn thay vì im lặng chờ.
 
 ## Yêu cầu review
 
