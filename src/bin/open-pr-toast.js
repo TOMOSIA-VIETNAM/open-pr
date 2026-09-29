@@ -1,11 +1,35 @@
 // macOS toast for open-pr-watch.sh notify: our own panel, so no Notifications permission (the
 // system centre would ask, and file it under "Script Editor"); mouse state is polled from NSEvent
 // class methods, which need no Accessibility permission either.
-//   click → open `url` · ✕ → close · 1h → write the snooze file · hover → countdown pauses
+//   click → focus (below) · ✕ → close · 1h → write the snooze file · hover → countdown pauses
 // argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
-// `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line).
-// Every string arrives as argv; nothing here is spliced into source.
+// `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, and the
+// watcher.json fields term, term_session, tty.
+// focus: pr → open url · watcher → the watcher's terminal tab · session → the open command in
+// the watcher's terminal app (no valid command ⇒ watcher). A watcher in a terminal not in TERMS
+// ⇒ url. The focus code mirrors open-pr-menubar.js (goToTab, openTerminal).
+// Every string arrives as argv; nothing here is spliced into source: the open command is written
+// into a .command file only after matching OPEN_CMD, a tab id reaches osascript as argv only after
+// matching TAB_ID.
 ObjC.import('Cocoa');
+
+var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
+var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
+var TERMS = {   // by TERM_PROGRAM: bundle id, app name for NSWorkspace openFile:withApplication:
+    'iTerm.app': ['com.googlecode.iterm2', 'iTerm'], 'Apple_Terminal': ['com.apple.Terminal', 'Terminal'],
+    'ghostty': ['com.mitchellh.ghostty', 'Ghostty'], 'WezTerm': ['com.github.wez.wezterm', 'WezTerm'],
+    'WarpTerminal': ['dev.warp.Warp-Stable', 'Warp']
+};
+var FOCUS = {   // `on run argv`: the tab id is an argument, never source
+    'iTerm.app': ['on run argv', 'tell application id "com.googlecode.iterm2"',
+        'repeat with w in windows', 'repeat with t in tabs of w', 'repeat with s in sessions of t',
+        'if (unique id of s) is (item 1 of argv) then', 'select w', 'select t', 'select s', 'activate', 'return',
+        'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
+    'Apple_Terminal': ['on run argv', 'tell application id "com.apple.Terminal"',
+        'repeat with w in windows', 'repeat with t in tabs of w', 'if (tty of t) is (item 1 of argv) then',
+        'set selected of t to true', 'set index of w to 1', 'activate', 'return',
+        'end if', 'end repeat', 'end repeat', 'end tell', 'end run']
+};
 
 var ACCENT = {   // sRGB, by event
     review_started: [0.35, 0.53, 0.95], re_review: [0.35, 0.53, 0.95],
@@ -16,8 +40,9 @@ var ACCENT = {   // sRGB, by event
 function run(argv) {
     var title = argv[0] || 'open-pr', summary = argv[1] || '', detail = argv[2] || '';
     var accent = ACCENT[argv[3]] || [0.91, 0.27, 0.06];
-    var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8), url = argv[6] || '';
+    var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8);
     var snoozeFile = argv[7] || '';
+    var where = clickTarget(argv);
 
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
@@ -84,7 +109,7 @@ function run(argv) {
             var onClose = top && p.x >= x + W - 30;
             var onSnooze = snoozeFile && top && !onClose && p.x >= x + W - 62;
             if (onSnooze) snoozeHour(snoozeFile);
-            else if (!onClose && url) $.NSWorkspace.sharedWorkspace.openURL($.NSURL.URLWithString(url));
+            else if (!onClose) focus(where);
             break;
         }
         wasDown = down;
@@ -93,6 +118,49 @@ function run(argv) {
     }
     for (i = 9; i >= 0; i--) { win.setAlphaValue(i / 10); pause(0.03); }
     win.orderOut(null);
+}
+
+function clickTarget(argv) {
+    return { focus: argv[8] || 'pr', url: argv[6] || '', open: argv[9] || '', snoozeFile: argv[7] || '',
+             term: argv[10] || '', term_session: argv[11] || '', tty: argv[12] || '' };
+}
+function focus(o) {
+    if (o.focus === 'session' && openSession(o)) return;
+    if ((o.focus === 'session' || o.focus === 'watcher') && goToTab(o)) return;
+    if (/^https?:\/\/\S+$/.test(o.url)) $.NSWorkspace.sharedWorkspace.openURL($.NSURL.URLWithString(o.url));
+}
+// A .command file opened via LaunchServices needs no Automation permission.
+function openSession(o) {
+    if (!OPEN_CMD.test(o.open) || !o.snoozeFile) return false;
+    var dir = o.snoozeFile.replace(/\/[^\/]*$/, '') + '/sessions', fm = $.NSFileManager.defaultManager;
+    fm.createDirectoryAtPathWithIntermediateDirectoriesAttributesError(dir, true, $({}), null);
+    var path = dir + '/' + o.open.split(' ').pop() + '.command';
+    if (!$('#!/bin/sh\n' + o.open + '\n').writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null)) return false;
+    fm.setAttributesOfItemAtPathError($({ NSFilePosixPermissions: 493 }), path, null);   // 0755
+    return $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, TERMS[o.term] ? TERMS[o.term][1] : 'Terminal');
+}
+function goToTab(o) {
+    var t = TERMS[o.term];
+    if (!t) return false;
+    // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
+    // LaunchServices: an accessory app's own activate request is ignored by macOS.
+    spawn('/usr/bin/open', ['-b', t[0]]);
+    var id = o.term === 'iTerm.app' ? o.term_session.split(':').pop()
+           : o.term === 'Apple_Terminal' && o.tty ? (o.tty.charAt(0) === '/' ? o.tty : '/dev/' + o.tty) : '';
+    if (FOCUS[o.term] && TAB_ID.test(id)) {
+        var args = [];
+        FOCUS[o.term].forEach(function (l) { args.push('-e', l); });
+        spawn('/usr/bin/osascript', args.concat([id]));
+    }
+    return true;
+}
+function spawn(path, args) {
+    var task = $.NSTask.alloc.init;
+    task.setLaunchPath(path);
+    task.setArguments($(args));
+    task.setStandardOutput($.NSFileHandle.fileHandleWithNullDevice);
+    task.setStandardError($.NSFileHandle.fileHandleWithNullDevice);
+    task.launch;
 }
 
 function snoozeHour(file) {   // atomic write: a reader never sees half a line

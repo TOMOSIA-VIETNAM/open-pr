@@ -109,7 +109,9 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
 "notify E" = `Write` `<F>` — line 1 a short summary in `chat_language` with `#N` (reviewing, posted
 with the per-severity counts, LGTM when none, draft waiting, needs an answer, failed); line 2 the PR
 title, or the `open` command when the user must act (a question, a draft) — then `<watch> notify
---event E --text-file <F> --pr N --url <PR url>`.
+--event E --text-file <F> --pr N --url <PR url>` + where a click takes the user: `--focus session` for
+a question inside a review session, `--focus watcher` for your own question or an error, else nothing
+(the PR).
 
 Per `{"event":"session",…}` (it carries `open`):
 

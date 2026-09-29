@@ -193,11 +193,15 @@ class Watch:
     def claude_db(self):
         return json.loads((self.home / "claude.db.json").read_text())
 
-    def claude_set(self, cid, state):
+    def claude_set(self, cid, state, status=None):
+        """status: the `claude agents` turn status (idle | busy); None leaves it out."""
         db = self.claude_db()
         for s in db["sessions"]:
             if s["id"] == cid:
                 s["state"] = state
+                s.pop("status", None)
+                if status:
+                    s["status"] = status
         (self.home / "claude.db.json").write_text(json.dumps(db))
 
     def claude_calls(self, with_cwd=False):
@@ -650,6 +654,31 @@ def test_status_maps_each_claude_state(w, claude_state, status_body, want):
     assert ("note" in row) == (claude_state == "done" and status_body is None)
 
 
+@pytest.mark.parametrize("status, status_body, want", [
+    ("idle", {"state": "posted"}, "posted"),
+    ("idle", None, "failed"),
+    ("busy", {"state": "posted"}, "working"),
+])
+def test_a_working_claude_session_idle_at_its_prompt_has_finished(w, status, status_body, want):
+    """A resumed or attached session that finished stays "working" + "idle", never "done"."""
+    sp = w.spawn(12)
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "working", status)
+    if status_body:
+        w.status_file(12, **status_body)
+    events = w.jsonl("wait", "--once")
+    assert [e["state"] for e in events] == ([] if want == "working" else [want])
+    if want == "failed":
+        assert "ended without writing" in events[0]["note"]
+    assert w.run("wait", "--once").stdout == "", "delivered once"
+
+
+def test_a_finished_session_idle_at_its_prompt_is_not_in_use(w):
+    sp = finish(w)
+    w.claude_set(sp["id"], "working", "idle")
+    assert w.spawn(5, text="again")["resumed"] is True
+
+
 def test_headless_status_follows_the_pid_then_the_status_file(w):
     (w.home / "codex.out").write_text(json.dumps({"type": "thread.started", "thread_id": "th-1"}) + "\n")
     sp = w.spawn(13, runner="codex", env_extra={"FAKE_SLEEP": "30"})
@@ -775,6 +804,36 @@ def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
             os.kill(int((d / "pid").read_text()), 9)
         except (OSError, ValueError):
             pass
+
+# osascript argv[11:] = the toast's focus, open command, term, term_session, tty.
+def test_notify_focus_hands_the_toast_where_a_click_goes(w):
+    sp = w.spawn(3)
+    (w.sd / "watcher.json").write_text(json.dumps(
+        {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p0:AB-12", "tty": "ttys004"}))
+    url = "https://github.com/o/r/pull/3"
+    w.run("notify", "--event", "question", "--text-file", w.prompt("PR #3 needs you", "q.txt"),
+          "--pr", "3", "--url", url, "--focus", "session")
+    rec = w.recorded("osascript")["argv"]
+    assert rec[9] == url
+    assert rec[11:] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004"]
+
+
+def test_notify_focus_defaults_to_the_pr_and_rejects_an_unknown_one(w):
+    assert notify(w)["sent"] is True
+    assert w.recorded("osascript")["argv"][11:] == ["pr", "", "", "", ""], "no --pr, no watcher.json"
+    r = w.run("notify", "--event", "posted", "--text-file", w.prompt("x"), "--focus", "tab", check=False)
+    assert r.returncode == 1 and "pr watcher session" in r.stderr
+
+
+def test_notify_passes_no_open_command_or_tab_outside_their_shape(w):
+    """They reach a .command file and osascript argv: anything else travels as an empty string."""
+    w.put_state({"cursor": None, "seen": [], "queue": [],
+                 "sessions": {"3": {"runner": "claude", "open": "claude attach x; touch pwned"}}})
+    (w.sd / "watcher.json").write_text(json.dumps(
+        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y"}))
+    w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--pr", "3", "--focus", "session")
+    assert w.recorded("osascript")["argv"][11:] == ["session", "", "", "", ""]
+
 
 def _minimal_path(w, tmp_path, with_notify_send):
     """PATH without the system osascript: only the tools the script needs."""
@@ -961,6 +1020,22 @@ def test_spawn_keeps_what_the_menu_bar_shows(w):
                  "--prompt-file", w.prompt("p"), "--url", url)[0]
     s = w.state()["sessions"]["3"]
     assert (s["repo"], s["url"], s["open"], s["finished"]) == ("o/r", url, f"claude attach {sp['id']}", False)
+
+
+def test_last_state_at_follows_each_state_change(w):
+    """The menu bar weighs it against the newest feed line to pick the row's state."""
+    sp = w.spawn(5)
+    s = w.state()["sessions"]["5"]
+    assert s["last_state_at"] == s["started_at"], "spawn records when the state became working"
+    st = w.state()
+    st["sessions"]["5"]["last_state_at"] = "2026-01-01T00:00:00Z"
+    w.put_state(st)
+    w.run("wait", "--once")
+    assert w.state()["sessions"]["5"]["last_state_at"] == "2026-01-01T00:00:00Z", "unchanged state"
+    w.claude_set(sp["id"], "blocked")
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["question"]
+    at = w.state()["sessions"]["5"]["last_state_at"]
+    assert at > "2026-01-01T00:00:00Z" and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", at)
 
 
 # ---------------------------------------------------------- rate limit ----

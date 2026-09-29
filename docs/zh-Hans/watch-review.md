@@ -65,7 +65,7 @@
 ## 打开会话
 
 屏幕右上角的 toast 会告诉你正在发生什么 —— "Reviewing PR #12"、"Posted review on PR #12 — 1 🔴 2 🟠"、
-"LGTM on PR #12"、一份等待中的草稿、一个需要回答的会话。点击会打开 pull request；鼠标悬停时保持显示；
+"LGTM on PR #12"、一份等待中的草稿、一个需要回答的会话。点击会跳到需要处理的地方：评审会话的提问会在你的终端中打开该会话，watcher 自己的提问或错误会把 watcher 的标签页调到前台，其他情况打开 pull request；鼠标悬停时保持显示；
 toast 上的 "1h" 会关闭 toast 一小时。需要你处理时，toast 会显示打开会话的命令。在 macOS 上 watcher 自己
 绘制 toast（不需要通知权限）；在 Linux 上它使用 `notify-send`。
 

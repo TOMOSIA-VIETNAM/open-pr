@@ -2,7 +2,8 @@
 // polls, in every data directory given, the files the watcher writes:
 //   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
 //   <data>/<repo>/watch-review/state.json   sessions, one row per PR; active = not finished, working or question
-//   <data>/<repo>/watch-review/feed.jsonl   notifications; a PR's latest one is its row's text
+//   <data>/<repo>/watch-review/feed.jsonl   notifications; a PR's latest one, when newer than its
+//                                           session's state, is its row's text
 //   <data>/<repo>/watch-review/watcher.json the terminal tab whose watcher watches the repo
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
@@ -31,12 +32,12 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
     failed:   ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Failed'],
     stopped:  ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Stopped']
 };
-// The state a feed event reports. A PR's latest feed line is its row's text only while it
-// reports the session's current state: a disabled event writes no line, so the latest one
-// can be older than the state (e.g. "reviewing" under a posted session).
+// A row shows whichever happened last: the session's state or the PR's latest feed line (a
+// disabled event writes no line, so that line can be older than the state). A line wins through
+// the kind of its event: a question asked from inside a still-working session is newer than
+// "working", and the row must stop saying "Reviewing".
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', error: 'failed' };
-var SAME_EVENT = { lgtm_chat: 'posted', stopped: 'failed' };
 // by TERM_PROGRAM: menu name, bundle id, app name for NSWorkspace openFile:withApplication:
 var TERMS = {
     'iTerm.app':      ['iTerm', 'com.googlecode.iterm2', 'iTerm'],
@@ -170,14 +171,15 @@ function scan() {
             var repo = str(s.repo) || name, state = str(s.last_state);
             rows[repo + '#' + pr] = { title: repo + ' #' + pr, session: true, state: state,
                 active: s.finished !== true && (state === 'working' || state === 'question'),
-                url: str(s.url), open: str(s.open), times: [str(s.started_at), str(s.finished_at)] };
+                url: str(s.url), open: str(s.open),
+                stateAt: ms(s.last_state_at) || Math.max(ms(s.started_at), ms(s.finished_at)) };
         });
         readText(dir + '/feed.jsonl').split('\n').forEach(function (line) {
             var f = parse(line);
             if (!f || typeof f !== 'object' || !str(f.summary)) return;
             var repo = str(f.repo) || name, pr = typeof f.pr === 'number' ? String(f.pr) : '';
             var r = rows[repo + '#' + pr] || (rows[repo + '#' + pr] =
-                { title: repo + (pr ? ' #' + pr : ''), session: false, state: '', active: false, url: '', open: '', times: [] });
+                { title: repo + (pr ? ' #' + pr : ''), session: false, state: '', active: false, url: '', open: '', stateAt: 0 });
             if (!r.feed || str(f.at) >= str(r.feed.at)) r.feed = f;
             if (!r.url) r.url = str(f.url);
         });
@@ -191,20 +193,20 @@ function scan() {
     out.watchers.sort(function (a, b) { return a.label < b.label ? -1 : a.label > b.label ? 1 : 0; });
     return out;
 }
-// A row's kind (key of KIND), text and latest activity.
+function ms(t) { var n = new Date(str(t)).getTime(); return isNaN(n) ? 0 : n; }
+// A row's kind (key of KIND), text and latest activity. Same second: the line wins, its summary
+// says more than the state label.
 function finish(r) {
-    var f = r.feed, fk = f ? EVENT_KIND[str(f.event)] || '' : '', kind;
-    if (r.session) {
-        if (fk !== (SAME_EVENT[r.state] || r.state)) f = null;
+    var f = r.feed, fat = f ? ms(f.at) : 0, kind;
+    if (r.session && (!f || fat < r.stateAt)) {
+        f = null;
         kind = r.state === 'lgtm_chat' ? 'lgtm' : r.state;
-    } else kind = fk;
+    } else kind = f ? EVENT_KIND[str(f.event)] || '' : '';
     // A posted review with no findings: its summary starts with LGTM.
     if (kind === 'posted' && f && /^LGTM\b/i.test(str(f.summary))) kind = 'lgtm';
-    var at = 0;
-    r.times.concat(r.feed ? [str(r.feed.at)] : []).forEach(function (t) {
-        var ms = new Date(t).getTime();
-        if (ms > at) at = ms;
-    });
+    // Counted and listed first like an active session: it waits on the user.
+    if (f && kind === 'question') r.active = true;
+    var at = Math.max(r.stateAt, fat);
     r.kind = kind;
     r.at = at;
     r.text = (f ? str(f.summary) : KIND[kind] ? KIND[kind][2] : kind) + (at ? ' · ' + when(new Date(at)) : '');

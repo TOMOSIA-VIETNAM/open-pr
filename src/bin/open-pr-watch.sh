@@ -113,7 +113,9 @@ setting_int() {
 # state.json:
 #   cursor    newest processed comment created_at, UTC, second precision
 #   seen      comment ids at exactly that created_at (ties the cursor cannot order)
-#   sessions  { "<pr>": {runner,id,session_id,name,repo,url,open,cwd,pid,started_at,last_state,finished} }
+#   sessions  { "<pr>": {runner,id,session_id,name,repo,url,open,cwd,pid,started_at,last_state,
+#                        last_state_at,finished} }
+#             last_state_at = when last_state last changed (the menu bar weighs it against the feed)
 #             cwd = where it was opened; a resume runs there again
 #             finished = `wait` delivered its result (a TERMINAL state): the session is the
 #             user's now, reports nothing more and holds no slot until spawn resumes it
@@ -157,6 +159,8 @@ open_cmd() {   # $1 runner, $2 id → the command a reviewer runs to open the se
         antigravity) printf 'agy --conversation %s' "$2" ;;
     esac
 }
+# The only shape open_cmd prints; the toast and the menu bar write nothing else into a .command file.
+OPEN_CMD_RE='[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+'
 check_runner() {
     case " $RUNNERS " in *" $1 "*) ;; *) die 1 "open-pr-watch.sh: unknown runner: $1 (valid: $RUNNERS)" ;; esac
 }
@@ -305,6 +309,12 @@ status_note() {   # why from_status_file said failed without the file saying so
     esac
 }
 CLAUDE_AGENTS=""
+# `claude agents` state of the entry with id $1. A resumed or attached session that finished its
+# turn stays "working" with status "idle" (waiting at its prompt), never "done": read as done.
+claude_state() {
+    printf '%s' "$CLAUDE_AGENTS" | jq -r --arg id "$1" '[.[]? | select(.id == $id)][0] // {}
+        | if .state == "working" and .status == "idle" then "done" else .state // empty end' 2>/dev/null || true
+}
 status_one() {   # $1 pr
     pr="$1"
     row=$(state_json | jq -r --arg pr "$pr" '.sessions[$pr] | [.runner, .id, .session_id, .pid, (.finished == true), .last_state] | map(. // "" | tostring) | join("\u001f")')
@@ -320,14 +330,14 @@ EOF
         # The user may still be talking in it: a new request waits rather than stops it.
         if [ "$runner" = claude ]; then
             [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
-            cs=$(printf '%s' "$CLAUDE_AGENTS" | jq -r --arg id "$id" '[.[]? | select(.id == $id)][0].state // empty' 2>/dev/null || true)
+            cs=$(claude_state "$id")
             case "$cs" in working|blocked) inuse=$cs ;; esac
         elif pid_alive "$pid"; then inuse=working; fi
     elif [ "$runner" = claude ]; then
         [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
         entry=$(printf '%s' "$CLAUDE_AGENTS" | jq -c --arg id "$id" '[.[]? | select(.id == $id)][0] // empty')
         [ -n "$sid" ] || sid=$(printf '%s' "$entry" | jq -r '.sessionId // empty' 2>/dev/null || true)
-        cs=$(printf '%s' "$entry" | jq -r '.state // empty' 2>/dev/null || true)
+        cs=$(claude_state "$id")
         case "$cs" in
             working) st=working ;;
             blocked) st=question ;;
@@ -482,7 +492,7 @@ cmd_spawn() {
          .sessions[$pr] = {runner: $runner, id: ($id | nul), session_id: ($sid | nul), name: $name,
                            repo: $repo, url: (($url | nul) // .sessions[$pr].url), open: ($open | nul), cwd: $cwd,
                            pid: ($pid | nul | if . then tonumber else . end), started_at: $at,
-                           last_state: "working", finished: false}
+                           last_state: "working", last_state_at: $at, finished: false}
          | .queue = [.queue[] | select(.pr != ($pr | tonumber))]'
     jq -n -c --argjson pr "$N" --arg id "$RID" --arg open "$(open_cmd "$RUNNER" "$RID")" \
         --argjson resumed "$resumed" --arg warn "$WARNING" \
@@ -606,7 +616,8 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited)
         | .cursor = $c
         | ($terminal | split(" ")) as $done
         | reduce $status[] as $s (.; if .sessions[($s.pr | tostring)] then
-              .sessions[($s.pr | tostring)] |= (.last_state = $s.state | .id = (.id // $s.id)
+              .sessions[($s.pr | tostring)] |= ((if .last_state != $s.state then .last_state_at = $at else . end)
+                                                | .last_state = $s.state | .id = (.id // $s.id)
                                                 | .session_id = (.session_id // $s.session_id)
                                                 | .open = (.open // $s.open)
                                                 | if any($done[]; . == $s.state) then .finished = true | .finished_at = (.finished_at // $at) else . end)
@@ -624,6 +635,9 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited)
 # focus that tab. Env values are data: a value outside its pattern is recorded as "".
 NL='
 '
+TERM_RE='[A-Za-z0-9._-]{1,64}'
+TERM_SESSION_RE='[A-Za-z0-9:._-]{1,128}'
+TTY_RE='[A-Za-z0-9/]{1,32}'
 fit() {   # $1 value, $2 ERE it must match whole
     printf '%s' "$1" | LC_ALL=C grep -Eqx "$2" 2>/dev/null || return 0
     case "$1" in *"$NL"*) return 0 ;; esac   # grep matches per line
@@ -639,7 +653,7 @@ ancestor_tty() {
 $row
 EOF
         [ -n "${tt:-}" ] || return 0
-        case "$tt" in '?'|'??'|-) ;; *) fit "$tt" '[A-Za-z0-9/]{1,32}'; return 0 ;; esac
+        case "$tt" in '?'|'??'|-) ;; *) fit "$tt" "$TTY_RE"; return 0 ;; esac
         p=$pp; i=$((i + 1))
     done
 }
@@ -648,11 +662,14 @@ write_watcher() {
     # no control characters (a newline would pass grep line by line)
     [ "$cwd" = "$(printf '%s' "$cwd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#cwd} -le 1024 ] || cwd=""
     jq -n -c --argjson pid "$$" --arg cwd "$cwd" \
-        --arg term "$(fit "${TERM_PROGRAM:-}" '[A-Za-z0-9._-]{1,64}')" \
-        --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" '[A-Za-z0-9:._-]{1,128}')" \
+        --arg term "$(fit "${TERM_PROGRAM:-}" "$TERM_RE")" \
+        --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
         --arg tty "$(ancestor_tty)" \
         '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty}' > "$SD/watcher.json.tmp"
     mv "$SD/watcher.json.tmp" "$SD/watcher.json"
+}
+watcher_field() {   # $1 key of watcher.json, $2 ERE → its value, or "" when it does not match
+    fit "$(jq -r --arg k "$1" '.[$k] // "" | strings' "$SD/watcher.json" 2>/dev/null || true)" "$2"
 }
 cmd_wait() {
     parse_args "$@"
@@ -691,6 +708,8 @@ cmd_notify() {
     case " $EVENTS " in *" $E "*) ;; *) die 1 "open-pr-watch.sh: unknown event: $E (valid: $EVENTS)" ;; esac
     [ -r "$F" ] || die 1 "open-pr-watch.sh: text file not readable: $F"
     P=$(arg pr); [ -z "$P" ] || check_ident '^[0-9]+$' "$P"
+    FOCUS=$(arg focus); FOCUS=${FOCUS:-pr}
+    case "$FOCUS" in pr|watcher|session) ;; *) die 1 "open-pr-watch.sh: unknown focus: $FOCUS (valid: pr watcher session)" ;; esac
     load_repo; watch_dir
     off=$(settings | jq -r --arg e "$E" '(.watch_review.notify // {}) as $n
         | if ($n | has($e)) and $n[$e] == false then "yes" else "" end')
@@ -721,8 +740,13 @@ cmd_notify() {
             slot=$((slot + 1))
         done
         [ "$slot" -lt 8 ] || slot=0
+        # Where a click goes: values outside their pattern travel as "" (the toast checks again).
+        open=""; [ -z "$P" ] || open=$(fit "$(session_field "$P" open)" "$OPEN_CMD_RE")
         nohup osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
-            "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" > "$WD/toast.log" 2>&1 &
+            "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" "$FOCUS" "$open" \
+            "$(watcher_field term "$TERM_RE")" "$(watcher_field term_session "$TERM_SESSION_RE")" \
+            "$(watcher_field tty "$TTY_RE")" \
+            > "$WD/toast.log" 2>&1 &
         printf '%s\n' "$!" > "$sd/$slot/pid"
     elif command -v notify-send >/dev/null 2>&1; then
         via=notify-send
@@ -875,12 +899,15 @@ Subcommands:
   paths [--pr N]
       `dir=…` `prompts=…` lines; with `--pr` also `status_file=…` (the review session writes it)
       and `log=…`
-  notify --event E --text-file F [--pr N] [--url U]
+  notify --event E --text-file F [--pr N] [--url U] [--focus pr|watcher|session]
       toast titled `open-pr · <owner>/<repo>`: F line 1 = summary, line 2 = detail; E one of
       review_started|question|draft_ready|posted|re_review|error. Skipped (`"sent":false` + reason) when
       `watch_review.notify.E` is false, or while snoozed (see snooze). Each one not disabled joins
-      `feed.jsonl` (last 50). macOS: drawn by open-pr-toast.js (no Notifications permission; click
-      opens U, hover holds it, toasts stack, `1h` snoozes), else notify-send, else stderr
+      `feed.jsonl` (last 50). macOS: drawn by open-pr-toast.js (no Notifications permission; hover
+      holds it, toasts stack, `1h` snoozes), else notify-send, else stderr. A click goes where
+      `--focus` says: `pr` (default) opens U; `watcher` brings the watcher's terminal tab forward;
+      `session` opens PR N's session in the watcher's terminal app (no valid open command ⇒ as
+      `watcher`); a watcher in an unknown terminal ⇒ opens U
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
