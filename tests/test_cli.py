@@ -1054,9 +1054,9 @@ def test_claim_with_no_prior_claim_posts_and_wins(shims, claim_body):
     ])
     assert claim(shims, "github", claim_body, "--kind", "top") == "claimed 500"
     sent = json.JSONDecoder().raw_decode((shims["tmp"] / "calls.log.bodies").read_text())[0]
-    assert sent == {"body": "> /open-pr @me look\n\n"
+    assert sent == {"body": "> /open-pr @me look\n>\n> https://github.com/o/r/pull/5#issuecomment-9\n\n"
                             "Reviewing on `$(hostname)` — ends `id`\n\n<!-- bot-claim:9 -->\n"}, \
-        "a GitHub conversation comment has no thread: the request is quoted verbatim; " \
+        "a GitHub conversation comment has no thread: the request is quoted verbatim, with its URL; " \
         "the body file travels verbatim, the claim marker appended"
     assert "hostname" not in shims["log"].read_text(), "the claim body reached an argv"
     assert "DELETE" not in shims["log"].read_text()

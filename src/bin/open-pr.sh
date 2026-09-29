@@ -729,13 +729,15 @@ cmd_claim() {
     [ -z "$first" ] || { printf 'taken %s\n' "${first#* }"; return 0; }
     m=$(cmd_marker --vendor "$V" --kind claim --comment-id "$CID")
     : > "$TMPD/claim.body"
-    # A GitHub conversation comment has no thread: quote the request, as GitHub's "Quote reply"
-    # does (20 lines at most). It stays inside jq: attacker text never reaches the shell.
+    # A GitHub conversation comment has no thread: quote the request as GitHub's "Quote reply"
+    # does (20 lines at most), with its plain URL. It stays inside jq: attacker text never
+    # reaches the shell.
     if [ "$V" = github ] && [ "$KIND" = top ]; then
         gh api "repos/$OWNER/$REPO/issues/comments/$CID" > "$TMPD/claim.req" \
-            && jq -r '(.body // "" | sub("\\s+$"; "") | split("\n")) as $l
+            && jq -r '(.html_url // "") as $u | (.body // "" | sub("\\s+$"; "") | split("\n")) as $l
                       | ($l[:20] + (if ($l | length) > 20 then ["…"] else [] end))
-                      | map("> " + sub("\r$"; "")) | join("\n") + "\n"' "$TMPD/claim.req" > "$TMPD/claim.body" \
+                      | map("> " + sub("\r$"; "")) + (if $u != "" then [">", "> " + $u] else [] end)
+                      | join("\n") + "\n"' "$TMPD/claim.req" > "$TMPD/claim.body" \
             || : > "$TMPD/claim.body"
     fi
     { cat "$F"; printf '\n\n%s\n' "$m"; } >> "$TMPD/claim.body"
