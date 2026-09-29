@@ -3,7 +3,8 @@
 Claude Code never reads this file: it sets `${CLAUDE_PLUGIN_ROOT}` itself. Every other platform reads
 this FIRST, resolves `ROOT`, then obeys the command file VERBATIM.
 
-This file is the ONLY place that knows a platform's name. FORBIDDEN here: any review/fix/upgrade/clean
+This file is the ONLY place that knows a platform's name — besides `ROOT/bin/open-pr-watch.sh`, which
+launches each platform's CLI. FORBIDDEN here: any review/fix/upgrade/clean
 step, severity level, finding marker, `gh`/`glab` invocation, config field. Those live under `ROOT`
 and have exactly 1 owner.
 
@@ -55,7 +56,18 @@ step you cannot perform.
 | platform | quirk |
 |---|---|
 | all | `gh` (GitHub) / `glab` (GitLab) must be installed + logged in; the review posts as that account |
-| Codex | no subagent, no structured question tool ⇒ §2 rows for `Agent` + `AskUserQuestion` always apply |
+| Codex | no structured question tool outside Plan mode ⇒ §2's `AskUserQuestion` row applies |
 | Gemini CLI | `${extensionPath}` is substituted in `gemini-extension.json` and `hooks/hooks.json` ONLY, never in `commands/*.toml` ⇒ a TOML command resolves `ROOT` by method 3 |
 | Cursor | skills load from `.agents/skills/`, `~/.agents/skills/`, `.cursor/skills/`, `~/.cursor/skills/` — all equal for this plugin |
 | Antigravity | a skill becomes `/<skill-name>` in the TUI; the name is the folder name |
+
+## 4 — Review-session runner
+
+`/open-pr:watch-review` opens each review in its own session through `<watch> spawn --runner <name>`:
+
+| platform | runner |
+|---|---|
+| Codex | `codex` |
+| Gemini CLI | `gemini` |
+| Cursor | `cursor` |
+| Antigravity | `antigravity` |

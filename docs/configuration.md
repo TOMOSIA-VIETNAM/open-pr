@@ -16,9 +16,27 @@ Memory, settings and review worktrees for every repo sit in **one data directory
 ~/workspace/repo-backend/       ← untouched
 ```
 
-With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. Later, a repo missing from the data directory gets the same lookup under the directory you stand in, and its `notebooks/review/<repo>/` is offered for import. The choice is stored as `data_dir` in `~/.config/open-pr/config.json` — edit it to point elsewhere.
+With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. Later, a repo missing from the data directory gets the same lookup under the directory you stand in, and its `notebooks/review/<repo>/` is offered for import. The choice is stored in `~/.config/open-pr/config.json`.
 
-Where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):
+Separate workspaces — two clients, say — can keep their memory apart: when the first command asks,
+pick "this workspace". The folder you stand in becomes a root, and every repo below it uses that data
+directory; a repo under no root uses `data_dir`.
+
+```json
+{
+  "data_dir": "/Users/me/notebooks/review",
+  "data_dirs": [
+    {"root": "/Users/me/clients/acme", "dir": "/Users/me/clients/acme/notebooks/review"},
+    {"root": "/Users/me/clients/globex", "dir": "/Users/me/clients/globex/notebooks/review"}
+  ]
+}
+```
+
+The deepest root above a repo wins. Commands resolve it from where you run them (the repo or the
+workspace holding it), `/open-pr:watch-review` per watched repo; `/open-pr:upgrade` and
+`/open-pr:clean` walk every data directory.
+
+Within one workspace, where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):
 
 ```bash
 cd ~/workspace
