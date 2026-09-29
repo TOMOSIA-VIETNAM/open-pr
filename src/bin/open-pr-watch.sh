@@ -388,6 +388,23 @@ cmd_status() {
 # A finished session left `blocked` (a prompt nobody answers) holds a request back for
 # IN_USE_GRACE seconds, then yields (stop + resume keeps the conversation). `working` is never cut.
 IN_USE_GRACE=600
+# A claude session this watcher opened, finished and idle this long, is stopped: an idle
+# background session holds ~140 MB. Stop keeps the conversation (attach and resume still work).
+# Sessions the watcher did not open are never touched — only those in state.json.
+IDLE_PARK=1800
+park_idle() {   # $1 status JSONL
+    state_json | jq -r --slurpfile s "$1" --argjson idle "$IDLE_PARK" '
+        .sessions | to_entries[] | .key as $pr | .value
+        | select(.runner == "claude" and .finished == true and .parked != true and .id != null
+                 and (.finished_at // null) != null
+                 and (now - (.finished_at | fromdateiso8601)) >= $idle)
+        | select([$s[] | select((.pr | tostring) == $pr) | .in_use // empty] | length == 0)
+        | "\($pr) \(.id)"' | while read -r pr id; do
+        check_ident '^[0-9a-f]+$' "$id"
+        (cd "$D" && claude stop "$id") > /dev/null 2>&1 || true
+        state_update --arg pr "$pr" '.sessions[$pr].parked = true'
+    done
+}
 # jq: PRs a queued request must still wait for — $s = status rows, $q = queue, $now epoch.
 JQ_BUSY='def busy($s; $q; $now):
     [$s[] | . as $r
@@ -578,9 +595,11 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited)
         remember_ids "$TMPD/status"
         [ -z "$mark" ] || state_update --arg m "$mark" \
             'if $m > .cursor then .cursor = $m | .seen = [] else . end'
+        park_idle "$TMPD/status"
         unlock; return 0
     fi
-    jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/status" --arg m "$mark" --arg terminal "$TERMINAL" '
+    jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/status" --arg m "$mark" --arg terminal "$TERMINAL" \
+        --arg at "$(now_iso)" '
         ([.cursor, $m] + [$new[]._k] | map(select(. != "")) | max) as $c
         | .seen = (if $c == .cursor then (.seen // []) else [] end
                    + [$new[] | select(._k == $c) | .comment_id | tostring] | unique)
@@ -590,13 +609,14 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited)
               .sessions[($s.pr | tostring)] |= (.last_state = $s.state | .id = (.id // $s.id)
                                                 | .session_id = (.session_id // $s.session_id)
                                                 | .open = (.open // $s.open)
-                                                | if any($done[]; . == $s.state) then .finished = true else . end)
+                                                | if any($done[]; . == $s.state) then .finished = true | .finished_at = (.finished_at // $at) else . end)
           else . end)' "$TMPD/state.in" > "$STATE.tmp" || die 1 "open-pr-watch.sh: state update failed"
     # One watcher may run a `wait` per repo.
     { jq -c '{event: "trigger"} + del(._k)' "$TMPD/new"; cat "$TMPD/sess" "$TMPD/ready"; } \
         | jq -c --arg r "$OWNER/$REPO" '{event, repo: $r} + del(.event)' > "$TMPD/events"
     cat "$TMPD/events"
     mv "$STATE.tmp" "$STATE"
+    park_idle "$TMPD/status"
     unlock
     GOT=1
 }

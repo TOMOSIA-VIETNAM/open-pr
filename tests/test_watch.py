@@ -869,6 +869,38 @@ def finish(w, pr=5):
     return sp
 
 
+
+def _age_result(w, pr, seconds):
+    st = w.state()
+    st["sessions"][str(pr)]["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - seconds))
+    w.put_state(st)
+
+
+def test_an_idle_finished_session_is_stopped_but_nothing_else(w):
+    """An idle background session holds memory; stop keeps its conversation for attach/resume."""
+    sp = finish(w)
+    other = w.spawn(6)                                   # still reviewing: never stopped
+    w.claude_set(sp["id"], "done")
+    _age_result(w, 5, 60)
+    w.run("wait", "--once")
+    assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "stopped before the idle period"
+    _age_result(w, 5, 3600)
+    w.run("wait", "--once")
+    stops = [c for c in w.claude_calls() if c[:1] == ["stop"]]
+    assert stops == [["stop", sp["id"]]], "only the watcher's own finished, idle session"
+    assert w.state()["sessions"]["5"]["parked"] is True
+    w.run("wait", "--once")
+    assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == stops, "stopped once"
+    assert other["id"] != sp["id"]
+
+
+def test_a_session_the_user_talks_in_is_not_stopped(w):
+    sp = finish(w)
+    _age_result(w, 5, 3600)
+    w.claude_set(sp["id"], "working")
+    w.run("wait", "--once")
+    assert not any(c[:1] == ["stop"] for c in w.claude_calls())
+
 def test_a_finished_session_stays_silent_while_the_user_chats_in_it(w):
     """The user's own turns there must not toast "needs an answer" or "posted" again."""
     sp = finish(w)

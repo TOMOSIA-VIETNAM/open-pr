@@ -45,6 +45,7 @@ cho PR đó, post theo đúng setting của repo. Reviewer mở được từng 
 | 20 | Session đã báo kết quả là của user: watcher không báo gì thêm cho đến request mới, không đọc transcript/log | Tránh cảm giác người thứ ba nghe lén; tránh toast lặp khi user chat tiếp trong session |
 | 21 | Rate limit (mọi vendor): `triggers` exit 9, `wait` nhân đôi chu kỳ tới 900 s rồi trở lại khi poll thành công. Bitbucket chỉ lấy PR cập nhật từ `--since` | Bitbucket 1000 req/giờ, trước đây mỗi poll tốn 1 call cho mỗi PR mở |
 | 22 | Config cấp user có `data_dirs: [{root, dir}]`: repo dùng data dir của root sâu nhất phía trên nó, không có thì `data_dir` mặc định. Watcher resolve theo từng repo (`--repo-dir`), cấm tự `data-dir --set`/`--add-root`. File cấp máy (snooze, pid menu bar) nằm ở `~/.config/open-pr/watch/`. `upgrade`/`clean`/menu bar đi qua mọi data dir (`data-dir --all`) | Một `data_dir` duy nhất không chứa được nhiều workspace (khách hàng khác nhau); watcher từng tự đổi nó và làm hỏng workspace kia |
+| 23 | Session review claude do watcher mở, đã có kết quả và idle 30 phút (không ai chat trong đó) ⇒ `claude stop` (giữ hội thoại; attach/resume vẫn được). Chỉ đụng session trong `state.json` của watcher | `Ctrl+C`/`Ctrl+D` trong `claude attach` chỉ tách terminal, session nền vẫn sống; mỗi cái giữ ~140 MB |
 | 14 | Runner theo nền tảng: Claude Code dùng session nền tương tác (`claude --bg`); nền tảng khác chưa có dạng này ⇒ headless + resume | Reviewer mở được session; nền tảng nào có dạng như `--bg` thì thêm runner cùng kiểu |
 
 ## Runner theo nền tảng
