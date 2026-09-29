@@ -18,7 +18,7 @@ Memory, settings và worktree review của mọi repo nằm trong **một thư m
 
 Khi chưa có thư mục dữ liệu, command đầu tiên sẽ hỏi. Khuyến nghị là `notebooks/review/` ở thư mục ngay bên ngoài repo — với `~/workspace/repo-backend` thì là `~/workspace/notebooks/review/` — hoặc đường dẫn bất kỳ bạn gõ. `notebooks/review/` có sẵn trong repo được **copy** sang đó (trừ worktree) và giữ nguyên tại chỗ. Về sau, repo nào chưa có trong thư mục dữ liệu cũng được tìm như vậy dưới chỗ bạn đứng, và `notebooks/review/<repo>/` của nó được đề nghị import. Lựa chọn lưu trong `~/.config/open-pr/config.json`.
 
-Các workspace tách biệt — chẳng hạn của hai khách hàng — có thể giữ memory riêng. Khi command đầu tiên hỏi, chọn "this workspace": thư mục bạn đang đứng trở thành một root, và mọi repo bên dưới nó dùng thư mục dữ liệu đó. Repo không nằm dưới root nào thì dùng thư mục mặc định.
+Các workspace tách biệt — chẳng hạn của hai khách hàng — có thể giữ memory riêng: khi command đầu tiên hỏi, chọn "this workspace". Thư mục bạn đang đứng trở thành một root, và mọi repo bên dưới nó dùng thư mục dữ liệu đó; repo không nằm dưới root nào thì dùng `data_dir`.
 
 ```json
 {
@@ -30,7 +30,7 @@ Các workspace tách biệt — chẳng hạn của hai khách hàng — có th�
 }
 ```
 
-Root sâu nhất phía trên một repo sẽ thắng. Command xác định nó từ chỗ bạn chạy (repo hoặc workspace chứa repo); `/open-pr:watch-review` xác định riêng cho từng repo nó theo dõi, còn `/open-pr:upgrade` và `/open-pr:clean` đi qua mọi thư mục dữ liệu.
+Root sâu nhất phía trên một repo sẽ thắng. Command xác định nó từ chỗ bạn chạy (repo hoặc workspace chứa repo), `/open-pr:watch-review` thì theo từng repo nó theo dõi; `/open-pr:upgrade` và `/open-pr:clean` đi qua mọi thư mục dữ liệu.
 
 Trong cùng một workspace, chỗ bạn đứng không ảnh hưởng tới nơi lưu dữ liệu. Đứng ở workspace chứa nhiều repo vẫn review được PR **chéo repo** trong một lượt (lần lượt, không song song):
 

@@ -180,8 +180,7 @@ def test_bootstrap_asks_exactly_the_user_config_fields():
             f".{node}: bootstrap writes {sorted(fields)}, "
             f"the schema classifies {sorted(user_config.get(node, set()))} as its User config")
     unwritten = set(user_config) - set(written)
-    # `.fix` belongs to fix's own bootstrap; `.watch_review` is written by watch-review on its
-    # first run in a repo — a review-only repo never needs it
+    # `.fix` has fix's own bootstrap; watch-review writes `.watch_review` on its first run
     assert unwritten == {"fix", "watch_review"}, \
         f"User config nodes bootstrap never writes: {sorted(unwritten)}"
     assert "FORBIDDEN: creating `.fix` here" in " ".join(body.split()), \

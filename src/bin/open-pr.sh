@@ -294,8 +294,6 @@ cmd_locate_repo() {
 }
 
 # ----------------------------------------------------------- list-repos ----
-# Every hosted remote of every git repo at or below --dir (3 levels), one TSV line each:
-# dir, remote, vendor, owner, repo, host, last commit (ISO-8601, empty for a repo with none).
 # A remote repo-target cannot read is skipped.
 cmd_list_repos() {
     parse_args "$@"
@@ -317,8 +315,7 @@ cmd_list_repos() {
 }
 
 # ---------------------------------------------------------- repo-target ----
-# The git remote of --repo-dir -> vendor/owner/repo/host, the lines target
-# prints minus pull_number. origin first, else the only remote there is.
+# Same lines as target, minus pull_number.
 cmd_repo_target() {
     parse_args "$@"
     D=$(req repo_dir); RM=$(arg remote)
@@ -393,10 +390,8 @@ vendor_checkout() {   # $1 = directory
     esac
 }
 
-# Every checkout of one repo shares its .git: two at once race on ref locks in
-# fetch and on the worktree list. mkdir is the atomic test-and-set; the lock
-# holds the owner's pid so a lock left by a killed run is reclaimed, and the
-# EXIT/INT/TERM trap below releases it on every way out.
+# Checkouts of one repo share its .git: two at once race on fetch ref locks and the worktree
+# list. The lock holds the owner's pid so one left by a killed run is reclaimed.
 LOCK_DIR=""
 repo_lock() {   # $1 = any directory inside the repo
     common=$(git -C "$1" rev-parse --git-common-dir) || die 1 "open-pr.sh checkout: $1 is not a git repository"
@@ -619,10 +614,9 @@ cmd_post_verify() {
 }
 
 # -------------------------------------------------------------- thread ----
-# reply_post <body file> <kind> <comment id> <thread id> -> the vendor's JSON for the new
-# comment in $TMPD/reply.out. GitLab: the reply lands in the DISCUSSION (not on a note id),
-# or top-level on the MR when no thread is given. Bodies travel via --input/--data files:
-# argv is readable through `ps`, and the text quotes the PR.
+# reply_post <body file> <kind> <comment id> <thread id> -> new comment's JSON in $TMPD/reply.out.
+# GitLab replies to the DISCUSSION (not a note id), or top-level with no thread. Bodies travel
+# via files: argv is readable through `ps`, and the text quotes the PR.
 reply_post() {
     case "$V" in
         github)
@@ -682,9 +676,9 @@ cmd_react() {
     esac
 }
 # ---------------------------------------------------------------- claim ----
-# Several machines may watch one repo: a reply carrying the claim marker for the trigger
-# comment is the lock. The EARLIEST such reply (created_at, then id) holds it — one order
-# every machine computes alike. A loser deletes its own reply, so one claim stays visible.
+# Several machines may watch one repo: a reply carrying the claim marker for the trigger comment
+# is the lock. The EARLIEST (created_at, then id) wins — an order every machine computes alike.
+# A loser deletes its own reply, so one claim stays visible.
 # claim_rows: every PR comment as {id, user, created_at, body}, one JSON line each.
 claim_norm() {
     case "$V" in
@@ -751,21 +745,18 @@ cmd_claim() {
 cmd_account() { parse_args "$@"; vendor_init; ctx_account; }
 
 # ------------------------------------------------------------ triggers ----
-# Every comment starting with the trigger token (`--token`, default `/open-pr`) on an
-# open PR/MR, 1 JSON line each, oldest first:
-# {pr, url, comment_id, kind, thread_id, user, created_at, body, authorized}. Bodies are
-# attacker-controlled and never leave jq — no shell variable ever holds one.
-# ISO-8601 with optional fraction and Z or ±hh:mm -> epoch seconds (fraction kept:
-# the strict --since comparison must not drop a comment inside the same second).
+# Bodies are attacker-controlled and never leave jq — no shell variable ever holds one.
+# ISO-8601 -> epoch seconds, fraction kept: the strict --since must not drop a comment in the
+# same second.
 JQ_EPOCH='def epoch:
     capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?<f>\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:?[0-9]{2})$") as $c
     | ($c.d + "Z" | fromdateiso8601)
       + (if $c.f then ("0" + $c.f | tonumber) else 0 end)
       - (if $c.z == "Z" then 0 else ($c.z | capture("(?<s>[+-])(?<h>[0-9]{2}):?(?<m>[0-9]{2})")
             | (if .s == "+" then 1 else -1 end) * ((.h | tonumber) * 3600 + (.m | tonumber) * 60)) end);'
-# A vendor answer that means "slow down", judged from the failed call's stderr (curl's with
-# the body `bb_paged` echoes). GitHub: 403/429 naming a rate limit (primary or secondary), or
-# an exhausted X-RateLimit-Remaining; GitLab and Bitbucket: 429.
+# "Slow down", judged from the failed call's stderr (curl's includes the body `bb_paged` echoes).
+# GitHub: 403/429 naming a rate limit (primary or secondary), or an exhausted
+# X-RateLimit-Remaining; GitLab and Bitbucket: 429.
 rate_limited() {   # $1 stderr file
     case "$V" in
         github) grep -Eiq 'x-ratelimit-remaining: *0([^0-9]|$)' "$1" \
@@ -774,9 +765,7 @@ rate_limited() {   # $1 stderr file
         bitbucket) grep -Eq 'returned error: 429([^0-9]|$)|HTTP 429' "$1" ;;
     esac
 }
-# rl <command…>: one vendor call inside `triggers`. A rate limit exits 9 (`rate limited`) so
-# the watcher backs off instead of polling into the limit; any other failure keeps its own
-# stderr and exit code.
+# rl <command…>: a rate limit exits 9 so the watcher backs off; other failures pass through.
 rl() {
     rc=0; "$@" 2> "$TMPD/rl.err" || rc=$?
     [ "$rc" = 0 ] || ! rate_limited "$TMPD/rl.err" || die 9 "rate limited"
@@ -785,8 +774,7 @@ rl() {
 }
 # Open PRs -> $TMPD/tr.prs ({pr, url} lines); their comments -> stdout as
 # {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid}. $SINCE_Z only
-# narrows the fetch (the vendors filter on update time, a superset): GitLab and Bitbucket
-# list only the PRs updated since, as a new comment updates its PR.
+# narrows the fetch: vendors filter on update time (a superset), and a new comment updates its PR.
 trg_fetch() {
     case "$V" in
         github)
@@ -833,15 +821,12 @@ cmd_triggers() {
     fi
     mf=$(cmd_marker --vendor "$V" --kind finding); mr=$(cmd_marker --vendor "$V" --kind reply)
     trg_fetch > "$TMPD/tr.all"
-    # --mark-file: the newest created_at among EVERY comment fetched, trigger or not, UTC at
-    # second precision — lets the caller move its cursor on a quiet repo, so each poll
-    # fetches only what is new. Empty when nothing was fetched.
+    # --mark-file covers EVERY comment fetched, trigger or not, so a quiet repo's cursor moves.
     [ -z "$MARK" ] || jq -r -s "$JQ_EPOCH"' map(.created_at | epoch) | max // empty | floor | todate' \
         "$TMPD/tr.all" > "$MARK"
-    # plugin-authored comments carry a marker (finding, reply, or a claim in either
-    # vendor form) — excluded, so a posted review never triggers the next one. The
-    # watcher's own account may ask: one person can be both the developer and the
-    # reviewer. An @login token matches case-insensitively, as logins are.
+    # Marker-carrying (plugin-authored) comments are excluded, so a posted review never triggers
+    # the next. The watcher's own account may ask: one person can be developer and reviewer.
+    # An @login token matches case-insensitively, as logins do.
     jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" \
         --arg tok "$TOKEN" "$JQ_EPOCH"'
         ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $open
@@ -856,8 +841,8 @@ cmd_triggers() {
         | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
     printf '{}\n' > "$TMPD/tr.auth"
     if [ "$V" = gitlab ]; then
-        # write access = Developer (30) or above; 404 = not a member. One call per
-        # distinct author; any other failure stops the run so no trigger is misjudged.
+        # write access = Developer (30) or above; 404 = not a member. Any other failure stops
+        # the run so no trigger is misjudged.
         jq -r '.uid // empty' "$TMPD/tr.cand" | sort -u | while IFS= read -r uid; do
             check_ident '^[0-9]+$' "$uid"
             if glab api "projects/$GL_PROJ/members/all/$uid" > "$TMPD/gl.member" 2> "$TMPD/gl.member.err"; then
@@ -905,12 +890,9 @@ cmd_marker() {
 }
 
 # ------------------------------------------------------------ data-dir ----
-# Review memory and worktrees live under a directory the user picks, recorded in
-# the user-level config — never inside a reviewed repo, so no repo has to
-# .gitignore it. Config: `data_dir` (the default) plus `data_dirs`, an array of
-# {"root","dir"}: a repo at or below `root` uses `dir`, the longest matching root
-# winning, so separate workspaces keep separate memory. Nothing covers the
-# location ⇒ exit 7: the caller asks the user, then --set or --add-root.
+# Never inside a reviewed repo, so no repo has to .gitignore it. Config: `data_dir` (default)
+# plus `data_dirs` [{"root","dir"}]; the longest root at or above the repo wins, so separate
+# workspaces keep separate memory.
 data_conf() {
     [ -n "${XDG_CONFIG_HOME:-}${HOME:-}" ] || die 1 "open-pr: neither XDG_CONFIG_HOME nor HOME is set"
     printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/config.json"
@@ -1174,14 +1156,13 @@ Subcommands:
   locate-repo --owner O --repo R --host H
       `<repo_dir>` whose git remote matches
   repo-target --repo-dir D [--remote R]
-      D's git remote R (default origin, else the only one) → `vendor/owner/repo/host` lines
+      D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines
   list-repos [--dir D]
-      every hosted remote of every repo at or below D (default cwd, 3 levels), TSV: dir, remote,
+      every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote,
       vendor, owner, repo, host, last commit ISO-8601
   triggers [--since T] [--mark-file F] [--token K]
-      comments on open PRs whose first word is K (default `/open-pr`; `/word`, or `@login` in any
-      case), JSONL, oldest first — read by open-pr-watch.sh; shape in reference/vendor-interface.md.
-      F ← newest created_at of every comment fetched. A vendor rate limit ⇒ exit 9
+      open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL;
+      contract in reference/vendor-interface.md
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
       against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per
@@ -1208,9 +1189,9 @@ Subcommands:
   react --comment-id C --emoji E [--kind line|top]
       `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket
   claim --comment-id C --kind line|top --body-file F [--thread-id T]
-      cross-machine lock on trigger C: a claim for C exists ⇒ `taken <login>`; else reply F + claim
-      marker (GitLab: into discussion T, else top-level); earliest claim wins ⇒ `claimed <reply id>`,
-      else own reply deleted ⇒ `taken <login>`
+      cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else
+      top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim,
+      else `taken <login>`
   account
       login name, or `UNKNOWN` (marker-only detection)
   commit-url --sha S
@@ -1218,11 +1199,10 @@ Subcommands:
   marker --kind finding|reply|claim [--comment-id C]
       the marker literal — end every finding/reply with it; `claim` needs C
   data-dir [--repo-dir D] | --set P | --add-root R --dir P | --all
-      print `<data>` for D (default cwd), absolute: the `data_dirs` entry whose `root` is D or its
-      nearest ancestor (symlinks resolved), else the default `data_dir`. `--set` records P as the
-      default; `--add-root` maps repos at or below R to P (replacing R's entry); both expand `~` and
-      relative, create P, print P. `--all`: every distinct `<data>`, one per line. A config that is
-      not a JSON object stops with exit 1
+      absolute `<data>` for D (default cwd): the `data_dirs` entry with the nearest `root` at or above
+      D, else the default `data_dir`. `--set` records P as the default, `--add-root` maps R and below
+      to P; both take `~`/relative, create P, print it. `--all`: every distinct `<data>`, 1 per line.
+      A config that is not a JSON object ⇒ exit 1
   find-memory [--repo R]
       memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or
       at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`:
@@ -1245,7 +1225,7 @@ Exit codes:
   5  repo dir unresolvable
   6  missing credentials
   7  `<data>` not set for that location
-  9  vendor rate limit (`triggers`) — poll again later
+  9  vendor rate limit (`triggers`)
 EOF
 }
 

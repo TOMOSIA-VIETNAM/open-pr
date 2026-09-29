@@ -15,9 +15,8 @@ description: Remove the git worktrees review checked PR code out into. Each one 
 
 ## Step 1 — Find the worktrees
 
-`<op> data-dir --all` → every `<data>` (one per workspace the user mapped, plus the default), where
-`/open-pr:review` puts every worktree; none printed ⇒ nothing to clean, STOP. FORBIDDEN: `cd`. Per
-`<data>`:
+`<op> data-dir --all` → every `<data>`, where `/open-pr:review` puts every worktree; none ⇒ nothing
+to clean, STOP. FORBIDDEN: `cd`. Per `<data>`:
 
 ```bash
 find "<data>" -mindepth 3 -maxdepth 3 -type d -path '*/worktrees/*' 2>&1

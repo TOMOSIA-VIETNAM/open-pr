@@ -1,11 +1,8 @@
 """Unit tests for src/bin/open-pr-watch.sh.
 
-The watch runtime reaches a code host only through its sibling open-pr.sh and an agent
-platform only through that platform's CLI, so both are replaced here: the script is copied
-into a temp bin/ beside a fake open-pr.sh (it resolves the sibling by its own dirname), and
-each platform CLI is a shim on PATH that records its argv and cwd. The fake `claude` keeps
-its sessions in a JSON file and behaves like the real one where it matters: a resume of a
-session still listed as active, or with an extra flag, starts a copy under a new id.
+The script is copied into a temp bin/ beside a fake open-pr.sh (it resolves the sibling by its
+own dirname); each platform CLI is a PATH shim recording argv and cwd. The fake `claude` starts
+a copy under a new id when resuming a still-listed session or with an extra flag, as the real one.
 """
 
 import json
@@ -51,8 +48,7 @@ case "$1" in
 esac
 """
 
-# One recorder for every headless CLI: argv + cwd to <name>.<n>.json, then whatever
-# the per-CLI output file says, then an optional sleep so a test can hold the pid alive.
+# Headless CLI recorder: argv + cwd to <name>.<n>.json, canned output, optional sleep to hold the pid.
 RECORDER = r"""#!/usr/bin/env python3
 import json, os, sys, time
 name = os.path.basename(sys.argv[0])
@@ -125,8 +121,7 @@ HEADLESS = ("codex", "gemini", "agent", "agy", "osascript", "notify-send")
 
 
 def make_exe(path, body):
-    # the running interpreter, not `env python3`: a version-manager shim costs ~200ms per
-    # call, and the fake CLIs are called many times per test
+    # not `env python3`: a version-manager shim costs ~200ms per call
     path.write_text(body.replace("#!/usr/bin/env python3", f"#!{sys.executable}", 1))
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
@@ -153,7 +148,6 @@ class Watch:
         self.repo = tmp / "repo"
         self.repo.mkdir()
         self.sd = self.home / "data" / "r" / "watch-review"
-        # machine-wide watch files (snooze, menu bar pid) live under the user-level config
         self.watch = tmp / "xdg" / "open-pr" / "watch"
         self.env = dict(os.environ, FAKE_HOME=str(self.home), XDG_CONFIG_HOME=str(tmp / "xdg"),
                         PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}")
@@ -274,8 +268,7 @@ def test_watch_state_is_kept_out_of_the_memory_repo(w):
 
 
 def test_every_data_dir_and_settings_call_names_the_watched_repo(w):
-    """The data directory is resolved per repo location, so a watcher started from a folder
-    above two workspaces must still ask for each repo's own directory, never the cwd's."""
+    """Started above two workspaces, each repo resolves its own data dir, never the cwd's."""
     w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
     w.run("wait", "--once")
     w.run("notify", "--event", "posted", "--text-file", w.prompt("x"))
@@ -345,9 +338,7 @@ def test_a_new_trigger_is_emitted_once_across_polls(w):
 
 
 def test_a_wait_killed_before_its_state_write_emits_the_batch_again(w):
-    """Delivery is committed by the state rename after the print. A wait killed in between
-    leaves the old state.json — exactly what restoring it here reproduces — so the next wait
-    must print the same comment again rather than lose it."""
+    """Killed between print and state rename (old state.json restored), the next wait reprints."""
     before = {"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []}
     w.put_state(before)
     w.triggers(trig("21", "2026-01-01T00:01:00Z"))
@@ -370,9 +361,7 @@ def test_comments_sharing_one_created_at_are_each_emitted_once(w):
 
 
 def test_a_created_at_with_a_utc_offset_moves_the_cursor_in_utc(w):
-    """Self-hosted GitLab prints created_at in its own zone (+09:00). The cursor must be
-    stored in UTC: an offset kept verbatim breaks the next poll's --since and compares
-    wrongly as a string against Z timestamps."""
+    """Self-hosted GitLab prints +09:00; kept verbatim it breaks --since and string compares."""
     w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
     w.triggers(trig("41", "2026-01-01T09:00:05.557+09:00"))
     assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["41"]
@@ -403,8 +392,7 @@ def test_wait_reports_a_session_state_change_once(w):
 
 
 def test_a_running_wait_sees_a_session_change_between_its_own_polls(w):
-    """`wait` polls many times in one process; a listing cached from its first poll would keep
-    reporting `working` until some trigger made it exit."""
+    """A session listing cached across polls would report `working` forever."""
     w.settings(poll_interval_seconds=1)
     sp = w.spawn(5)
     assert w.run("wait", "--once").stdout == ""
@@ -423,8 +411,7 @@ def test_a_running_wait_sees_a_session_change_between_its_own_polls(w):
 
 
 def test_a_quiet_repo_moves_the_cursor_to_the_newest_comment_fetched(w):
-    """No trigger for days must not leave --since at the watcher's start: every poll would
-    re-fetch every comment since then."""
+    """Else every poll re-fetches every comment since the watcher started."""
     w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
     (w.home / "mark.txt").write_text("2026-01-02T08:00:00Z\n")
     assert w.run("wait", "--once").stdout == ""
@@ -721,8 +708,7 @@ def test_osascript_gets_the_text_as_argv_never_as_source(w):
 
 
 def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
-    """A toast still showing keeps its place; a new one takes the first free slot, and a slot
-    frees when its toast exits — so toasts never cover each other."""
+    """A new toast takes the first free slot; a slot frees when its toast exits."""
     env = {"TMPDIR": str(tmp_path), "FAKE_SLEEP": "30"}
     f = w.prompt("Reviewing #3\nfix: x", "t.txt")
     for _ in range(2):
@@ -835,8 +821,7 @@ def finish(w, pr=5):
 
 
 def test_a_finished_session_stays_silent_while_the_user_chats_in_it(w):
-    """After its result the session is the user's: their own turns there must not toast
-    "needs an answer" or "posted" again."""
+    """The user's own turns there must not toast "needs an answer" or "posted" again."""
     sp = finish(w)
     assert w.state()["sessions"]["5"]["finished"] is True
     for live in ("working", "blocked", "done"):
@@ -858,8 +843,7 @@ def test_a_resumed_session_reports_again(w):
 
 
 def test_a_new_request_never_cuts_a_conversation_in_a_finished_session(w):
-    """The user is talking in the finished session: a new request queues instead of
-    `claude stop`-ing it, and `wait` says `ready` once the session is idle again."""
+    """A new request queues instead of `claude stop`; `wait` says `ready` once it is idle."""
     sp = finish(w)
     w.claude_set(sp["id"], "working")
     out = w.spawn(5, text="second look")
@@ -872,8 +856,7 @@ def test_a_new_request_never_cuts_a_conversation_in_a_finished_session(w):
 
 
 def test_a_question_left_unanswered_holds_a_new_request_only_for_a_while(w):
-    """The user walked away from a question in a finished session: a new request waits the grace
-    period, then goes ahead (stop + resume) instead of queueing forever."""
+    """After the grace period a new request goes ahead (stop + resume), not queued forever."""
     sp = finish(w)
     w.claude_set(sp["id"], "blocked")
     assert w.spawn(5, text="again")["reason"] == "session in use"

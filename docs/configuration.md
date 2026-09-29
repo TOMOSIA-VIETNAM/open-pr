@@ -18,9 +18,9 @@ Memory, settings and review worktrees for every repo sit in **one data directory
 
 With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. Later, a repo missing from the data directory gets the same lookup under the directory you stand in, and its `notebooks/review/<repo>/` is offered for import. The choice is stored in `~/.config/open-pr/config.json`.
 
-Separate workspaces — two clients, say — can keep their memory apart. When the first command asks, pick
-"this workspace": the folder you stand in becomes a root, and every repo below it uses that data
-directory. A repo under no root uses the default.
+Separate workspaces — two clients, say — can keep their memory apart: when the first command asks,
+pick "this workspace". The folder you stand in becomes a root, and every repo below it uses that data
+directory; a repo under no root uses `data_dir`.
 
 ```json
 {
@@ -33,8 +33,8 @@ directory. A repo under no root uses the default.
 ```
 
 The deepest root above a repo wins. Commands resolve it from where you run them (the repo or the
-workspace holding it); `/open-pr:watch-review` resolves it for each repo it watches, and
-`/open-pr:upgrade` and `/open-pr:clean` walk every data directory.
+workspace holding it), `/open-pr:watch-review` per watched repo; `/open-pr:upgrade` and
+`/open-pr:clean` walk every data directory.
 
 Within one workspace, where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):
 

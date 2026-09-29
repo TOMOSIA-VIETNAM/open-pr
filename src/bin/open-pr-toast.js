@@ -1,14 +1,9 @@
-// A toast drawn by open-pr-watch.sh itself on macOS: a borderless panel in the top-right corner.
-// Drawing our own window needs no Notifications permission — the system notification centre would
-// ask for one, and file it under "Script Editor". Mouse state is read by polling NSEvent's class
-// methods, which need no Accessibility permission either.
-//   click       → open `url` in the browser, then close
-//   ✕ (corner)  → close
-//   1h (by ✕)   → no toasts for an hour on this machine (writes the snooze file), then close
-//   hover       → the countdown pauses until the pointer leaves
-// argv: title, summary, detail (may be empty), event, slot (0 = top), seconds, url (may be empty),
-// snooze file (${XDG_CONFIG_HOME:-~/.config}/open-pr/watch/snooze_until, one ISO-8601 UTC line — the
-// same file `snooze` writes).
+// macOS toast for open-pr-watch.sh notify: our own panel, so no Notifications permission (the
+// system centre would ask, and file it under "Script Editor"); mouse state is polled from NSEvent
+// class methods, which need no Accessibility permission either.
+//   click → open `url` · ✕ → close · 1h → write the snooze file · hover → countdown pauses
+// argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
+// `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line).
 // Every string arrives as argv; nothing here is spliced into source.
 ObjC.import('Cocoa');
 
@@ -83,7 +78,7 @@ function run(argv) {
         var inside = p.x >= x && p.x <= x + W && p.y >= y && p.y <= y + H;
         if (inside !== hovering) { hovering = inside; paint(inside); }
         var down = ($.NSEvent.pressedMouseButtons & 1) === 1;
-        if (wasDown && !down && inside) {           // a click released on the toast
+        if (wasDown && !down && inside) {
             var top = p.y >= y + H - 30;
             var onClose = top && p.x >= x + W - 30;
             var onSnooze = snoozeFile && top && !onClose && p.x >= x + W - 62;

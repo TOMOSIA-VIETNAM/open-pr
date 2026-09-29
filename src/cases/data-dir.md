@@ -1,8 +1,8 @@
-# `<data>` not set for here — pick it once, import existing memory
+# `<data>` not set — pick it once, import existing memory
 
-Read when `<op> data-dir` exits 7: no data dir covers this location — the user config maps workspace
-roots to data dirs (a repo uses the dir of the longest root above it), else a default; `cases/memory-not-found.md` reads only "Import". Every `<rec>`/`<src>`
-below comes from `<op> find-memory`, run at the invocation directory. FORBIDDEN: `cd`, a hand-typed `find`.
+Read when `<op>` exits 7 (no data dir covers this location); `cases/memory-not-found.md` reads only
+"Import". Every `<rec>`/`<src>` below comes from `<op> find-memory`, run at the invocation directory.
+FORBIDDEN: `cd`, a hand-typed `find`.
 
 ## Not set
 
@@ -16,10 +16,9 @@ The answer is stored per user, not per repo: every later run under the same root
    - `Keep <src>` (only when exactly 1 `<src>` was found, it is not `<rec>`) — detail: stays inside
      the repo, which keeps its `.gitignore` line
    - free text = any path the user types
-3. Where it applies — ONE CHOICE: `This workspace: <root> (Recommended)` — `<root>` = the invocation
-   directory; its repos keep their memory apart from other workspaces (clients) — or `Everywhere not
-   mapped yet` (the default). → `<op> data-dir --add-root <root> --dir <answer>` or `<op> data-dir --set
-   <answer>` → `<data>`.
+3. Scope — ONE CHOICE: `This workspace: <root> (Recommended)` (`<root>` = the invocation directory;
+   its repos' memory stays apart from other workspaces) → `<op> data-dir --add-root <root> --dir
+   <answer>` · `Everywhere not mapped yet` → `<op> data-dir --set <answer>`. It prints `<data>`.
 4. Each `<src>` other than `<data>` → "Import", whole directory. Then continue the calling command.
 
 ## Import

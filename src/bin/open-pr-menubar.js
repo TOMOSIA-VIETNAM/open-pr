@@ -1,14 +1,11 @@
-// The open-pr menu bar item on macOS, started by `open-pr-watch.sh menubar`, one per machine.
-// A status item needs no permission. Everything it shows is read, every few seconds, from files
-// the watcher writes, in every data directory it was given:
+// macOS menu bar item for `open-pr-watch.sh menubar` (a status item needs no permission). It
+// polls, in every data directory given, the files the watcher writes:
 //   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
 //   <data>/<repo>/watch-review/state.json   sessions; active = not finished, working, question or draft
-//   <data>/<repo>/watch-review/feed.jsonl   the recent notifications
-//   ${XDG_CONFIG_HOME:-~/.config}/open-pr/watch/snooze_until   toasts off until then — the Snooze menu writes it too
-// It leaves by itself, removing its pid file, once no repo has been watched for 5 minutes;
-// "Quit menu bar" leaves at once. Watching goes on either way.
-// argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, then
-// every data directory (`open-pr.sh data-dir --all`).
+//   <data>/<repo>/watch-review/feed.jsonl   recent notifications
+//   snooze file                             toasts off until then; the Snooze menu writes it too
+// It leaves once no repo has been watched for IDLE_EXIT seconds; watching goes on either way.
+// argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, or written into a .command file after matching OPEN_CMD — never spliced into source.
 ObjC.import('Cocoa');
@@ -32,7 +29,7 @@ var EVENT = {   // SF Symbol, sRGB tint — by feed event; tints match open-pr-t
     posted:         ['checkmark.bubble', [0.22, 0.7, 0.45]]
 };
 
-// The logo, docs/images/logo/favicon.svg (viewBox 128×128), polygon by polygon.
+// docs/images/logo/favicon.svg (viewBox 128×128).
 var MOTH = [
     ['#FFC49E', [54,36, 6,12, 2,54, 24,90, 50,84]], ['#FFC49E', [78,84, 104,90, 126,54, 122,12, 74,36]],
     ['#FF8A50', [54,40, 14,28, 10,52, 50,76]],      ['#FF8A50', [78,76, 118,52, 114,28, 74,40]],
@@ -101,7 +98,6 @@ function snoozedUntil() {
     return isNaN(d.getTime()) || d.getTime() <= Date.now() ? null : d;
 }
 
-// Every watched repo's active sessions and feed, newest notification first.
 function scan() {
     var out = { repos: 0, sessions: [], feed: [] };
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
@@ -142,8 +138,8 @@ function polygon(pts, k) {   // SVG y grows downward, AppKit's upward
     p.closePath;
     return p;
 }
-// Drawn into a 3× bitmap so it stays sharp on any display. A template image is one flat colour
-// the menu bar tints for light and dark, so the eyespots are cleared to holes to keep them visible.
+// 3× bitmap for sharpness. A template image is one flat colour the menu bar tints, so the
+// eyespots are cleared to holes to stay visible.
 function mothImage(pt, template) {
     var px = pt * 3, k = px / 128;
     var rep = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel(
@@ -166,8 +162,7 @@ function mothImage(pt, template) {
     img.setTemplate(template);
     return img;
 }
-// The accessibility description is '' because JXA hands null over as NSNull, which AppKit rejects;
-// the item's own title is what VoiceOver reads.
+// Description '': JXA passes null as NSNull, which AppKit rejects; VoiceOver reads the item title.
 function symbol(spec) {
     var key = spec[0] + spec[1].join();
     if (icons[key]) return icons[key];
@@ -188,7 +183,7 @@ function refresh() {
 }
 
 function clip(t) { return t.length > CLIP ? t.slice(0, CLIP - 1) + '…' : t; }
-// Enabled state is set by hand: auto-enabling greys out a submenu parent that has no action.
+// Auto-enabling greys out a submenu parent that has no action.
 function newMenu(title) {
     var m = $.NSMenu.alloc.initWithTitle(title);
     m.setAutoenablesItems(false);
@@ -297,8 +292,7 @@ function copyText(t) {
     pb.clearContents;
     pb.setStringForType($(t), $.NSPasteboardTypeString);
 }
-// Terminal runs a .command file it is asked to open: LaunchServices, so no Automation permission.
-// Kept next to the snooze file, one per session id, overwritten on each open.
+// A .command file opened via LaunchServices needs no Automation permission.
 function openTerminal(cmd) {
     if (!OPEN_CMD.test(cmd) || !snoozeFile) return;
     var dir = snoozeFile.replace(/\/[^\/]*$/, '') + '/sessions';
@@ -309,8 +303,8 @@ function openTerminal(cmd) {
     fm.setAttributesOfItemAtPathError($({ NSFilePosixPermissions: 493 }), path, null);   // 0755
     $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, 'Terminal');
 }
-// minutes > 0: that long; -1: until 9:00 local tomorrow; 0: back on. Same file and line format
-// as `open-pr-watch.sh snooze`, written atomically.
+// minutes > 0: that long; -1: until 9:00 local tomorrow; 0: back on. Same format as
+// `open-pr-watch.sh snooze`.
 function snooze(minutes) {
     if (!snoozeFile) return;
     if (minutes === 0) {

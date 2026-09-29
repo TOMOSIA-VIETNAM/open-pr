@@ -422,8 +422,7 @@ def _conf(tmp_path, monkeypatch, **body):
 
 
 def test_data_dir_is_picked_by_the_longest_root_above_the_repo(tmp_path, monkeypatch):
-    """Two workspaces (two clients) keep separate memory on one machine: a repo uses the entry
-    whose root is its nearest ancestor, anything under no root uses the default."""
+    """A repo uses the entry whose root is its nearest ancestor; under no root, the default."""
     ws, inner, other = tmp_path / "ws", tmp_path / "ws" / "client-b", tmp_path / "elsewhere"
     for d in (ws / "repo", inner / "repo", other):
         d.mkdir(parents=True)
@@ -665,8 +664,8 @@ def test_push_targets_the_remote_matching_the_pr_host(fixture_repo):
 # ------------------------------------------------------------ react ----
 
 def test_react_top_uses_the_conversation_comment_endpoint(shims):
-    """GitHub keeps diff comments and conversation comments in separate id spaces: a
-    reaction sent to the wrong one 404s. GitLab reacts on the note inside its MR."""
+    """GitHub diff and conversation comments are separate id spaces (wrong one 404s); GitLab
+    reacts on the note inside its MR."""
     base = ("--owner", "o", "--repo", "r", "--comment-id", "11", "--emoji", "eyes")
     serve(shims, "glab", [("award_emoji", {"id": 1})])
     run("react", "--vendor", "github", "--pr", "5", *base, env_extra=env_for(shims), check=True)
@@ -755,14 +754,12 @@ HOSTILE = "/open-pr focus on $(touch /tmp/pwned) and `id` \"quoted\" 'single'\ns
 
 
 class Seq(list):
-    """A route answering its items in turn, one per matching call, then the last one again —
-    the same listing read before and after a write."""
+    """Items answered in turn, then the last one again: one listing read before and after a write."""
 
 
 def serve(shims, name, routes):
-    """A vendor CLI shim answering canned JSON from files, picked by a substring of argv —
-    bodies never pass through the shim's own shell text. Every request body the script sends
-    (`--input F`, curl's `--data @F`) is appended to calls.log.bodies, one per line."""
+    """Vendor CLI shim answering canned JSON picked by an argv substring; request bodies
+    (`--input F`, curl's `--data @F`) are appended to calls.log.bodies."""
     d = Path(shims["tmp"]) / f"{name}-routes"
     d.mkdir(exist_ok=True)
     cases = []
@@ -1072,8 +1069,7 @@ def test_claim_backs_off_when_a_claim_already_exists(shims, claim_body):
 
 
 def test_claim_that_loses_the_race_deletes_its_own_reply(shims, claim_body):
-    """Two machines both saw no claim and both posted: the earliest reply wins everywhere, the
-    loser removes its reply so the PR shows one claim."""
+    """Two machines both posted a claim: the earliest wins, the loser deletes its reply."""
     ours = gh_comment(501, "me", "2026-01-01T00:00:05Z", "x\n\n<!-- bot-claim:9 -->")
     theirs = gh_comment(502, "other", "2026-01-01T00:00:04.5Z", "y\n\n<!-- bot-claim:9 -->")
     serve(shims, "gh", [
@@ -1158,8 +1154,7 @@ def test_claim_rejects_what_it_cannot_prove(shims, claim_body, tmp_path):
 
 @pytest.fixture
 def two_pr_repo(fixture_repo):
-    """fixture_repo plus a second PR whose commit only the remote has, so both checkouts
-    really fetch into the shared .git."""
+    """A second PR whose commit only the remote has, so both checkouts really fetch."""
     tmp = fixture_repo["tmp"]
     g = lambda *a: subprocess.run(["git", *a], cwd=tmp / "seed", capture_output=True, text=True, check=True)
     g("checkout", "-b", "other", "main")

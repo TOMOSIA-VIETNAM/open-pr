@@ -2,32 +2,28 @@
 
 [← README](../../README.vi-VN.md)
 
-`/open-pr:watch-review` biến terminal nơi bạn chạy nó thành watcher cho một repo. Developer
-yêu cầu review bằng cách comment trên pull request; máy bạn nhận ra, mở một session review
-riêng cho pull request đó, và báo bạn khi có việc cần bạn.
+`/open-pr:watch-review` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo. Developer
+yêu cầu review bằng cách comment trên pull request; máy bạn mở một session review riêng cho pull request
+đó và báo bạn khi có việc cần bạn.
 
 ## Trước lần chạy đầu tiên
 
-1. Chạy `/open-pr:review <any PR URL>` một lần trong repo đó. Watcher từ chối repo chưa được
-   thiết lập memory review, vì không được để nhiều session review cùng thiết lập nó một
-   lúc.
-2. Chạy `/open-pr:watch-review` trong repo, hoặc trong thư mục workspace chứa nhiều repo: lệnh
-   liệt kê mọi repo và remote tìm thấy ở đó (api, web, job…) rồi hỏi bạn chọn những repo nào — chọn
-   bao nhiêu cũng được, repo đã thiết lập review memory được đề xuất. `/open-pr:watch-review owner/api
-   owner/web` (hoặc URL của PR) chọn thẳng. Clone có mỗi
-   host một remote (GitHub, GitLab, Bitbucket) được liệt kê theo từng remote.
-   Lần chạy đầu hỏi tối đa bao nhiêu session
-   review được active cùng lúc, cái gì yêu cầu review (`/open-pr` hay một lần mention bạn) và bạn
-   muốn nhận những toast nào, rồi lưu chúng vào `settings.json` của repo đó.
-3. Session review khởi động trong thư mục nơi bạn chạy watcher, y như khi bạn gõ
-   `/open-pr:review` ở đó — cùng thư mục dữ liệu, cùng trust. Trên Claude Code, thư mục đó phải là
-   trusted workspace; watcher kiểm tra khi khởi động và báo nếu bạn cần mở `claude` ở đó một lần rồi
-   chấp nhận lời hỏi trust.
+1. Chạy `/open-pr:review <any PR URL>` một lần trong từng repo. Watcher từ chối repo chưa thiết lập
+   review memory, để không bao giờ có nhiều session cùng thiết lập nó một lúc.
+2. Chạy `/open-pr:watch-review` trong một repo, hoặc trong thư mục workspace chứa nhiều repo. Lệnh liệt
+   kê mọi repo và remote tìm thấy ở đó (clone có mỗi host một remote được liệt kê theo từng remote) rồi
+   hỏi theo dõi những repo nào; repo đã thiết lập review memory được đề xuất.
+   `/open-pr:watch-review owner/api owner/web` (hoặc URL của PR) chọn thẳng.
+3. Lần chạy đầu trong một repo hỏi tối đa bao nhiêu session review được active cùng lúc, cái gì yêu cầu
+   review (`/open-pr` hay một lần mention bạn) và bạn muốn nhận những toast nào, rồi lưu câu trả lời vào
+   `settings.json` của repo đó.
+4. Session review khởi động trong thư mục nơi bạn chạy watcher, như khi bạn gõ `/open-pr:review` ở đó —
+   cùng thư mục dữ liệu, cùng trust. Trên Claude Code, thư mục đó phải là trusted workspace; watcher kiểm
+   tra khi khởi động và, nếu chưa, bảo bạn mở `claude` ở đó một lần rồi chấp nhận lời hỏi trust.
 
-Một watcher theo dõi mọi repo bạn đã chọn; mỗi repo giữ setting riêng, kể cả giới hạn số session
-active của nó. Mỗi repo có tối đa một watcher trên một máy: watcher thứ hai mở cho repo đó sẽ báo
-tiến trình nào đang giữ repo rồi bỏ qua repo đó. Khi không kết nối được host (mất mạng, login hết hạn),
-watcher báo cho bạn thay vì im lặng chờ.
+Mỗi repo được theo dõi giữ setting riêng, kể cả giới hạn session. Mỗi repo có tối đa một watcher trên một
+máy: watcher thứ hai báo tiến trình nào đang giữ repo rồi bỏ qua repo đó. Khi host không kết nối được kéo
+dài (mất mạng, login hết hạn), watcher báo cho bạn.
 
 ## Yêu cầu review
 
@@ -38,45 +34,48 @@ Comment trên pull request:
 /open-pr please look closely at the migration
 ```
 
-Mọi thứ sau `/open-pr` là gợi ý nên xem chỗ nào. Nó được coi là dữ liệu: không thể đổi cách
-review, nội dung được post, hay bất kỳ setting nào.
+Phần chữ sau `/open-pr` là gợi ý nên xem chỗ nào. Nó được coi là dữ liệu: không thể đổi cách review, nội
+dung được post, hay bất kỳ setting nào.
 
-Project nào không muốn hiện command của tool trên pull request có thể chọn "một lần mention tôi"
-thay thế: comment mở đầu bằng `@<your login>` sẽ yêu cầu review, giống như nhờ một đồng nghiệp —
-`@minh review giúp`. Watcher đọc comment đó và chỉ nhận khi nó thật sự nhờ bạn review pull
-request này; `@minh cảm ơn` bị bỏ qua.
+Với trigger "một lần mention tôi", comment mở đầu bằng `@<your login>` sẽ yêu cầu review thay thế, nên pull
+request không hiện command của tool. Watcher chỉ nhận khi comment thật sự nhờ bạn review pull request
+này: `@minh review giúp` được tính, `@minh cảm ơn` thì không.
 
-Chỉ comment của người có quyền write mới kích hoạt review (GitHub: owner, member hoặc collaborator;
-GitLab: Developer trở lên). Bitbucket không cho người không phải admin đọc quyền của user khác, nên trên
-Bitbucket mọi comment `/open-pr` đều kích hoạt review — hãy giới hạn ai được comment nếu điều đó quan trọng.
-Comment do plugin post không bao giờ kích hoạt; comment của chính bạn thì có, nên một người có thể
-vừa là dev vừa là reviewer.
+Chỉ comment của người có quyền write mới kích hoạt review:
+
+| host | ai kích hoạt được |
+|---|---|
+| GitHub | owner, member hoặc collaborator |
+| GitLab | Developer trở lên |
+| Bitbucket | bất kỳ ai comment được — người không phải admin không đọc được quyền của user khác, nên hãy giới hạn ai được comment nếu điều đó quan trọng |
+
+Comment do plugin post không bao giờ kích hoạt; comment của chính bạn thì có, nên một người có thể vừa là
+developer vừa là reviewer.
 
 ## Chuyện gì xảy ra tiếp theo
 
-- Watcher reply vào comment — "reviewing (commit abc1234)", bằng ngôn ngữ của lời yêu cầu —
-  nêu commit mà pull request đang ở khi nó nhận yêu cầu. Reply đó cũng là khóa khi nhiều máy cùng
-  theo dõi một repo: reply đầu tiên thắng, máy nào thấy đã có reply thì lùi lại, và máy thua trong
-  một cuộc đua sát nút sẽ xóa reply của chính nó. Cách này chạy giống nhau trên GitHub, GitLab và
-  Bitbucket.
-- Một session review tên `review <owner>/<repo>#<number>` được mở và chạy review như bình thường.
-- Khi đã chạm giới hạn session active, pull request chờ trong hàng đợi.
-- Một yêu cầu mới trên pull request đã có session: yêu cầu kiểm tra lại các finding trước sẽ resume
-  session đó; yêu cầu review lại từ đầu sẽ mở session mới, vì context cũ có thể gây hiểu sai khi pull
-  request đã thay đổi. Khi yêu cầu không rõ, watcher hỏi bạn.
-- Review được publish hay giữ dạng draft theo `auto_submit_review`, trừ khi bạn dặn
-  watcher khác đi. Draft không bao giờ được publish khi chưa có bạn.
-- Khi một session đã báo kết quả, nó thuộc về bạn: watcher không nói gì thêm về nó trong lúc bạn
-  tiếp tục trò chuyện trong đó, và không bao giờ đọc những gì bạn viết ở đó. Yêu cầu tiếp theo trên
-  pull request đó sẽ trao nó lại cho watcher.
+- Watcher reply vào comment — "reviewing (commit abc1234)", bằng ngôn ngữ của lời yêu cầu — nêu commit mà
+  nó đã nhận. Khi nhiều máy cùng theo dõi một repo, reply đó là khóa: reply đầu tiên thắng, máy nào thấy đã
+  có reply thì lùi lại, và máy thua trong một cuộc đua sát nút sẽ xóa reply của chính nó.
+- Một session tên `review <owner>/<repo>#<number>` chạy review như bình thường. Khi chạm giới hạn session,
+  pull request chờ trong hàng đợi.
+- Một yêu cầu mới trên pull request đã có session sẽ resume session đó khi nó nhờ kiểm tra lại các finding
+  trước, và mở session mới khi nó nhờ review lại từ đầu (context cũ dễ gây hiểu sai khi pull request đã
+  thay đổi). Khi không rõ, watcher hỏi bạn.
+- `auto_submit_review` quyết định review được publish hay giữ dạng draft, trừ khi bạn dặn watcher khác đi.
+  Draft không bao giờ được publish khi chưa có bạn.
+- Khi một session đã báo kết quả, nó thuộc về bạn: watcher im lặng về nó và không bao giờ đọc những gì bạn
+  viết ở đó, cho đến yêu cầu tiếp theo trên pull request đó.
 
 ## Mở một session
 
-Một toast ở góc trên bên phải màn hình cho bạn biết chuyện gì đang diễn ra — "Reviewing PR #12",
-"Posted review on PR #12 — 1 🔴 2 🟠", "LGTM on PR #12", một draft đang chờ, một session cần câu
-trả lời. Click vào toast để mở pull request; rê chuột vào thì toast được giữ lại; nhiều toast xếp chồng
-lên nhau; nút "1h" trên toast tắt toast trong một giờ. Khi bạn cần làm gì đó, toast hiện command mở session. Trên macOS watcher tự vẽ toast, nên
-không cần quyền thông báo; trên Linux nó dùng `notify-send`. Mọi dòng chat đều kèm command mở session:
+Một toast ở góc trên bên phải cho biết chuyện gì đang diễn ra — "Reviewing PR #12", "Posted review on PR
+#12 — 1 🔴 2 🟠", "LGTM on PR #12", một draft đang chờ, một session cần câu trả lời. Click để mở pull
+request; rê chuột vào để giữ toast lại; nút "1h" trên toast tắt toast trong một giờ. Khi bạn cần làm gì
+đó, toast hiện command mở session. Trên macOS watcher tự vẽ toast (không cần quyền thông báo); trên
+Linux nó dùng `notify-send`.
+
+Mọi dòng chat đều kèm command mở session:
 
 | nền tảng | loại session | mở bằng |
 |---|---|---|
@@ -86,44 +85,41 @@ không cần quyền thông báo; trên Linux nó dùng `notify-send`. Mọi dò
 | Cursor | non-interactive | `agent --resume <id>` |
 | Antigravity | non-interactive | `agy --conversation <id>` |
 
-Trên Claude Code, session cần câu trả lời (hoặc cần cấp quyền) sẽ chờ đến khi bạn attach vào. Trên các
-nền tảng khác, session dừng lại kèm câu hỏi; watcher hỏi bạn rồi resume session với
-câu trả lời của bạn.
+Trên Claude Code, session cần câu trả lời (hoặc cần cấp quyền) sẽ chờ đến khi bạn attach vào. Trên các nền
+tảng khác, session dừng lại kèm câu hỏi; watcher hỏi bạn rồi resume session với câu trả lời của bạn.
 
-Session nền của Claude Code cần repo là trusted workspace, và phải được khởi động
-bên ngoài shell sandbox của Claude Code. Session non-interactive dùng setting quyền bạn đã
-cấu hình cho nền tảng đó; watcher không cấp thêm quyền nào.
+Watcher chạy bên ngoài shell sandbox: bên trong sandbox, việc poll không tới được host và session nền của
+Claude Code treo ở bước khởi động. Session non-interactive dùng setting quyền bạn đã cấu hình cho nền tảng
+đó; watcher không cấp quyền nào.
 
 ## Menu bar (macOS)
 
-Trong lúc watcher chạy, một mục `open-pr` nằm trên menu bar của macOS, kèm số review đang
-chạy (`open-pr ·2`). Menu của nó liệt kê:
+Trong lúc watcher chạy, mục `open-pr` trên menu bar hiện số review đang chạy (`open-pr ·2`). Menu của nó
+liệt kê:
 
-- các review đang chạy — click một mục để mở pull request; submenu của nó mở session review
-  trong Terminal hoặc copy command mở session đó;
-- mười toast gần nhất, nên không mất gì khi nhiều toast đến cùng lúc — click một mục để mở pull
-  request của nó;
+- các review đang chạy — click một mục để mở pull request; submenu của nó mở session review trong
+  Terminal hoặc copy command mở session đó;
+- mười toast gần nhất — click một mục để mở pull request của nó;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
-Mục này tự biến mất vài phút sau khi watcher cuối cùng dừng. Trên Windows và Linux không có menu
-bar: hãy nhắn watcher trong chat để làm những việc tương tự (`status`, `snooze 1h`).
+Mục này tự biến mất vài phút sau khi watcher cuối cùng dừng. Trên Windows và Linux, hãy nhắn watcher trong
+chat (`status`, `snooze 1h`).
 
 ## Nói chuyện với watcher
 
 | nói | tác dụng |
 |---|---|
 | `status` | mỗi pull request một dòng, kèm trạng thái và command mở |
-| `snooze 2h` / `resume toasts` | không hiện toast trên máy này cho đến lúc đó — cùng một công tắc với nút "1h" trên toast và Snooze trên menu bar; hàng đợi vẫn chạy |
+| `snooze 2h` / `resume toasts` | không hiện toast trên máy này cho đến lúc đó — cùng một công tắc với nút "1h" trên toast và snooze trên menu bar; hàng đợi vẫn chạy |
 | một thay đổi setting | lưu vào `settings.json` |
 | mở session mới cho PR 12 | lần kích hoạt tiếp theo trên PR đó mở session mới |
 | `stop` | dừng theo dõi; các session review đang mở vẫn chạy tiếp |
 
 ## Giới hạn rate
 
-Mỗi lần poll tốn vài API call: ba trên GitHub, còn trên GitLab và Bitbucket là một cộng thêm một cho mỗi pull
-request được cập nhật kể từ lần poll trước. Khi host trả lời rằng account đã bị giới hạn rate, watcher
-tăng gấp đôi khoảng thời gian poll (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll
-thành công tiếp theo.
+Mỗi lần poll tốn ba API call trên GitHub; trên GitLab và Bitbucket là một, cộng thêm một cho mỗi pull
+request được cập nhật kể từ lần poll trước. Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng
+thời gian poll (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
 
 ## Setting
 

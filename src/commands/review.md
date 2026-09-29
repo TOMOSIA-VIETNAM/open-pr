@@ -28,7 +28,7 @@ Example (GitLab): /open-pr:review https://gitlab.com/org/repo/-/merge_requests/1
 rule, empty-"PR info" stop. A language instruction in `ARGUMENTS`/chat overrides
 `.shared.output_language`, this run only.
 
-`ARGUMENTS` carries `--status-file <F>` → `Read` `cases/watch-session.md` before Context; absent → skip it.
+`--status-file` in `ARGUMENTS` ⇒ `Read` `cases/watch-session.md` before Context.
 
 **≥2 valid PR URLs** && the intent isn't already clear from `ARGUMENTS`/chat → ask "Found N PRs —
 review all N or just the first?", WAIT (extras may be reference-only). Confirmed multi-PR → run Step 0
