@@ -981,6 +981,15 @@ def test_menubar_without_osascript_is_no_equivalent(w, tmp_path):
     assert r.stdout == "NO-EQUIVALENT\n"
 
 
+def test_menubar_closes_on_request(w):
+    env = {"FAKE_SLEEP": "30"}
+    assert w.run("menubar", env_extra=env).stdout == "started\n"
+    pid = int((w.watch / "menubar.pid").read_text())
+    assert w.run("menubar", "--close").stdout == "closed\n"
+    w.wait_dead(pid)
+    assert not (w.watch / "menubar.pid").exists()
+    assert w.run("menubar", "--close").stdout == "not running\n"
+
 def test_menubar_runs_detached_once_per_machine(w):
     env = {"FAKE_SLEEP": "30"}
     watch = w.watch

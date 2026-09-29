@@ -94,16 +94,16 @@ configured for that platform; the watcher grants none.
 
 ## Menu bar (macOS)
 
-While the watcher runs, an `open-pr` item in the menu bar shows the number of reviews in progress
-(`open-pr ·2`). Its menu lists:
+`/open-pr:menubar` puts the moth in the menu bar, with the number of reviews in progress; it covers
+every watcher on this machine and stays until `/open-pr:menubar close` (or its Quit item). Its menu
+lists:
 
 - the reviews in progress — click one to open the pull request; its submenu opens the review session in
   Terminal or copies the command that opens it;
 - the last ten toasts — click one to open its pull request;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
-It leaves a few minutes after the last watcher stops. On Windows and Linux, ask the watcher in chat
-instead (`status`, `snooze 1h`).
+On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
 
 ## Talking to the watcher
 

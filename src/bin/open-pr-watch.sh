@@ -51,6 +51,7 @@ parse_args() {
             --once) ARG_once=1; shift ;;
             --off) ARG_off=1; shift ;;
             --fresh) ARG_fresh=1; shift ;;
+            --close) ARG_close=1; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
                 printf '%s' "$key" | grep -Eq '^[a-z_]+$' || die 1 "open-pr-watch.sh: bad option $1"
@@ -733,11 +734,14 @@ cmd_menubar() {
     pf="$WD/menubar.pid"
     pid=$(cat "$pf" 2>/dev/null || true)
     # pids get reused
+    live=""
     if printf '%s' "$pid" | grep -Eq '^[0-9]+$' && kill -0 "$pid" 2>/dev/null \
-        && ps -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then
-        printf 'running\n'
-        return 0
+        && ps -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then live=1; fi
+    if [ -n "$(arg close)" ]; then
+        [ -n "$live" ] || { rm -f "$pf"; printf 'not running\n'; return 0; }
+        kill "$pid" 2>/dev/null || true; rm -f "$pf"; printf 'closed\n'; return 0
     fi
+    [ -z "$live" ] || { printf 'running\n'; return 0; }
     # one data dir per argv element (a path holding a newline is not supported)
     nl='
 '
@@ -824,9 +828,9 @@ Subcommands:
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
-  menubar
+  menubar [--close]
       macOS: start the menu bar item (active reviews, recent toasts, snooze) unless it runs →
-      `started` | `running`; it leaves by itself 5 min after the last watched repo stops. Elsewhere
+      `started` | `running`; it stays until closed. `--close` → `closed` | `not running`. Elsewhere
       `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]
       will R open a session in W (default the repo dir) without a prompt? claude: `trusted` | `untrusted` plus

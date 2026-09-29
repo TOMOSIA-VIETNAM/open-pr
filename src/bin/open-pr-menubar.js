@@ -1,20 +1,20 @@
-// macOS menu bar item for `open-pr-watch.sh menubar` (a status item needs no permission). It
+// macOS menu bar item for `/open-pr:menubar` (a status item needs no permission). It
 // polls, in every data directory given, the files the watcher writes:
 //   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
 //   <data>/<repo>/watch-review/state.json   sessions; active = not finished, working, question or draft
 //   <data>/<repo>/watch-review/feed.jsonl   recent notifications
 //   snooze file                             toasts off until then; the Snooze menu writes it too
-// It leaves once no repo has been watched for IDLE_EXIT seconds; watching goes on either way.
+// It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
 // argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, or written into a .command file after matching OPEN_CMD — never spliced into source.
 ObjC.import('Cocoa');
 
-var REFRESH = 3, IDLE_EXIT = 300, RECENT = 10, CLIP = 70, HEADER_W = 300;
+var REFRESH = 3, RECENT = 10, CLIP = 70, HEADER_W = 300;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700;
-var item = null, target = null, lastWatched = Date.now(), icons = {};
+var item = null, target = null, icons = {};
 
 var STATE = {   // SF Symbol, sRGB tint, label — by a session's last_state
     working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
@@ -175,9 +175,7 @@ function symbol(spec) {
 
 // ---------------------------------------------------------------- menu ----
 function refresh() {
-    var s = scan(), now = Date.now();
-    if (s.repos) lastWatched = now;
-    else if (now - lastWatched > IDLE_EXIT * 1000) { leave(); return; }
+    var s = scan();
     item.button.setTitle(s.sessions.length ? String(s.sessions.length) : '');
     item.setMenu(build(s));
 }
@@ -229,7 +227,7 @@ function headerView(repos, until) {
     iv.setFrame($.NSMakeRect(14, 10, 28, 28));
     v.addSubview(iv);
     v.addSubview(label('open-pr', $.NSFont.boldSystemFontOfSize(13), $.NSColor.labelColor, 52, 24));
-    var line = 'Watching ' + repos + (repos === 1 ? ' repo' : ' repos') + ' · ' +
+    var line = (repos ? 'Watching ' + repos + (repos === 1 ? ' repo' : ' repos') : 'Not watching') + ' · ' +
                (until ? 'toasts off until ' + hhmm(until) : 'toasts on');
     v.addSubview(label(line, $.NSFont.systemFontOfSize(11), $.NSColor.secondaryLabelColor, 52, 7));
     return v;

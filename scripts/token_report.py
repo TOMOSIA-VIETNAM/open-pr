@@ -74,6 +74,7 @@ ROLES = {
     "feedback-cmd": ["commands/feedback.md"],
     "watch-review-cmd": ["commands/watch-review.md"],
     "case-watch-session": ["cases/watch-session.md"],
+    "menubar-cmd": ["commands/menubar.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
@@ -151,6 +152,9 @@ SCENARIOS = {
     # the watcher's own session: first run asks its settings and commits them
     "watch-review/first-run": [
         "watch-review-cmd", "guardrails", "cli", "repo-settings", "memory-commit",
+    ],
+    "menubar": [
+        "menubar-cmd",
     ],
     # one review session the watcher opened for a PR
     "review/watch-session-github": [

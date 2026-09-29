@@ -85,14 +85,13 @@ non-interactive 会话使用你为该平台配置的权限设置；watcher 不�
 
 ## 菜单栏（macOS）
 
-watcher 运行期间，菜单栏上的 `open-pr` 项会显示进行中的评审数（`open-pr ·2`）。它的菜单列出：
+`/open-pr:menubar` 会在菜单栏显示飞蛾图标和进行中的评审数；它涵盖本机所有 watcher，直到 `/open-pr:menubar close`（或菜单中的 Quit）才消失。它的菜单列出：
 
 - 进行中的评审 —— 点击一项打开 pull request；其子菜单可在 Terminal 中打开评审会话，或复制打开该会话的命令；
 - 最近十条 toast —— 点击一项打开其 pull request；
 - 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
 
-最后一个 watcher 停止几分钟后，它会自行消失。在 Windows 和 Linux 上，请在聊天中向 watcher 请求
-（`status`、`snooze 1h`）。
+在 Windows 和 Linux 上，请在聊天中向 watcher 请求（`status`、`snooze 1h`）。
 
 ## 与 watcher 对话
 

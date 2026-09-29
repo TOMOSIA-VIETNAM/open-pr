@@ -13,6 +13,7 @@ Claude Code plugin `open-pr`. Markdown + one JSON config + ONE POSIX-sh runtime 
 | `/open-pr:upgrade` | migrate this repo's config to latest `schema_version`; fetches `llm-upgrades/` live |
 | `/open-pr:clean` | remove review worktrees after confirm. Never touches memory or config |
 | `/open-pr:watch-review` | watch the repos picked under pwd for `/open-pr` PR comments; open 1 review session per PR (`claude --bg` or a platform's headless CLI), relay questions/drafts |
+| `/open-pr:menubar [close]` | macOS menu bar item for every watcher on this machine: reviews in progress, recent toasts, snooze |
 | `/open-pr:feedback` | turn this chat into one issue on this plugin's tracker (user-approved, de-identified) |
 
 Vendors: GitHub, GitLab, Bitbucket.

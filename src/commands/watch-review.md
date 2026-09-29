@@ -61,10 +61,10 @@ output's node with these answers — then `core/memory-commit.md`.
 
 ## Step 3 — Watch
 
-`<watch> menubar`, then tell the user once, in `chat_language`: the repos watched; what asks for a
-review in each (a PR comment opening with its `trigger`, `@me` shown as `@<account>`); that they can
-say here `status`, `snooze <duration>`, a setting change, `stop`; on `started`/`running`, that the menu
-bar shows active reviews, recent toasts and snooze.
+Tell the user once, in `chat_language`: the repos watched; what asks for a review in each (a PR comment
+opening with its `trigger`, `@me` shown as `@<account>`); that they can say here `status`,
+`snooze <duration>`, a setting change, `stop`; on macOS, that `/open-pr:menubar` shows active reviews,
+recent toasts and snooze.
 
 Run 1 `<watch> wait` per watched repo, each its own background command; one exiting wakes you: 1 JSON
 per line, `repo` naming whose values to use. Run every `<watch>` call with the shell sandbox off where
@@ -133,4 +133,4 @@ Per `{"event":"ready",…}` (a queued PR's turn): `<watch> next`; a PR printed �
 | `snooze <duration>` / resume | `<watch> snooze --for <duration>` / `--off` — every toast on this machine |
 | a setting change | `Edit` that field in the repo it names (every watched repo when none) + `core/memory-commit.md` |
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
-| stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say open review sessions keep running and how to open them, and that the menu bar leaves on its own |
+| stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say open review sessions keep running and how to open them |
