@@ -728,7 +728,15 @@ cmd_claim() {
     first=$(claim_first "$TMPD/claim.before")
     [ -z "$first" ] || { printf 'taken %s\n' "${first#* }"; return 0; }
     m=$(cmd_marker --vendor "$V" --kind claim --comment-id "$CID")
-    { cat "$F"; printf '\n\n%s\n' "$m"; } > "$TMPD/claim.body"
+    : > "$TMPD/claim.body"
+    # A GitHub conversation comment has no thread: link the request instead. The login is link
+    # text without "@" (no second mention); the request's text is never echoed.
+    if [ "$V" = github ] && [ "$KIND" = top ]; then
+        gh api "repos/$OWNER/$REPO/issues/comments/$CID" > "$TMPD/claim.req" \
+            && jq -r '"> ↩ [\(.user.login)](\(.html_url))\n"' "$TMPD/claim.req" > "$TMPD/claim.body" \
+            || : > "$TMPD/claim.body"
+    fi
+    { cat "$F"; printf '\n\n%s\n' "$m"; } >> "$TMPD/claim.body"
     reply_post "$TMPD/claim.body" "$KIND" "$CID" "$T" \
         || die 1 "open-pr.sh claim: could not post the claim reply on comment $CID"
     mine=$(jq -r '.id' "$TMPD/reply.out")

@@ -54,7 +54,8 @@ Comments the plugin posts never trigger; your own do, so one person can be both 
 
 ## What happens next
 
-- The watcher replies to the comment — "reviewing (commit abc1234)", in the request's language — naming
+- The watcher replies to the comment (in its thread; a GitHub conversation comment has none, so the
+  reply links back to it) — "reviewing (commit abc1234)", in the request's language — naming
   the commit it took. With several machines watching one repository, that reply is the lock: the first
   reply wins, a machine that finds one steps back, and one that loses a close race deletes its own.
 - A session named `review <owner>/<repo>#<number>` runs the normal review. At the session limit, the

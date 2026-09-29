@@ -19,7 +19,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | threads | GraphQL reviewThreads | discussions (`resolved` flag) | root comment + `parent` chains, `resolution` on the ROOT only |
 | react (`--kind line\|top`) | reactions on the review comment (`line`) or the issue comment (`top`) — separate id spaces | award_emoji on the MR note | NO-EQUIVALENT |
 | claim: list | `issues/:n/comments` + `pulls/:n/comments`, paginated | `merge_requests/:iid/discussions`, every non-system note | `pullrequests/:id/comments`, deleted skipped |
-| claim: post | `line`: `pulls/:n/comments/:c/replies`; `top`: `issues/:n/comments` | `--thread-id T`: `discussions/T/notes`; else `merge_requests/:iid/notes` | `pullrequests/:id/comments` with `parent.id` = C |
+| claim: post | `line`: `pulls/:n/comments/:c/replies`; `top`: `issues/:n/comments`, opening with `> ↩ [<login>](<request url>)` (no thread there) | `--thread-id T`: `discussions/T/notes`; else `merge_requests/:iid/notes` | `pullrequests/:id/comments` with `parent.id` = C |
 | claim: delete (lost race) | `line`: DELETE `pulls/comments/:id`; `top`: DELETE `issues/comments/:id` | DELETE `merge_requests/:iid/notes/:id` | DELETE `pullrequests/:id/comments/:id` |
 | repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
 | triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |

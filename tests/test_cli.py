@@ -1044,6 +1044,8 @@ def test_claim_with_no_prior_claim_posts_and_wins(shims, claim_body):
     ours = gh_comment(500, "me", "2026-01-01T00:00:05Z", "x\n\n<!-- bot-claim:9 -->")
     serve(shims, "gh", [
         ("-X POST repos/o/r/issues/5/comments", ours),
+        ("api repos/o/r/issues/comments/9", {"user": {"login": "dev"}, "body": "/open-pr @me look",
+                                             "html_url": "https://github.com/o/r/pull/5#issuecomment-9"}),
         ("repos/o/r/issues/5/comments?per_page=100", Seq([
             [gh_comment(9, "dev", "2026-01-01T00:00:01Z", "/open-pr"),
              gh_comment(10, "x", "2026-01-01T00:00:02Z", "<!-- bot-claim:95 --> another trigger's lock")],
@@ -1052,7 +1054,9 @@ def test_claim_with_no_prior_claim_posts_and_wins(shims, claim_body):
     ])
     assert claim(shims, "github", claim_body, "--kind", "top") == "claimed 500"
     sent = json.JSONDecoder().raw_decode((shims["tmp"] / "calls.log.bodies").read_text())[0]
-    assert sent == {"body": "Reviewing on `$(hostname)` — ends `id`\n\n<!-- bot-claim:9 -->\n"}, \
+    assert sent == {"body": "> ↩ [dev](https://github.com/o/r/pull/5#issuecomment-9)\n\n"
+                            "Reviewing on `$(hostname)` — ends `id`\n\n<!-- bot-claim:9 -->\n"}, \
+        "a GitHub conversation comment has no thread: the request is linked (no @, its text not echoed); " \
         "the body file travels verbatim, the claim marker appended"
     assert "hostname" not in shims["log"].read_text(), "the claim body reached an argv"
     assert "DELETE" not in shims["log"].read_text()
