@@ -58,12 +58,13 @@ JQ_UTC='def utc:
 nap() { sleep 0.2 2>/dev/null || sleep 1; }
 
 # ---------------------------------------------------------------- args ----
-# --key value pairs into ARG_<KEY> (dashes -> _); --once and --off are the bare flags.
+# --key value pairs into ARG_<KEY> (dashes -> _); --once, --off and --fresh are the bare flags.
 parse_args() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --once) ARG_once=1; shift ;;
             --off) ARG_off=1; shift ;;
+            --fresh) ARG_fresh=1; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
                 printf '%s' "$key" | grep -Eq '^[a-z_]+$' || die 1 "open-pr-watch.sh: bad option $1"
@@ -81,11 +82,13 @@ pr_arg() { n=$(req pr); check_ident '^[0-9]+$' "$n"; printf '%s' "$n"; }
 
 # ---------------------------------------------------------------- repo ----
 # D = repo dir (default cwd), REPO/OWNER/VENDOR/HOST from its git remote,
-# SD = the watch state directory. `<data>` unset ⇒ exit 7 passes through.
+# SD = the watch state directory, W = where runner CLIs run (spawn sets it per session).
+# `<data>` unset ⇒ exit 7 passes through.
 load_repo() {
     D=$(arg repo_dir); [ -n "$D" ] || D=.
     [ -d "$D" ] || die 1 "open-pr-watch.sh: no such directory: $D"
     D=$(cd "$D" && pwd)
+    W=$D
     RM=$(arg remote)
     if [ -n "$RM" ]; then rt=$(opr repo-target --repo-dir "$D" --remote "$RM") || exit $?
     else rt=$(opr repo-target --repo-dir "$D") || exit $?; fi
@@ -127,10 +130,11 @@ setting_int() {
 # state.json:
 #   cursor    newest processed comment created_at, normalized to second precision
 #   seen      comment ids at exactly that created_at (ties the cursor cannot order)
-#   sessions  { "<pr>": {runner,id,session_id,name,repo,url,open,pid,started_at,last_state,finished} }
+#   sessions  { "<pr>": {runner,id,session_id,name,repo,url,open,cwd,pid,started_at,last_state,finished} }
+#             cwd = the directory the session was opened in; a resume runs there again
 #             finished = its result (a TERMINAL state) was delivered by `wait`: the session is
 #             the user's now, reports nothing more and holds no slot until spawn resumes it
-#   queue     [ {pr,runner,name,prompt_file} ] waiting for a free slot
+#   queue     [ {pr,runner,name,prompt_file[,cwd][,fresh]} ] waiting for a free slot
 LOCKED=""
 lock() {   # $1 lock dir, default the repo's state lock
     lk="${1:-$SD/.lock}"; i=0
@@ -160,7 +164,7 @@ state_update() {
 session_field() { state_json | jq -r --arg pr "$1" --arg k "$2" '.sessions[$pr][$k] // empty'; }
 
 # ------------------------------------------------------------- runners ----
-# Every platform CLI invocation in the plugin is below. cwd = the repo dir.
+# Every platform CLI invocation in the plugin is below. cwd = W.
 open_cmd() {   # $1 runner, $2 id → the command a reviewer runs to open the session
     [ -n "$2" ] || { printf ''; return 0; }
     case "$1" in
@@ -184,7 +188,7 @@ new_uuid() {
 # execs nohup which execs the CLI, so $! is the CLI's own pid.
 bg() {   # $1 log, rest = command
     lg="$1"; shift
-    ( cd "$D" || exit 1; exec nohup "$@" ) >> "$lg" 2>&1 < /dev/null &
+    ( cd "$W" || exit 1; exec nohup "$@" ) >> "$lg" 2>&1 < /dev/null &
     PID=$!
 }
 # The first JSON line whose "type" is $2 carries the id in field $3.
@@ -201,10 +205,10 @@ lazy_id() {   # $1 runner, $2 pr → the id a headless CLI reports in its output
 headless_launch() {   # sets RID, PID; $1 runner, $2 pr, $3 prompt
     lg=$(log_file "$2"); : > "$lg"; RID=""
     case "$1" in
-        codex)       bg "$lg" codex exec --json -C "$D" "$3" ;;
+        codex)       bg "$lg" codex exec --json -C "$W" "$3" ;;
         gemini)      RID=$(new_uuid); bg "$lg" gemini -p "$3" --session-id "$RID" -o json ;;
         cursor)
-            RID=$( (cd "$D" && agent create-chat) | tr -d '[:space:]') \
+            RID=$( (cd "$W" && agent create-chat) | tr -d '[:space:]') \
                 || die 1 "open-pr-watch.sh: agent create-chat failed"
             check_ident '^[A-Za-z0-9_-]+$' "$RID"
             cursor_run "$lg" "$RID" "$3" ;;
@@ -228,9 +232,9 @@ pid_alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
 # `claude --bg` must run OUTSIDE Claude Code's Bash sandbox — started from inside
 # it, the session hangs at "starting…". Each call is bounded so a hang surfaces
 # as an error instead of a stuck spawn.
-run_bounded() {   # $1 seconds, $2 output file, rest = command (cwd = repo dir)
+run_bounded() {   # $1 seconds, $2 output file, rest = command (cwd = W)
     secs="$1"; out="$2"; shift 2
-    ( cd "$D" || exit 1; exec "$@" ) > "$out" 2>&1 < /dev/null &
+    ( cd "$W" || exit 1; exec "$@" ) > "$out" 2>&1 < /dev/null &
     p=$!; i=0
     while kill -0 "$p" 2>/dev/null; do
         if [ "$i" -ge $((secs * 5)) ]; then kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; return 124; fi
@@ -238,7 +242,7 @@ run_bounded() {   # $1 seconds, $2 output file, rest = command (cwd = repo dir)
     done
     wait "$p"
 }
-claude_list() { (cd "$D" && claude agents --json "$@") 2>/dev/null || printf '[]'; }
+claude_list() { (cd "$W" && claude agents --json "$@") 2>/dev/null || printf '[]'; }
 claude_sid() {   # id → sessionId; a fresh session may take a moment to list
     i=0
     while [ "$i" -lt 10 ]; do
@@ -257,7 +261,7 @@ CLAUDE_HANG="claude --bg did not return within 30s. Started from inside Claude C
 # does not count. Exit 8, so the caller can tell the reviewer the one command that fixes it.
 claude_untrusted() {   # $1 output file
     grep -q 'Workspace not trusted' "$1" || return 0
-    die 8 "workspace not trusted: run \`cd $D && claude\` once and accept the trust prompt"
+    die 8 "workspace not trusted: run \`cd $W && claude\` once and accept the trust prompt"
 }
 claude_launch() {   # sets RID SID; $1 name, $2 prompt
     rc=0; run_bounded 30 "$TMPD/claude.out" claude --bg -n "$1" "$2" || rc=$?
@@ -280,7 +284,7 @@ claude_resume() {   # sets RID SID WARNING; $1 id, $2 session id, $3 prompt
     # and retry once.
     for attempt in 1 2; do
         pid=$(claude_list | jq -r --arg id "$RID" 'first(.[]? | select(.id == $id) | .pid // empty) // empty')
-        (cd "$D" && claude stop "$RID") > /dev/null 2>&1 || true
+        (cd "$W" && claude stop "$RID") > /dev/null 2>&1 || true
         i=0
         while claude_list | jq -e --arg id "$RID" 'any(.[]?; .id == $id)' > /dev/null \
             || { [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; }; do
@@ -295,7 +299,7 @@ claude_resume() {   # sets RID SID WARNING; $1 id, $2 session id, $3 prompt
         grep -q 'started a copy' "$TMPD/claude.out" || return 0
         [ "$attempt" = 1 ] || break
         copy=$(claude_bg_id "$TMPD/claude.out")
-        [ -z "$copy" ] || { (cd "$D" && claude stop "$copy" && claude rm "$copy") > /dev/null 2>&1 || true; }
+        [ -z "$copy" ] || { (cd "$W" && claude stop "$copy" && claude rm "$copy") > /dev/null 2>&1 || true; }
         sleep 2
     done
     if grep -q 'started a copy' "$TMPD/claude.out"; then
@@ -422,9 +426,12 @@ JQ_BUSY='def busy($s; $q; $now):
      | .pr];'
 enqueue() {   # $1 pr, $2 reason
     state_update --argjson pr "$1" --arg runner "$RUNNER" --arg name "$NAME" --arg f "$PF" --arg at "$(now_iso)" \
+        --arg cwd "$CW" --arg fresh "$FRESH" \
         '(([.queue[] | select(.pr == $pr) | .queued_at][0]) // $at) as $since
          | .queue = ([.queue[] | select(.pr != $pr)]
-                     + [{pr: $pr, runner: $runner, name: $name, prompt_file: $f, queued_at: $since}])'
+                     + [{pr: $pr, runner: $runner, name: $name, prompt_file: $f, queued_at: $since}
+                        + (if $cwd == "" then {} else {cwd: $cwd} end)
+                        + (if $fresh == "" then {} else {fresh: true} end)])'
     jq -n -c --argjson pr "$1" --arg why "$2" '{pr: $pr, queued: true, reason: $why}'
 }
 cmd_spawn() {
@@ -433,13 +440,23 @@ cmd_spawn() {
     N=$(pr_arg); NAME=$(req name); PF=$(req prompt_file); URL=$(arg url)
     [ -r "$PF" ] || die 1 "open-pr-watch.sh: prompt file not readable: $PF"
     PF=$(cd "$(dirname "$PF")" && printf '%s/%s' "$(pwd)" "$(basename "$PF")")
+    CW=$(arg cwd); FRESH=$(arg fresh)
+    if [ -n "$CW" ]; then
+        [ -d "$CW" ] || die 1 "open-pr-watch.sh: no such directory: $CW"
+        CW=$(cd "$CW" && pwd)
+    fi
     load_repo
     case "$RUNNER" in claude) need claude ;; codex) need codex ;; gemini) need gemini ;; cursor) need agent ;; antigravity) need agy ;; esac
     lock
     max=$(setting_int max_concurrent 5)
     status_all > "$TMPD/status"
     remember_ids "$TMPD/status"
-    have=$(session_field "$N" runner)
+    # --fresh leaves the current session as it is, untracked — once its review is done: both
+    # would write the same status file.
+    if [ -n "$FRESH" ] && [ "$(jq -r --argjson pr "$N" 'select(.pr == $pr) | .state' "$TMPD/status")" = working ]; then
+        enqueue "$N" "session still running"; return 0
+    fi
+    have=""; [ -n "$FRESH" ] || have=$(session_field "$N" runner)
     if [ -n "$have" ] && [ "$have" != "$RUNNER" ]; then
         die 1 "open-pr-watch.sh: PR $N already has a $have session; forget it first to open one under $RUNNER"
     fi
@@ -459,6 +476,7 @@ cmd_spawn() {
     if [ -n "$have" ]; then
         resumed=true
         RID=$(session_field "$N" id); SID=$(session_field "$N" session_id)
+        W=$(session_field "$N" cwd); [ -n "$W" ] || W=${CW:-$D}
         if [ "$RUNNER" = claude ]; then
             claude_resume "$RID" "$SID" "$PROMPT"
         else
@@ -467,15 +485,16 @@ cmd_spawn() {
             headless_resume "$RUNNER" "$N" "$RID" "$PROMPT"
         fi
     else
+        W=${CW:-$D}
         if [ "$RUNNER" = claude ]; then claude_launch "$NAME" "$PROMPT"
         else headless_launch "$RUNNER" "$N" "$PROMPT"; fi
     fi
     state_update --arg pr "$N" --arg runner "$RUNNER" --arg id "$RID" --arg sid "$SID" \
         --arg name "$NAME" --arg pid "$PID" --arg at "$(now_iso)" --arg repo "$OWNER/$REPO" \
-        --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" \
+        --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" --arg cwd "$W" \
         'def nul: if . == "" then null else . end;
          .sessions[$pr] = {runner: $runner, id: ($id | nul), session_id: ($sid | nul), name: $name,
-                           repo: $repo, url: (($url | nul) // .sessions[$pr].url), open: ($open | nul),
+                           repo: $repo, url: (($url | nul) // .sessions[$pr].url), open: ($open | nul), cwd: $cwd,
                            pid: ($pid | nul | if . then tonumber else . end), started_at: $at,
                            last_state: "working", finished: false}
          | .queue = [.queue[] | select(.pr != ($pr | tonumber))]'
@@ -786,12 +805,12 @@ cmd_menubar() {
 }
 
 # --------------------------------------------------------------- trust ----
-# Whether the runner will open a session in the repo dir without asking first. Read-only:
-# the trust prompt is the user's to accept, never this script's to write.
+# Whether the runner will open a session in --cwd (default the repo dir) without asking first.
+# Read-only: the trust prompt is the user's to accept, never this script's to write.
 cmd_trust() {
     parse_args "$@"
     RUNNER=$(req runner); check_runner "$RUNNER"
-    D=$(arg repo_dir); [ -n "$D" ] || D=.
+    D=$(arg cwd); [ -n "$D" ] || D=$(arg repo_dir); [ -n "$D" ] || D=.
     [ -d "$D" ] || die 1 "open-pr-watch.sh: no such directory: $D"
     D=$(cd "$D" && pwd)
     [ "$RUNNER" = claude ] || { printf 'n/a\n'; return 0; }
@@ -833,18 +852,20 @@ Subcommands:
       act on no other output. A vendor rate limit doubles the wait (up to 900 s, one stderr line
       each time) until a poll succeeds. Every poll touches `heartbeat`. `--once`: one poll, exit 0
       with nothing printed when nothing happened
-  spawn --runner R --pr N --name S --prompt-file F [--url U]
+  spawn --runner R --pr N --name S --prompt-file F [--url U] [--cwd W] [--fresh]
       open a review session for PR N with the prompt read from F → `{"pr","id","open"}`; the PR
       already has one ⇒ resume it (`"resumed":true`; a `"warning"` when the platform started a copy);
       all `max_concurrent` slots busy, or that PR's session still running ⇒ `{"pr","queued":true}`.
-      U (the PR URL) is kept for the menu bar
+      The session runs in W (default the repo dir), recorded so a resume runs there again.
+      `--fresh`: open a new session even when the PR has one; the old one is left untouched and
+      untracked. U (the PR URL) is kept for the menu bar
   status [--pr N]
       per session `{"pr","runner","id","state","open"}`, state one of working|question|draft|posted|
       lgtm_chat|failed|stopped (`"note"` says why when the session left no status file); a finished
       session shows its result with `"finished":true`
   next
       a slot is free ⇒ pop the first queued PR whose session is not running → `{"pr","runner",
-      "name","prompt_file"}`, to pass back to spawn; else nothing
+      "name","prompt_file"[,"cwd"][,"fresh"]}`, to pass back to spawn; else nothing
   forget --pr N
       drop the PR's session, so the next spawn opens a fresh one
   paths [--pr N]
@@ -863,8 +884,8 @@ Subcommands:
       macOS: start the menu bar item (active reviews, recent toasts, snooze) unless it runs →
       `started` | `running`; it leaves by itself 5 min after the last watched repo stops. Elsewhere
       `NO-EQUIVALENT`. Plain lines
-  trust --runner R
-      will R open a session in the repo dir without a prompt? claude: `trusted` | `untrusted` plus
+  trust --runner R [--cwd W]
+      will R open a session in W (default the repo dir) without a prompt? claude: `trusted` | `untrusted` plus
       a `run: cd <dir> && claude` line (trust is per exact directory, a trusted parent does not
       count) | `unknown` (its config unreadable); other runners: `n/a`. Plain lines, read-only
 
@@ -875,7 +896,7 @@ Exit codes:
   1  other
   4  invalid value
   7  `<data>` not set
-  8  the runner refuses the repo dir as untrusted — the message names the command to run once
+  8  the runner refuses the session's directory as untrusted — the message names the command to run once
   9  `wait --once` hit a vendor rate limit
   10 another `wait` already watches this repo on this machine — the message names its pid
      (`wait` also exits 1 once triggers has failed 3 polls in a row, naming the last error)

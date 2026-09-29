@@ -19,10 +19,10 @@ session for that pull request, and tells you when something needs you.
    The first run asks how many review
    sessions may be active at once, what asks for a review (`/open-pr` or a mention of you) and which
    toasts you want, and saves them in that repository's `settings.json`.
-3. On Claude Code, each repository must be a trusted workspace, or its review sessions cannot start.
-   Trust does not pass from a parent folder to the repositories inside it. The watcher checks this
-   when it starts and names each repository to open `claude` in once (`cd <repo> && claude`, accept the
-   trust prompt).
+3. Review sessions start in the folder you run the watcher from, exactly as if you typed
+   `/open-pr:review` there — same data directory, same trust. On Claude Code that folder must be a
+   trusted workspace; the watcher checks when it starts and tells you if you need to open `claude` there
+   once and accept the trust prompt.
 
 One watcher follows every repository you picked; each keeps its own settings, including its own
 limit on active sessions. A repository has at most one watcher per machine: a second one started for
@@ -61,8 +61,9 @@ and the reviewer.
   GitHub, GitLab and Bitbucket.
 - A review session named `review <owner>/<repo>#<number>` opens and runs the normal review.
 - When the limit of active sessions is reached, the pull request waits in a queue.
-- A new request on a pull request that already has a session resumes that same session,
-  so the re-review keeps the earlier context.
+- A new request on a pull request that already has a session: asking to re-check the earlier findings
+  resumes that session; asking for a review from scratch opens a new one, since an old context can
+  mislead once the pull request has moved on. When the request is unclear, the watcher asks you.
 - Whether the review is published or left as a draft follows `auto_submit_review`, unless you tell the
   watcher otherwise. A draft is never published without you.
 - Once a session has reported its result, it is yours: the watcher says nothing more about it while you
@@ -100,8 +101,8 @@ configured for that platform; the watcher does not grant any.
 While the watcher runs, an `open-pr` item sits in the macOS menu bar, with the number of reviews in
 progress (`open-pr ·2`). Its menu lists:
 
-- the reviews in progress — click one to open the pull request, or copy the command that opens its
-  session;
+- the reviews in progress — click one to open the pull request; its submenu opens the review session
+  in Terminal or copies the command that opens it;
 - the last ten toasts, so nothing is lost when several arrive at once — click one to open its pull
   request;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.

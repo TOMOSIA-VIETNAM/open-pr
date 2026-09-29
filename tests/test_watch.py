@@ -190,9 +190,10 @@ class Watch:
         p.write_text(text)
         return str(p)
 
-    def spawn(self, pr, runner="claude", text="review it", **kw):
+    def spawn(self, pr, runner="claude", text="review it", extra=(), **kw):
         return self.jsonl("spawn", "--runner", runner, "--pr", str(pr), "--name",
-                          f"review o/r#{pr}", "--prompt-file", self.prompt(text, f"p{pr}.txt"), **kw)[0]
+                          f"review o/r#{pr}", "--prompt-file", self.prompt(text, f"p{pr}.txt"),
+                          *extra, **kw)[0]
 
     def claude_db(self):
         return json.loads((self.home / "claude.db.json").read_text())
@@ -204,8 +205,9 @@ class Watch:
                 s["state"] = state
         (self.home / "claude.db.json").write_text(json.dumps(db))
 
-    def claude_calls(self):
-        return [json.loads(l)["argv"] for l in (self.home / "claude.calls").read_text().splitlines()]
+    def claude_calls(self, with_cwd=False):
+        rows = [json.loads(l) for l in (self.home / "claude.calls").read_text().splitlines()]
+        return rows if with_cwd else [r["argv"] for r in rows]
 
     def recorded(self, name, n=0, timeout=10):
         f = self.home / f"{name}.{n}.json"
@@ -545,6 +547,50 @@ def test_forget_makes_the_next_spawn_fresh(w):
     assert again["id"] != sp["id"] and "resumed" not in again
 
 
+def test_spawn_cwd_runs_claude_there_and_a_resume_keeps_it(w):
+    ws = w.home / "ws"
+    ws.mkdir()
+    sp = w.spawn(10, extra=("--cwd", str(ws)))
+    assert w.claude_calls(with_cwd=True)[0]["cwd"] == str(ws.resolve())
+    assert w.state()["sessions"]["10"]["cwd"] == str(ws.resolve())
+    w.claude_set(sp["id"], "done")
+    w.spawn(10, text="again")
+    calls = w.claude_calls(with_cwd=True)
+    stop = next(c for c in calls if c["argv"][:1] == ["stop"])
+    assert stop["cwd"] == calls[-1]["cwd"] == str(ws.resolve())
+    assert calls[-1]["argv"][:2] == ["--bg", "--resume"]
+
+
+def test_spawn_cwd_runs_a_headless_runner_there_and_a_resume_keeps_it(w):
+    ws = w.home / "ws"
+    ws.mkdir()
+    (w.home / "codex.out").write_text(json.dumps({"type": "thread.started", "thread_id": "th-1"}) + "\n")
+    w.spawn(11, runner="codex", text="p", extra=("--cwd", str(ws)))
+    rec = w.recorded("codex", 0)
+    assert rec["argv"] == ["exec", "--json", "-C", str(ws.resolve()), "p"] and rec["cwd"] == str(ws.resolve())
+    w.wait_dead(w.state()["sessions"]["11"]["pid"])
+    w.status_file(11, state="draft")
+    assert w.spawn(11, runner="codex", text="q")["resumed"] is True
+    assert w.recorded("codex", 1)["cwd"] == str(ws.resolve())
+
+
+def test_fresh_opens_a_new_session_and_leaves_the_old_one_running(w):
+    sp = w.spawn(12)
+    assert w.spawn(12, text="start over", extra=("--fresh",))["reason"] == "session still running", \
+        "both would write the same status file"
+    w.run("wait", "--once")                    # first poll only starts the cursor
+    w.claude_set(sp["id"], "done")
+    w.status_file(12, state="posted")
+    w.run("wait", "--once")                    # delivers the result: the session is finished
+    w.claude_set(sp["id"], "working")          # the user talks in the old session: not waited for
+    again = w.spawn(12, text="start over", extra=("--fresh",))
+    assert again["id"] != sp["id"] and "resumed" not in again and "queued" not in again
+    assert "stop" not in [c[0] for c in w.claude_calls()]
+    assert [c for c in w.claude_calls() if c[0] == "--bg"][-1] == ["--bg", "-n", "review o/r#12", "start over"]
+    assert w.state()["sessions"]["12"]["id"] == again["id"]
+    assert next(s for s in w.claude_db()["sessions"] if s["id"] == sp["id"])["state"] == "working"
+
+
 # -------------------------------------------------------------- status ----
 
 @pytest.mark.parametrize("claude_state,status_body,want", [
@@ -728,13 +774,14 @@ def test_notify_rejects_an_unknown_event(w):
 
 # --------------------------------------------------------------- trust ----
 
-def trust(w, config, runner="claude", repo_dir=None):
+def trust(w, config, runner="claude", repo_dir=None, cwd=None):
     cfg = w.home / "claude.json"
     if config is None:
         cfg.unlink(missing_ok=True)
     else:
         cfg.write_text(config if isinstance(config, str) else json.dumps(config))
-    args = ["trust", "--runner", runner] + (["--repo-dir", str(repo_dir)] if repo_dir else [])
+    args = ["trust", "--runner", runner] + (["--repo-dir", str(repo_dir)] if repo_dir else []) \
+        + (["--cwd", str(cwd)] if cwd else [])
     return w.run(*args, env_extra={"OPEN_PR_CLAUDE_CONFIG": str(cfg)}).stdout.splitlines()
 
 
@@ -751,6 +798,13 @@ def test_trust_reads_claudes_own_record_for_the_exact_directory(w):
     assert trust(w, None) == ["unknown"], "no config file"
     assert trust(w, "{not json") == ["unknown"]
     assert trust(w, before, repo_dir=w.home) == ["untrusted", f"run: cd {w.home.resolve()} && claude"]
+
+
+def test_trust_cwd_checks_that_directory_instead_of_the_repo(w):
+    repo, ws = str(w.repo.resolve()), str(w.home.resolve())
+    assert trust(w, {"projects": {ws: {"hasTrustDialogAccepted": True}}}, cwd=w.home) == ["trusted"]
+    assert trust(w, {"projects": {repo: {"hasTrustDialogAccepted": True}}}, cwd=w.home) == \
+        ["untrusted", f"run: cd {ws} && claude"]
 
 
 @pytest.mark.parametrize("runner", ["codex", "gemini", "cursor", "antigravity"])

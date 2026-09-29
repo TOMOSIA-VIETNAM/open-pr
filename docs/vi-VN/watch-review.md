@@ -19,10 +19,10 @@ riêng cho pull request đó, và báo bạn khi có việc cần bạn.
    Lần chạy đầu hỏi tối đa bao nhiêu session
    review được active cùng lúc, cái gì yêu cầu review (`/open-pr` hay một lần mention bạn) và bạn
    muốn nhận những toast nào, rồi lưu chúng vào `settings.json` của repo đó.
-3. Trên Claude Code, mỗi repo phải là trusted workspace, nếu không session review của nó không khởi
-   động được. Trust không truyền từ thư mục cha xuống các repo bên trong. Watcher kiểm tra điều này
-   khi khởi động và nêu tên từng repo cần mở `claude` một lần (`cd <repo> && claude`, chấp nhận
-   lời hỏi trust).
+3. Session review khởi động trong thư mục nơi bạn chạy watcher, y như khi bạn gõ
+   `/open-pr:review` ở đó — cùng thư mục dữ liệu, cùng trust. Trên Claude Code, thư mục đó phải là
+   trusted workspace; watcher kiểm tra khi khởi động và báo nếu bạn cần mở `claude` ở đó một lần rồi
+   chấp nhận lời hỏi trust.
 
 Một watcher theo dõi mọi repo bạn đã chọn; mỗi repo giữ setting riêng, kể cả giới hạn số session
 active của nó. Mỗi repo có tối đa một watcher trên một máy: watcher thứ hai mở cho repo đó sẽ báo
@@ -61,8 +61,9 @@ vừa là dev vừa là reviewer.
   Bitbucket.
 - Một session review tên `review <owner>/<repo>#<number>` được mở và chạy review như bình thường.
 - Khi đã chạm giới hạn session active, pull request chờ trong hàng đợi.
-- Một yêu cầu mới trên pull request đã có session sẽ resume đúng session đó,
-  nên lần re-review giữ được context trước.
+- Một yêu cầu mới trên pull request đã có session: yêu cầu kiểm tra lại các finding trước sẽ resume
+  session đó; yêu cầu review lại từ đầu sẽ mở session mới, vì context cũ có thể gây hiểu sai khi pull
+  request đã thay đổi. Khi yêu cầu không rõ, watcher hỏi bạn.
 - Review được publish hay giữ dạng draft theo `auto_submit_review`, trừ khi bạn dặn
   watcher khác đi. Draft không bao giờ được publish khi chưa có bạn.
 - Khi một session đã báo kết quả, nó thuộc về bạn: watcher không nói gì thêm về nó trong lúc bạn
@@ -98,8 +99,8 @@ cấu hình cho nền tảng đó; watcher không cấp thêm quyền nào.
 Trong lúc watcher chạy, một mục `open-pr` nằm trên menu bar của macOS, kèm số review đang
 chạy (`open-pr ·2`). Menu của nó liệt kê:
 
-- các review đang chạy — click một mục để mở pull request, hoặc copy command mở session
-  của nó;
+- các review đang chạy — click một mục để mở pull request; submenu của nó mở session review
+  trong Terminal hoặc copy command mở session đó;
 - mười toast gần nhất, nên không mất gì khi nhiều toast đến cùng lúc — click một mục để mở pull
   request của nó;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.

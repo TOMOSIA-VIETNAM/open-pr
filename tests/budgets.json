@@ -12,7 +12,7 @@
     "upgrade": 2298,
     "clean": 1403,
     "feedback": 2231,
-    "watch-review/first-run": 6229,
+    "watch-review/first-run": 6363,
     "review/watch-session-github": 9547,
     "review/known-repo-bitbucket-clean": 8840,
     "review/known-repo-bitbucket-rereview": 10888,
@@ -21,6 +21,6 @@
     "fix/multi-pr-submodule": 9133,
     "fix/first-run-gitlab": 8424
   },
-  "mean": 8306,
+  "mean": 8312,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }
