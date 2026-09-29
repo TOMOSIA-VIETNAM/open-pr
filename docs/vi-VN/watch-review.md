@@ -66,7 +66,7 @@ developer vừa là reviewer.
   Draft không bao giờ được publish khi chưa có bạn.
 - Khi một session đã báo kết quả, nó thuộc về bạn: watcher im lặng về nó và không bao giờ đọc những gì bạn
   viết ở đó, cho đến yêu cầu tiếp theo trên pull request đó.
-- Session review Claude Code để idle 30 phút sau khi có kết quả sẽ được stop để giải phóng bộ nhớ; hội
+- Session review Claude Code để idle 10 phút sau khi có kết quả sẽ được stop để giải phóng bộ nhớ; hội
   thoại vẫn được giữ, nên `claude attach <id>` và lượt re-review sau vẫn dùng được. Watcher không bao giờ
   đụng tới session không do nó mở.
 

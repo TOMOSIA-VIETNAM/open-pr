@@ -66,7 +66,7 @@ Comments the plugin posts never trigger; your own do, so one person can be both 
   watcher otherwise. A draft is never published without you.
 - Once a session has reported its result, it is yours: the watcher stays silent about it and never reads
   what you write there, until the next request on that pull request.
-- A Claude Code review session left idle for 30 minutes after its result is stopped to free memory;
+- A Claude Code review session left idle for 10 minutes after its result is stopped to free memory;
   its conversation is kept, so `claude attach <id>` and a later re-review still work. Sessions the
   watcher did not open are never touched.
 

@@ -391,7 +391,7 @@ IN_USE_GRACE=600
 # A claude session this watcher opened, finished and idle this long, is stopped: an idle
 # background session holds ~140 MB. Stop keeps the conversation (attach and resume still work).
 # Sessions the watcher did not open are never touched — only those in state.json.
-IDLE_PARK=1800
+IDLE_PARK=600
 park_idle() {   # $1 status JSONL
     state_json | jq -r --slurpfile s "$1" --argjson idle "$IDLE_PARK" '
         .sessions | to_entries[] | .key as $pr | .value
