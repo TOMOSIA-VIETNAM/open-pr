@@ -43,6 +43,9 @@ case "$1" in
               mf=$(printf '%s\n' "$@" | sed -n '/^--mark-file$/{n;p;}')
               [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
               cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
+    # open.txt: the open PR numbers; absent = the call fails (open.rc: its exit code, default 1)
+    open-prs) [ -f "$FAKE_HOME/open.txt" ] || { printf 'open-prs down\n' >&2; exit "$(cat "$FAKE_HOME/open.rc" 2>/dev/null || echo 1)"; }
+              cat "$FAKE_HOME/open.txt" ;;
     settings) cat "$FAKE_HOME/settings.json" 2>/dev/null || printf '{}\n' ;;
     account) cat "$FAKE_HOME/account.txt" 2>/dev/null || printf 'UNKNOWN\n' ;;
     *) exit 1 ;;
@@ -245,7 +248,7 @@ def trig(cid, at, pr=1, body="/open-pr look at auth"):
 def test_help_prints_every_subcommand(w):
     r = w.run("--help")
     assert r.stdout.startswith("usage: open-pr-watch.sh")
-    for sub in ("wait", "spawn", "status", "next", "forget", "paths", "notify", "trust", "snooze", "menubar"):
+    for sub in ("wait", "spawn", "status", "next", "forget", "hide", "paths", "notify", "trust", "snooze", "menubar"):
         assert f"\n  {sub}" in r.stdout
 
 
@@ -485,7 +488,8 @@ def test_wait_records_the_terminal_tab_it_runs_in(w):
                         TERM_SESSION_ID="other")
     r = w.run("wait", "--once", "--repo-dir", str(w.repo), cwd=where)
     rec = json.loads((w.sd / "watcher.json").read_text())
-    assert set(rec) == {"pid", "cwd", "term", "term_session", "tty"}
+    assert set(rec) == {"pid", "cwd", "term", "term_session", "tty", "repo_dir", "remote"}
+    assert (rec["repo_dir"], rec["remote"]) == (str(w.repo), ""), "what the menu bar passes to hide"
     assert rec["cwd"] == str(where), "the directory the user runs the watcher from"
     assert rec["term"] == "iTerm.app" and rec["term_session"] == "w0t0p3:1B2C-3D4E"
     assert isinstance(rec["pid"], int)
@@ -1156,8 +1160,9 @@ def test_menubar_runs_detached_once_per_machine(w):
     rec = w.recorded("osascript")
     assert rec["argv"] == ["-l", "JavaScript", str(w.bin / "open-pr-menubar.js"),
                            str(watch / "snooze_until"), str(watch / "menubar.pid"), "2700",
-                           str(w.home / "data"), str(w.home / "data2")], \
-        "the menu bar scans every data directory the config knows, one per argv element"
+                           str(w.home / "data"), str(w.home / "data2"), str(w.bin / "open-pr-watch.sh")], \
+        "the menu bar scans every data directory the config knows, one per argv element, then gets " \
+        "the script its Remove from list runs"
     pid = int((watch / "menubar.pid").read_text())
     try:
         assert w.run("menubar", env_extra=env).stdout == "running\n"
@@ -1172,3 +1177,122 @@ def test_menubar_runs_detached_once_per_machine(w):
     (watch / "menubar.pid").write_text(f"{os.getpid()}\n")
     assert w.run("menubar", env_extra=env).stdout == "started\n", "a reused pid is not the menu bar"
     os.kill(int((watch / "menubar.pid").read_text()), 9)
+
+
+# ------------------------------------------------------------ hide / closed PRs ----
+
+def tracked(w, pr=5):
+    """A spawned session with the cursor started: the first `wait` does nothing else."""
+    sp = w.spawn(pr)
+    assert w.run("wait", "--once").stdout == ""
+    return sp
+
+
+def open_prs_calls(w):
+    f = w.home / "open-pr.calls"
+    return [l for l in f.read_text().splitlines() if l.startswith("open-prs")] if f.exists() else []
+
+
+def test_hide_is_idempotent_and_a_new_request_brings_the_row_back(w):
+    sp = w.spawn(5)
+    assert w.jsonl("hide", "--pr", "5") == [{"pr": 5, "hidden": True}]
+    assert w.jsonl("hide", "--pr", "5") == [{"pr": 5, "hidden": True}]
+    w.run("hide", "--pr", "9")
+    assert w.state()["hidden"] == [5, 9]
+    assert w.jsonl("status")[0] == {"pr": 5, "runner": "claude", "id": sp["id"], "state": "working",
+                                    "open": f"claude attach {sp['id']}", "hidden": True}, "hidden, still tracked"
+    w.spawn(5, text="again")
+    assert w.state()["hidden"] == [9]
+    assert "hidden" not in w.jsonl("status")[0]
+    assert w.run("hide", "--pr", "x", check=False).returncode == 4
+
+
+def test_wait_asks_which_prs_are_open_at_most_every_ten_minutes(w):
+    tracked(w)
+    assert open_prs_calls(w) == []
+    (w.home / "open.txt").write_text("5\n")
+    w.run("wait", "--once")
+    assert len(open_prs_calls(w)) == 1 and open_prs_calls(w)[0].startswith("open-prs --vendor github --owner o --repo r")
+    w.run("wait", "--once")
+    assert len(open_prs_calls(w)) == 1, "checked again within 600 s"
+    st = w.state()
+    st["open_checked_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 601))
+    w.put_state(st)
+    w.run("wait", "--once")
+    assert len(open_prs_calls(w)) == 2
+    assert w.state().get("hidden", []) == [], "an open PR stays listed"
+
+
+def test_nothing_tracked_asks_the_vendor_nothing(w):
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    w.run("wait", "--once")
+    assert open_prs_calls(w) == []
+
+
+def test_a_merged_pr_is_hidden_and_its_idle_session_stopped(w):
+    sp = finish(w, 5)                                   # finished just now: no idle wait applies
+    st = w.state()
+    st.pop("open_checked_at", None)                     # finish's own polls had no open list
+    st["queue"] = [{"pr": 5, "runner": "claude", "name": "review o/r#5", "prompt_file": "/p"},
+                   {"pr": 12, "runner": "claude", "name": "review o/r#12", "prompt_file": "/q"}]
+    w.put_state(st)
+    w.sd.joinpath("feed.jsonl").write_text(json.dumps({"at": "2026-01-01T00:00:00Z", "repo": "o/r", "pr": 8,
+                                                       "event": "posted", "summary": "Posted"}) + "\n")
+    (w.home / "open.txt").write_text("12\n")
+    w.run("wait", "--once")
+    st = w.state()
+    assert st["hidden"] == [5, 8], "a feed-only row goes too"
+    assert [q["pr"] for q in st["queue"]] == [12], "a closed PR's queued request is dropped"
+    assert st["sessions"]["5"]["closed"] is True and st["sessions"]["5"]["parked"] is True
+    assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == [["stop", sp["id"]]]
+
+
+def test_a_closed_prs_working_session_is_stopped_only_once_idle(w):
+    sp = tracked(w)
+    (w.home / "open.txt").write_text("")
+    w.run("wait", "--once")
+    assert w.state()["sessions"]["5"]["closed"] is True and w.state()["hidden"] == [5]
+    assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "a working review is never cut"
+    w.claude_set(sp["id"], "done")
+    w.status_file(5, state="posted")
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["posted"]
+    assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == [["stop", sp["id"]]], "no idle wait"
+
+
+def test_a_closed_prs_session_the_user_talks_in_is_not_stopped(w):
+    sp = finish(w)
+    w.claude_set(sp["id"], "working")
+    st = w.state()
+    st.pop("open_checked_at", None)
+    w.put_state(st)
+    (w.home / "open.txt").write_text("")
+    w.run("wait", "--once")
+    assert w.state()["sessions"]["5"]["closed"] is True
+    assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "in use"
+    w.claude_set(sp["id"], "done")
+    w.run("wait", "--once")
+    assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == [["stop", sp["id"]]]
+
+
+@pytest.mark.parametrize("rc", ["1", "9"])
+def test_a_failed_open_check_is_skipped_until_the_next_slot(w, rc):
+    tracked(w)
+    (w.home / "open.rc").write_text(rc)
+    r = w.run("wait", "--once")
+    assert r.stdout == "", "no event"
+    lines = [l for l in r.stderr.splitlines() if "open-prs" in l]
+    assert lines == ([] if rc == "9" else ["open-pr-watch.sh: open-prs failed (exit 1), next check in 600s: open-prs down"])
+    assert w.state().get("hidden", []) == [] and w.state()["open_checked_at"]
+    w.run("wait", "--once")
+    assert len(open_prs_calls(w)) == 1
+
+
+def test_an_open_check_rate_limit_backs_off_like_triggers(w):
+    w.settings(poll_interval_seconds=1)
+    w.spawn(5)
+    (w.home / "open.rc").write_text("9")
+    (w.home / "triggers.rc").write_text("quiet\n")
+    w.triggers(trig("51", "2099-01-01T00:00:05Z"))
+    r = w.run("wait")
+    assert "rate limited — next poll in 2s" in r.stderr
+    assert [json.loads(l)["comment_id"] for l in r.stdout.splitlines()] == ["51"]

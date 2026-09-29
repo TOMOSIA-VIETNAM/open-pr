@@ -70,6 +70,8 @@ developer vừa là reviewer.
 - Session review Claude Code để idle 10 phút sau khi có kết quả sẽ được stop để giải phóng bộ nhớ; hội
   thoại vẫn được giữ, nên `claude attach <id>` và lượt re-review sau vẫn dùng được. Watcher không bao giờ
   đụng tới session không do nó mở.
+- Pull request đã merge hoặc đã đóng sẽ rời menu bar trong vòng 10 phút, và session của nó được stop khi
+  idle (hội thoại vẫn được giữ).
 
 ## Mở một session
 
@@ -109,6 +111,9 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
   chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, lỗi) và luôn có: mở pull request,
   mở session trong terminal mà watcher đó đang chạy, copy command;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
+
+"Remove from list" trên một dòng sẽ ẩn dòng đó, pull request đã merge hoặc đã đóng tự rời danh sách trong
+vòng 10 phút, và một yêu cầu mới trên pull request đó sẽ đưa dòng trở lại.
 
 Trên Windows và Linux, hãy nhắn watcher trong chat (`status`, `snooze 1h`).
 

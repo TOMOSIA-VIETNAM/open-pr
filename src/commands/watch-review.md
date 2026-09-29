@@ -136,4 +136,5 @@ Per `{"event":"ready",…}` (a queued PR's turn): `<watch> next`; a PR printed �
 | `snooze <duration>` / resume | `<watch> snooze --for <duration>` / `--off` — every toast on this machine |
 | a setting change | `Edit` that field in the repo it names (every watched repo when none) + `core/memory-commit.md` |
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
+| `remove #N` | `<watch> hide --pr N` for its repo |
 | stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say open review sessions keep running and how to open them |

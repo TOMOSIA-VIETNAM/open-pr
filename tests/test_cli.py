@@ -1020,6 +1020,50 @@ def test_triggers_bitbucket_lists_only_the_prs_updated_since(shims):
     assert "q=updated_on" not in shims["log"].read_text()
 
 
+# ------------------------------------------------------------ open-prs ----
+
+def open_prs(shims, vendor, check=True):
+    r = run("open-prs", "--vendor", vendor, "--owner", "o", "--repo", "r", env_extra=env_for(shims), check=check)
+    return r if not check else r.stdout.split()
+
+
+def test_open_prs_github_lists_every_open_pr(shims):
+    serve(shims, "gh", [("pulls?state=open", "5\n12\n")])
+    assert open_prs(shims, "github") == ["5", "12"]
+    assert "gh api --paginate repos/o/r/pulls?state=open&per_page=100 --jq .[].number" in shims["log"].read_text()
+
+
+def test_open_prs_gitlab_reads_every_page_of_opened_mrs(shims):
+    serve(shims, "glab", [("merge_requests?state=opened", '[{"iid": 3}, {"iid": 4}]\n[{"iid": 9}]\n')])
+    assert open_prs(shims, "gitlab") == ["3", "4", "9"]
+    assert "--paginate projects/o%2Fr/merge_requests?state=opened&per_page=100" in shims["log"].read_text()
+
+
+def test_open_prs_bitbucket_follows_next(shims):
+    nxt = "https://api.bitbucket.org/2.0/repositories/o/r/pullrequests?state=OPEN&page=2"
+    serve(shims, "curl", [("pullrequests?state=OPEN", Seq([{"values": [{"id": 7}], "next": nxt},
+                                                           {"values": [{"id": 8}], "next": None}]))])
+    assert open_prs(shims, "bitbucket") == ["7", "8"]
+    assert "page=2" in shims["log"].read_text()
+
+
+@pytest.mark.parametrize("vendor,cli,routes", [
+    ("github", "gh", [("pulls?state=open", (1, "gh: API rate limit exceeded for user ID 1. (HTTP 403)"))]),
+    ("gitlab", "glab", [("merge_requests?state=opened", (1, "glab: 429 Too Many Requests (HTTP 429)"))]),
+    ("bitbucket", "curl", [("pullrequests?state=OPEN", (22, "curl: (22) The requested URL returned error: 429"))]),
+])
+def test_open_prs_exits_9_on_a_vendor_rate_limit(shims, vendor, cli, routes):
+    serve(shims, cli, routes)
+    r = open_prs(shims, vendor, check=False)
+    assert (r.returncode, r.stdout) == (9, "") and "rate limited" in r.stderr, r.stderr
+
+
+def test_open_prs_keeps_any_other_failure_as_it_is(shims):
+    serve(shims, "glab", [("merge_requests?state=opened", (1, "glab: 500 Internal Server Error (HTTP 500)"))])
+    r = open_prs(shims, "gitlab", check=False)
+    assert r.returncode not in (0, 9) and "HTTP 500" in r.stderr
+
+
 # --------------------------------------------------------------- claim ----
 
 def claim(shims, vendor, body_file, *extra, check=True):

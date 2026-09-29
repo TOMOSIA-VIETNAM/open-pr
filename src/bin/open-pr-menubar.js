@@ -1,16 +1,20 @@
 // macOS menu bar item for `/open-pr:menubar` (a status item needs no permission). It
 // polls, in every data directory given, the files the watcher writes:
 //   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
-//   <data>/<repo>/watch-review/state.json   sessions, one row per PR; active = not finished, working or question
+//   <data>/<repo>/watch-review/state.json   sessions, one row per PR; active = not finished, working or question;
+//                                           PRs in `hidden` get no row
 //   <data>/<repo>/watch-review/feed.jsonl   notifications; a PR's latest one, when newer than its
 //                                           session's state, is its row's text
-//   <data>/<repo>/watch-review/watcher.json the terminal tab whose watcher watches the repo
+//   <data>/<repo>/watch-review/watcher.json the terminal tab whose watcher watches the repo, and
+//                                           the repo_dir/remote "Remove from list" passes to `hide`
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
-// argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs.
+// argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs,
+// then the absolute path of open-pr-watch.sh.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, written into a .command file after matching OPEN_CMD, or passed to osascript as argv
-// after matching TAB_ID — never spliced into source.
+// after matching TAB_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits —
+// never spliced into source.
 ObjC.import('Cocoa');
 
 var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
@@ -20,7 +24,10 @@ var SUBTITLE_PAD = 100;
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 // iTerm's unique id (the part of ITERM_SESSION_ID after ':') or a Terminal tab's tty.
 var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
-var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700;
+var REMOTE = /^[A-Za-z0-9._-]+$/;
+// A row removed stays out until state.json lists it hidden (hide runs in the background).
+var HIDE_PENDING = 30000;
+var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {};
 var item = null, target = null, icons = {};
 
 var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgtm_chat as lgtm); tints match open-pr-toast.js
@@ -86,6 +93,7 @@ ObjC.registerSubclass({
         'copyText:': { types: ['void', ['id']], implementation: function (s) { copyText(unwrapString(s.representedObject)); } },
         'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(parse(unwrapString(s.representedObject))); } },
         'goToTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
+        'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
         'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
     }
@@ -94,7 +102,12 @@ ObjC.registerSubclass({
 function run(argv) {
     snoozeFile = argv[0] || ''; pidFile = argv[1] || '';
     fresh = Number(argv[2]) || fresh;
-    dataDirs = argv.slice(3).filter(function (d) { return typeof d === 'string' && d !== ''; });
+    var rest = argv.slice(3), last = str(rest[rest.length - 1]);
+    if (/^\/.*\/open-pr-watch\.sh$/.test(last)) {
+        rest.pop();
+        if ($.NSFileManager.defaultManager.fileExistsAtPath(last)) watchScript = last;
+    }
+    dataDirs = rest.filter(function (d) { return typeof d === 'string' && d !== ''; });
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
     icons.bar = mothImage(18, true);
@@ -139,6 +152,11 @@ function snoozedUntil() {
     return isNaN(d.getTime()) || d.getTime() <= Date.now() ? null : d;
 }
 
+function isDir(p) {
+    if (typeof p !== 'string' || p.charAt(0) !== '/') return false;
+    var at = $.NSFileManager.defaultManager.attributesOfItemAtPathError(p, null);
+    return !at.isNil() && ObjC.unwrap(at.objectForKey($.NSFileType)) === ObjC.unwrap($.NSFileTypeDirectory);
+}
 function basename(p) { return p.replace(/\/+$/, '').split('/').pop() || p; }
 // One per watcher tab: the waits of one watcher (one per repo) share its tab.
 function watcherOf(w) {
@@ -158,28 +176,40 @@ function scan() {
         var dir = data + '/' + name + '/watch-review';
         if (ageSeconds(dir + '/heartbeat') > fresh) return;
         out.repos++;
-        var wr = watcherOf(parse(readText(dir + '/watcher.json')));
+        var wj = parse(readText(dir + '/watcher.json'));
+        var wr = watcherOf(wj);
+        // what "Remove from list" hands `hide` for this repo
+        var repoDir = wj && typeof wj === 'object' ? str(wj.repo_dir) : '', remote = wj && typeof wj === 'object' ? str(wj.remote) : '';
         if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
         wr = byKey[wr.key];
         wr.repos.push(name);
         var rows = {};
         var st = parse(readText(dir + '/state.json'));
         var ss = st && typeof st.sessions === 'object' && st.sessions ? st.sessions : {};
+        var hidden = {};
+        (st && Array.isArray(st.hidden) ? st.hidden : []).forEach(function (n) { if (typeof n === 'number') hidden[n] = true; });
+        var gone = function (pr) {
+            var at = pendingHide[repoDir + '#' + pr];
+            return hidden[pr] || (at && Date.now() - at < HIDE_PENDING);
+        };
+        var hideArg = function (pr) { return JSON.stringify({ repo_dir: repoDir, remote: remote, pr: Number(pr) }); };
         Object.keys(ss).forEach(function (pr) {
             var s = ss[pr];
-            if (!s || typeof s !== 'object') return;
+            if (!s || typeof s !== 'object' || gone(pr)) return;
             var repo = str(s.repo) || name, state = str(s.last_state);
             rows[repo + '#' + pr] = { title: repo + ' #' + pr, session: true, state: state,
                 active: s.finished !== true && (state === 'working' || state === 'question'),
-                url: str(s.url), open: str(s.open),
+                url: str(s.url), open: str(s.open), hide: hideArg(pr),
                 stateAt: ms(s.last_state_at) || Math.max(ms(s.started_at), ms(s.finished_at)) };
         });
         readText(dir + '/feed.jsonl').split('\n').forEach(function (line) {
             var f = parse(line);
             if (!f || typeof f !== 'object' || !str(f.summary)) return;
             var repo = str(f.repo) || name, pr = typeof f.pr === 'number' ? String(f.pr) : '';
+            if (pr && gone(pr)) return;
             var r = rows[repo + '#' + pr] || (rows[repo + '#' + pr] =
-                { title: repo + (pr ? ' #' + pr : ''), session: false, state: '', active: false, url: '', open: '', stateAt: 0 });
+                { title: repo + (pr ? ' #' + pr : ''), session: false, state: '', active: false, url: '', open: '',
+                  hide: pr ? hideArg(pr) : '', stateAt: 0 });
             if (!r.feed || str(f.at) >= str(r.feed.at)) r.feed = f;
             if (!r.url) r.url = str(f.url);
         });
@@ -360,6 +390,7 @@ function build(s) {
             if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
             if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, app: w.app }));
             if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
+            if (x.hide && hideArgs(parse(x.hide))) add(sub, 'Remove from list', 'hide:', x.hide);
             if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
         });
     });
@@ -428,6 +459,20 @@ function spawn(path, args) {
     task.setStandardOutput($.NSFileHandle.fileHandleWithNullDevice);
     task.setStandardError($.NSFileHandle.fileHandleWithNullDevice);
     task.launch;
+}
+// `open-pr-watch.sh hide` argv, or null when a value is outside its shape.
+function hideArgs(o) {
+    if (!watchScript || !o || typeof o !== 'object') return null;
+    var dir = str(o.repo_dir), remote = str(o.remote), pr = o.pr;
+    if (!isDir(dir) || (remote && !REMOTE.test(remote)) || typeof pr !== 'number' || !/^[0-9]+$/.test(String(pr))) return null;
+    return [watchScript, 'hide', '--repo-dir', dir].concat(remote ? ['--remote', remote] : [], ['--pr', String(pr)]);
+}
+function hide(o) {
+    var args = hideArgs(o);
+    if (!args) return;
+    spawn('/bin/sh', args);
+    pendingHide[o.repo_dir + '#' + o.pr] = Date.now();
+    refresh();
 }
 // minutes > 0: that long; -1: until 9:00 local tomorrow; 0: back on. Same format as
 // `open-pr-watch.sh snooze`.

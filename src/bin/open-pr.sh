@@ -876,6 +876,17 @@ cmd_triggers() {
         | {pr, url, comment_id, kind, thread_id, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
 }
 
+# One open PR/MR number per line, every page: the watcher drops the rows of merged/closed ones.
+cmd_open_prs() {
+    parse_args "$@"; vendor_init
+    case "$V" in
+        github)    rl gh api --paginate "repos/$OWNER/$REPO/pulls?state=open&per_page=100" --jq '.[].number' ;;
+        gitlab)    rl glab api --paginate "projects/$GL_PROJ/merge_requests?state=opened&per_page=100" > "$TMPD/op.page"
+                   jq -r '.[].iid' "$TMPD/op.page" ;;
+        bitbucket) rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id" '.values[].id' ;;
+    esac
+}
+
 cmd_commit_url() {
     parse_args "$@"
     V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); SHA=$(req sha)
@@ -1156,7 +1167,7 @@ usage: open-pr.sh <subcommand> [--option value ...]
 Common options:
   `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
   `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
-  `--owner O --repo R --pr N` on every networked one (`triggers`, `account`: no `--pr`); `--host H`
+  `--owner O --repo R --pr N` on every networked one (`triggers`, `open-prs`, `account`: no `--pr`); `--host H`
   where self-hostable.
 
 Subcommands:
@@ -1176,6 +1187,8 @@ Subcommands:
   triggers [--since T] [--mark-file F] [--token K]
       open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL;
       contract in reference/vendor-interface.md
+  open-prs
+      every open PR/MR number, 1 per line
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
       against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per
@@ -1238,7 +1251,7 @@ Exit codes:
   5  repo dir unresolvable
   6  missing credentials
   7  `<data>` not set for that location
-  9  vendor rate limit (`triggers`)
+  9  vendor rate limit (`triggers`, `open-prs`)
 EOF
 }
 
@@ -1259,6 +1272,7 @@ case "$sub" in
     repo-target)  cmd_repo_target "$@" ;;
     list-repos)   cmd_list_repos "$@" ;;
     triggers)     cmd_triggers "$@" ;;
+    open-prs)     cmd_open_prs "$@" ;;
     checkout)     cmd_checkout "$@" ;;
     verify-line)  cmd_verify_line "$@" ;;
     post)         cmd_post "$@" ;;

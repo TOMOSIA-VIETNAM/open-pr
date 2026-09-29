@@ -17,7 +17,7 @@ by the exit codes below.
 or writes there; exit 7 ⇒ `Read` `cases/data-dir.md` first.
 
 <!-- open-pr.sh --help, via scripts/cli_doc.py -->
-Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one (`triggers`, `account`: no `--pr`); `--host H` where self-hostable.
+Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one (`triggers`, `open-prs`, `account`: no `--pr`); `--host H` where self-hostable.
 
 | subcommand | does |
 |---|---|
@@ -27,6 +27,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `repo-target --repo-dir D [--remote R]` | D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines |
 | `list-repos [--dir D]` | every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote, vendor, owner, repo, host, last commit ISO-8601 |
 | `triggers [--since T] [--mark-file F] [--token K]` | open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL; contract in reference/vendor-interface.md |
+| `open-prs` | every open PR/MR number, 1 per line |
 | `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per repo at a time: waits `--lock-timeout` s (120), then exit 1 |
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
 | `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |
@@ -45,7 +46,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `settings --repo <repo> [--repo-dir D]` | `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_review_configured` = node in the file |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 
-Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set for that location · 9 = vendor rate limit (`triggers`).
+Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set for that location · 9 = vendor rate limit (`triggers`, `open-prs`).
 <!-- /open-pr.sh --help -->
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line

@@ -114,11 +114,14 @@ setting_int() {
 #   cursor    newest processed comment created_at, UTC, second precision
 #   seen      comment ids at exactly that created_at (ties the cursor cannot order)
 #   sessions  { "<pr>": {runner,id,session_id,name,repo,url,open,cwd,pid,started_at,last_state,
-#                        last_state_at,finished} }
+#                        last_state_at,finished[,closed]} }
 #             last_state_at = when last_state last changed (the menu bar weighs it against the feed)
 #             cwd = where it was opened; a resume runs there again
 #             finished = `wait` delivered its result (a TERMINAL state): the session is the
 #             user's now, reports nothing more and holds no slot until spawn resumes it
+#             closed = the PR was merged or closed (see check_open)
+#   hidden    PR numbers the menu bar leaves out (`hide`, or merged/closed); spawn takes N out
+#   open_checked_at  last check_open
 #   queue     [ {pr,runner,name,prompt_file,queued_at[,cwd][,fresh]} ] waiting for a free slot
 LOCKED=""
 lock() {   # $1 lock dir, default the repo's state lock
@@ -317,10 +320,12 @@ claude_state() {
 }
 status_one() {   # $1 pr
     pr="$1"
-    row=$(state_json | jq -r --arg pr "$pr" '.sessions[$pr] | [.runner, .id, .session_id, .pid, (.finished == true), .last_state] | map(. // "" | tostring) | join("\u001f")')
+    row=$(state_json | jq -r --arg pr "$pr" '(.hidden // []) as $h | .sessions[$pr]
+        | [.runner, .id, .session_id, .pid, (.finished == true), .last_state, ($h | index([$pr | tonumber]) != null)]
+        | map(. // "" | tostring) | join("\u001f")')
     # not whitespace: IFS whitespace would merge the empty fields
     us=$(printf '\037')
-    IFS="$us" read -r runner id sid pid fin last <<EOF
+    IFS="$us" read -r runner id sid pid fin last hid <<EOF
 $row
 EOF
     note=""; inuse=""
@@ -356,13 +361,14 @@ EOF
     fi
     jq -n -c --argjson pr "$pr" --arg runner "$runner" --arg id "$id" --arg sid "$sid" \
         --arg state "$st" --arg open "$(open_cmd "$runner" "$id")" --arg note "$note" --arg fin "$fin" \
-        --arg inuse "$inuse" \
+        --arg inuse "$inuse" --arg hid "$hid" \
         '{pr: $pr, runner: $runner, id: (if $id == "" then null else $id end),
           session_id: (if $sid == "" then null else $sid end), state: $state,
           open: (if $open == "" then null else $open end)}
          + (if $note == "" then {} else {note: $note} end)
          + (if $fin == "true" then {finished: true} else {} end)
-         + (if $inuse == "" then {} else {in_use: $inuse} end)'
+         + (if $inuse == "" then {} else {in_use: $inuse} end)
+         + (if $hid == "true" then {hidden: true} else {} end)'
 }
 status_all() {   # every tracked session, or just $1
     CLAUDE_AGENTS=""   # `wait` polls many times in one process: re-list each pass
@@ -391,7 +397,8 @@ cmd_status() {
     load_repo; lock
     status_all "$N" > "$TMPD/status"
     remember_ids "$TMPD/status"
-    jq -c '{pr, runner, id, state, open} + (if .note then {note} else {} end) + (if .finished then {finished} else {} end)' "$TMPD/status"
+    jq -c '{pr, runner, id, state, open} + (if .note then {note} else {} end) + (if .finished then {finished} else {} end)
+        + (if .hidden then {hidden} else {} end)' "$TMPD/status"
 }
 
 # --------------------------------------------------------------- spawn ----
@@ -400,14 +407,15 @@ cmd_status() {
 IN_USE_GRACE=600
 # A claude session this watcher opened, finished and idle this long, is stopped: an idle
 # background session holds ~140 MB. Stop keeps the conversation (attach and resume still work).
-# Sessions the watcher did not open are never touched — only those in state.json.
+# Sessions the watcher did not open are never touched — only those in state.json. A closed PR's
+# session is stopped without the idle wait.
 IDLE_PARK=600
 park_idle() {   # $1 status JSONL
     state_json | jq -r --slurpfile s "$1" --argjson idle "$IDLE_PARK" '
         .sessions | to_entries[] | .key as $pr | .value
         | select(.runner == "claude" and .finished == true and .parked != true and .id != null
-                 and (.finished_at // null) != null
-                 and (now - (.finished_at | fromdateiso8601)) >= $idle)
+                 and (.closed == true or ((.finished_at // null) != null
+                                           and (now - (.finished_at | fromdateiso8601)) >= $idle)))
         | select([$s[] | select((.pr | tostring) == $pr) | .in_use // empty] | length == 0)
         | "\($pr) \(.id)"' | while read -r pr id; do
         check_ident '^[0-9a-f]+$' "$id"
@@ -447,6 +455,7 @@ cmd_spawn() {
     load_repo
     case "$RUNNER" in claude) need claude ;; codex) need codex ;; gemini) need gemini ;; cursor) need agent ;; antigravity) need agy ;; esac
     lock
+    state_update --argjson pr "$N" '.hidden = [(.hidden // [])[] | select(. != $pr)]'
     max=$(setting_int max_concurrent 5)
     status_all > "$TMPD/status"
     remember_ids "$TMPD/status"
@@ -523,6 +532,13 @@ cmd_forget() {
     rm -f "$(status_file "$N")"
     jq -n -c --argjson pr "$N" '{pr: $pr, forgotten: true}'
 }
+cmd_hide() {
+    parse_args "$@"
+    N=$(pr_arg)
+    load_repo; lock
+    state_update --argjson pr "$N" '.hidden = ((.hidden // []) + [$pr] | unique)'
+    jq -n -c --argjson pr "$N" '{pr: $pr, hidden: true}'
+}
 cmd_paths() {
     parse_args "$@"
     N=$(arg pr); [ -z "$N" ] || check_ident '^[0-9]+$' "$N"
@@ -543,6 +559,40 @@ trigger_token() {
     esac
     printf '@%s' "$who"
 }
+# A merged or closed PR leaves the menu bar: every OPEN_CHECK s, each PR tracked here (a session
+# not yet closed, or a feed line not yet hidden) that the vendor no longer lists open is hidden and
+# its session marked closed. A failed check waits for the next slot.
+OPEN_CHECK=600
+check_open() {
+    last=$(state_json | jq -r '.open_checked_at // empty')
+    if [ -n "$last" ] && jq -e -n --arg t "$last" --argjson w "$OPEN_CHECK" \
+        '(try ($t | fromdateiso8601) catch 0) > now - $w' > /dev/null; then return 0; fi
+    state_json > "$TMPD/open.st"
+    cat "$SD/feed.jsonl" > "$TMPD/open.feed" 2>/dev/null || : > "$TMPD/open.feed"
+    jq -n -c --slurpfile st "$TMPD/open.st" --rawfile f "$TMPD/open.feed" '$st[0] as $s | ($s.hidden // []) as $h
+        | [($s.sessions // {} | to_entries[] | select(.value.closed != true) | .key | tonumber),
+           ($f | split("\n")[] | fromjson? | .pr? | numbers | select(. as $p | $h | index([$p]) | not))]
+        | unique' > "$TMPD/open.cand"
+    [ "$(cat "$TMPD/open.cand")" != "[]" ] || return 0
+    rc=0
+    opr open-prs --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} \
+        > "$TMPD/open.prs" 2> "$TMPD/open.err" || rc=$?
+    lock
+    if [ "$rc" = 0 ]; then
+        grep -Ex '[0-9]+' "$TMPD/open.prs" | jq -s -c . > "$TMPD/open.now"
+        state_update --slurpfile c "$TMPD/open.cand" --slurpfile o "$TMPD/open.now" --arg at "$(now_iso)" '
+            ($c[0] - $o[0]) as $gone
+            | .open_checked_at = $at
+            | .hidden = ((.hidden // []) + $gone | unique)
+            | .queue = [.queue[]? | select(.pr as $p | $gone | index($p) | not)]
+            | reduce ($gone[] | tostring) as $k (.; if .sessions[$k] then .sessions[$k].closed = true else . end)'
+    else
+        state_update --arg at "$(now_iso)" '.open_checked_at = $at'
+        if [ "$rc" = 9 ]; then LIMITED=1
+        else err "open-pr-watch.sh: open-prs failed (exit $rc), next check in ${OPEN_CHECK}s: $(tail -n 1 "$TMPD/open.err")"; fi
+    fi
+    unlock
+}
 # Delivery: print the batch, then rename the state that marks it processed, then exit 0.
 # Killed before the rename, the next `wait` reprints it; the caller acts only on exit 0, so a
 # comment is neither lost nor handled twice.
@@ -559,6 +609,7 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited)
     # A cursor stored with an offset is rewritten in UTC: comparisons below are string compares.
     [ "$cursor" = "$(state_json | jq -r '.cursor')" ] || state_update --arg c "$cursor" '.cursor = $c'
     unlock
+    check_open
     # --since is strict and the cursor has second precision: ask from 1s earlier; `seen` drops repeats.
     since=$(jq -n -r --arg c "$cursor" '$c | fromdateiso8601 - 1 | todateiso8601')
     [ -n "$TOKEN" ] || TOKEN=$(trigger_token)
@@ -661,11 +712,12 @@ write_watcher() {
     cwd=$(pwd)
     # no control characters (a newline would pass grep line by line)
     [ "$cwd" = "$(printf '%s' "$cwd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#cwd} -le 1024 ] || cwd=""
-    jq -n -c --argjson pid "$$" --arg cwd "$cwd" \
+    rd=$D; [ "$rd" = "$(printf '%s' "$rd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#rd} -le 1024 ] || rd=""
+    jq -n -c --argjson pid "$$" --arg cwd "$cwd" --arg rd "$rd" --arg rm "$(fit "$RM" '[A-Za-z0-9._-]{1,128}')" \
         --arg term "$(fit "${TERM_PROGRAM:-}" "$TERM_RE")" \
         --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
         --arg tty "$(ancestor_tty)" \
-        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty}' > "$SD/watcher.json.tmp"
+        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, repo_dir: $rd, remote: $rm}' > "$SD/watcher.json.tmp"
     mv "$SD/watcher.json.tmp" "$SD/watcher.json"
 }
 watcher_field() {   # $1 key of watcher.json, $2 ERE → its value, or "" when it does not match
@@ -828,7 +880,7 @@ cmd_menubar() {
     set -- $dirs
     IFS=$old_ifs; set +f
     nohup osascript -l JavaScript "$SELF_DIR/open-pr-menubar.js" "$WD/snooze_until" "$pf" \
-        "$((3 * BACKOFF_CAP))" "$@" > /dev/null 2>&1 < /dev/null &
+        "$((3 * BACKOFF_CAP))" "$@" "$SELF_DIR/open-pr-watch.sh" > /dev/null 2>&1 < /dev/null &
     printf '%s\n' "$!" > "$pf"
     printf 'started\n'
 }
@@ -877,25 +929,30 @@ Subcommands:
       `{"event":"ready","repo","pr"}` = a queued PR's turn has come (run `next`). The first
       run starts the cursor at now (no replay). Events count as delivered only when wait exits 0 —
       act on no other output. A vendor rate limit doubles the wait (up to 900 s, one stderr line
-      each time) until a poll succeeds. Every poll touches `heartbeat`; each start writes
-      `watcher.json` {pid, cwd, term, term_session, tty} (the terminal tab it runs in, for the menu
-      bar). `--once`: one poll, exit 0 with nothing printed when nothing happened
+      each time) until a poll succeeds. At most every 600 s, a tracked PR no longer open (merged or
+      closed) is hidden and its session marked closed, then stopped once not in use; a failed check
+      prints one stderr line and waits for the next. Every poll touches `heartbeat`; each start writes
+      `watcher.json` {pid, cwd, term, term_session, tty, repo_dir, remote} (the terminal tab it runs
+      in, and the repo, for the menu bar). `--once`: one poll, exit 0 with nothing printed when
+      nothing happened
   spawn --runner R --pr N --name S --prompt-file F [--url U] [--cwd W] [--fresh]
       open a review session for PR N with the prompt read from F → `{"pr","id","open"}`; the PR
       already has one ⇒ resume it (`"resumed":true`; a `"warning"` when the platform started a copy);
       all `max_concurrent` slots busy, or that PR's session still running ⇒ `{"pr","queued":true}`.
       The session runs in W (default the repo dir), recorded so a resume runs there again.
       `--fresh`: open a new session even when the PR has one; the old one is left untouched and
-      untracked. U (the PR URL) is kept for the menu bar
+      untracked. U (the PR URL) is kept for the menu bar. Takes N off the hidden list
   status [--pr N]
       per session `{"pr","runner","id","state","open"}`, state one of working|question|draft|posted|
       lgtm_chat|failed|stopped (`"note"` says why when the session left no status file); a finished
-      session shows its result with `"finished":true`
+      session shows its result with `"finished":true`, a hidden one `"hidden":true`
   next
       a slot is free ⇒ pop the first queued PR whose session is not running → `{"pr","runner",
       "name","prompt_file"[,"cwd"][,"fresh"]}`, to pass back to spawn; else nothing
   forget --pr N
       drop the PR's session, so the next spawn opens a fresh one
+  hide --pr N
+      leave PR N out of the menu bar until the next spawn for it → `{"pr","hidden":true}`
   paths [--pr N]
       `dir=…` `prompts=…` lines; with `--pr` also `status_file=…` (the review session writes it)
       and `log=…`
@@ -912,8 +969,8 @@ Subcommands:
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
   menubar [--close]
-      macOS: start the menu bar item (active reviews grouped by watcher tab, recent toasts, snooze)
-      unless it runs →
+      macOS: start the menu bar item (active reviews grouped by watcher tab, recent toasts, snooze;
+      "Remove from list" on a PR runs `hide`) unless it runs →
       `started` | `running`; it stays until closed. `--close` → `closed` | `not running`. Elsewhere
       `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]
@@ -958,6 +1015,7 @@ case "$sub" in
     status)  cmd_status "$@" ;;
     next)    cmd_next "$@" ;;
     forget)  cmd_forget "$@" ;;
+    hide)    cmd_hide "$@" ;;
     paths)   cmd_paths "$@" ;;
     notify)  cmd_notify "$@" ;;
     trust)   cmd_trust "$@" ;;

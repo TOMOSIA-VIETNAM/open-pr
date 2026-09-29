@@ -70,6 +70,8 @@ Comments the plugin posts never trigger; your own do, so one person can be both 
 - A Claude Code review session left idle for 10 minutes after its result is stopped to free memory;
   its conversation is kept, so `claude attach <id>` and a later re-review still work. Sessions the
   watcher did not open are never touched.
+- A merged or closed pull request leaves the menu bar within 10 minutes, and its session is stopped
+  once idle (its conversation is kept).
 
 ## Opening a session
 
@@ -109,6 +111,9 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
   state in place (reviewing, posted with counts, LGTM, draft, needs an answer, failed) and always offers:
   open the pull request, open its session in the terminal that watcher runs in, copy the command;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
+
+A row's "Remove from list" hides it, a merged or closed pull request leaves on its own within 10 minutes,
+and a new request on it brings the row back.
 
 On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
 

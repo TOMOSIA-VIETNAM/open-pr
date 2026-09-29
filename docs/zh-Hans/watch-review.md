@@ -61,6 +61,7 @@
   不会读取你在那里写的内容。
 - 报告结果后闲置 10 分钟的 Claude Code 评审会话会被停止以释放内存；对话会保留，`claude attach <id>` 和之后的
   再次评审仍然可用。watcher 从不触碰不是它打开的会话。
+- 已合并或已关闭的 pull request 会在 10 分钟内离开菜单栏，其会话在闲置时被停止（对话会保留）。
 
 ## 打开会话
 
@@ -95,6 +96,9 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的评审数。整
   terminal 应用调到前台）；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、失败），并始终可以
   打开 pull request、在该 watcher 所运行的 terminal 中打开其会话，或复制命令；
 - 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
+
+某行的 "Remove from list" 会隐藏该行；已合并或已关闭的 pull request 会在 10 分钟内自动离开列表；该 pull request
+上的新请求会让这一行重新出现。
 
 在 Windows 和 Linux 上，请在聊天中向 watcher 请求（`status`、`snooze 1h`）。
 

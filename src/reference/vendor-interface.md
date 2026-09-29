@@ -26,6 +26,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | triggers: rate limit ⇒ exit 9 | HTTP 403/429 naming a rate limit (primary or secondary), or `X-RateLimit-Remaining: 0` | HTTP 429, the membership lookup included | HTTP 429 |
 | triggers: `thread_id` | null | the note's discussion id — what `reply`/`claim --thread-id` take | null |
 | triggers: `authorized` | `author_association` ∈ OWNER/MEMBER/COLLABORATOR, no extra call | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |
+| open-prs (rate limit ⇒ exit 9, as triggers) | `pulls?state=open`, paginated | `merge_requests?state=opened`, paginated | `pullrequests?state=OPEN`, every `next` |
 | markers | HTML comments | HTML comments | link reference definitions (raw HTML is escaped there) |
 
 `triggers` prints 1 JSON per line, identical on every vendor:
