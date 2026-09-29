@@ -101,11 +101,11 @@ A watcher puts the moth in the menu bar when it starts, with the number of revie
 is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
 Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 
-- the reviews in progress, grouped by watcher (`<folder> · <terminal>`) — the group's "Go to watcher
+- one row per pull request, grouped by watcher (`<folder> · <terminal>`) — the group's "Go to watcher
   tab" brings that terminal tab to the front (iTerm and Terminal select the exact tab after macOS asks
-  once for Automation permission; otherwise the terminal app comes to the front); each review opens its
-  pull request, opens its session in the terminal that watcher runs in, or copies the command;
-- the last ten toasts — click one to open its pull request;
+  once for Automation permission; otherwise the terminal app comes to the front); a row shows the latest
+  state in place (reviewing, posted with counts, LGTM, draft, needs an answer, failed) and always offers:
+  open the pull request, open its session in the terminal that watcher runs in, copy the command;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
 On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
@@ -139,4 +139,5 @@ Stored in `<data>/<repo>/settings.json` under `watch_review`:
 | `notify.draft_ready` | `true` | toast: a draft review waits for your approval |
 | `notify.posted` | `true` | toast: a review was posted, or LGTM |
 | `notify.re_review` | `true` | toast: an existing session was resumed for a re-review |
+| `notify.error` | `true` | toast: something failed (a claim, a session, the poll) — check the watcher's terminal |
 | `trigger` | `/open-pr` | what asks for a review: `/open-pr`, or `@me` for a mention of the account the watcher runs as |

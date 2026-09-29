@@ -101,12 +101,11 @@ watcher が起動すると、メニューバーに蛾のアイコンと進行中
 すべての watcher が対象です。`/open-pr:menubar close`（またはメニューの Quit）まで残り、`/open-pr:menubar`
 で再表示できます。メニューには次の内容が並びます:
 
-- 進行中のレビュー（watcher ごとにグループ化: `<folder> · <terminal>`）— グループの "Go to watcher tab" で
+- pull request ごとに 1 行（watcher ごとにグループ化: `<folder> · <terminal>`）— グループの "Go to watcher tab" で
   その terminal のタブが前面に出ます（iTerm と Terminal では、macOS が一度だけ Automation の権限を求めた
-  あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます）。各レビューからは、
-  pull request を開く、その watcher が動いている terminal でセッションを開く、コマンドをコピーする、の
-  いずれかができます。
-- 直近 10 件のトースト — クリックするとその pull request が開きます。
+  あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます）。各行はその場で最新の
+  状態（レビュー中、指摘数付きの投稿済み、LGTM、ドラフト、回答待ち、失敗）を示し、常に pull request を開く、
+  その watcher が動いている terminal でセッションを開く、コマンドをコピーする、を選べます。
 - スヌーズ: 30 分、1 時間、明日 9:00 まで、またはトーストを再びオンにする。
 
 Windows と Linux では、チャットで watcher に頼んでください（`status`、`snooze 1h`）。
@@ -140,4 +139,5 @@ Windows と Linux では、チャットで watcher に頼んでください（`s
 | `notify.draft_ready` | `true` | トースト: ドラフトのレビューがあなたの承認を待っている |
 | `notify.posted` | `true` | トースト: レビューが投稿された、または LGTM |
 | `notify.re_review` | `true` | トースト: 既存のセッションが再レビューのために resume された |
+| `notify.error` | `true` | トースト: 何かが失敗した（claim、セッション、ポーリング）— watcher のターミナルを確認 |
 | `trigger` | `/open-pr` | レビューを依頼する方法: `/open-pr`、または watcher を実行しているアカウントへのメンションなら `@me` |

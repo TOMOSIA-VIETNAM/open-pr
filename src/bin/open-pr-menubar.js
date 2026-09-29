@@ -1,8 +1,8 @@
 // macOS menu bar item for `/open-pr:menubar` (a status item needs no permission). It
 // polls, in every data directory given, the files the watcher writes:
 //   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
-//   <data>/<repo>/watch-review/state.json   sessions; active = not finished, working, question or draft
-//   <data>/<repo>/watch-review/feed.jsonl   recent notifications
+//   <data>/<repo>/watch-review/state.json   sessions, one row per PR; active = not finished, working or question
+//   <data>/<repo>/watch-review/feed.jsonl   notifications; a PR's latest one is its row's text
 //   <data>/<repo>/watch-review/watcher.json the terminal tab whose watcher watches the repo
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
@@ -12,7 +12,9 @@
 // after matching TAB_ID — never spliced into source.
 ObjC.import('Cocoa');
 
-var REFRESH = 3, RECENT = 10, CLIP = 70, HEADER_W = 300;
+var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
+// Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
+var SUBTITLE_PAD = 100;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 // iTerm's unique id (the part of ITERM_SESSION_ID after ':') or a Terminal tab's tty.
@@ -20,11 +22,21 @@ var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700;
 var item = null, target = null, icons = {};
 
-var STATE = {   // SF Symbol, sRGB tint, label — by a session's last_state
+var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgtm_chat as lgtm); tints match open-pr-toast.js
     working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
     question: ['questionmark.bubble', [0.91, 0.27, 0.06], 'Needs your answer'],
-    draft:    ['doc.badge.clock', [0.93, 0.68, 0.16], 'Draft waiting for your approval']
+    draft:    ['doc.badge.clock', [0.93, 0.68, 0.16], 'Draft waiting'],
+    posted:   ['checkmark.bubble', [0.22, 0.7, 0.45], 'Posted'],
+    lgtm:     ['checkmark.seal', [0.22, 0.7, 0.45], 'LGTM'],
+    failed:   ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Failed'],
+    stopped:  ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Stopped']
 };
+// The state a feed event reports. A PR's latest feed line is its row's text only while it
+// reports the session's current state: a disabled event writes no line, so the latest one
+// can be older than the state (e.g. "reviewing" under a posted session).
+var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
+                   draft_ready: 'draft', posted: 'posted', error: 'failed' };
+var SAME_EVENT = { lgtm_chat: 'posted', stopped: 'failed' };
 // by TERM_PROGRAM: menu name, bundle id, app name for NSWorkspace openFile:withApplication:
 var TERMS = {
     'iTerm.app':      ['iTerm', 'com.googlecode.iterm2', 'iTerm'],
@@ -54,13 +66,6 @@ var FOCUS = {
         'if (tty of t) is (item 1 of argv) then',
         'set selected of t to true', 'set index of w to 1', 'activate', 'return',
         'end if', 'end repeat', 'end repeat', 'end tell', 'end run']
-};
-var EVENT = {   // SF Symbol, sRGB tint — by feed event; tints match open-pr-toast.js
-    review_started: ['eye', [0.35, 0.53, 0.95]],
-    re_review:      ['arrow.clockwise', [0.35, 0.53, 0.95]],
-    question:       ['questionmark.bubble', [0.91, 0.27, 0.06]],
-    draft_ready:    ['doc.badge.clock', [0.93, 0.68, 0.16]],
-    posted:         ['checkmark.bubble', [0.22, 0.7, 0.45]]
 };
 
 // docs/images/logo/favicon.svg (viewBox 128×128).
@@ -142,11 +147,11 @@ function watcherOf(w) {
     return { key: ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '',
              label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : ''),
              term: term, term_session: ts, tty: tty, app: t ? t[2] : 'Terminal',
-             repos: [], sessions: [] };
+             repos: [], rows: [] };
 }
 
 function scan() {
-    var out = { repos: 0, watchers: [], feed: [] }, byKey = {};
+    var out = { repos: 0, watchers: [], active: 0 }, byKey = {};
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch-review';
@@ -155,25 +160,55 @@ function scan() {
         var wr = watcherOf(parse(readText(dir + '/watcher.json')));
         if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
         wr = byKey[wr.key];
+        wr.repos.push(name);
+        var rows = {};
         var st = parse(readText(dir + '/state.json'));
         var ss = st && typeof st.sessions === 'object' && st.sessions ? st.sessions : {};
-        Object.keys(ss).sort(function (a, b) { return Number(a) - Number(b); }).forEach(function (pr) {
+        Object.keys(ss).forEach(function (pr) {
             var s = ss[pr];
-            if (!s || typeof s !== 'object' || s.finished === true || !STATE[s.last_state]) return;
-            wr.sessions.push({ label: (str(s.repo) || name) + ' #' + pr, state: s.last_state,
-                               url: str(s.url), open: str(s.open) });
+            if (!s || typeof s !== 'object') return;
+            var repo = str(s.repo) || name, state = str(s.last_state);
+            rows[repo + '#' + pr] = { title: repo + ' #' + pr, session: true, state: state,
+                active: s.finished !== true && (state === 'working' || state === 'question'),
+                url: str(s.url), open: str(s.open), times: [str(s.started_at), str(s.finished_at)] };
         });
-        wr.repos.push(name);
         readText(dir + '/feed.jsonl').split('\n').forEach(function (line) {
             var f = parse(line);
-            if (f && typeof f === 'object' && str(f.summary)) out.feed.push(f);
+            if (!f || typeof f !== 'object' || !str(f.summary)) return;
+            var repo = str(f.repo) || name, pr = typeof f.pr === 'number' ? String(f.pr) : '';
+            var r = rows[repo + '#' + pr] || (rows[repo + '#' + pr] =
+                { title: repo + (pr ? ' #' + pr : ''), session: false, state: '', active: false, url: '', open: '', times: [] });
+            if (!r.feed || str(f.at) >= str(r.feed.at)) r.feed = f;
+            if (!r.url) r.url = str(f.url);
         });
+        Object.keys(rows).forEach(function (k) { wr.rows.push(finish(rows[k])); });
     }); });
-    out.feed.sort(function (a, b) { return str(b.at) < str(a.at) ? -1 : str(b.at) > str(a.at) ? 1 : 0; });
-    out.feed = out.feed.slice(0, RECENT);
+    out.watchers.forEach(function (w) {
+        w.rows.sort(function (a, b) { return (b.active - a.active) || (b.at - a.at); });
+        w.rows = w.rows.slice(0, ROWS);
+        w.rows.forEach(function (r) { if (r.active) out.active++; });
+    });
     out.watchers.sort(function (a, b) { return a.label < b.label ? -1 : a.label > b.label ? 1 : 0; });
-    out.sessions = out.watchers.reduce(function (n, w) { return n + w.sessions.length; }, 0);
     return out;
+}
+// A row's kind (key of KIND), text and latest activity.
+function finish(r) {
+    var f = r.feed, fk = f ? EVENT_KIND[str(f.event)] || '' : '', kind;
+    if (r.session) {
+        if (fk !== (SAME_EVENT[r.state] || r.state)) f = null;
+        kind = r.state === 'lgtm_chat' ? 'lgtm' : r.state;
+    } else kind = fk;
+    // A posted review with no findings: its summary starts with LGTM.
+    if (kind === 'posted' && f && /^LGTM\b/i.test(str(f.summary))) kind = 'lgtm';
+    var at = 0;
+    r.times.concat(r.feed ? [str(r.feed.at)] : []).forEach(function (t) {
+        var ms = new Date(t).getTime();
+        if (ms > at) at = ms;
+    });
+    r.kind = kind;
+    r.at = at;
+    r.text = (f ? str(f.summary) : KIND[kind] ? KIND[kind][2] : kind) + (at ? ' · ' + when(new Date(at)) : '');
+    return r;
 }
 
 // -------------------------------------------------------------- images ----
@@ -229,7 +264,7 @@ function symbol(spec) {
 // ---------------------------------------------------------------- menu ----
 function refresh() {
     var s = scan();
-    item.button.setTitle(s.sessions ? String(s.sessions) : '');
+    item.button.setTitle(s.active ? String(s.active) : '');
     item.setMenu(build(s));
 }
 
@@ -252,8 +287,14 @@ function add(menu, title, action, value, tag) {
     return mi;
 }
 // Native subtitle from macOS 14.4; before that, the same two lines as an attributed title.
+// The menu does not widen for a native subtitle, which then runs under the submenu arrow.
 function subtitle(mi, text) {
-    if (mi.respondsToSelector('setSubtitle:')) { mi.setSubtitle(clip(text)); return; }
+    if (mi.respondsToSelector('setSubtitle:')) {
+        var menu = mi.menu, w = $(clip(text)).sizeWithAttributes($({ NSFont: $.NSFont.menuFontOfSize(11) })).width;
+        if (!menu.isNil() && w + SUBTITLE_PAD > menu.minimumWidth) menu.setMinimumWidth(w + SUBTITLE_PAD);
+        mi.setSubtitle(clip(text));
+        return;
+    }
     var s = $.NSMutableAttributedString.alloc.initWithStringAttributes(ObjC.unwrap(mi.title) + '\n',
         $({ NSFont: $.NSFont.menuFontOfSize(0) }));
     s.appendAttributedString($.NSAttributedString.alloc.initWithStringAttributes(clip(text),
@@ -294,7 +335,8 @@ function build(s) {
     head.setView(headerView(s.repos, s.watchers.length, until));
     m.addItem(head);
 
-    section(m, 'In progress');
+    section(m, 'Reviews');
+    if (!s.watchers.length) add(m, 'No review yet');
     s.watchers.forEach(function (w) {
         // A record from before watcher.json existed has no tab to show.
         if (w.key) {
@@ -304,29 +346,20 @@ function build(s) {
             wi.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
             wi.setToolTip('Go to watcher tab');
         }
-        w.sessions.forEach(function (x) {
-            var spec = STATE[x.state];
-            var mi = add(m, x.label, isURL(x.url) ? 'openURL:' : null, x.url);
-            subtitle(mi, spec[2]);
-            mi.setImage(symbol(spec));
+        if (!w.rows.length) add(m, 'No review yet').setIndentationLevel(w.key ? 1 : 0);
+        w.rows.forEach(function (x) {
+            var spec = KIND[x.kind];
+            var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
+            subtitle(mi, x.text);
+            if (spec) mi.setImage(symbol(spec));
             if (w.key) mi.setIndentationLevel(1);
-            var sub = newMenu(x.label);
+            // Offered in every state: `open` also reopens a finished or stopped session.
+            var sub = newMenu(x.title);
             if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
             if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, app: w.app }));
             if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
             if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
         });
-    });
-    if (!s.sessions) add(m, 'No review in progress');
-
-    section(m, 'Recent');
-    if (!s.feed.length) add(m, 'No toasts yet');
-    s.feed.forEach(function (f) {
-        var url = str(f.url), d = new Date(str(f.at));
-        var mi = add(m, str(f.summary), isURL(url) ? 'openURL:' : null, url);
-        subtitle(mi, str(f.repo) + (isNaN(d.getTime()) ? '' : ' · ' + when(d)));
-        var spec = EVENT[str(f.event)];
-        if (spec) mi.setImage(symbol(spec));
     });
 
     m.addItem($.NSMenuItem.separatorItem);

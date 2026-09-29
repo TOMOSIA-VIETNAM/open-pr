@@ -101,11 +101,11 @@ Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số review
 mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
 `/open-pr:menubar` đưa nó trở lại. Menu của nó liệt kê:
 
-- các review đang chạy, nhóm theo watcher (`<folder> · <terminal>`) — mục "Go to watcher tab" của nhóm đưa
+- mỗi pull request một dòng, nhóm theo watcher (`<folder> · <terminal>`) — mục "Go to watcher tab" của nhóm đưa
   tab terminal đó lên trước (iTerm và Terminal chọn đúng tab sau khi macOS hỏi xin quyền Automation một
-  lần; nếu không thì ứng dụng terminal được đưa lên trước); mỗi review mở pull request của nó, mở
-  session của nó trong terminal mà watcher đó đang chạy, hoặc copy command;
-- mười toast gần nhất — click một mục để mở pull request của nó;
+  lần; nếu không thì ứng dụng terminal được đưa lên trước); mỗi dòng hiện trạng thái mới nhất ngay tại
+  chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, lỗi) và luôn có: mở pull request,
+  mở session trong terminal mà watcher đó đang chạy, copy command;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
 Trên Windows và Linux, hãy nhắn watcher trong chat (`status`, `snooze 1h`).
@@ -139,4 +139,5 @@ Lưu ở `<data>/<repo>/settings.json` dưới `watch_review`:
 | `notify.draft_ready` | `true` | toast: một review draft đang chờ bạn duyệt |
 | `notify.posted` | `true` | toast: một review đã được post, hoặc LGTM |
 | `notify.re_review` | `true` | toast: một session có sẵn được resume để re-review |
+| `notify.error` | `true` | toast: có lỗi (claim, session, poll) — quay lại terminal của watcher để xem |
 | `trigger` | `/open-pr` | cái gì yêu cầu review: `/open-pr`, hoặc `@me` cho một lần mention account mà watcher đang chạy |

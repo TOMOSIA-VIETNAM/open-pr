@@ -10,7 +10,7 @@ ObjC.import('Cocoa');
 var ACCENT = {   // sRGB, by event
     review_started: [0.35, 0.53, 0.95], re_review: [0.35, 0.53, 0.95],
     posted: [0.22, 0.7, 0.45], draft_ready: [0.93, 0.68, 0.16],
-    question: [0.91, 0.27, 0.06]
+    question: [0.91, 0.27, 0.06], error: [0.86, 0.15, 0.15]
 };
 
 function run(argv) {
@@ -33,7 +33,8 @@ function run(argv) {
     win.setOpaque(false);
     win.setBackgroundColor($.NSColor.clearColor);
     win.setHasShadow(true);
-    win.setCollectionBehavior($.NSWindowCollectionBehaviorCanJoinAllSpaces |
+    // FullScreenAuxiliary: shown over a full-screen app, where the user usually is.
+    win.setCollectionBehavior($.NSWindowCollectionBehaviorFullScreenAuxiliary | $.NSWindowCollectionBehaviorCanJoinAllSpaces |
                               $.NSWindowCollectionBehaviorStationary);
 
     var view = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, W, H));

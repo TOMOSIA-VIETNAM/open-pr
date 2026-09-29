@@ -90,11 +90,10 @@ non-interactive 会话使用你为该平台配置的权限设置；watcher 不�
 watcher 启动时会在菜单栏显示飞蛾图标和进行中的评审数。整台机器只有一个，涵盖所有 watcher；它一直保留到
 `/open-pr:menubar close`（或菜单中的 Quit），`/open-pr:menubar` 可让它重新出现。它的菜单列出：
 
-- 进行中的评审，按 watcher 分组（`<folder> · <terminal>`）—— 分组中的 "Go to watcher tab" 会把该 terminal
+- 每个 pull request 一行，按 watcher 分组（`<folder> · <terminal>`）—— 分组中的 "Go to watcher tab" 会把该 terminal
   标签页调到前台（iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后会选中确切的标签页；其他情况下把
-  terminal 应用调到前台）；每条评审可打开其 pull request、在该 watcher 所运行的 terminal 中打开其会话，或
-  复制命令；
-- 最近十条 toast —— 点击一项打开其 pull request；
+  terminal 应用调到前台）；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、失败），并始终可以
+  打开 pull request、在该 watcher 所运行的 terminal 中打开其会话，或复制命令；
 - 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
 
 在 Windows 和 Linux 上，请在聊天中向 watcher 请求（`status`、`snooze 1h`）。
@@ -128,4 +127,5 @@ pull request 一次。当托管平台报告限速时，watcher 会把轮询间�
 | `notify.draft_ready` | `true` | toast：一份草稿评审等待你批准 |
 | `notify.posted` | `true` | toast：一份评审已发布，或 LGTM |
 | `notify.re_review` | `true` | toast：已有会话被 resume 以重新评审 |
+| `notify.error` | `true` | toast：出现失败（claim、会话、轮询）—— 回到 watcher 的终端查看 |
 | `trigger` | `/open-pr` | 用什么来请求评审：`/open-pr`，或 `@me` 表示提及 watcher 运行所用的账号 |

@@ -1045,7 +1045,8 @@ cmd_settings() {
                     question: default_bool(.watch_review.notify; "question"; true),
                     draft_ready: default_bool(.watch_review.notify; "draft_ready"; true),
                     posted: default_bool(.watch_review.notify; "posted"; true),
-                    re_review: default_bool(.watch_review.notify; "re_review"; true)
+                    re_review: default_bool(.watch_review.notify; "re_review"; true),
+                    error: default_bool(.watch_review.notify; "error"; true)
                 })
             }),
             watch_review_configured: has("watch_review"),

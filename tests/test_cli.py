@@ -1208,7 +1208,7 @@ def test_settings_defaults_the_watch_review_node(data_dir, tmp_path):
     d.mkdir(parents=True)
     defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "trigger": "/open-pr",
                 "notify": {"review_started": True, "question": True, "draft_ready": True,
-                           "posted": True, "re_review": True}}
+                           "posted": True, "re_review": True, "error": True}}
     (d / "settings.json").write_text(json.dumps({"review": {"bootstrapped": True}}))
     out = json.loads(run("settings", "--repo", "demo", check=True).stdout)
     assert out["watch_review"] == defaults and out["watch_review_configured"] is False

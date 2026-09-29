@@ -18,7 +18,7 @@ set -eu
 # `wait` runs from a private copy of this file (see the dispatch), so SELF_DIR is handed over.
 SELF_DIR=${OPEN_PR_WATCH_SELF_DIR:-$(cd "$(dirname "$0")" && pwd)}
 RUNNERS="claude codex gemini cursor antigravity"
-EVENTS="review_started question draft_ready posted re_review"
+EVENTS="review_started question draft_ready posted re_review error"
 # States that end a session's reporting (see `finished` under state).
 TERMINAL="posted draft lgtm_chat failed stopped"
 # Longest rate-limit backoff; the menu bar counts a repo watched while its heartbeat is < 3x this.
@@ -722,7 +722,7 @@ cmd_notify() {
         done
         [ "$slot" -lt 8 ] || slot=0
         nohup osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
-            "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" > /dev/null 2>&1 &
+            "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" > "$WD/toast.log" 2>&1 &
         printf '%s\n' "$!" > "$sd/$slot/pid"
     elif command -v notify-send >/dev/null 2>&1; then
         via=notify-send
@@ -877,7 +877,7 @@ Subcommands:
       and `log=…`
   notify --event E --text-file F [--pr N] [--url U]
       toast titled `open-pr · <owner>/<repo>`: F line 1 = summary, line 2 = detail; E one of
-      review_started|question|draft_ready|posted|re_review. Skipped (`"sent":false` + reason) when
+      review_started|question|draft_ready|posted|re_review|error. Skipped (`"sent":false` + reason) when
       `watch_review.notify.E` is false, or while snoozed (see snooze). Each one not disabled joins
       `feed.jsonl` (last 50). macOS: drawn by open-pr-toast.js (no Notifications permission; click
       opens U, hover holds it, toasts stack, `1h` snoozes), else notify-send, else stderr
