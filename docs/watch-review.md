@@ -94,12 +94,14 @@ configured for that platform; the watcher grants none.
 
 ## Menu bar (macOS)
 
-`/open-pr:menubar` puts the moth in the menu bar, with the number of reviews in progress; it covers
-every watcher on this machine and stays until `/open-pr:menubar close` (or its Quit item). Its menu
-lists:
+A watcher puts the moth in the menu bar when it starts, with the number of reviews in progress. There
+is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
+Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 
-- the reviews in progress — click one to open the pull request; its submenu opens the review session in
-  Terminal or copies the command that opens it;
+- the reviews in progress, grouped by watcher (`<folder> · <terminal>`) — the group's "Go to watcher
+  tab" brings that terminal tab to the front (iTerm and Terminal select the exact tab after macOS asks
+  once for Automation permission; otherwise the terminal app comes to the front); each review opens its
+  pull request, opens its session in the terminal that watcher runs in, or copies the command;
 - the last ten toasts — click one to open its pull request;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 

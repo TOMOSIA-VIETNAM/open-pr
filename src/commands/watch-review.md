@@ -61,10 +61,10 @@ output's node with these answers — then `core/memory-commit.md`.
 
 ## Step 3 — Watch
 
-Tell the user once, in `chat_language`: the repos watched; what asks for a review in each (a PR comment
-opening with its `trigger`, `@me` shown as `@<account>`); that they can say here `status`,
-`snooze <duration>`, a setting change, `stop`; on macOS, that `/open-pr:menubar` shows active reviews,
-recent toasts and snooze.
+`<watch> menubar`, then tell the user once, in `chat_language`: the repos watched; what asks for a
+review in each (a PR comment opening with its `trigger`, `@me` shown as `@<account>`); that they can say
+here `status`, `snooze <duration>`, a setting change, `stop`; on `started`/`running`, that the menu bar
+shows active reviews, recent toasts and snooze, and `/open-pr:menubar close` removes it.
 
 Run 1 `<watch> wait` per watched repo, each its own background command; one exiting wakes you: 1 JSON
 per line, `repo` naming whose values to use. Run every `<watch>` call with the shell sandbox off where

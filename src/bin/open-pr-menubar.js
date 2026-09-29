@@ -3,16 +3,20 @@
 //   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
 //   <data>/<repo>/watch-review/state.json   sessions; active = not finished, working, question or draft
 //   <data>/<repo>/watch-review/feed.jsonl   recent notifications
+//   <data>/<repo>/watch-review/watcher.json the terminal tab whose watcher watches the repo
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
 // argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
-// as text, or written into a .command file after matching OPEN_CMD — never spliced into source.
+// as text, written into a .command file after matching OPEN_CMD, or passed to osascript as argv
+// after matching TAB_ID — never spliced into source.
 ObjC.import('Cocoa');
 
 var REFRESH = 3, RECENT = 10, CLIP = 70, HEADER_W = 300;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
+// iTerm's unique id (the part of ITERM_SESSION_ID after ':') or a Terminal tab's tty.
+var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700;
 var item = null, target = null, icons = {};
 
@@ -20,6 +24,36 @@ var STATE = {   // SF Symbol, sRGB tint, label — by a session's last_state
     working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
     question: ['questionmark.bubble', [0.91, 0.27, 0.06], 'Needs your answer'],
     draft:    ['doc.badge.clock', [0.93, 0.68, 0.16], 'Draft waiting for your approval']
+};
+// by TERM_PROGRAM: menu name, bundle id, app name for NSWorkspace openFile:withApplication:
+var TERMS = {
+    'iTerm.app':      ['iTerm', 'com.googlecode.iterm2', 'iTerm'],
+    'Apple_Terminal': ['Terminal', 'com.apple.Terminal', 'Terminal'],
+    'ghostty':        ['Ghostty', 'com.mitchellh.ghostty', 'Ghostty'],
+    'WezTerm':        ['WezTerm', 'com.github.wez.wezterm', 'WezTerm'],
+    'WarpTerminal':   ['Warp', 'dev.warp.Warp-Stable', 'Warp']
+};
+var OPEN_APPS = ['iTerm', 'Terminal', 'Ghostty', 'WezTerm', 'Warp'];
+// `on run argv`: the tab id arrives as an argument, never as source. Automation permission
+// is asked once; without it the app was already brought forward (goToTab).
+var FOCUS = {
+    'iTerm.app': [
+        'on run argv',
+        'tell application id "com.googlecode.iterm2"',
+        'repeat with w in windows',
+        'repeat with t in tabs of w',
+        'repeat with s in sessions of t',
+        'if (unique id of s) is (item 1 of argv) then',
+        'select w', 'select t', 'select s', 'activate', 'return',
+        'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
+    'Apple_Terminal': [
+        'on run argv',
+        'tell application id "com.apple.Terminal"',
+        'repeat with w in windows',
+        'repeat with t in tabs of w',
+        'if (tty of t) is (item 1 of argv) then',
+        'set selected of t to true', 'set index of w to 1', 'activate', 'return',
+        'end if', 'end repeat', 'end repeat', 'end tell', 'end run']
 };
 var EVENT = {   // SF Symbol, sRGB tint — by feed event; tints match open-pr-toast.js
     review_started: ['eye', [0.35, 0.53, 0.95]],
@@ -44,7 +78,8 @@ ObjC.registerSubclass({
         'tick:': { types: ['void', ['id']], implementation: function () { refresh(); } },
         'openURL:': { types: ['void', ['id']], implementation: function (s) { openURL(unwrapString(s.representedObject)); } },
         'copyText:': { types: ['void', ['id']], implementation: function (s) { copyText(unwrapString(s.representedObject)); } },
-        'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(unwrapString(s.representedObject)); } },
+        'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(parse(unwrapString(s.representedObject))); } },
+        'goToTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
         'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
     }
@@ -98,21 +133,37 @@ function snoozedUntil() {
     return isNaN(d.getTime()) || d.getTime() <= Date.now() ? null : d;
 }
 
+function basename(p) { return p.replace(/\/+$/, '').split('/').pop() || p; }
+// One per watcher tab: the waits of one watcher (one per repo) share its tab.
+function watcherOf(w) {
+    w = w && typeof w === 'object' ? w : {};
+    var term = str(w.term), ts = str(w.term_session), tty = str(w.tty), cwd = str(w.cwd);
+    var t = TERMS[term];
+    return { key: ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '',
+             label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : ''),
+             term: term, term_session: ts, tty: tty, app: t ? t[2] : 'Terminal',
+             repos: [], sessions: [] };
+}
+
 function scan() {
-    var out = { repos: 0, sessions: [], feed: [] };
+    var out = { repos: 0, watchers: [], feed: [] }, byKey = {};
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch-review';
         if (ageSeconds(dir + '/heartbeat') > fresh) return;
         out.repos++;
+        var wr = watcherOf(parse(readText(dir + '/watcher.json')));
+        if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
+        wr = byKey[wr.key];
         var st = parse(readText(dir + '/state.json'));
         var ss = st && typeof st.sessions === 'object' && st.sessions ? st.sessions : {};
         Object.keys(ss).sort(function (a, b) { return Number(a) - Number(b); }).forEach(function (pr) {
             var s = ss[pr];
             if (!s || typeof s !== 'object' || s.finished === true || !STATE[s.last_state]) return;
-            out.sessions.push({ label: (str(s.repo) || name) + ' #' + pr, state: s.last_state,
-                                url: str(s.url), open: str(s.open) });
+            wr.sessions.push({ label: (str(s.repo) || name) + ' #' + pr, state: s.last_state,
+                               url: str(s.url), open: str(s.open) });
         });
+        wr.repos.push(name);
         readText(dir + '/feed.jsonl').split('\n').forEach(function (line) {
             var f = parse(line);
             if (f && typeof f === 'object' && str(f.summary)) out.feed.push(f);
@@ -120,6 +171,8 @@ function scan() {
     }); });
     out.feed.sort(function (a, b) { return str(b.at) < str(a.at) ? -1 : str(b.at) > str(a.at) ? 1 : 0; });
     out.feed = out.feed.slice(0, RECENT);
+    out.watchers.sort(function (a, b) { return a.label < b.label ? -1 : a.label > b.label ? 1 : 0; });
+    out.sessions = out.watchers.reduce(function (n, w) { return n + w.sessions.length; }, 0);
     return out;
 }
 
@@ -176,7 +229,7 @@ function symbol(spec) {
 // ---------------------------------------------------------------- menu ----
 function refresh() {
     var s = scan();
-    item.button.setTitle(s.sessions.length ? String(s.sessions.length) : '');
+    item.button.setTitle(s.sessions ? String(s.sessions) : '');
     item.setMenu(build(s));
 }
 
@@ -221,13 +274,14 @@ function label(text, font, color, x, y) {
     f.setFrame($.NSMakeRect(x, y, HEADER_W - x - 14, 17));
     return f;
 }
-function headerView(repos, until) {
+function headerView(repos, watchers, until) {
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, HEADER_W, 48));
     var iv = $.NSImageView.imageViewWithImage(icons.header);
     iv.setFrame($.NSMakeRect(14, 10, 28, 28));
     v.addSubview(iv);
     v.addSubview(label('open-pr', $.NSFont.boldSystemFontOfSize(13), $.NSColor.labelColor, 52, 24));
     var line = (repos ? 'Watching ' + repos + (repos === 1 ? ' repo' : ' repos') : 'Not watching') + ' · ' +
+               (watchers > 1 ? watchers + ' watchers · ' : '') +
                (until ? 'toasts off until ' + hhmm(until) : 'toasts on');
     v.addSubview(label(line, $.NSFont.systemFontOfSize(11), $.NSColor.secondaryLabelColor, 52, 7));
     return v;
@@ -237,22 +291,33 @@ function build(s) {
     var m = newMenu('open-pr');
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
-    head.setView(headerView(s.repos, until));
+    head.setView(headerView(s.repos, s.watchers.length, until));
     m.addItem(head);
 
     section(m, 'In progress');
-    if (!s.sessions.length) add(m, 'No review in progress');
-    s.sessions.forEach(function (x) {
-        var spec = STATE[x.state];
-        var mi = add(m, x.label, isURL(x.url) ? 'openURL:' : null, x.url);
-        subtitle(mi, spec[2]);
-        mi.setImage(symbol(spec));
-        var sub = newMenu(x.label);
-        if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
-        if (OPEN_CMD.test(x.open)) add(sub, 'Open session in Terminal', 'openTerminal:', x.open);
-        if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
-        if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
+    s.watchers.forEach(function (w) {
+        // A record from before watcher.json existed has no tab to show.
+        if (w.key) {
+            var wi = add(m, w.label, TERMS[w.term] ? 'goToTab:' : null,
+                         JSON.stringify({ term: w.term, term_session: w.term_session, tty: w.tty }));
+            subtitle(wi, w.repos.join(', '));
+            wi.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
+            wi.setToolTip('Go to watcher tab');
+        }
+        w.sessions.forEach(function (x) {
+            var spec = STATE[x.state];
+            var mi = add(m, x.label, isURL(x.url) ? 'openURL:' : null, x.url);
+            subtitle(mi, spec[2]);
+            mi.setImage(symbol(spec));
+            if (w.key) mi.setIndentationLevel(1);
+            var sub = newMenu(x.label);
+            if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
+            if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, app: w.app }));
+            if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
+            if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
+        });
     });
+    if (!s.sessions) add(m, 'No review in progress');
 
     section(m, 'Recent');
     if (!s.feed.length) add(m, 'No toasts yet');
@@ -291,7 +356,8 @@ function copyText(t) {
     pb.setStringForType($(t), $.NSPasteboardTypeString);
 }
 // A .command file opened via LaunchServices needs no Automation permission.
-function openTerminal(cmd) {
+function openTerminal(o) {
+    var cmd = o ? str(o.open) : '', app = o && OPEN_APPS.indexOf(o.app) >= 0 ? o.app : 'Terminal';
     if (!OPEN_CMD.test(cmd) || !snoozeFile) return;
     var dir = snoozeFile.replace(/\/[^\/]*$/, '') + '/sessions';
     var fm = $.NSFileManager.defaultManager;
@@ -299,7 +365,34 @@ function openTerminal(cmd) {
     var path = dir + '/' + cmd.split(' ').pop() + '.command';
     if (!$('#!/bin/sh\n' + cmd + '\n').writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null)) return;
     fm.setAttributesOfItemAtPathError($({ NSFilePosixPermissions: 493 }), path, null);   // 0755
-    $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, 'Terminal');
+    $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, app);
+}
+function tabId(w) {
+    if (w.term === 'iTerm.app') return w.term_session.split(':').pop();
+    if (w.term === 'Apple_Terminal' && w.tty) return w.tty.charAt(0) === '/' ? w.tty : '/dev/' + w.tty;
+    return '';
+}
+function goToTab(w) {
+    if (!w || typeof w !== 'object') return;
+    w = { term: str(w.term), term_session: str(w.term_session), tty: str(w.tty) };
+    var t = TERMS[w.term];
+    if (!t) return;
+    // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
+    // LaunchServices: an accessory app's own activate request is ignored by macOS.
+    spawn('/usr/bin/open', ['-b', t[1]]);
+    var id = tabId(w), src = FOCUS[w.term];
+    if (!src || !TAB_ID.test(id)) return;
+    var args = [];
+    src.forEach(function (l) { args.push('-e', l); });
+    spawn('/usr/bin/osascript', args.concat([id]));
+}
+function spawn(path, args) {
+    var task = $.NSTask.alloc.init;
+    task.setLaunchPath(path);
+    task.setArguments($(args));
+    task.setStandardOutput($.NSFileHandle.fileHandleWithNullDevice);
+    task.setStandardError($.NSFileHandle.fileHandleWithNullDevice);
+    task.launch;
 }
 // minutes > 0: that long; -1: until 9:00 local tomorrow; 0: back on. Same format as
 // `open-pr-watch.sh snooze`.

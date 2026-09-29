@@ -94,11 +94,14 @@ Claude Code treo ở bước khởi động. Session non-interactive dùng setti
 
 ## Menu bar (macOS)
 
-`/open-pr:menubar` đưa con bướm lên menu bar, kèm số review đang chạy; nó bao quát mọi watcher trên máy
-và ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu). Menu của nó liệt kê:
+Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số review đang chạy. Cả máy chỉ có một, bao quát
+mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
+`/open-pr:menubar` đưa nó trở lại. Menu của nó liệt kê:
 
-- các review đang chạy — click một mục để mở pull request; submenu của nó mở session review trong
-  Terminal hoặc copy command mở session đó;
+- các review đang chạy, nhóm theo watcher (`<folder> · <terminal>`) — mục "Go to watcher tab" của nhóm đưa
+  tab terminal đó lên trước (iTerm và Terminal chọn đúng tab sau khi macOS hỏi xin quyền Automation một
+  lần; nếu không thì ứng dụng terminal được đưa lên trước); mỗi review mở pull request của nó, mở
+  session của nó trong terminal mà watcher đó đang chạy, hoặc copy command;
 - mười toast gần nhất — click một mục để mở pull request của nó;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 

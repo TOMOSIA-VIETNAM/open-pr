@@ -95,11 +95,15 @@ watcher は shell sandbox の外で動きます。sandbox の中ではポーリ�
 
 ## メニューバー（macOS）
 
-`/open-pr:menubar` でメニューバーに蛾のアイコンと進行中のレビュー数が表示されます。このマシンのすべての
-watcher が対象で、`/open-pr:menubar close`（またはメニューの Quit）まで残ります。メニューには次の内容が並びます:
+watcher が起動すると、メニューバーに蛾のアイコンと進行中のレビュー数が表示されます。マシン全体で 1 つだけで、
+すべての watcher が対象です。`/open-pr:menubar close`（またはメニューの Quit）まで残り、`/open-pr:menubar`
+で再表示できます。メニューには次の内容が並びます:
 
-- 進行中のレビュー — クリックすると pull request が開きます。サブメニューから、レビューセッションを
-  Terminal で開くか、それを開くコマンドをコピーできます。
+- 進行中のレビュー（watcher ごとにグループ化: `<folder> · <terminal>`）— グループの "Go to watcher tab" で
+  その terminal のタブが前面に出ます（iTerm と Terminal では、macOS が一度だけ Automation の権限を求めた
+  あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます）。各レビューからは、
+  pull request を開く、その watcher が動いている terminal でセッションを開く、コマンドをコピーする、の
+  いずれかができます。
 - 直近 10 件のトースト — クリックするとその pull request が開きます。
 - スヌーズ: 30 分、1 時間、明日 9:00 まで、またはトーストを再びオンにする。
 

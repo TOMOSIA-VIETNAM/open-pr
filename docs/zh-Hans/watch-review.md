@@ -85,9 +85,13 @@ non-interactive 会话使用你为该平台配置的权限设置；watcher 不�
 
 ## 菜单栏（macOS）
 
-`/open-pr:menubar` 会在菜单栏显示飞蛾图标和进行中的评审数；它涵盖本机所有 watcher，直到 `/open-pr:menubar close`（或菜单中的 Quit）才消失。它的菜单列出：
+watcher 启动时会在菜单栏显示飞蛾图标和进行中的评审数。整台机器只有一个，涵盖所有 watcher；它一直保留到
+`/open-pr:menubar close`（或菜单中的 Quit），`/open-pr:menubar` 可让它重新出现。它的菜单列出：
 
-- 进行中的评审 —— 点击一项打开 pull request；其子菜单可在 Terminal 中打开评审会话，或复制打开该会话的命令；
+- 进行中的评审，按 watcher 分组（`<folder> · <terminal>`）—— 分组中的 "Go to watcher tab" 会把该 terminal
+  标签页调到前台（iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后会选中确切的标签页；其他情况下把
+  terminal 应用调到前台）；每条评审可打开其 pull request、在该 watcher 所运行的 terminal 中打开其会话，或
+  复制命令；
 - 最近十条 toast —— 点击一项打开其 pull request；
 - 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
 

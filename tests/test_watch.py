@@ -7,6 +7,7 @@ a copy under a new id when resuming a still-listed session or with an extra flag
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -153,12 +154,12 @@ class Watch:
                         PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}")
         self.children = []
 
-    def run(self, *args, env_extra=None, path=None, check=True):
+    def run(self, *args, env_extra=None, path=None, check=True, cwd=None):
         env = dict(self.env, **(env_extra or {}))
         if path is not None:
             env["PATH"] = path
         r = subprocess.run(["sh", str(self.bin / "open-pr-watch.sh"), *args], capture_output=True,
-                           text=True, cwd=self.repo, env=env, timeout=90)
+                           text=True, cwd=cwd or self.repo, env=env, timeout=90)
         if check and r.returncode != 0:
             raise AssertionError(f"open-pr-watch.sh {' '.join(args)} exit {r.returncode}:\n{r.stderr}")
         return r
@@ -463,6 +464,54 @@ def test_a_running_wait_survives_an_edit_of_its_script(w):
         assert proc.poll() is None, proc.stderr.read() if proc.poll() is not None else ""
     finally:
         proc.kill(); proc.wait()
+
+TERM_ENV = ("TERM_PROGRAM", "ITERM_SESSION_ID", "TERM_SESSION_ID")
+
+
+def watcher_env(w, **env):
+    base = {k: v for k, v in w.env.items() if k not in TERM_ENV}
+    return dict(base, **env)
+
+
+def test_wait_records_the_terminal_tab_it_runs_in(w):
+    """The menu bar groups repos by this record and focuses the tab it names."""
+    where = w.repo / "sub"
+    where.mkdir()
+    w.env = watcher_env(w, TERM_PROGRAM="iTerm.app", ITERM_SESSION_ID="w0t0p3:1B2C-3D4E",
+                        TERM_SESSION_ID="other")
+    r = w.run("wait", "--once", "--repo-dir", str(w.repo), cwd=where)
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    assert set(rec) == {"pid", "cwd", "term", "term_session", "tty"}
+    assert rec["cwd"] == str(where), "the directory the user runs the watcher from"
+    assert rec["term"] == "iTerm.app" and rec["term_session"] == "w0t0p3:1B2C-3D4E"
+    assert isinstance(rec["pid"], int)
+    assert rec["tty"] == "" or re.fullmatch(r"[A-Za-z0-9/]+", rec["tty"]) and "?" not in rec["tty"]
+    assert not list(w.sd.glob("watcher.json.*")), r.stderr
+
+    w.env = watcher_env(w, TERM_PROGRAM="Apple_Terminal", TERM_SESSION_ID="7A1B-C2")
+    w.run("wait", "--once")
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    assert (rec["term"], rec["term_session"], rec["cwd"]) == ("Apple_Terminal", "7A1B-C2", str(w.repo))
+
+
+@pytest.mark.parametrize("hostile", ['iTerm"$(touch pwned)', "a\nb", "x`id`", "a" * 200, "t;rm -rf ~"])
+def test_a_hostile_terminal_value_is_recorded_as_empty(w, hostile):
+    w.env = watcher_env(w, TERM_PROGRAM=hostile, ITERM_SESSION_ID=hostile)
+    w.run("wait", "--once")
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    assert rec["term"] == "" and rec["term_session"] == ""
+    assert not (w.repo / "pwned").exists() and not (w.sd / "pwned").exists()
+
+
+def test_a_directory_name_is_recorded_verbatim_as_data(w):
+    odd = w.repo / 'a"b $(touch pwned) \\'
+    odd.mkdir()
+    w.env = watcher_env(w)
+    w.run("wait", "--once", "--repo-dir", str(w.repo), cwd=odd)
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    assert rec["cwd"] == str(odd) and rec["term"] == "" and rec["term_session"] == ""
+    assert not list(w.repo.rglob("pwned"))
+
 
 # ------------------------------------------------------- spawn / resume ----
 

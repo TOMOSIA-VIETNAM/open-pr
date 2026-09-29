@@ -600,6 +600,40 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited)
     unlock
     GOT=1
 }
+# watcher.json: which terminal tab runs this watcher, for the menu bar to group its repos and
+# focus that tab. Env values are data: a value outside its pattern is recorded as "".
+NL='
+'
+fit() {   # $1 value, $2 ERE it must match whole
+    printf '%s' "$1" | LC_ALL=C grep -Eqx "$2" 2>/dev/null || return 0
+    case "$1" in *"$NL"*) return 0 ;; esac   # grep matches per line
+    printf '%s' "$1"
+}
+# The watcher's own shell runs without a terminal (an agent's Bash tool): the tab is the
+# nearest ancestor that has one.
+ancestor_tty() {
+    p=$$; i=0
+    while [ "$i" -lt 15 ] && [ "${p:-0}" -gt 1 ]; do
+        row=$(ps -o ppid=,tty= -p "$p" 2>/dev/null || true)
+        read -r pp tt <<EOF
+$row
+EOF
+        [ -n "${tt:-}" ] || return 0
+        case "$tt" in '?'|'??'|-) ;; *) fit "$tt" '[A-Za-z0-9/]{1,32}'; return 0 ;; esac
+        p=$pp; i=$((i + 1))
+    done
+}
+write_watcher() {
+    cwd=$(pwd)
+    # no control characters (a newline would pass grep line by line)
+    [ "$cwd" = "$(printf '%s' "$cwd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#cwd} -le 1024 ] || cwd=""
+    jq -n -c --argjson pid "$$" --arg cwd "$cwd" \
+        --arg term "$(fit "${TERM_PROGRAM:-}" '[A-Za-z0-9._-]{1,64}')" \
+        --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" '[A-Za-z0-9:._-]{1,128}')" \
+        --arg tty "$(ancestor_tty)" \
+        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty}' > "$SD/watcher.json.tmp"
+    mv "$SD/watcher.json.tmp" "$SD/watcher.json"
+}
 cmd_wait() {
     parse_args "$@"
     load_repo
@@ -611,6 +645,7 @@ cmd_wait() {
         die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched on this machine (wait pid $old) — stop that watcher first"
     fi
     printf '%s\n' "$$" > "$wp"
+    write_watcher
     interval=$(setting_int poll_interval_seconds 60); delay=$interval
     while :; do
         # Not an `if` condition: set -e must still apply inside.
@@ -798,8 +833,9 @@ Subcommands:
       `{"event":"ready","repo","pr"}` = a queued PR's turn has come (run `next`). The first
       run starts the cursor at now (no replay). Events count as delivered only when wait exits 0 —
       act on no other output. A vendor rate limit doubles the wait (up to 900 s, one stderr line
-      each time) until a poll succeeds. Every poll touches `heartbeat`. `--once`: one poll, exit 0
-      with nothing printed when nothing happened
+      each time) until a poll succeeds. Every poll touches `heartbeat`; each start writes
+      `watcher.json` {pid, cwd, term, term_session, tty} (the terminal tab it runs in, for the menu
+      bar). `--once`: one poll, exit 0 with nothing printed when nothing happened
   spawn --runner R --pr N --name S --prompt-file F [--url U] [--cwd W] [--fresh]
       open a review session for PR N with the prompt read from F → `{"pr","id","open"}`; the PR
       already has one ⇒ resume it (`"resumed":true`; a `"warning"` when the platform started a copy);
@@ -829,7 +865,8 @@ Subcommands:
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
   menubar [--close]
-      macOS: start the menu bar item (active reviews, recent toasts, snooze) unless it runs →
+      macOS: start the menu bar item (active reviews grouped by watcher tab, recent toasts, snooze)
+      unless it runs →
       `started` | `running`; it stays until closed. `--close` → `closed` | `not running`. Elsewhere
       `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]
