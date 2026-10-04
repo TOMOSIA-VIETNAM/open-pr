@@ -74,6 +74,7 @@ ROLES = {
     "feedback-cmd": ["commands/feedback.md"],
     "watch-review-cmd": ["commands/watch-review.md"],
     "case-watch-session": ["cases/watch-session.md"],
+    "case-watch-answer": ["cases/watch-answer.md"],
     "menubar-cmd": ["commands/menubar.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
@@ -155,6 +156,10 @@ SCENARIOS = {
     ],
     "menubar": [
         "menubar-cmd",
+    ],
+    # a session the watcher opened to answer a question asked on a PR
+    "watch-review/answer-session": [
+        "case-watch-answer", "guardrails", "cli",
     ],
     # one review session the watcher opened for a PR
     "review/watch-session-github": [
