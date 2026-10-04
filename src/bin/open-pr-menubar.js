@@ -96,6 +96,7 @@ ObjC.registerSubclass({
         'goToTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
         'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
+        'poll:': { types: ['void', ['id']], implementation: function (s) { poll(Number(s.tag)); } },
         'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
     }
 });
@@ -405,6 +406,16 @@ function build(s) {
     sub.addItem($.NSMenuItem.separatorItem);
     if (until) add(sub, 'Turn toasts back on', 'snooze:', undefined, 0);
     else add(sub, 'Toasts on').setState($.NSControlStateValueOn);
+    var cur = pollSeconds(), ps = newMenu('Poll every');
+    [[15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [300, '5 minutes']].forEach(function (o) {
+        add(ps, o[1], 'poll:', undefined, o[0]).setState(cur === o[0] ? $.NSControlStateValueOn : $.NSControlStateValueOff);
+    });
+    ps.addItem($.NSMenuItem.separatorItem);
+    add(ps, 'Repo setting', 'poll:', undefined, 0).setState(cur ? $.NSControlStateValueOff : $.NSControlStateValueOn);
+    var pi = add(m, 'Poll every');
+    pi.setSubmenu(ps);
+    pi.setEnabled(true);
+    pi.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('arrow.clockwise', ''));
     var sn = add(m, 'Snooze toasts');
     sn.setSubmenu(sub);
     sn.setEnabled(true);
@@ -488,6 +499,16 @@ function snooze(minutes) {
         var iso = d.toISOString().replace(/\.\d+Z$/, 'Z');
         $(iso + '\n').writeToFileAtomicallyEncodingError(snoozeFile, true, $.NSUTF8StringEncoding, null);
     }
+    refresh();
+}
+// Same file and floor as `open-pr-watch.sh poll`; 0 = back to each repo's setting.
+function pollFile() { return snoozeFile ? snoozeFile.replace(/\/[^\/]*$/, '') + '/poll_seconds' : ''; }
+function pollSeconds() { var n = parseInt(readText(pollFile()), 10); return n >= 15 ? n : 0; }
+function poll(seconds) {
+    var f = pollFile();
+    if (!f) return;
+    if (seconds === 0) $.NSFileManager.defaultManager.removeItemAtPathError(f, null);
+    else $(Math.max(15, seconds) + '\n').writeToFileAtomicallyEncodingError(f, true, $.NSUTF8StringEncoding, null);
     refresh();
 }
 function leave() {

@@ -95,6 +95,7 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的评审数。整
   标签页调到前台（iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后会选中确切的标签页；其他情况下把
   terminal 应用调到前台）；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、失败），并始终可以
   打开 pull request、在该 watcher 所运行的 terminal 中打开其会话，或复制命令；
+- 轮询间隔：15 秒、30 秒、1/2/5 分钟，或各仓库的设置 —— 几秒内生效；
 - 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
 
 某行的 "Remove from list" 会隐藏该行；已合并或已关闭的 pull request 会在 10 分钟内自动离开列表；该 pull request
