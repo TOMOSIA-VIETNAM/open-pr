@@ -727,13 +727,15 @@ EOF
         p=$pp; i=$((i + 1))
     done
 }
+# A watcher session that went to the background has no terminal env: its next wait keeps the
+# terminal app recorded before (not the tab id or tty — that tab is gone).
 write_watcher() {
     cwd=$(pwd)
     # no control characters (a newline would pass grep line by line)
     [ "$cwd" = "$(printf '%s' "$cwd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#cwd} -le 1024 ] || cwd=""
     rd=$D; [ "$rd" = "$(printf '%s' "$rd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#rd} -le 1024 ] || rd=""
     jq -n -c --argjson pid "$$" --arg cwd "$cwd" --arg rd "$rd" --arg rm "$(fit "$RM" '[A-Za-z0-9._-]{1,128}')" \
-        --arg term "$(fit "${TERM_PROGRAM:-}" "$TERM_RE")" \
+        --arg term "$(t=$(fit "${TERM_PROGRAM:-}" "$TERM_RE"); [ -n "$t" ] || t=$(watcher_field term "$TERM_RE"); printf '%s' "$t")" \
         --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
         --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" \
         '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}' > "$SD/watcher.json.tmp"

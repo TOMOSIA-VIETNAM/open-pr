@@ -497,6 +497,16 @@ def watcher_env(w, **env):
     return dict(base, **env)
 
 
+def test_a_backgrounded_watcher_keeps_its_terminal_app_but_not_its_tab(w):
+    """After `claude` quits, the session runs on without terminal env; reopening it must still
+    use the user's terminal, not fall back to Terminal."""
+    w.env = watcher_env(w, TERM_PROGRAM="iTerm.app", ITERM_SESSION_ID="w0t0p3:1B2C-3D4E")
+    w.run("wait", "--once")
+    w.env = watcher_env(w)
+    w.run("wait", "--once")
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    assert (rec["term"], rec["term_session"]) == ("iTerm.app", "")
+
 def test_wait_records_the_terminal_tab_it_runs_in(w):
     """The menu bar groups repos by this record and focuses the tab it names."""
     where = w.repo / "sub"

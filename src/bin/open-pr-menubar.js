@@ -454,6 +454,8 @@ function openTerminal(o) { if (o) openIn(str(o.term), str(o.open), snoozeFile); 
 // the snooze file.
 function openIn(term, cmd, snooze) {
     if (!OPEN_CMD.test(cmd)) return false;
+    // no terminal recorded: prefer iTerm when it runs, as the user then works in it
+    if (!term && $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.googlecode.iterm2').count > 0) term = 'iTerm.app';
     if (term === 'iTerm.app') return spawn('/usr/bin/osascript', script(ITERM_NEW_TAB).concat([cmd]));
     if (!snooze) return false;
     var dir = snooze.replace(/\/[^\/]*$/, '') + '/sessions', fm = $.NSFileManager.defaultManager;
