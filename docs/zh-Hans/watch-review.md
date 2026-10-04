@@ -93,8 +93,10 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的评审数。整
 
 - 每个 pull request 一行，按 watcher 分组（`<folder> · <terminal>`）—— 分组中的 "Go to watcher tab" 会把该 terminal
   标签页调到前台（iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后会选中确切的标签页；其他情况下把
-  terminal 应用调到前台）；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、失败），并始终可以
-  打开 pull request、在该 watcher 所运行的 terminal 中打开其会话，或复制命令；
+  terminal 应用调到前台；标签页已关闭的 watcher 会用 `claude attach` 重新打开），分组的 "Stop watcher" 会停止该
+  watcher 监视的所有仓库；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、失败），并始终可以
+  打开 pull request、在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的新标签页；其他
+  terminal 则打开 Terminal），或复制命令；
 - 轮询间隔：15 秒、30 秒、1/2/5 分钟，或各仓库的设置 —— 几秒内生效；
 - 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
 

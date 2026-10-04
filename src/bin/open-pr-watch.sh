@@ -705,6 +705,9 @@ NL='
 TERM_RE='[A-Za-z0-9._-]{1,64}'
 TERM_SESSION_RE='[A-Za-z0-9:._-]{1,128}'
 TTY_RE='[A-Za-z0-9/]{1,32}'
+# The Claude Code session running this watcher: once the user quits `claude` it keeps running in the
+# background, and `claude attach <its first 8 chars>` brings it back into a tab.
+SESSION_ID_RE='[0-9a-f-]{8,64}'
 fit() {   # $1 value, $2 ERE it must match whole
     printf '%s' "$1" | LC_ALL=C grep -Eqx "$2" 2>/dev/null || return 0
     case "$1" in *"$NL"*) return 0 ;; esac   # grep matches per line
@@ -732,12 +735,17 @@ write_watcher() {
     jq -n -c --argjson pid "$$" --arg cwd "$cwd" --arg rd "$rd" --arg rm "$(fit "$RM" '[A-Za-z0-9._-]{1,128}')" \
         --arg term "$(fit "${TERM_PROGRAM:-}" "$TERM_RE")" \
         --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
-        --arg tty "$(ancestor_tty)" \
-        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, repo_dir: $rd, remote: $rm}' > "$SD/watcher.json.tmp"
+        --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" \
+        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}' > "$SD/watcher.json.tmp"
     mv "$SD/watcher.json.tmp" "$SD/watcher.json"
 }
 watcher_field() {   # $1 key of watcher.json, $2 ERE → its value, or "" when it does not match
     fit "$(jq -r --arg k "$1" '.[$k] // "" | strings' "$SD/watcher.json" 2>/dev/null || true)" "$2"
+}
+stop_requested() {
+    [ -e "$SD/stop" ] || return 0
+    rm -f "$SD/stop"
+    die 11 "open-pr-watch.sh: stopped from the menu bar"
 }
 cmd_wait() {
     parse_args "$@"
@@ -749,12 +757,15 @@ cmd_wait() {
         && ps -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
         die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched on this machine (wait pid $old) — stop that watcher first"
     fi
+    # Written by the menu bar's "Stop watcher"; one left from an earlier run must not stop this one.
+    rm -f "$SD/stop"
     printf '%s\n' "$$" > "$wp"
     write_watcher
     watch_dir
     base=$(setting_int poll_interval_seconds 60)
     interval=$(poll_interval "$base"); delay=$interval
     while :; do
+        stop_requested
         # Not an `if` condition: set -e must still apply inside.
         poll_once
         [ -z "$GOT" ] || return 0
@@ -771,6 +782,7 @@ cmd_wait() {
         waited=0; slice=5; [ "$delay" -ge "$slice" ] || slice=$delay
         while [ "$waited" -lt "$delay" ]; do
             sleep "$slice"; waited=$((waited + slice))
+            stop_requested
             [ -n "$LIMITED" ] || [ "$waited" -lt "$(poll_interval "$base")" ] || break
         done
     done
@@ -820,7 +832,7 @@ cmd_notify() {
         nohup osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
             "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" "$FOCUS" "$open" \
             "$(watcher_field term "$TERM_RE")" "$(watcher_field term_session "$TERM_SESSION_RE")" \
-            "$(watcher_field tty "$TTY_RE")" \
+            "$(watcher_field tty "$TTY_RE")" "$(watcher_field session_id "$SESSION_ID_RE")" \
             > "$WD/toast.log" 2>&1 &
         printf '%s\n' "$!" > "$sd/$slot/pid"
     elif command -v notify-send >/dev/null 2>&1; then
@@ -955,8 +967,8 @@ Subcommands:
       each time) until a poll succeeds. At most every 600 s, a tracked PR no longer open (merged or
       closed) is hidden and its session marked closed, then stopped once not in use; a failed check
       prints one stderr line and waits for the next. Every poll touches `heartbeat`; each start writes
-      `watcher.json` {pid, cwd, term, term_session, tty, repo_dir, remote} (the terminal tab it runs
-      in, and the repo, for the menu bar). `--once`: one poll, exit 0 with nothing printed when
+      `watcher.json` {pid, cwd, term, term_session, tty, session_id, repo_dir, remote} (the terminal tab
+      it runs in, its Claude Code session, and the repo, for the menu bar). `--once`: one poll, exit 0 with nothing printed when
       nothing happened
   spawn --runner R --pr N --name S --prompt-file F [--url U] [--cwd W] [--fresh]
       open a review session for PR N with the prompt read from F → `{"pr","id","open"}`; the PR
@@ -1014,6 +1026,8 @@ Exit codes:
   8  the runner refuses the session's directory as untrusted — the message names the command to run once
   9  `wait --once` hit a vendor rate limit
   10 another `wait` already watches this repo on this machine — the message names its pid
+  11 `wait` found `stop` in the repo's state dir (the menu bar's "Stop watcher"); it consumes the
+     file and prints no events. A `wait` start clears one left from before
      (`wait` also exits 1 once triggers has failed 3 polls in a row, naming the last error)
 EOF
 }

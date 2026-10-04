@@ -4,32 +4,40 @@
 //   click → focus (below) · ✕ → close · 1h → write the snooze file · hover → countdown pauses
 // argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
 // `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, and the
-// watcher.json fields term, term_session, tty.
-// focus: pr → open url · watcher → the watcher's terminal tab · session → the open command in
-// the watcher's terminal app (no valid command ⇒ watcher). A watcher in a terminal not in TERMS
-// ⇒ url. The focus code mirrors open-pr-menubar.js (goToTab, openTerminal).
-// Every string arrives as argv; nothing here is spliced into source: the open command is written
-// into a .command file only after matching OPEN_CMD, a tab id reaches osascript as argv only after
-// matching TAB_ID.
+// watcher.json fields term, term_session, tty, session_id.
+// focus: pr → open url · watcher → the watcher's terminal tab, or `claude attach` of its session
+// when that tab is gone · session → the open command in the watcher's terminal app (no valid
+// command ⇒ watcher). A watcher in a terminal not in TERMS and with no session ⇒ url. The focus
+// code mirrors open-pr-menubar.js (goToTab, openIn).
+// Every string arrives as argv; nothing here is spliced into source: the open command reaches a
+// .command file or osascript argv only after matching OPEN_CMD, a tab id reaches osascript as argv
+// only after matching TAB_ID, a session id becomes `claude attach` only after matching SESSION_ID.
 ObjC.import('Cocoa');
 
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
-var TERMS = {   // by TERM_PROGRAM: bundle id, app name for NSWorkspace openFile:withApplication:
-    'iTerm.app': ['com.googlecode.iterm2', 'iTerm'], 'Apple_Terminal': ['com.apple.Terminal', 'Terminal'],
-    'ghostty': ['com.mitchellh.ghostty', 'Ghostty'], 'WezTerm': ['com.github.wez.wezterm', 'WezTerm'],
-    'WarpTerminal': ['dev.warp.Warp-Stable', 'Warp']
+var SESSION_ID = /^[0-9a-f-]{8,64}$/;
+var TERMS = {   // by TERM_PROGRAM: bundle id
+    'iTerm.app': 'com.googlecode.iterm2', 'Apple_Terminal': 'com.apple.Terminal',
+    'ghostty': 'com.mitchellh.ghostty', 'WezTerm': 'com.github.wez.wezterm', 'WarpTerminal': 'dev.warp.Warp-Stable'
 };
-var FOCUS = {   // `on run argv`: the tab id is an argument, never source
+// `on run argv`: the tab id or command is an argument, never source. FOCUS returns "found" so a
+// closed tab can be told apart from a found one.
+var FOCUS = {
     'iTerm.app': ['on run argv', 'tell application id "com.googlecode.iterm2"',
         'repeat with w in windows', 'repeat with t in tabs of w', 'repeat with s in sessions of t',
-        'if (unique id of s) is (item 1 of argv) then', 'select w', 'select t', 'select s', 'activate', 'return',
+        'if (unique id of s) is (item 1 of argv) then', 'select w', 'select t', 'select s', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
     'Apple_Terminal': ['on run argv', 'tell application id "com.apple.Terminal"',
         'repeat with w in windows', 'repeat with t in tabs of w', 'if (tty of t) is (item 1 of argv) then',
-        'set selected of t to true', 'set index of w to 1', 'activate', 'return',
+        'set selected of t to true', 'set index of w to 1', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end tell', 'end run']
 };
+// `write text` types into the user's login shell, so PATH has `claude`.
+var ITERM_NEW_TAB = ['on run argv', 'tell application id "com.googlecode.iterm2"', 'activate',
+    'if (count of windows) > 0 then', 'tell current window to create tab with default profile',
+    'else', 'create window with default profile', 'end if',
+    'tell current session of current window to write text (item 1 of argv)', 'end tell', 'end run'];
 
 var ACCENT = {   // sRGB, by event
     review_started: [0.35, 0.53, 0.95], re_review: [0.35, 0.53, 0.95],
@@ -122,45 +130,67 @@ function run(argv) {
 
 function clickTarget(argv) {
     return { focus: argv[8] || 'pr', url: argv[6] || '', open: argv[9] || '', snoozeFile: argv[7] || '',
-             term: argv[10] || '', term_session: argv[11] || '', tty: argv[12] || '' };
+             term: argv[10] || '', term_session: argv[11] || '', tty: argv[12] || '', session_id: argv[13] || '' };
 }
 function focus(o) {
-    if (o.focus === 'session' && openSession(o)) return;
+    if (o.focus === 'session' && openIn(o.term, o.open, o.snoozeFile)) return;
     if ((o.focus === 'session' || o.focus === 'watcher') && goToTab(o)) return;
     if (/^https?:\/\/\S+$/.test(o.url)) $.NSWorkspace.sharedWorkspace.openURL($.NSURL.URLWithString(o.url));
 }
-// A .command file opened via LaunchServices needs no Automation permission.
-function openSession(o) {
-    if (!OPEN_CMD.test(o.open) || !o.snoozeFile) return false;
-    var dir = o.snoozeFile.replace(/\/[^\/]*$/, '') + '/sessions', fm = $.NSFileManager.defaultManager;
+// Runs cmd in a new tab of the terminal `term` names. iTerm does not run a .command file handed to
+// it (LaunchServices then falls back to Terminal), so it gets the command over AppleScript;
+// Terminal opens the file via LaunchServices, which needs no Automation permission; Ghostty and
+// WezTerm take it as a program; any other terminal ⇒ Terminal.
+function openIn(term, cmd, snooze) {
+    if (!OPEN_CMD.test(cmd)) return false;
+    if (term === 'iTerm.app') return spawn('/usr/bin/osascript', script(ITERM_NEW_TAB).concat([cmd]));
+    if (!snooze) return false;
+    var dir = snooze.replace(/\/[^\/]*$/, '') + '/sessions', fm = $.NSFileManager.defaultManager;
     fm.createDirectoryAtPathWithIntermediateDirectoriesAttributesError(dir, true, $({}), null);
-    var path = dir + '/' + o.open.split(' ').pop() + '.command';
-    if (!$('#!/bin/sh\n' + o.open + '\n').writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null)) return false;
+    var path = dir + '/' + cmd.split(' ').pop() + '.command';
+    if (!$('#!/bin/sh\n' + cmd + '\n').writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null)) return false;
     fm.setAttributesOfItemAtPathError($({ NSFilePosixPermissions: 493 }), path, null);   // 0755
-    return $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, TERMS[o.term] ? TERMS[o.term][1] : 'Terminal');
+    if (term === 'ghostty') return spawn('/usr/bin/open', ['-na', 'Ghostty', '--args', '-e', '/bin/sh', path]);
+    if (term === 'WezTerm') return spawn('/usr/bin/open', ['-na', 'WezTerm', '--args', 'start', '--', '/bin/sh', path]);
+    return $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, 'Terminal');
 }
+function script(lines) { var a = []; lines.forEach(function (l) { a.push('-e', l); }); return a; }
+// A tab that is gone (the user quit `claude`, which keeps the watcher's session running in the
+// background) is reopened with `claude attach`.
 function goToTab(o) {
-    var t = TERMS[o.term];
-    if (!t) return false;
+    var t = TERMS[o.term], sid = SESSION_ID.test(o.session_id) ? o.session_id : '';
+    if (!t && !sid) return false;
     // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
     // LaunchServices: an accessory app's own activate request is ignored by macOS.
-    spawn('/usr/bin/open', ['-b', t[0]]);
+    if (t) spawn('/usr/bin/open', ['-b', t]);
     var id = o.term === 'iTerm.app' ? o.term_session.split(':').pop()
            : o.term === 'Apple_Terminal' && o.tty ? (o.tty.charAt(0) === '/' ? o.tty : '/dev/' + o.tty) : '';
-    if (FOCUS[o.term] && TAB_ID.test(id)) {
-        var args = [];
-        FOCUS[o.term].forEach(function (l) { args.push('-e', l); });
-        spawn('/usr/bin/osascript', args.concat([id]));
-    }
+    var found = FOCUS[o.term] && TAB_ID.test(id) ? output('/usr/bin/osascript', script(FOCUS[o.term]).concat([id])) : '';
+    // null: the lookup failed (no permission) — the tab may be there.
+    if (found === '' && sid) openIn(o.term, 'claude attach ' + sid.slice(0, 8), o.snoozeFile);
     return true;
 }
-function spawn(path, args) {
+function newTask(path, args) {
     var task = $.NSTask.alloc.init;
     task.setLaunchPath(path);
     task.setArguments($(args));
-    task.setStandardOutput($.NSFileHandle.fileHandleWithNullDevice);
     task.setStandardError($.NSFileHandle.fileHandleWithNullDevice);
+    return task;
+}
+function spawn(path, args) {
+    var task = newTask(path, args);
+    task.setStandardOutput($.NSFileHandle.fileHandleWithNullDevice);
     task.launch;
+    return true;
+}
+function output(path, args) {   // trimmed stdout once the task exits 0, else null
+    var task = newTask(path, args), pipe = $.NSPipe.pipe;
+    task.setStandardOutput(pipe);
+    task.launch;
+    task.waitUntilExit;
+    if (task.terminationStatus !== 0) return null;
+    var out = $.NSString.alloc.initWithDataEncoding(pipe.fileHandleForReading.readDataToEndOfFile, $.NSUTF8StringEncoding);
+    return ObjC.unwrap(out).trim();
 }
 
 function snoozeHour(file) {   // atomic write: a reader never sees half a line
