@@ -110,6 +110,7 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
   lần; nếu không thì ứng dụng terminal được đưa lên trước); mỗi dòng hiện trạng thái mới nhất ngay tại
   chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, lỗi) và luôn có: mở pull request,
   mở session trong terminal mà watcher đó đang chạy, copy command;
+- poll mỗi 15 giây, 30 giây, 1, 2 hoặc 5 phút, hoặc theo setting của từng repo — có hiệu lực sau vài giây;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
 "Remove from list" trên một dòng sẽ ẩn dòng đó, pull request đã merge hoặc đã đóng tự rời danh sách trong

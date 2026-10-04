@@ -104,6 +104,22 @@ settings() {
     [ -n "$SETTINGS" ] || SETTINGS=$(opr settings --repo "$REPO" --repo-dir "$D") || exit $?
     printf '%s' "$SETTINGS"
 }
+# The machine's poll choice (menu bar, chat) wins over the repo setting; never below POLL_MIN.
+POLL_MIN=15
+poll_interval() {   # $1 = the repo setting
+    v=$(grep -Ex '[0-9]+' "$WD/poll_seconds" 2>/dev/null | head -n 1 || true)
+    if [ -n "$v" ]; then [ "$v" -ge "$POLL_MIN" ] || v=$POLL_MIN; else v=$1; fi
+    printf '%s' "$v"
+}
+cmd_poll() {
+    parse_args "$@"
+    watch_dir
+    if [ -n "$(arg off)" ]; then rm -f "$WD/poll_seconds"; printf '{"poll_seconds":null}\n'; return 0; fi
+    n=$(req seconds); check_ident '^[0-9]+$' "$n"
+    [ "$n" -ge "$POLL_MIN" ] || n=$POLL_MIN
+    printf '%s\n' "$n" > "$WD/poll_seconds.tmp" && mv "$WD/poll_seconds.tmp" "$WD/poll_seconds"
+    printf '{"poll_seconds":%s}\n' "$n"
+}
 setting_int() {
     v=$(settings | jq -r --arg k "$1" '.watch_review[$k] // empty | select(type == "number" and . >= 1) | floor')
     printf '%s' "${v:-$2}"
@@ -735,7 +751,9 @@ cmd_wait() {
     fi
     printf '%s\n' "$$" > "$wp"
     write_watcher
-    interval=$(setting_int poll_interval_seconds 60); delay=$interval
+    watch_dir
+    base=$(setting_int poll_interval_seconds 60)
+    interval=$(poll_interval "$base"); delay=$interval
     while :; do
         # Not an `if` condition: set -e must still apply inside.
         poll_once
@@ -747,9 +765,14 @@ cmd_wait() {
             [ "$delay" -ge "$interval" ] || delay=$interval
             err "rate limited — next poll in ${delay}s"
         else
-            delay=$interval
+            interval=$(poll_interval "$base"); delay=$interval
         fi
-        sleep "$delay"
+        # Slept in slices so a faster poll chosen meanwhile applies within seconds.
+        waited=0; slice=5; [ "$delay" -ge "$slice" ] || slice=$delay
+        while [ "$waited" -lt "$delay" ]; do
+            sleep "$slice"; waited=$((waited + slice))
+            [ -n "$LIMITED" ] || [ "$waited" -lt "$(poll_interval "$base")" ] || break
+        done
     done
 }
 
@@ -968,6 +991,9 @@ Subcommands:
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
+  poll --seconds N | --off
+      this machine's poll interval, every repo, min 15 s, over `poll_interval_seconds`; a running
+      wait applies it within 5 s. `--off` returns to the setting → `{"poll_seconds"}`. Menu bar too
   menubar [--close]
       macOS: start the menu bar item (active reviews grouped by watcher tab, recent toasts, snooze;
       "Remove from list" on a PR runs `hide`) unless it runs →
@@ -1020,6 +1046,7 @@ case "$sub" in
     notify)  cmd_notify "$@" ;;
     trust)   cmd_trust "$@" ;;
     snooze)  cmd_snooze "$@" ;;
+    poll)    cmd_poll "$@" ;;
     menubar) cmd_menubar "$@" ;;
     *) die 1 "open-pr-watch.sh: unknown subcommand: $sub (see --help)" ;;
 esac

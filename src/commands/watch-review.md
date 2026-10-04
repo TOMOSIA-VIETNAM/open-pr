@@ -136,6 +136,7 @@ Per `{"event":"ready",…}` (a queued PR's turn): `<watch> next`; a PR printed �
 |---|---|
 | `status` | `<watch> status` per watched repo, 1 line per PR with its `open` command |
 | `snooze <duration>` / resume | `<watch> snooze --for <duration>` / `--off` — every toast on this machine |
+| poll every N seconds / back to the setting | `<watch> poll --seconds N` / `--off` (this machine, min 15, applies within seconds) |
 | a setting change | `Edit` that field in the repo it names (every watched repo when none) + `core/memory-commit.md` |
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
 | `remove #N` | `<watch> hide --pr N` for its repo |

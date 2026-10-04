@@ -110,6 +110,7 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
   once for Automation permission; otherwise the terminal app comes to the front); a row shows the latest
   state in place (reviewing, posted with counts, LGTM, draft, needs an answer, failed) and always offers:
   open the pull request, open its session in the terminal that watcher runs in, copy the command;
+- poll every 15 s, 30 s, 1, 2 or 5 minutes, or each repo's setting — applies within seconds;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
 A row's "Remove from list" hides it, a merged or closed pull request leaves on its own within 10 minutes,

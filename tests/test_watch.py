@@ -1089,6 +1089,32 @@ def test_the_backoff_stops_at_fifteen_minutes(w):
     assert line.strip() == "rate limited — next poll in 900s"
 
 
+
+def test_poll_sets_this_machines_interval_with_a_floor(w):
+    assert w.jsonl("poll", "--seconds", "30")[0] == {"poll_seconds": 30}
+    assert (w.watch / "poll_seconds").read_text() == "30\n"
+    assert w.jsonl("poll", "--seconds", "5")[0] == {"poll_seconds": 15}, "never below 15 s"
+    assert w.jsonl("poll", "--off")[0] == {"poll_seconds": None}
+    assert not (w.watch / "poll_seconds").exists()
+
+
+def test_a_running_wait_picks_up_a_faster_poll_within_seconds(w):
+    """Chosen in the menu bar mid-wait: no waiting out the old interval."""
+    w.settings(poll_interval_seconds=300)
+    w.run("wait", "--once")                                    # cursor set
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    w.children.append(proc)
+    try:
+        time.sleep(2)
+        w.run("poll", "--seconds", "15")
+        w.triggers(trig("61", "2099-01-01T00:00:00Z"))
+        out, _ = proc.communicate(timeout=40)              # 15 s, not 300 s
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    assert [json.loads(l)["comment_id"] for l in out.splitlines() if l.strip()] == ["61"]
+
 # -------------------------------------------------------------- snooze ----
 
 def test_snooze_for_until_and_off_share_one_machine_file(w):
