@@ -20,7 +20,7 @@ this one is its ONLY writer. Every other rule of `commands/review.md` holds.
   (overwrite) once the outcome is known. FORBIDDEN: writing it earlier, or ending without it.
 
   ```json
-  {"state": "posted|draft|lgtm_chat|question|failed", "url": "<PR URL>", "counts": {"<severity label>": 0}, "note": "<1 sentence>", "lessons": [], "question": ""}
+  {"state": "posted|draft|lgtm_chat|nothing|question|failed", "url": "<PR URL>", "counts": {"<severity label>": 0}, "note": "<1 sentence>", "lessons": [], "question": ""}
   ```
 
   | `state` | when |
@@ -28,6 +28,7 @@ this one is its ONLY writer. Every other rule of `commands/review.md` holds.
   | `posted` | published and `post-verify` confirmed it |
   | `draft` | `post` left it unpublished (`auto_submit_review: false`, no instruction to publish) |
   | `lgtm_chat` | `post_lgtm: false` kept the LGTM line off the PR |
+  | `nothing` | the run posted nothing (`cases/re-review.md`'s early stop); `note` = why, for the dev — e.g. no commit since the last review |
   | `question` | `--unattended` only, below |
   | `failed` | any STOP or error; `note` = why |
 

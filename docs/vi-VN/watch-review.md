@@ -55,7 +55,7 @@ developer vừa là reviewer.
 ## Chuyện gì xảy ra tiếp theo
 
 - Watcher reply vào comment (trong thread của nó; comment thường trên GitHub không có thread, nên reply
-  trích dẫn lại comment đó kèm link) — "reviewing (commit abc1234)", bằng ngôn ngữ của lời yêu cầu — nêu commit mà
+  trích dẫn lại comment đó kèm link) — "taking a look (commit abc1234)", bằng ngôn ngữ của lời yêu cầu — nêu commit mà
   nó đã nhận. Khi nhiều máy cùng theo dõi một repo, reply đó là khóa: reply đầu tiên thắng, máy nào thấy đã
   có reply thì lùi lại, và máy thua trong một cuộc đua sát nút sẽ xóa reply của chính nó.
 - Một session tên `review <owner>/<repo>#<number>` chạy review như bình thường. Khi chạm giới hạn session,

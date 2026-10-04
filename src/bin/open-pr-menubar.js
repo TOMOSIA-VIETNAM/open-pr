@@ -37,7 +37,8 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
     posted:   ['checkmark.bubble', [0.22, 0.7, 0.45], 'Posted'],
     lgtm:     ['checkmark.seal', [0.22, 0.7, 0.45], 'LGTM'],
     failed:   ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Failed'],
-    stopped:  ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Stopped']
+    stopped:  ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Stopped'],
+    nothing:  ['hourglass', [0.91, 0.27, 0.06], 'Nothing new to review']
 };
 // A row shows whichever happened last: the session's state or the PR's latest feed line (a
 // disabled event writes no line, so that line can be older than the state). A line wins through
