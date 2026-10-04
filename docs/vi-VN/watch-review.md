@@ -107,9 +107,11 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
 
 - mỗi pull request một dòng, nhóm theo watcher (`<folder> · <terminal>`) — mục "Go to watcher tab" của nhóm đưa
   tab terminal đó lên trước (iTerm và Terminal chọn đúng tab sau khi macOS hỏi xin quyền Automation một
-  lần; nếu không thì ứng dụng terminal được đưa lên trước); mỗi dòng hiện trạng thái mới nhất ngay tại
+  lần; nếu không thì ứng dụng terminal được đưa lên trước; watcher đã bị đóng tab được mở lại bằng
+  `claude attach`), còn "Stop watcher" của nhóm dừng theo dõi mọi repo của watcher đó; mỗi dòng hiện trạng thái mới nhất ngay tại
   chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, lỗi) và luôn có: mở pull request,
-  mở session trong terminal mà watcher đó đang chạy, copy command;
+  mở session trong terminal mà watcher đó đang chạy (tab mới của iTerm, Terminal, Ghostty hoặc WezTerm;
+  terminal khác thì mở Terminal), copy command;
 - poll mỗi 15 giây, 30 giây, 1, 2 hoặc 5 phút, hoặc theo setting của từng repo — có hiệu lực sau vài giây;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 

@@ -7,13 +7,15 @@
 //                                           session's state, is its row's text
 //   <data>/<repo>/watch-review/watcher.json the terminal tab whose watcher watches the repo, and
 //                                           the repo_dir/remote "Remove from list" passes to `hide`
+//   <data>/<repo>/watch-review/stop         written by "Stop watcher"; the watcher's `wait` consumes it
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
 // argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs,
 // then the absolute path of open-pr-watch.sh.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
-// as text, written into a .command file after matching OPEN_CMD, or passed to osascript as argv
-// after matching TAB_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits —
+// as text, written into a .command file or passed to osascript as argv after matching OPEN_CMD,
+// passed to osascript as argv after matching TAB_ID, turned into `claude attach` after matching
+// SESSION_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits —
 // never spliced into source.
 ObjC.import('Cocoa');
 
@@ -24,6 +26,7 @@ var SUBTITLE_PAD = 100;
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 // iTerm's unique id (the part of ITERM_SESSION_ID after ':') or a Terminal tab's tty.
 var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
+var SESSION_ID = /^[0-9a-f-]{8,64}$/;   // watcher.json session_id: the Claude Code session running the watcher
 var REMOTE = /^[A-Za-z0-9._-]+$/;
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000;
@@ -46,17 +49,17 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
 // "working", and the row must stop saying "Reviewing".
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', error: 'failed' };
-// by TERM_PROGRAM: menu name, bundle id, app name for NSWorkspace openFile:withApplication:
+// by TERM_PROGRAM: menu name, bundle id, app a session opens in (see openIn)
 var TERMS = {
     'iTerm.app':      ['iTerm', 'com.googlecode.iterm2', 'iTerm'],
     'Apple_Terminal': ['Terminal', 'com.apple.Terminal', 'Terminal'],
     'ghostty':        ['Ghostty', 'com.mitchellh.ghostty', 'Ghostty'],
     'WezTerm':        ['WezTerm', 'com.github.wez.wezterm', 'WezTerm'],
-    'WarpTerminal':   ['Warp', 'dev.warp.Warp-Stable', 'Warp']
+    'WarpTerminal':   ['Warp', 'dev.warp.Warp-Stable', 'Terminal']
 };
-var OPEN_APPS = ['iTerm', 'Terminal', 'Ghostty', 'WezTerm', 'Warp'];
-// `on run argv`: the tab id arrives as an argument, never as source. Automation permission
-// is asked once; without it the app was already brought forward (goToTab).
+// `on run argv`: the tab id or command arrives as an argument, never as source. Automation
+// permission is asked once; without it the app was already brought forward (goToTab).
+// FOCUS returns "found" so a closed tab can be told apart from a found one.
 var FOCUS = {
     'iTerm.app': [
         'on run argv',
@@ -65,7 +68,7 @@ var FOCUS = {
         'repeat with t in tabs of w',
         'repeat with s in sessions of t',
         'if (unique id of s) is (item 1 of argv) then',
-        'select w', 'select t', 'select s', 'activate', 'return',
+        'select w', 'select t', 'select s', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
     'Apple_Terminal': [
         'on run argv',
@@ -73,9 +76,14 @@ var FOCUS = {
         'repeat with w in windows',
         'repeat with t in tabs of w',
         'if (tty of t) is (item 1 of argv) then',
-        'set selected of t to true', 'set index of w to 1', 'activate', 'return',
+        'set selected of t to true', 'set index of w to 1', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end tell', 'end run']
 };
+// `write text` types into the user's login shell, so PATH has `claude`.
+var ITERM_NEW_TAB = ['on run argv', 'tell application id "com.googlecode.iterm2"', 'activate',
+    'if (count of windows) > 0 then', 'tell current window to create tab with default profile',
+    'else', 'create window with default profile', 'end if',
+    'tell current session of current window to write text (item 1 of argv)', 'end tell', 'end run'];
 
 // docs/images/logo/favicon.svg (viewBox 128×128).
 var MOTH = [
@@ -94,6 +102,8 @@ ObjC.registerSubclass({
         'copyText:': { types: ['void', ['id']], implementation: function (s) { copyText(unwrapString(s.representedObject)); } },
         'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(parse(unwrapString(s.representedObject))); } },
         'goToTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
+        'stopWatcher:': { types: ['void', ['id']], implementation: function (s) { stopWatcher(parse(unwrapString(s.representedObject))); } },
+        'stopSession:': { types: ['void', ['id']], implementation: function (t) { stopSession(parse(unwrapString(t.userInfo))); } },
         'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
         'poll:': { types: ['void', ['id']], implementation: function (s) { poll(Number(s.tag)); } },
@@ -163,12 +173,12 @@ function basename(p) { return p.replace(/\/+$/, '').split('/').pop() || p; }
 // One per watcher tab: the waits of one watcher (one per repo) share its tab.
 function watcherOf(w) {
     w = w && typeof w === 'object' ? w : {};
-    var term = str(w.term), ts = str(w.term_session), tty = str(w.tty), cwd = str(w.cwd);
+    var term = str(w.term), ts = str(w.term_session), tty = str(w.tty), cwd = str(w.cwd), sid = str(w.session_id);
     var t = TERMS[term];
     return { key: ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '',
              label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : ''),
-             term: term, term_session: ts, tty: tty, app: t ? t[2] : 'Terminal',
-             repos: [], rows: [] };
+             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal',
+             repos: [], dirs: [], rows: [] };
 }
 
 function scan() {
@@ -185,6 +195,7 @@ function scan() {
         if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
         wr = byKey[wr.key];
         wr.repos.push(name);
+        wr.dirs.push(dir);
         var rows = {};
         var st = parse(readText(dir + '/state.json'));
         var ss = st && typeof st.sessions === 'object' && st.sessions ? st.sessions : {};
@@ -374,11 +385,13 @@ function build(s) {
     s.watchers.forEach(function (w) {
         // A record from before watcher.json existed has no tab to show.
         if (w.key) {
-            var wi = add(m, w.label, TERMS[w.term] ? 'goToTab:' : null,
-                         JSON.stringify({ term: w.term, term_session: w.term_session, tty: w.tty }));
+            var wi = add(m, w.label, TERMS[w.term] || SESSION_ID.test(w.session_id) ? 'goToTab:' : null,
+                         JSON.stringify({ term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id }));
             subtitle(wi, w.repos.join(', '));
             wi.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
             wi.setToolTip('Go to watcher tab');
+            add(m, 'Stop watcher', 'stopWatcher:', JSON.stringify({ dirs: w.dirs, session_id: w.session_id }))
+                .setIndentationLevel(1);
         }
         if (!w.rows.length) add(m, 'No review yet').setIndentationLevel(w.key ? 1 : 0);
         w.rows.forEach(function (x) {
@@ -390,7 +403,7 @@ function build(s) {
             // Offered in every state: `open` also reopens a finished or stopped session.
             var sub = newMenu(x.title);
             if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
-            if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, app: w.app }));
+            if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, term: w.term }));
             if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
             if (x.hide && hideArgs(parse(x.hide))) add(sub, 'Remove from list', 'hide:', x.hide);
             if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
@@ -433,44 +446,98 @@ function copyText(t) {
     pb.clearContents;
     pb.setStringForType($(t), $.NSPasteboardTypeString);
 }
-// A .command file opened via LaunchServices needs no Automation permission.
-function openTerminal(o) {
-    var cmd = o ? str(o.open) : '', app = o && OPEN_APPS.indexOf(o.app) >= 0 ? o.app : 'Terminal';
-    if (!OPEN_CMD.test(cmd) || !snoozeFile) return;
-    var dir = snoozeFile.replace(/\/[^\/]*$/, '') + '/sessions';
-    var fm = $.NSFileManager.defaultManager;
+function openTerminal(o) { if (o) openIn(str(o.term), str(o.open), snoozeFile); }
+// Runs cmd in a new tab of the terminal `term` names. iTerm does not run a .command file handed to
+// it (LaunchServices then falls back to Terminal), so it gets the command over AppleScript;
+// Terminal opens the file via LaunchServices, which needs no Automation permission; Ghostty and
+// WezTerm take it as a program; any other terminal ⇒ Terminal. The .command file sits next to
+// the snooze file.
+function openIn(term, cmd, snooze) {
+    if (!OPEN_CMD.test(cmd)) return false;
+    if (term === 'iTerm.app') return spawn('/usr/bin/osascript', script(ITERM_NEW_TAB).concat([cmd]));
+    if (!snooze) return false;
+    var dir = snooze.replace(/\/[^\/]*$/, '') + '/sessions', fm = $.NSFileManager.defaultManager;
     fm.createDirectoryAtPathWithIntermediateDirectoriesAttributesError(dir, true, $({}), null);
     var path = dir + '/' + cmd.split(' ').pop() + '.command';
-    if (!$('#!/bin/sh\n' + cmd + '\n').writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null)) return;
+    if (!$('#!/bin/sh\n' + cmd + '\n').writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null)) return false;
     fm.setAttributesOfItemAtPathError($({ NSFilePosixPermissions: 493 }), path, null);   // 0755
-    $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, app);
+    if (term === 'ghostty') return spawn('/usr/bin/open', ['-na', 'Ghostty', '--args', '-e', '/bin/sh', path]);
+    if (term === 'WezTerm') return spawn('/usr/bin/open', ['-na', 'WezTerm', '--args', 'start', '--', '/bin/sh', path]);
+    return $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, 'Terminal');
 }
+function script(lines) { var a = []; lines.forEach(function (l) { a.push('-e', l); }); return a; }
 function tabId(w) {
     if (w.term === 'iTerm.app') return w.term_session.split(':').pop();
     if (w.term === 'Apple_Terminal' && w.tty) return w.tty.charAt(0) === '/' ? w.tty : '/dev/' + w.tty;
     return '';
 }
+// A tab that is gone (the user quit `claude`, which keeps the watcher's session running in the
+// background) is reopened with `claude attach`; each watcher names its own session.
 function goToTab(w) {
     if (!w || typeof w !== 'object') return;
-    w = { term: str(w.term), term_session: str(w.term_session), tty: str(w.tty) };
+    w = { term: str(w.term), term_session: str(w.term_session), tty: str(w.tty), session_id: str(w.session_id) };
     var t = TERMS[w.term];
-    if (!t) return;
     // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
     // LaunchServices: an accessory app's own activate request is ignored by macOS.
-    spawn('/usr/bin/open', ['-b', t[1]]);
+    if (t) spawn('/usr/bin/open', ['-b', t[1]]);
     var id = tabId(w), src = FOCUS[w.term];
-    if (!src || !TAB_ID.test(id)) return;
-    var args = [];
-    src.forEach(function (l) { args.push('-e', l); });
-    spawn('/usr/bin/osascript', args.concat([id]));
+    var found = src && TAB_ID.test(id) ? output('/usr/bin/osascript', script(src).concat([id])) : '';
+    // null: the lookup failed or is still waiting on a permission prompt — the tab may be there.
+    if (found === '' && SESSION_ID.test(w.session_id)) openIn(w.term, 'claude attach ' + w.session_id.slice(0, 8), snoozeFile);
 }
-function spawn(path, args) {
+function newTask(path, args) {
     var task = $.NSTask.alloc.init;
     task.setLaunchPath(path);
     task.setArguments($(args));
-    task.setStandardOutput($.NSFileHandle.fileHandleWithNullDevice);
     task.setStandardError($.NSFileHandle.fileHandleWithNullDevice);
+    return task;
+}
+function spawn(path, args) {
+    var task = newTask(path, args);
+    task.setStandardOutput($.NSFileHandle.fileHandleWithNullDevice);
     task.launch;
+    return true;
+}
+// Trimmed stdout once the task exits 0, else null. The run loop keeps turning meanwhile, so the
+// menu stays live while macOS shows a permission prompt.
+function output(path, args) {
+    var task = newTask(path, args), pipe = $.NSPipe.pipe, end = Date.now() + 60000;
+    task.setStandardOutput(pipe);
+    task.launch;
+    while (task.isRunning && Date.now() < end) {
+        $.NSRunLoop.currentRunLoop.runUntilDate($.NSDate.dateWithTimeIntervalSinceNow(0.05));
+    }
+    if (task.isRunning || task.terminationStatus !== 0) return null;
+    var out = $.NSString.alloc.initWithDataEncoding(pipe.fileHandleForReading.readDataToEndOfFile, $.NSUTF8StringEncoding);
+    return ObjC.unwrap(out).trim();
+}
+// Each `wait` of the watcher exits on its stop file and the watcher session stops watching that
+// repo. Killing a `wait` instead would read as a failure: an error toast, then a restart.
+function stopWatcher(o) {
+    if (!o || !Array.isArray(o.dirs)) return;
+    var dirs = o.dirs.filter(function (d) {
+        return typeof d === 'string' && /\/watch-review$/.test(d) && d.indexOf('/../') < 0 && isDir(d)
+            && dataDirs.some(function (data) { return d.indexOf(data + '/') === 0; });
+    });
+    dirs.forEach(function (d) { $('').writeToFileAtomicallyEncodingError(d + '/stop', true, $.NSUTF8StringEncoding, null); });
+    var sid = str(o.session_id);
+    if (dirs.length && SESSION_ID.test(sid)) stopLater({ dirs: dirs, session_id: sid, tries: 0 });
+}
+function stopLater(o) {
+    $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(3, target, 'stopSession:', $(JSON.stringify(o)), false);
+}
+// A watcher session left running in the background (its user quit `claude`) has nobody to close
+// it once its waits are stopped. Stopped once its waits consumed their stop files, or after 15 s.
+function stopSession(o) {
+    if (!o || !Array.isArray(o.dirs) || !SESSION_ID.test(str(o.session_id))) return;
+    var fm = $.NSFileManager.defaultManager;
+    var pending = o.dirs.some(function (d) { return typeof d === 'string' && fm.fileExistsAtPath(d + '/stop'); });
+    if (pending && o.tries < 4) { o.tries++; stopLater(o); return; }
+    var list = parse(output('/usr/bin/env', ['claude', 'agents', '--json']) || '');
+    var bg = Array.isArray(list) && list.some(function (a) {
+        return a && a.kind === 'background' && a.sessionId === o.session_id;
+    });
+    if (bg) spawn('/usr/bin/env', ['claude', 'stop', o.session_id.slice(0, 8)]);
 }
 // `open-pr-watch.sh hide` argv, or null when a value is outside its shape.
 function hideArgs(o) {

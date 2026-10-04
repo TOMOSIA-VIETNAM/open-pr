@@ -107,9 +107,11 @@ watcher が起動すると、メニューバーに蛾のアイコンと進行中
 
 - pull request ごとに 1 行（watcher ごとにグループ化: `<folder> · <terminal>`）— グループの "Go to watcher tab" で
   その terminal のタブが前面に出ます（iTerm と Terminal では、macOS が一度だけ Automation の権限を求めた
-  あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます）。各行はその場で最新の
+  あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます。タブが閉じられた watcher は
+  `claude attach` で開き直します）。グループの "Stop watcher" はその watcher が監視する全リポジトリを止めます。各行はその場で最新の
   状態（レビュー中、指摘数付きの投稿済み、LGTM、ドラフト、回答待ち、失敗）を示し、常に pull request を開く、
-  その watcher が動いている terminal でセッションを開く、コマンドをコピーする、を選べます。
+  その watcher が動いている terminal でセッションを開く（iTerm・Terminal・Ghostty・WezTerm では新しいタブ、
+  それ以外の terminal では Terminal）、コマンドをコピーする、を選べます。
 - ポーリング間隔: 15 秒、30 秒、1・2・5 分、または各リポジトリの設定 — 数秒で反映。
 - スヌーズ: 30 分、1 時間、明日 9:00 まで、またはトーストを再びオンにする。
 

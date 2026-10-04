@@ -450,6 +450,23 @@ def _long_wait(w):
     return proc
 
 
+def test_the_menu_bars_stop_file_ends_wait_with_exit_11(w):
+    """Stop watcher writes it; a killed wait would read as a failure and be restarted."""
+    proc = _long_wait(w)
+    (w.sd / "stop").write_text("")
+    out, err = proc.communicate(timeout=20)
+    assert proc.returncode == 11 and "stopped from the menu bar" in err
+    assert out == "", "no events"
+    assert not (w.sd / "stop").exists(), "consumed"
+
+
+def test_a_stale_stop_file_does_not_stop_a_new_wait(w):
+    w.run("wait", "--once")
+    (w.sd / "stop").write_text("")
+    assert w.run("wait", "--once", check=False).returncode == 0
+    assert not (w.sd / "stop").exists()
+
+
 def test_a_second_wait_on_the_same_repo_is_refused(w):
     """Two waits would share state.json and split the triggers between them."""
     proc = _long_wait(w)
@@ -472,7 +489,7 @@ def test_a_running_wait_survives_an_edit_of_its_script(w):
     finally:
         proc.kill(); proc.wait()
 
-TERM_ENV = ("TERM_PROGRAM", "ITERM_SESSION_ID", "TERM_SESSION_ID")
+TERM_ENV = ("TERM_PROGRAM", "ITERM_SESSION_ID", "TERM_SESSION_ID", "CLAUDE_CODE_SESSION_ID")
 
 
 def watcher_env(w, **env):
@@ -485,10 +502,11 @@ def test_wait_records_the_terminal_tab_it_runs_in(w):
     where = w.repo / "sub"
     where.mkdir()
     w.env = watcher_env(w, TERM_PROGRAM="iTerm.app", ITERM_SESSION_ID="w0t0p3:1B2C-3D4E",
-                        TERM_SESSION_ID="other")
+                        TERM_SESSION_ID="other", CLAUDE_CODE_SESSION_ID="269289ac-1f2e-4d3c-9b8a-0123456789ab")
     r = w.run("wait", "--once", "--repo-dir", str(w.repo), cwd=where)
     rec = json.loads((w.sd / "watcher.json").read_text())
-    assert set(rec) == {"pid", "cwd", "term", "term_session", "tty", "repo_dir", "remote"}
+    assert set(rec) == {"pid", "cwd", "term", "term_session", "tty", "session_id", "repo_dir", "remote"}
+    assert rec["session_id"] == "269289ac-1f2e-4d3c-9b8a-0123456789ab", "what `claude attach` reopens"
     assert (rec["repo_dir"], rec["remote"]) == (str(w.repo), ""), "what the menu bar passes to hide"
     assert rec["cwd"] == str(where), "the directory the user runs the watcher from"
     assert rec["term"] == "iTerm.app" and rec["term_session"] == "w0t0p3:1B2C-3D4E"
@@ -504,10 +522,10 @@ def test_wait_records_the_terminal_tab_it_runs_in(w):
 
 @pytest.mark.parametrize("hostile", ['iTerm"$(touch pwned)', "a\nb", "x`id`", "a" * 200, "t;rm -rf ~"])
 def test_a_hostile_terminal_value_is_recorded_as_empty(w, hostile):
-    w.env = watcher_env(w, TERM_PROGRAM=hostile, ITERM_SESSION_ID=hostile)
+    w.env = watcher_env(w, TERM_PROGRAM=hostile, ITERM_SESSION_ID=hostile, CLAUDE_CODE_SESSION_ID=hostile)
     w.run("wait", "--once")
     rec = json.loads((w.sd / "watcher.json").read_text())
-    assert rec["term"] == "" and rec["term_session"] == ""
+    assert rec["term"] == "" and rec["term_session"] == "" and rec["session_id"] == ""
     assert not (w.repo / "pwned").exists() and not (w.sd / "pwned").exists()
 
 
@@ -810,22 +828,23 @@ def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
         except (OSError, ValueError):
             pass
 
-# osascript argv[11:] = the toast's focus, open command, term, term_session, tty.
+# osascript argv[11:] = the toast's focus, open command, term, term_session, tty, session_id.
 def test_notify_focus_hands_the_toast_where_a_click_goes(w):
     sp = w.spawn(3)
     (w.sd / "watcher.json").write_text(json.dumps(
-        {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p0:AB-12", "tty": "ttys004"}))
+        {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p0:AB-12", "tty": "ttys004",
+         "session_id": "269289ac-1f2e"}))
     url = "https://github.com/o/r/pull/3"
     w.run("notify", "--event", "question", "--text-file", w.prompt("PR #3 needs you", "q.txt"),
           "--pr", "3", "--url", url, "--focus", "session")
     rec = w.recorded("osascript")["argv"]
     assert rec[9] == url
-    assert rec[11:] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004"]
+    assert rec[11:] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e"]
 
 
 def test_notify_focus_defaults_to_the_pr_and_rejects_an_unknown_one(w):
     assert notify(w)["sent"] is True
-    assert w.recorded("osascript")["argv"][11:] == ["pr", "", "", "", ""], "no --pr, no watcher.json"
+    assert w.recorded("osascript")["argv"][11:] == ["pr", "", "", "", "", ""], "no --pr, no watcher.json"
     r = w.run("notify", "--event", "posted", "--text-file", w.prompt("x"), "--focus", "tab", check=False)
     assert r.returncode == 1 and "pr watcher session" in r.stderr
 
@@ -835,9 +854,9 @@ def test_notify_passes_no_open_command_or_tab_outside_their_shape(w):
     w.put_state({"cursor": None, "seen": [], "queue": [],
                  "sessions": {"3": {"runner": "claude", "open": "claude attach x; touch pwned"}}})
     (w.sd / "watcher.json").write_text(json.dumps(
-        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y"}))
+        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude"}))
     w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--pr", "3", "--focus", "session")
-    assert w.recorded("osascript")["argv"][11:] == ["session", "", "", "", ""]
+    assert w.recorded("osascript")["argv"][11:] == ["session", "", "", "", "", ""]
 
 
 def _minimal_path(w, tmp_path, with_notify_send):

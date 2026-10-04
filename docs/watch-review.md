@@ -107,9 +107,11 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 
 - one row per pull request, grouped by watcher (`<folder> · <terminal>`) — the group's "Go to watcher
   tab" brings that terminal tab to the front (iTerm and Terminal select the exact tab after macOS asks
-  once for Automation permission; otherwise the terminal app comes to the front); a row shows the latest
+  once for Automation permission; otherwise the terminal app comes to the front; a watcher whose tab was
+  closed is reopened with `claude attach`), and its "Stop watcher" ends every repo it watches; a row shows the latest
   state in place (reviewing, posted with counts, LGTM, draft, needs an answer, failed) and always offers:
-  open the pull request, open its session in the terminal that watcher runs in, copy the command;
+  open the pull request, open its session in the terminal that watcher runs in (a new tab of iTerm,
+  Terminal, Ghostty or WezTerm; any other terminal opens Terminal), copy the command;
 - poll every 15 s, 30 s, 1, 2 or 5 minutes, or each repo's setting — applies within seconds;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 

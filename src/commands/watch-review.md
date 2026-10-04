@@ -65,8 +65,9 @@ output's node with these answers — then `core/memory-commit.md`.
 
 `<watch> menubar`, then tell the user once, in `chat_language`: the repos watched; what asks for a
 review in each (a PR comment opening with its `trigger`, `@me` shown as `@<account>`); that they can say
-here `status`, `snooze <duration>`, a setting change, `stop`; on `started`/`running`, that the menu bar
-shows active reviews, recent toasts and snooze, and `/open-pr:menubar close` removes it.
+here `status`, `snooze <duration>`, a setting change, `stop`; to quit, `stop` then `/exit` (quitting
+while a `wait` runs keeps this session alive in the background); on `started`/`running`, that the menu
+bar shows active reviews, recent toasts and snooze, and `/open-pr:menubar close` removes it.
 
 Run 1 `<watch> wait` per watched repo, each its own background command; one exiting wakes you: 1 JSON
 per line, `repo` naming whose values to use. Run every `<watch>` call with the shell sandbox off where
@@ -76,6 +77,7 @@ there is one — inside it `wait` reaches no host and no session starts.
 |---|---|
 | 0 | handle every line, then run that repo's `wait` again |
 | 10 | another watcher on this machine has that repo: notify `error` and tell the user now — repo, the pid from stderr, its requests go to that watcher — and stop watching it here. FORBIDDEN: running it again |
+| 11 | stopped from the menu bar: stop watching that repo — no toast, no restart; once none is left, tell the user and that `/exit` closes this session |
 | any other | notify `error`; its stderr in chat now; its lines are NOT events (the next `wait` prints them again); run it again |
 
 Chat lines, notifications and questions name a PR `owner/repo#N`. Once its result is reported a
@@ -140,4 +142,4 @@ Per `{"event":"ready",…}` (a queued PR's turn): `<watch> next`; a PR printed �
 | a setting change | `Edit` that field in the repo it names (every watched repo when none) + `core/memory-commit.md` |
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
 | `remove #N` | `<watch> hide --pr N` for its repo |
-| stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say open review sessions keep running and how to open them |
+| stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say open review sessions keep running and how to open them, and that `/exit` now closes this session |
