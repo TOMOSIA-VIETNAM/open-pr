@@ -20,6 +20,8 @@
 ObjC.import('Cocoa');
 
 var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
+// A watcher row (a view item, so laid out by hand): height, and where its text starts.
+var ROW_H = 36, ROW_TEXT_X = 48;
 // Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
 var SUBTITLE_PAD = 100;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
@@ -31,7 +33,7 @@ var REMOTE = /^[A-Za-z0-9._-]+$/;
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000;
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {};
-var item = null, target = null, icons = {};
+var item = null, target = null, icons = {}, rowParts = {}, litRow = null;
 
 var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgtm_chat as lgtm); tints match open-pr-toast.js
     working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
@@ -101,8 +103,11 @@ ObjC.registerSubclass({
         'openURL:': { types: ['void', ['id']], implementation: function (s) { openURL(unwrapString(s.representedObject)); } },
         'copyText:': { types: ['void', ['id']], implementation: function (s) { copyText(unwrapString(s.representedObject)); } },
         'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(parse(unwrapString(s.representedObject))); } },
-        'goToTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
-        'stopWatcher:': { types: ['void', ['id']], implementation: function (s) { stopWatcher(parse(unwrapString(s.representedObject))); } },
+        // sender: a control inside a watcherRow view; its item carries { go, stop }
+        'goRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'go'); } },
+        'stopRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'stop'); } },
+        'menu:willHighlightItem:': { types: ['void', ['id', 'id']], implementation: function (m, mi) { highlightRow(mi); } },
+        'menuDidClose:': { types: ['void', ['id']], implementation: function () { highlightRow(null); } },
         'stopSession:': { types: ['void', ['id']], implementation: function (t) { stopSession(parse(unwrapString(t.userInfo))); } },
         'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
@@ -373,8 +378,82 @@ function headerView(repos, watchers, until) {
     return v;
 }
 
+// A view item gets neither the item's action nor the menu's highlight: a transparent button over
+// the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
+function watcherRow(title, sub, canGo) {
+    var stop = $.NSButton.buttonWithTitleTargetAction('Stop watcher', target, 'stopRow:');
+    stop.setBezelStyle($.NSBezelStyleInline);
+    stop.setControlSize($.NSControlSizeSmall);
+    stop.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
+    stop.sizeToFit;
+    var bw = stop.frame.size.width, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
+    var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
+    var w = Math.max(HEADER_W, ROW_TEXT_X + tw + 12 + bw + 14);
+    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
+    v.setAutoresizingMask($.NSViewWidthSizable);
+    var bg = $.NSVisualEffectView.alloc.initWithFrame($.NSMakeRect(5, 0, w - 10, ROW_H));
+    bg.setMaterial($.NSVisualEffectMaterialSelection);
+    bg.setState($.NSVisualEffectStateActive);
+    bg.setEmphasized(true);
+    bg.setWantsLayer(true);
+    bg.layer.setCornerRadius(4);
+    bg.setAutoresizingMask($.NSViewWidthSizable);
+    bg.setHidden(true);
+    v.addSubview(bg);
+    var iv = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
+    iv.setFrame($.NSMakeRect(ROW_TEXT_X - 23, (ROW_H - 16) / 2, 16, 16));
+    v.addSubview(iv);
+    var right = w - ROW_TEXT_X - bw - 26;
+    var t = label(clip(title), $.NSFont.menuFontOfSize(0), $.NSColor.labelColor, ROW_TEXT_X, ROW_H / 2);
+    var st = label(clip(sub), $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor, ROW_TEXT_X, ROW_H / 2 - 15);
+    [t, st].forEach(function (f) {
+        f.setFrame($.NSMakeRect(ROW_TEXT_X, f.frame.origin.y, right, 17));
+        f.setAutoresizingMask($.NSViewWidthSizable);
+        v.addSubview(f);
+    });
+    if (canGo) {
+        var hit = $.NSButton.buttonWithTitleTargetAction('', target, 'goRow:');
+        hit.setTransparent(true);
+        hit.setFrame($.NSMakeRect(0, 0, w - bw - 18, ROW_H));
+        hit.setAutoresizingMask($.NSViewWidthSizable);
+        hit.setToolTip('Go to watcher tab');
+        v.addSubview(hit);
+    } else {
+        t.setTextColor($.NSColor.disabledControlTextColor);
+    }
+    stop.setFrame($.NSMakeRect(w - bw - 14, (ROW_H - stop.frame.size.height) / 2, bw, stop.frame.size.height));
+    stop.setAutoresizingMask($.NSViewMinXMargin);
+    v.addSubview(stop);
+    rowParts[v.hash] = { bg: bg, icon: iv, title: t, sub: st, canGo: canGo };
+    return v;
+}
+function highlightRow(mi) {
+    if (litRow) paintRow(litRow, false);
+    litRow = null;
+    var v = mi && !mi.isNil() ? mi.view : null;
+    var p = v && !v.isNil() ? rowParts[v.hash] : null;
+    if (p && p.canGo) { litRow = p; paintRow(p, true); }
+}
+function paintRow(p, on) {
+    p.bg.setHidden(!on);
+    p.title.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.labelColor);
+    p.sub.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.secondaryLabelColor);
+    p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.labelColor);
+}
+function rowAction(sender, which) {
+    var mi = sender.enclosingMenuItem;
+    if (mi.isNil()) return;
+    var o = parse(unwrapString(mi.representedObject));
+    if (!mi.menu.isNil()) mi.menu.cancelTracking;
+    if (!o) return;
+    if (which === 'go') goToTab(o.go);
+    else stopWatcher(o.stop);
+}
+
 function build(s) {
     var m = newMenu('open-pr');
+    m.setDelegate(target);
+    rowParts = {}; litRow = null;
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
     head.setView(headerView(s.repos, s.watchers.length, until));
@@ -385,13 +464,12 @@ function build(s) {
     s.watchers.forEach(function (w) {
         // A record from before watcher.json existed has no tab to show.
         if (w.key) {
-            var wi = add(m, w.label, TERMS[w.term] || SESSION_ID.test(w.session_id) ? 'goToTab:' : null,
-                         JSON.stringify({ term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id }));
-            subtitle(wi, w.repos.join(', '));
-            wi.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
-            wi.setToolTip('Go to watcher tab');
-            add(m, 'Stop watcher', 'stopWatcher:', JSON.stringify({ dirs: w.dirs, session_id: w.session_id }))
-                .setIndentationLevel(1);
+            var go = TERMS[w.term] || SESSION_ID.test(w.session_id)
+                ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id } : null;
+            var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(w.label, null, '');
+            wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, session_id: w.session_id } })));
+            wi.setView(watcherRow(w.label, w.repos.join(', '), !!go));
+            m.addItem(wi);
         }
         if (!w.rows.length) add(m, 'No review yet').setIndentationLevel(w.key ? 1 : 0);
         w.rows.forEach(function (x) {

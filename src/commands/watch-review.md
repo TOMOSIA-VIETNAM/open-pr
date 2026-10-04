@@ -97,14 +97,17 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
    --comment-id <comment_id> --kind <kind> --body-file <it>` (+ `--thread-id <thread_id>` when set).
    `claimed` ⇒ go on; `taken <login>` ⇒ 1 chat line (who has it), nothing else; exit ≠ 0 ⇒ its stderr
    in chat, nothing else.
-5. `Write` `<prompts>/pr-N.hint.md` = the comment `body`, then `<prompts>/pr-N.md`:
-   - `claude`: `/open-pr:review <url> --status-file <status_file> --hint-file <hint file>`
-   - any other runner: `ROOT: <ROOT>. Read <ROOT>/../adapters/root.md, then <ROOT>/commands/review.md and obey it VERBATIM. ARGUMENTS: <url> --status-file <status_file> --hint-file <hint file> --unattended`
+5. Step 3 found a session ⇒ the `body` asks to re-check its findings ⇒ resume; a review from scratch ⇒
+   `--fresh`; unsure ⇒ ask — `New session (Recommended)` (the PR may have moved on; an old context
+   misleads) or `Resume <open>` (keeps what it learned).
+6. `Write` `<prompts>/pr-N.hint.md` = the comment `body`, then `<prompts>/pr-N.md`:
+   - resume (the session holds the procedure): `New commits on <url> since your last review: review
+     them. --status-file <status_file> --hint-file <hint file>` (+ ` --unattended` for a non-`claude`
+     runner)
+   - new session, `claude`: `/open-pr:review <url> --status-file <status_file> --hint-file <hint file>`
+   - new session, other runner: `ROOT: <ROOT>. Read <ROOT>/../adapters/root.md, then <ROOT>/commands/review.md and obey it VERBATIM. ARGUMENTS: <url> --status-file <status_file> --hint-file <hint file> --unattended`
      — `<ROOT>` absolute.
-6. Step 3 found a session ⇒ the `body` asks to re-check its findings ⇒ resume; a
-   review from scratch ⇒ `--fresh`; unsure ⇒ ask — `New session (Recommended)` (the PR may have moved
-   on; an old context misleads) or `Resume <open>` (keeps what it learned).
-   `<watch> spawn --runner <runner> --pr N --name "review <owner>/<repo>#N" --prompt-file <prompt file>
+7. `<watch> spawn --runner <runner> --pr N --name "review <owner>/<repo>#N" --prompt-file <prompt file>
    --url <url> --cwd <pwd>` (+ `--fresh`):
    - `queued` ⇒ 1 chat line with its `reason`; `ready` brings it back.
    - started ⇒ 1 chat line with its `open`; `warning` ⇒ also in chat.
@@ -129,7 +132,7 @@ Per `{"event":"session",…}` (it carries `open`):
 
 Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`.
 
-Per `{"event":"ready",…}` (a queued PR's turn): `<watch> next`; a PR printed ⇒ step 6 with the
+Per `{"event":"ready",…}` (a queued PR's turn): `<watch> next`; a PR printed ⇒ step 7 with the
 `prompt_file` and `name` it prints.
 
 ## User messages while watching
