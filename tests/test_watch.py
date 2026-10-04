@@ -674,6 +674,7 @@ def test_fresh_opens_a_new_session_and_leaves_the_old_one_running(w):
     ("done", {"state": "draft"}, "draft"),
     ("done", {"state": "lgtm_chat"}, "lgtm_chat"),
     ("done", {"state": "nothing"}, "nothing"),
+    ("done", {"state": "answered"}, "answered"),
     ("done", None, "failed"),
 ])
 def test_status_maps_each_claude_state(w, claude_state, status_body, want):

@@ -35,7 +35,8 @@ Comment on the pull request:
 /open-pr please look closely at the migration
 ```
 
-Text after `/open-pr` is a hint about where to look. It is treated as data: it cannot change how the
+Text after `/open-pr` is a hint about where to look — or a question (`/open-pr why is this lock
+needed?`), answered in the comment's thread instead of a review. It is treated as data: it cannot change how the
 review is done, what gets posted, or any setting.
 
 With the "a mention of me" trigger, a comment opening with `@<your login>` asks instead, so no tool

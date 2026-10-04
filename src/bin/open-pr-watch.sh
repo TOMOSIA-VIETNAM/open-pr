@@ -20,7 +20,7 @@ SELF_DIR=${OPEN_PR_WATCH_SELF_DIR:-$(cd "$(dirname "$0")" && pwd)}
 RUNNERS="claude codex gemini cursor antigravity"
 EVENTS="review_started question draft_ready posted re_review error"
 # States that end a session's reporting (see `finished` under state).
-TERMINAL="posted draft lgtm_chat nothing failed stopped"
+TERMINAL="posted draft lgtm_chat nothing answered failed stopped"
 # Longest rate-limit backoff; the menu bar counts a repo watched while its heartbeat is < 3x this.
 BACKOFF_CAP=900
 
@@ -314,7 +314,7 @@ from_status_file() {   # $1 pr
     f=$(status_file "$1")
     s=$(jq -r '.state // empty' "$f" 2>/dev/null || true)
     case "$s" in
-        posted|draft|lgtm_chat|nothing|failed|question) printf '%s' "$s" ;;
+        posted|draft|lgtm_chat|nothing|answered|failed|question) printf '%s' "$s" ;;
         *) printf 'failed' ;;
     esac
 }
@@ -323,7 +323,7 @@ status_note() {   # why from_status_file said failed without the file saying so
     [ -s "$f" ] || { printf 'session ended without writing %s' "$f"; return 0; }
     s=$(jq -r '.state // empty' "$f" 2>/dev/null || true)
     case "$s" in
-        posted|draft|lgtm_chat|nothing|failed|question) printf '' ;;
+        posted|draft|lgtm_chat|nothing|answered|failed|question) printf '' ;;
         *) printf 'status file holds no known state' ;;
     esac
 }
