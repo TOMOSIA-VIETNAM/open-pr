@@ -1,10 +1,17 @@
-# Watch a repo and review on request
+# Watch a repo: review on request, fix your own PRs
 
 [← README](../README.md)
 
-`/open-pr:watch` turns the terminal you run it in into a watcher for one or more repositories. A
-developer asks for a review by commenting on the pull request; your machine opens a separate review
-session for it and tells you when something needs you.
+`/open-pr:watch` turns the terminal you run it in into a watcher for one or more repositories, in two
+roles at once:
+
+- **review** — a developer asks for a review by commenting on the pull request; your machine opens a
+  separate review session for it.
+- **fix** — a new review on one of your own pull requests toasts its findings with "Fix now"; one click
+  opens a separate fix session for it.
+
+It tells you whenever something needs you. `/open-pr:watch review` or `/open-pr:watch fix` keeps one
+role only.
 
 ## Before the first run
 
@@ -13,7 +20,8 @@ session for it and tells you when something needs you.
 2. Run `/open-pr:watch` inside a repository, or in a workspace folder holding several. It lists
    every repository and remote found there (a clone with a remote per host is listed once per remote)
    and asks which to watch; those with review memory set up are recommended.
-   `/open-pr:watch owner/api owner/web` (or PR URLs) picks directly.
+   `/open-pr:watch owner/api owner/web` (or PR URLs) picks directly; PR URLs also limit the fix role to
+   those pull requests.
 3. The first run in a repository asks how many review sessions may be active at once, what asks for a
    review (`/open-pr` or a mention of you) and which toasts you want, and saves the answers in that
    repository's `settings.json`.
@@ -22,8 +30,8 @@ session for it and tells you when something needs you.
    watcher checks at start and, if it is not, tells you to open `claude` there once and accept the
    trust prompt.
 
-Each watched repository keeps its own settings, including its session limit. A repository has at most
-one watcher per machine: a second one names the process that already has it and leaves that repository
+Each watched repository keeps its own settings, including its session limit (review and fix sessions
+share it). A repository has at most one watcher per machine, serving both roles from one poll: a second one names the process that already has it and leaves that repository
 alone. When the host stays unreachable (no network, an expired login), the watcher tells you.
 
 ## Asking for a review
@@ -75,6 +83,24 @@ Comments the plugin posts never trigger; your own do, so one person can be both 
 - A merged or closed pull request leaves the menu bar within 10 minutes, and its session is stopped
   once idle (its conversation is kept).
 
+## Fixing your own pull requests
+
+The fix role watches the pull requests you opened (the author is the account the watcher runs as), or
+only those you named. A pull request also joins when you ask for a review of it yourself — comment
+`/open-pr` on your own pull request, and its findings come back to you.
+
+1. A new review from this plugin lands with findings nobody replied to yet: a toast says
+   "#12: 2 🟠 SHOULD FIX, 4 🔵 SUGGESTION" with **Fix now**; the menu bar row offers the same.
+2. Click **Fix now** (or say `fix #12` to the watcher). A session named `fix <owner>/<repo>#12` runs
+   `/open-pr:fix` in its own worktree of the pull request's branch — the tree you are working in is never
+   touched. 🔵 and 📝 findings still ask you first; with `auto_push` off it asks before pushing.
+3. When it is done, the watcher toasts the result and asks whether to ask for a re-review. Only on
+   your yes does it reply on the pull request with the trigger (`/open-pr re-review`, or a mention of
+   the reviewer when the repository uses mentions) — it never asks for one on its own.
+
+Nothing is fixed without your click. `remove #12` (or the row's "Remove from list") takes a pull
+request out of both roles.
+
 ## Opening a session
 
 A toast in the top-right corner says what is happening — "Reviewing PR #12", "Posted review on PR #12 —
@@ -103,22 +129,24 @@ configured for that platform; the watcher grants none.
 
 ## Menu bar (macOS)
 
-A watcher puts the moth in the menu bar when it starts, with the number of reviews in progress. There
+A watcher puts the moth in the menu bar when it starts, with the number of sessions in progress. There
 is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
 Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 
-- one row per pull request, grouped by watcher (`<folder> · <terminal>`) — the group's "Go to watcher
+- one row per pull request and role, grouped by watcher (`<folder> · <terminal>`), review rows first,
+  then fix rows, each labelled `· review` or `· fix` — the group's "Go to watcher
   tab" brings that terminal tab to the front (iTerm and Terminal select the exact tab after macOS asks
   once for Automation permission; otherwise the terminal app comes to the front; a watcher whose tab was
   closed is reopened with `claude attach`), and its "Stop watcher" ends every repo it watches; a row shows the latest
-  state in place (reviewing, posted with counts, LGTM, draft, needs an answer, failed) and always offers:
+  state in place (reviewing, posted with counts, LGTM, draft, needs an answer, new findings, fixing,
+  fixed, failed) and always offers: **Fix now** on a row with new findings,
   open the pull request, open its session in the terminal that watcher runs in (a new tab of iTerm,
   Terminal, Ghostty or WezTerm; any other terminal opens Terminal), copy the command;
 - poll every 15 s, 30 s, 1, 2 or 5 minutes, or each repo's setting — applies within seconds;
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
-A row's "Remove from list" hides it, a merged or closed pull request leaves on its own within 10 minutes,
-and a new request on it brings the row back.
+A row's "Remove from list" hides the pull request and takes it out of the fix role, a merged or closed
+pull request leaves on its own within 10 minutes, and a new request on it brings the row back.
 
 On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
 
@@ -126,7 +154,9 @@ On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
 
 | say | effect |
 |---|---|
-| `status` | one line per pull request with its state and open command |
+| `status` | one line per session (pull request, role, state) with its open command |
+| `fix #12` | opens the fix session, as **Fix now** does |
+| `remove #12` / `unwatch #12` | takes the pull request off the menu bar and out of the fix role |
 | `snooze 2h` / `resume toasts` | no toasts on this machine until then — the same switch as the toast's "1h" and the menu bar's snooze; the queue keeps running |
 | a setting change | saved to `settings.json` |
 | start a fresh session for PR 12 | the next trigger on it opens a new session |
@@ -134,9 +164,13 @@ On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
 
 ## Rate limits
 
-Each poll costs three API calls on GitHub; on GitLab and Bitbucket, one plus one per pull request
-updated since the last poll. When the host reports a rate limit, the watcher doubles its interval (up
-to 15 minutes) and returns to `poll_interval_seconds` after the next successful poll.
+One poll serves both roles. On GitHub it costs three conditional requests: while nothing changed the
+host answers `304 Not Modified`, which does not count against the limit; the fix role adds one call per
+own pull request updated since the last poll. On GitLab and Bitbucket a poll costs one call plus one per
+pull request updated since the last poll, findings included. With no session active and nothing new for
+10 minutes, the watcher polls every 3 minutes (never faster than the setting; a machine-wide "Poll
+every" choice always holds). When the host reports a rate limit, the watcher doubles its interval (up to
+15 minutes) and returns to `poll_interval_seconds` after the next successful poll.
 
 ## Settings
 
@@ -144,12 +178,13 @@ Stored in `<data>/<repo>/settings.json` under `watch`:
 
 | field | default | meaning |
 |---|---|---|
-| `max_concurrent` | `5` | review sessions active at once (running or waiting for an answer) |
+| `max_concurrent` | `5` | sessions active at once, review and fix together (running or waiting for an answer) |
 | `poll_interval_seconds` | `60` | how often the pull requests are checked |
 | `notify.review_started` | `true` | toast: a review session opened |
 | `notify.question` | `true` | toast: a session needs an answer, or failed |
 | `notify.draft_ready` | `true` | toast: a draft review waits for your approval |
 | `notify.posted` | `true` | toast: a review was posted, or LGTM |
 | `notify.re_review` | `true` | toast: an existing session was resumed for a re-review |
+| `notify.findings` | `true` | toast: a new review on a pull request in the fix role, with "Fix now" |
 | `notify.error` | `true` | toast: something failed (a claim, a session, the poll) — check the watcher's terminal |
 | `trigger` | `/open-pr` | what asks for a review: `/open-pr`, or `@me` for a mention of the account the watcher runs as |

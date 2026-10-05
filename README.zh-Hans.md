@@ -142,8 +142,8 @@ flowchart LR
 | `/open-pr:fix <PR_URL>` | 读取 findings → 判断对错 → 修复 → **1** 个 commit → 回复。🔵 / 📝 一律先问过你 |
 | `/open-pr:upgrade` | 把本地配置升到当前 schema —— 先给出摘要再询问；你不同意就什么都不写 |
 | `/open-pr:clean` | 删除 `review` 检出的 worktree（会先询问）。memory / 设置不受影响 |
-| `/open-pr:watch` | 监视一个或多个仓库中以 `/open-pr` 开头的 PR 评论，在本机为每个 PR 打开 **1** 个评审会话；你可以打开会话回答问题或批准草稿。[详情](./docs/zh-Hans/watch.md) |
-| `/open-pr:menubar` | macOS：在菜单栏显示进行中的评审、最近的 toast 和暂停提醒；`/open-pr:menubar close` 关闭 |
+| `/open-pr:watch [review\|fix]` | 监视一个或多个仓库：以 `/open-pr` 开头的 PR 评论会在本机为该 PR 打开 **1** 个评审会话；你自己的 PR 收到新评审时，toast 会列出发现并附带 "Fix now"，在专属 worktree 中打开 **1** 个修复会话；你可以打开会话回答或批准。[详情](./docs/zh-Hans/watch.md) |
+| `/open-pr:menubar` | macOS：在菜单栏显示进行中的评审与修复、"Fix now"、最近的 toast 和暂停提醒；`/open-pr:menubar close` 关闭 |
 | `/open-pr:feedback` | 把 **本插件** 的问题报到它自己的 issue tracker —— 会剥掉一切能识别你仓库的信息，并在发出前先给你看 |
 
 > [!WARNING]

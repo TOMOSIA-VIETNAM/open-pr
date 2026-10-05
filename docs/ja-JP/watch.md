@@ -1,10 +1,15 @@
-# リポジトリを監視し、依頼があればレビューする
+# リポジトリを監視する: 依頼があればレビュー、自分の PR は修正
 
 [← README](../../README.ja-JP.md)
 
-`/open-pr:watch` は、実行したターミナルを 1 つ以上のリポジトリの watcher にします。開発者が
-pull request にコメントしてレビューを依頼すると、あなたのマシンがその pull request 専用のレビュー
-セッションを開き、あなたの対応が必要なときに知らせます。
+`/open-pr:watch` は、実行したターミナルを 1 つ以上のリポジトリの watcher にし、2 つの役割を同時に担います:
+
+- **review** — 開発者が pull request にコメントしてレビューを依頼すると、あなたのマシンがその pull request
+  専用のレビューセッションを開きます。
+- **fix** — あなた自身の pull request に新しいレビューが付くと、指摘をトーストで "Fix now" 付きで知らせ、
+  1 クリックでその pull request 専用の修正セッションを開きます。
+
+対応が必要なときは知らせます。`/open-pr:watch review` または `/open-pr:watch fix` で片方の役割だけにできます。
 
 ## 初回実行の前に
 
@@ -13,7 +18,8 @@ pull request にコメントしてレビューを依頼すると、あなたの�
 2. リポジトリ内、または複数のリポジトリを含むワークスペースで `/open-pr:watch` を実行します。
    見つかったすべてのリポジトリとリモートを一覧にし（ホストごとにリモートを持つクローンはリモートごとに
    表示）、監視するものを尋ねます。レビュー memory 設定済みのものが推奨されます。
-   `/open-pr:watch owner/api owner/web`（または PR の URL）で直接指定できます。
+   `/open-pr:watch owner/api owner/web`（または PR の URL）で直接指定できます。PR の URL は fix の役割も
+   その pull request だけに絞ります。
 3. リポジトリでの初回実行では、同時にアクティブにできるレビューセッションの数、レビューを依頼する方法
    （`/open-pr` またはあなたへのメンション）、受け取りたいトーストを尋ね、回答をそのリポジトリの
    `settings.json` に保存します。
@@ -22,8 +28,8 @@ pull request にコメントしてレビューを依頼すると、あなたの�
    workspace でなければなりません。watcher は起動時に確認し、そうでなければ、そこで一度 `claude` を開いて
    trust の確認を承認するよう伝えます。
 
-監視する各リポジトリは自分の設定（セッション数の上限を含む）を持ちます。1 台のマシンで 1 つのリポジトリを
-監視する watcher は 1 つだけです。2 つ目はすでに監視しているプロセスを伝え、そのリポジトリには触れません。
+監視する各リポジトリは自分の設定（セッション数の上限を含み、レビューと修正のセッションで共有）を持ちます。
+1 台のマシンで 1 つのリポジトリを監視する watcher は 1 つだけで、1 回のポーリングで両方の役割をこなします。2 つ目はすでに監視しているプロセスを伝え、そのリポジトリには触れません。
 ホストに接続できない状態が続くと（ネットワークなし、ログイン期限切れ）、watcher が知らせます。
 
 ## レビューを依頼する
@@ -73,6 +79,24 @@ pull request にコメントします:
 - マージまたはクローズされた pull request は 10 分以内にメニューバーから消え、そのセッションはアイドルになった
   時点で停止されます（会話は残ります）。
 
+## 自分の pull request を修正する
+
+fix の役割は、あなたが作成した pull request（作成者 = watcher を実行しているアカウント）、または指定した
+pull request だけを監視します。自分の pull request に自分でレビューを依頼した場合も加わります — 自分の
+pull request に `/open-pr` とコメントすれば、その指摘があなたのもとに戻ってきます。
+
+1. まだ誰も返信していない指摘を含む、このプラグインの新しいレビューが付くと、トーストが
+   "#12: 2 🟠 SHOULD FIX, 4 🔵 SUGGESTION" と **Fix now** を表示します。メニューバーの行にも同じものがあります。
+2. **Fix now** をクリック（または watcher に `fix #12` と伝える）すると、`fix <owner>/<repo>#12` という名前の
+   セッションが pull request のブランチ専用の worktree で `/open-pr:fix` を実行します — 作業中のツリーには
+   一切触れません。🔵 と 📝 は引き続き先に確認し、`auto_push` がオフなら push の前に尋ねます。
+3. 終わると watcher が結果をトーストで知らせ、再レビューを依頼するか尋ねます。あなたが同意したときだけ、
+   pull request にトリガー（`/open-pr re-review`、リポジトリがメンションを使う場合はレビュアーへのメンション）
+   で返信します — 自分から依頼することはありません。
+
+クリックしない限り何も修正されません。`remove #12`（または行の "Remove from list"）で pull request を両方の
+役割から外せます。
+
 ## セッションを開く
 
 画面右上のトーストが、いま何が起きているかを知らせます — "Reviewing PR #12"、"Posted review on PR #12 —
@@ -101,21 +125,23 @@ watcher は shell sandbox の外で動きます。sandbox の中ではポーリ�
 
 ## メニューバー（macOS）
 
-watcher が起動すると、メニューバーに蛾のアイコンと進行中のレビュー数が表示されます。マシン全体で 1 つだけで、
+watcher が起動すると、メニューバーに蛾のアイコンと進行中のセッション数が表示されます。マシン全体で 1 つだけで、
 すべての watcher が対象です。`/open-pr:menubar close`（またはメニューの Quit）まで残り、`/open-pr:menubar`
 で再表示できます。メニューには次の内容が並びます:
 
-- pull request ごとに 1 行（watcher ごとにグループ化: `<folder> · <terminal>`）— グループの "Go to watcher tab" で
+- pull request と役割ごとに 1 行（watcher ごとにグループ化: `<folder> · <terminal>`、レビューの行が先で修正の行が
+  後、各行に `· review` または `· fix` のラベル）— グループの "Go to watcher tab" で
   その terminal のタブが前面に出ます（iTerm と Terminal では、macOS が一度だけ Automation の権限を求めた
   あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます。タブが閉じられた watcher は
   `claude attach` で開き直します）。グループの "Stop watcher" はその watcher が監視する全リポジトリを止めます。各行はその場で最新の
-  状態（レビュー中、指摘数付きの投稿済み、LGTM、ドラフト、回答待ち、失敗）を示し、常に pull request を開く、
+  状態（レビュー中、指摘数付きの投稿済み、LGTM、ドラフト、回答待ち、新しい指摘、修正中、修正済み、失敗）を
+  示し、常に、新しい指摘のある行では **Fix now**、pull request を開く、
   その watcher が動いている terminal でセッションを開く（iTerm・Terminal・Ghostty・WezTerm では新しいタブ、
   それ以外の terminal では Terminal）、コマンドをコピーする、を選べます。
 - ポーリング間隔: 15 秒、30 秒、1・2・5 分、または各リポジトリの設定 — 数秒で反映。
 - スヌーズ: 30 分、1 時間、明日 9:00 まで、またはトーストを再びオンにする。
 
-行の "Remove from list" でその行を隠せます。マージまたはクローズされた pull request は 10 分以内に自動で消え、
+行の "Remove from list" でその pull request を隠し、fix の役割からも外します。マージまたはクローズされた pull request は 10 分以内に自動で消え、
 その pull request に新しい依頼が来ると行が戻ります。
 
 Windows と Linux では、チャットで watcher に頼んでください（`status`、`snooze 1h`）。
@@ -124,16 +150,22 @@ Windows と Linux では、チャットで watcher に頼んでください（`s
 
 | 言うこと | 効果 |
 |---|---|
-| `status` | pull request ごとに 1 行、状態と開くコマンド付き |
+| `status` | セッションごとに 1 行（pull request、役割、状態）、開くコマンド付き |
+| `fix #12` | **Fix now** と同じく修正セッションを開く |
+| `remove #12` / `unwatch #12` | pull request をメニューバーと fix の役割から外す |
 | `snooze 2h` / `resume toasts` | その時刻までこのマシンでトーストなし — トーストの "1h" やメニューバーのスヌーズと同じスイッチ。キューは動き続ける |
 | 設定の変更 | `settings.json` に保存 |
 | PR 12 は新しいセッションで | その PR の次の起動で新しいセッションを開く |
-| `stop` | 監視を停止。開いているレビューセッションは動き続ける |
+| `stop` | 監視を停止。開いているセッションは動き続ける |
 
 ## レート制限
 
-ポーリング 1 回ごとの API 呼び出しは、GitHub では 3 回、GitLab と Bitbucket では 1 回に加えて前回の
-ポーリング以降に更新された pull request 1 件ごとに 1 回です。ホストがレート制限を返すと、watcher は間隔を
+1 回のポーリングで両方の役割をこなします。GitHub では条件付きリクエスト 3 回で、何も変わっていなければホストは
+`304 Not Modified` を返し、これはレート制限に数えられません。fix の役割では、前回のポーリング以降に更新された
+自分の pull request 1 件ごとに 1 回が加わります。GitLab と Bitbucket では 1 回に加えて、前回のポーリング以降に
+更新された pull request 1 件ごとに 1 回で、指摘もそこに含まれます。アクティブなセッションがなく 10 分間何も
+新しくなければ、watcher は 3 分ごとにポーリングします（設定より速くはならず、マシン全体の "Poll every" の選択は
+常に優先されます）。ホストがレート制限を返すと、watcher は間隔を
 2 倍にし（最大 15 分）、次にポーリングが成功した後で `poll_interval_seconds` に戻ります。
 
 ## Setting
@@ -142,12 +174,13 @@ Windows と Linux では、チャットで watcher に頼んでください（`s
 
 | field | 既定値 | 意味 |
 |---|---|---|
-| `max_concurrent` | `5` | 同時にアクティブなレビューセッション数（実行中または回答待ち） |
+| `max_concurrent` | `5` | 同時にアクティブなセッション数、レビューと修正の合計（実行中または回答待ち） |
 | `poll_interval_seconds` | `60` | pull request を確認する間隔 |
 | `notify.review_started` | `true` | トースト: レビューセッションが開いた |
 | `notify.question` | `true` | トースト: セッションが回答を必要としている、または失敗した |
 | `notify.draft_ready` | `true` | トースト: ドラフトのレビューがあなたの承認を待っている |
 | `notify.posted` | `true` | トースト: レビューが投稿された、または LGTM |
 | `notify.re_review` | `true` | トースト: 既存のセッションが再レビューのために resume された |
+| `notify.findings` | `true` | トースト: fix の役割の pull request に新しいレビュー、"Fix now" 付き |
 | `notify.error` | `true` | トースト: 何かが失敗した（claim、セッション、ポーリング）— watcher のターミナルを確認 |
 | `trigger` | `/open-pr` | レビューを依頼する方法: `/open-pr`、または watcher を実行しているアカウントへのメンションなら `@me` |

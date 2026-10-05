@@ -1,10 +1,17 @@
-# Theo dõi repo và review khi được yêu cầu
+# Theo dõi repo: review khi được yêu cầu, fix PR của chính bạn
 
 [← README](../../README.vi-VN.md)
 
-`/open-pr:watch` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo. Developer
-yêu cầu review bằng cách comment trên pull request; máy bạn mở một session review riêng cho pull request
-đó và báo bạn khi có việc cần bạn.
+`/open-pr:watch` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo, đảm nhận cùng lúc
+hai vai:
+
+- **review** — developer yêu cầu review bằng cách comment trên pull request; máy bạn mở một session review
+  riêng cho pull request đó.
+- **fix** — một review mới trên pull request của chính bạn hiện toast các finding kèm nút "Fix now"; một
+  click mở một session fix riêng cho pull request đó.
+
+Watcher báo bạn mỗi khi có việc cần bạn. `/open-pr:watch review` hoặc `/open-pr:watch fix` chỉ giữ một
+vai.
 
 ## Trước lần chạy đầu tiên
 
@@ -13,7 +20,8 @@ yêu cầu review bằng cách comment trên pull request; máy bạn mở một
 2. Chạy `/open-pr:watch` trong một repo, hoặc trong thư mục workspace chứa nhiều repo. Lệnh liệt
    kê mọi repo và remote tìm thấy ở đó (clone có mỗi host một remote được liệt kê theo từng remote) rồi
    hỏi theo dõi những repo nào; repo đã thiết lập review memory được đề xuất.
-   `/open-pr:watch owner/api owner/web` (hoặc URL của PR) chọn thẳng.
+   `/open-pr:watch owner/api owner/web` (hoặc URL của PR) chọn thẳng; URL của PR còn giới hạn vai fix vào
+   đúng những pull request đó.
 3. Lần chạy đầu trong một repo hỏi tối đa bao nhiêu session review được active cùng lúc, cái gì yêu cầu
    review (`/open-pr` hay một lần mention bạn) và bạn muốn nhận những toast nào, rồi lưu câu trả lời vào
    `settings.json` của repo đó.
@@ -21,8 +29,8 @@ yêu cầu review bằng cách comment trên pull request; máy bạn mở một
    cùng thư mục dữ liệu, cùng trust. Trên Claude Code, thư mục đó phải là trusted workspace; watcher kiểm
    tra khi khởi động và, nếu chưa, bảo bạn mở `claude` ở đó một lần rồi chấp nhận lời hỏi trust.
 
-Mỗi repo được theo dõi giữ setting riêng, kể cả giới hạn session. Mỗi repo có tối đa một watcher trên một
-máy: watcher thứ hai báo tiến trình nào đang giữ repo rồi bỏ qua repo đó. Khi host không kết nối được kéo
+Mỗi repo được theo dõi giữ setting riêng, kể cả giới hạn session (session review và fix dùng chung). Mỗi
+repo có tối đa một watcher trên một máy, phục vụ cả hai vai bằng một lượt poll: watcher thứ hai báo tiến trình nào đang giữ repo rồi bỏ qua repo đó. Khi host không kết nối được kéo
 dài (mất mạng, login hết hạn), watcher báo cho bạn.
 
 ## Yêu cầu review
@@ -75,6 +83,24 @@ developer vừa là reviewer.
 - Pull request đã merge hoặc đã đóng sẽ rời menu bar trong vòng 10 phút, và session của nó được stop khi
   idle (hội thoại vẫn được giữ).
 
+## Fix pull request của chính bạn
+
+Vai fix theo dõi các pull request bạn tạo (tác giả là account mà watcher đang chạy), hoặc chỉ những pull
+request bạn nêu tên. Một pull request cũng được thêm vào khi chính bạn yêu cầu review nó — comment
+`/open-pr` trên pull request của mình, và finding của nó sẽ quay về với bạn.
+
+1. Một review mới của plugin có finding chưa ai reply: toast hiện "#12: 2 🟠 SHOULD FIX, 4 🔵 SUGGESTION"
+   kèm **Fix now**; dòng tương ứng trên menu bar cũng có.
+2. Click **Fix now** (hoặc nói `fix #12` với watcher). Một session tên `fix <owner>/<repo>#12` chạy
+   `/open-pr:fix` trong worktree riêng của nhánh pull request — cây thư mục bạn đang làm dở không bao giờ
+   bị đụng tới. Finding 🔵 và 📝 vẫn hỏi bạn trước; khi `auto_push` tắt, session hỏi trước khi push.
+3. Xong việc, watcher báo kết quả bằng toast và hỏi có yêu cầu re-review không. Chỉ khi bạn đồng ý, nó mới
+   reply trên pull request bằng trigger (`/open-pr re-review`, hoặc mention reviewer khi repo dùng
+   mention) — nó không bao giờ tự yêu cầu.
+
+Không có gì được fix nếu bạn chưa click. `remove #12` (hoặc "Remove from list" trên dòng đó) đưa pull
+request ra khỏi cả hai vai.
+
 ## Mở một session
 
 Một toast ở góc trên bên phải cho biết chuyện gì đang diễn ra — "Reviewing PR #12", "Posted review on PR
@@ -103,22 +129,24 @@ Claude Code treo ở bước khởi động. Session non-interactive dùng setti
 
 ## Menu bar (macOS)
 
-Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số review đang chạy. Cả máy chỉ có một, bao quát
+Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số session đang chạy. Cả máy chỉ có một, bao quát
 mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
 `/open-pr:menubar` đưa nó trở lại. Menu của nó liệt kê:
 
-- mỗi pull request một dòng, nhóm theo watcher (`<folder> · <terminal>`) — mục "Go to watcher tab" của nhóm đưa
+- mỗi pull request và vai một dòng, nhóm theo watcher (`<folder> · <terminal>`), dòng review trước rồi
+  tới dòng fix, mỗi dòng gắn nhãn `· review` hoặc `· fix` — mục "Go to watcher tab" của nhóm đưa
   tab terminal đó lên trước (iTerm và Terminal chọn đúng tab sau khi macOS hỏi xin quyền Automation một
   lần; nếu không thì ứng dụng terminal được đưa lên trước; watcher đã bị đóng tab được mở lại bằng
   `claude attach`), còn "Stop watcher" của nhóm dừng theo dõi mọi repo của watcher đó; mỗi dòng hiện trạng thái mới nhất ngay tại
-  chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, lỗi) và luôn có: mở pull request,
+  chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, có finding mới, đang fix, đã fix,
+  lỗi) và luôn có: **Fix now** trên dòng có finding mới, mở pull request,
   mở session trong terminal mà watcher đó đang chạy (tab mới của iTerm, Terminal, Ghostty hoặc WezTerm;
   terminal khác thì mở Terminal), copy command;
 - poll mỗi 15 giây, 30 giây, 1, 2 hoặc 5 phút, hoặc theo setting của từng repo — có hiệu lực sau vài giây;
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
-"Remove from list" trên một dòng sẽ ẩn dòng đó, pull request đã merge hoặc đã đóng tự rời danh sách trong
-vòng 10 phút, và một yêu cầu mới trên pull request đó sẽ đưa dòng trở lại.
+"Remove from list" trên một dòng sẽ ẩn pull request đó và đưa nó ra khỏi vai fix, pull request đã merge
+hoặc đã đóng tự rời danh sách trong vòng 10 phút, và một yêu cầu mới trên pull request đó sẽ đưa dòng trở lại.
 
 Trên Windows và Linux, hãy nhắn watcher trong chat (`status`, `snooze 1h`).
 
@@ -126,17 +154,23 @@ Trên Windows và Linux, hãy nhắn watcher trong chat (`status`, `snooze 1h`).
 
 | nói | tác dụng |
 |---|---|
-| `status` | mỗi pull request một dòng, kèm trạng thái và command mở |
+| `status` | mỗi session một dòng (pull request, vai, trạng thái), kèm command mở |
+| `fix #12` | mở session fix, giống **Fix now** |
+| `remove #12` / `unwatch #12` | đưa pull request ra khỏi menu bar và khỏi vai fix |
 | `snooze 2h` / `resume toasts` | không hiện toast trên máy này cho đến lúc đó — cùng một công tắc với nút "1h" trên toast và snooze trên menu bar; hàng đợi vẫn chạy |
 | một thay đổi setting | lưu vào `settings.json` |
 | mở session mới cho PR 12 | lần kích hoạt tiếp theo trên PR đó mở session mới |
-| `stop` | dừng theo dõi; các session review đang mở vẫn chạy tiếp |
+| `stop` | dừng theo dõi; các session đang mở vẫn chạy tiếp |
 
 ## Giới hạn rate
 
-Mỗi lần poll tốn ba API call trên GitHub; trên GitLab và Bitbucket là một, cộng thêm một cho mỗi pull
-request được cập nhật kể từ lần poll trước. Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng
-thời gian poll (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
+Một lượt poll phục vụ cả hai vai. Trên GitHub nó tốn ba request có điều kiện: khi không có gì thay đổi,
+host trả `304 Not Modified`, không bị tính vào giới hạn; vai fix thêm một call cho mỗi pull request của bạn
+được cập nhật kể từ lần poll trước. Trên GitLab và Bitbucket, một lượt poll tốn một call, cộng thêm một cho
+mỗi pull request được cập nhật kể từ lần poll trước, đã gồm cả finding. Khi không có session nào active và
+không có gì mới trong 10 phút, watcher poll mỗi 3 phút (không bao giờ nhanh hơn setting; lựa chọn "Poll
+every" cho cả máy luôn được giữ). Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng thời gian poll
+(tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
 
 ## Setting
 
@@ -144,12 +178,13 @@ Lưu ở `<data>/<repo>/settings.json` dưới `watch`:
 
 | field | default | nghĩa |
 |---|---|---|
-| `max_concurrent` | `5` | số session review active cùng lúc (đang chạy hoặc đang chờ câu trả lời) |
+| `max_concurrent` | `5` | số session active cùng lúc, tính chung review và fix (đang chạy hoặc đang chờ câu trả lời) |
 | `poll_interval_seconds` | `60` | bao lâu kiểm tra pull request một lần |
 | `notify.review_started` | `true` | toast: một session review vừa mở |
 | `notify.question` | `true` | toast: một session cần câu trả lời, hoặc bị lỗi |
 | `notify.draft_ready` | `true` | toast: một review draft đang chờ bạn duyệt |
 | `notify.posted` | `true` | toast: một review đã được post, hoặc LGTM |
 | `notify.re_review` | `true` | toast: một session có sẵn được resume để re-review |
+| `notify.findings` | `true` | toast: review mới trên một pull request thuộc vai fix, kèm "Fix now" |
 | `notify.error` | `true` | toast: có lỗi (claim, session, poll) — quay lại terminal của watcher để xem |
 | `trigger` | `/open-pr` | cái gì yêu cầu review: `/open-pr`, hoặc `@me` cho một lần mention account mà watcher đang chạy |
