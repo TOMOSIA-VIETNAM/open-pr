@@ -1,13 +1,13 @@
 // macOS menu bar item for `/open-pr:menubar` (a status item needs no permission). It
 // polls, in every data directory given, the files the watcher writes:
-//   <data>/<repo>/watch-review/heartbeat    the repo counts as watched while this is fresh
-//   <data>/<repo>/watch-review/state.json   sessions, one row per PR; active = not finished, working or question;
+//   <data>/<repo>/watch/heartbeat    the repo counts as watched while this is fresh
+//   <data>/<repo>/watch/state.json   sessions, one row per PR; active = not finished, working or question;
 //                                           PRs in `hidden` get no row
-//   <data>/<repo>/watch-review/feed.jsonl   notifications; a PR's latest one, when newer than its
+//   <data>/<repo>/watch/feed.jsonl   notifications; a PR's latest one, when newer than its
 //                                           session's state, is its row's text
-//   <data>/<repo>/watch-review/watcher.json the terminal tab whose watcher watches the repo, and
+//   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, and
 //                                           the repo_dir/remote "Remove from list" passes to `hide`
-//   <data>/<repo>/watch-review/stop         written by "Stop watcher"; the watcher's `wait` consumes it
+//   <data>/<repo>/watch/stop         written by "Stop watcher"; the watcher's `wait` consumes it
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
 // argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs,
@@ -191,7 +191,7 @@ function scan() {
     var out = { repos: 0, watchers: [], active: 0 }, byKey = {};
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
-        var dir = data + '/' + name + '/watch-review';
+        var dir = data + '/' + name + '/watch';
         if (ageSeconds(dir + '/heartbeat') > fresh) return;
         out.repos++;
         var wj = parse(readText(dir + '/watcher.json'));
@@ -597,7 +597,7 @@ function output(path, args) {
 function stopWatcher(o) {
     if (!o || !Array.isArray(o.dirs)) return;
     var dirs = o.dirs.filter(function (d) {
-        return typeof d === 'string' && /\/watch-review$/.test(d) && d.indexOf('/../') < 0 && isDir(d)
+        return typeof d === 'string' && /\/watch$/.test(d) && d.indexOf('/../') < 0 && isDir(d)
             && dataDirs.some(function (data) { return d.indexOf(data + '/') === 0; });
     });
     dirs.forEach(function (d) { $('').writeToFileAtomicallyEncodingError(d + '/stop', true, $.NSUTF8StringEncoding, null); });

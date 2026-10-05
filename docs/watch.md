@@ -2,7 +2,7 @@
 
 [← README](../README.md)
 
-`/open-pr:watch-review` turns the terminal you run it in into a watcher for one or more repositories. A
+`/open-pr:watch` turns the terminal you run it in into a watcher for one or more repositories. A
 developer asks for a review by commenting on the pull request; your machine opens a separate review
 session for it and tells you when something needs you.
 
@@ -10,10 +10,10 @@ session for it and tells you when something needs you.
 
 1. Run `/open-pr:review <any PR URL>` once in each repository. The watcher refuses a repository whose
    review memory is not set up, so that several sessions never set it up at once.
-2. Run `/open-pr:watch-review` inside a repository, or in a workspace folder holding several. It lists
+2. Run `/open-pr:watch` inside a repository, or in a workspace folder holding several. It lists
    every repository and remote found there (a clone with a remote per host is listed once per remote)
    and asks which to watch; those with review memory set up are recommended.
-   `/open-pr:watch-review owner/api owner/web` (or PR URLs) picks directly.
+   `/open-pr:watch owner/api owner/web` (or PR URLs) picks directly.
 3. The first run in a repository asks how many review sessions may be active at once, what asks for a
    review (`/open-pr` or a mention of you) and which toasts you want, and saves the answers in that
    repository's `settings.json`.
@@ -140,7 +140,7 @@ to 15 minutes) and returns to `poll_interval_seconds` after the next successful 
 
 ## Settings
 
-Stored in `<data>/<repo>/settings.json` under `watch_review`:
+Stored in `<data>/<repo>/settings.json` under `watch`:
 
 | field | default | meaning |
 |---|---|---|

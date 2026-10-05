@@ -72,7 +72,7 @@ ROLES = {
     "upgrade-cmd": ["commands/upgrade.md"],
     "clean-cmd": ["commands/clean.md"],
     "feedback-cmd": ["commands/feedback.md"],
-    "watch-review-cmd": ["commands/watch-review.md"],
+    "watch-cmd": ["commands/watch.md"],
     "case-watch-session": ["cases/watch-session.md"],
     "case-watch-answer": ["cases/watch-answer.md"],
     "menubar-cmd": ["commands/menubar.md"],
@@ -151,14 +151,14 @@ SCENARIOS = {
         "feedback-cmd", "guardrails",
     ],
     # the watcher's own session: first run asks its settings and commits them
-    "watch-review/first-run": [
-        "watch-review-cmd", "guardrails", "cli", "repo-settings", "memory-commit",
+    "watch/first-run": [
+        "watch-cmd", "guardrails", "cli", "repo-settings", "memory-commit",
     ],
     "menubar": [
         "menubar-cmd",
     ],
     # a session the watcher opened to answer a question asked on a PR
-    "watch-review/answer-session": [
+    "watch/answer-session": [
         "case-watch-answer", "guardrails", "cli",
     ],
     # one review session the watcher opened for a PR

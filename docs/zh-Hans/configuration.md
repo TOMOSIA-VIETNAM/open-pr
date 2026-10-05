@@ -30,7 +30,7 @@
 }
 ```
 
-仓库上方最深的那个根胜出。命令从你运行它的位置（仓库或装着它的 workspace）解析，`/open-pr:watch-review` 按它监视的每个仓库分别解析；`/open-pr:upgrade` 和 `/open-pr:clean` 会遍历所有数据目录。
+仓库上方最深的那个根胜出。命令从你运行它的位置（仓库或装着它的 workspace）解析，`/open-pr:watch` 按它监视的每个仓库分别解析；`/open-pr:upgrade` 和 `/open-pr:clean` 会遍历所有数据目录。
 
 在同一个 workspace 里，你站在哪里不影响数据放在哪里。站在装着多个仓库的 workspace 里，仍然可以一次运行评审 **跨仓库** 的 PR（一个接一个，不是并行）：
 

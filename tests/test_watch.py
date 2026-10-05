@@ -151,7 +151,7 @@ class Watch:
             make_exe(self.fakes / name, RECORDER)
         self.repo = tmp / "repo"
         self.repo.mkdir()
-        self.sd = self.home / "data" / "r" / "watch-review"
+        self.sd = self.home / "data" / "r" / "watch"
         self.watch = tmp / "xdg" / "open-pr" / "watch"
         self.env = dict(os.environ, FAKE_HOME=str(self.home), XDG_CONFIG_HOME=str(tmp / "xdg"),
                         PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}")
@@ -170,8 +170,8 @@ class Watch:
     def jsonl(self, *args, **kw):
         return [json.loads(line) for line in self.run(*args, **kw).stdout.splitlines() if line.strip()]
 
-    def settings(self, **watch_review):
-        (self.home / "settings.json").write_text(json.dumps({"watch_review": watch_review}))
+    def settings(self, **watch):
+        (self.home / "settings.json").write_text(json.dumps({"watch": watch}))
 
     def triggers(self, *rows):
         (self.home / "triggers.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
@@ -272,7 +272,7 @@ def test_watch_state_is_kept_out_of_the_memory_repo(w):
     w.run("paths", "--pr", "7")
     w.run("paths", "--pr", "8")
     gi = (w.sd.parent.parent / ".gitignore").read_text().splitlines()
-    assert gi.count("watch-review/") == 1
+    assert gi.count("watch/") == 1
 
 
 def test_every_data_dir_and_settings_call_names_the_watched_repo(w):

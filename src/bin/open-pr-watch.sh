@@ -1,5 +1,5 @@
 #!/bin/sh
-# open-pr watch runtime: the deterministic half of /open-pr:watch-review — trigger cursor,
+# open-pr watch runtime: the deterministic half of /open-pr:watch — trigger cursor,
 # PR -> session map, slot limit and queue, notifications, and how each agent platform opens,
 # resumes and reports a session.
 #
@@ -83,11 +83,11 @@ load_repo() {
     HOST=$(printf '%s\n' "$rt" | sed -n 's/^host=//p')
     check_ident '^[A-Za-z0-9_.-]+$' "$REPO"
     data=$(opr data-dir --repo-dir "$D") || exit $?
-    SD="$data/$REPO/watch-review"
+    SD="$data/$REPO/watch"
     STATE="$SD/state.json"
     mkdir -p "$SD/prompts"
     # Prompts quote PR comments: keep them out of the review-memory repo.
-    grep -qx 'watch-review/' "$data/.gitignore" 2>/dev/null || printf 'watch-review/\n' >> "$data/.gitignore"
+    grep -qx 'watch/' "$data/.gitignore" 2>/dev/null || printf 'watch/\n' >> "$data/.gitignore"
 }
 # WD = machine-wide state (snooze, menu bar pid), whichever data dirs the repos use.
 watch_dir() {
@@ -121,7 +121,7 @@ cmd_poll() {
     printf '{"poll_seconds":%s}\n' "$n"
 }
 setting_int() {
-    v=$(settings | jq -r --arg k "$1" '.watch_review[$k] // empty | select(type == "number" and . >= 1) | floor')
+    v=$(settings | jq -r --arg k "$1" '.watch[$k] // empty | select(type == "number" and . >= 1) | floor')
     printf '%s' "${v:-$2}"
 }
 
@@ -567,11 +567,11 @@ cmd_paths() {
 # open-pr.sh triggers validates whatever this returns.
 TOKEN=""
 trigger_token() {
-    t=$(settings | jq -r '.watch_review.trigger // "/open-pr"')
+    t=$(settings | jq -r '.watch.trigger // "/open-pr"')
     [ "$t" = "@me" ] || { printf '%s' "$t"; return 0; }
     who=$(opr account --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"}) || exit $?
     case "$who" in
-        ""|UNKNOWN) die 1 "open-pr-watch.sh: watch_review.trigger is @me, but the account this machine is logged in as cannot be read (Bitbucket under a workspace token has no identity) — use a user credential, or set the trigger to @<login> or a /word" ;;
+        ""|UNKNOWN) die 1 "open-pr-watch.sh: watch.trigger is @me, but the account this machine is logged in as cannot be read (Bitbucket under a workspace token has no identity) — use a user credential, or set the trigger to @<login> or a /word" ;;
     esac
     printf '@%s' "$who"
 }
@@ -800,7 +800,7 @@ cmd_notify() {
     FOCUS=$(arg focus); FOCUS=${FOCUS:-pr}
     case "$FOCUS" in pr|watcher|session) ;; *) die 1 "open-pr-watch.sh: unknown focus: $FOCUS (valid: pr watcher session)" ;; esac
     load_repo; watch_dir
-    off=$(settings | jq -r --arg e "$E" '(.watch_review.notify // {}) as $n
+    off=$(settings | jq -r --arg e "$E" '(.watch.notify // {}) as $n
         | if ($n | has($e)) and $n[$e] == false then "yes" else "" end')
     if [ -n "$off" ]; then
         jq -n -c --arg e "$E" '{event: $e, sent: false, reason: "event disabled"}'
@@ -950,15 +950,15 @@ usage: open-pr-watch.sh <subcommand> [--option value ...]
 Common options:
   `--repo-dir D` (default: the cwd) names the watched repo; its git remote (`--remote R`, default
   origin, else the only one) picks vendor and `<repo>`, and state lives in
-  `<data>/<repo>/watch-review/`, `<data>` resolved for D (`snooze`, `menubar`: no repo; machine state
+  `<data>/<repo>/watch/`, `<data>` resolved for D (`snooze`, `menubar`: no repo; machine state
   in `${XDG_CONFIG_HOME:-~/.config}/open-pr/watch/`).
   Output is JSON lines unless stated.
 
 Subcommands:
   wait [--once]
-      poll every `watch_review.poll_interval_seconds` until something happens, print it, exit 0:
+      poll every `watch.poll_interval_seconds` until something happens, print it, exit 0:
       `{"event":"trigger","repo",<trigger fields>}` per new comment starting with the trigger
-      (`watch_review.trigger`, default `/open-pr`; `@me` = a mention of this machine's own account,
+      (`watch.trigger`, default `/open-pr`; `@me` = a mention of this machine's own account,
       exit 1 when that account cannot be read),
       `{"event":"session","repo","pr","state","open"}` per session whose state changed; `repo` =
       owner/repo. Once a session's result (draft|posted|lgtm_chat|failed|stopped) is delivered the
@@ -996,7 +996,7 @@ Subcommands:
   notify --event E --text-file F [--pr N] [--url U] [--focus pr|watcher|session]
       toast titled `open-pr · <owner>/<repo>`: F line 1 = summary, line 2 = detail; E one of
       review_started|question|draft_ready|posted|re_review|error. Skipped (`"sent":false` + reason) when
-      `watch_review.notify.E` is false, or while snoozed (see snooze). Each one not disabled joins
+      `watch.notify.E` is false, or while snoozed (see snooze). Each one not disabled joins
       `feed.jsonl` (last 50). macOS: drawn by open-pr-toast.js (no Notifications permission; hover
       holds it, toasts stack, `1h` snoozes), else notify-send, else stderr. A click goes where
       `--focus` says: `pr` (default) opens U; `watcher` brings the watcher's terminal tab forward;

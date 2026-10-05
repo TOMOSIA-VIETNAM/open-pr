@@ -30,7 +30,7 @@ Các workspace tách biệt — chẳng hạn của hai khách hàng — có th�
 }
 ```
 
-Root sâu nhất phía trên một repo sẽ thắng. Command xác định nó từ chỗ bạn chạy (repo hoặc workspace chứa repo), `/open-pr:watch-review` thì theo từng repo nó theo dõi; `/open-pr:upgrade` và `/open-pr:clean` đi qua mọi thư mục dữ liệu.
+Root sâu nhất phía trên một repo sẽ thắng. Command xác định nó từ chỗ bạn chạy (repo hoặc workspace chứa repo), `/open-pr:watch` thì theo từng repo nó theo dõi; `/open-pr:upgrade` và `/open-pr:clean` đi qua mọi thư mục dữ liệu.
 
 Trong cùng một workspace, chỗ bạn đứng không ảnh hưởng tới nơi lưu dữ liệu. Đứng ở workspace chứa nhiều repo vẫn review được PR **chéo repo** trong một lượt (lần lượt, không song song):
 

@@ -1,4 +1,4 @@
-# Review session opened by `/open-pr:watch-review`
+# Review session opened by `/open-pr:watch`
 
 `F` = the `--status-file` value. Several such sessions share `<data>/<repo>/`; the watcher that opened
 this one is its ONLY writer. Every other rule of `commands/review.md` holds.

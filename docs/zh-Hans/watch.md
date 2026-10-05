@@ -2,16 +2,16 @@
 
 [← README](../../README.zh-Hans.md)
 
-`/open-pr:watch-review` 会把你运行它的终端变成一个或多个仓库的 watcher。开发者在 pull request 上评论来
+`/open-pr:watch` 会把你运行它的终端变成一个或多个仓库的 watcher。开发者在 pull request 上评论来
 请求评审；你的机器会为该 pull request 打开一个单独的评审会话，并在需要你处理时通知你。
 
 ## 首次运行之前
 
 1. 在每个仓库里运行一次 `/open-pr:review <any PR URL>`。评审 memory 尚未建立的仓库会被 watcher 拒绝，
    以免多个会话同时去建立它。
-2. 在仓库内，或在包含多个仓库的工作区目录中运行 `/open-pr:watch-review`。它会列出找到的所有仓库和远程
+2. 在仓库内，或在包含多个仓库的工作区目录中运行 `/open-pr:watch`。它会列出找到的所有仓库和远程
    （每个托管平台各有一个远程的克隆按远程分别列出），询问要监视哪些，并推荐已建立评审 memory 的仓库。
-   `/open-pr:watch-review owner/api owner/web`（或 PR URL）可直接指定。
+   `/open-pr:watch owner/api owner/web`（或 PR URL）可直接指定。
 3. 在某个仓库首次运行时，会询问最多允许多少个评审会话同时活跃、用什么来请求评审（`/open-pr` 或提及你）
    以及你想接收哪些 toast，并把回答保存在该仓库的 `settings.json` 里。
 4. 评审会话在你运行 watcher 的文件夹中启动，就像你在那里输入 `/open-pr:review` 一样 —— 相同的数据目录，
@@ -123,7 +123,7 @@ pull request 一次。当托管平台报告限速时，watcher 会把轮询间�
 
 ## 设置
 
-保存在 `<data>/<repo>/settings.json` 的 `watch_review` 下：
+保存在 `<data>/<repo>/settings.json` 的 `watch` 下：
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|

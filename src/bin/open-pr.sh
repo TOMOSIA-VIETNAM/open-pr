@@ -1059,20 +1059,20 @@ cmd_settings() {
                 auto_push: (.fix.auto_push // false)
             }),
             shared: (.shared // {}),
-            watch_review: ((.watch_review // {}) + {
-                max_concurrent: (.watch_review.max_concurrent // 5),
-                poll_interval_seconds: (.watch_review.poll_interval_seconds // 60),
-                trigger: (.watch_review.trigger // "/open-pr"),
-                notify: ((.watch_review.notify // {}) + {
-                    review_started: default_bool(.watch_review.notify; "review_started"; true),
-                    question: default_bool(.watch_review.notify; "question"; true),
-                    draft_ready: default_bool(.watch_review.notify; "draft_ready"; true),
-                    posted: default_bool(.watch_review.notify; "posted"; true),
-                    re_review: default_bool(.watch_review.notify; "re_review"; true),
-                    error: default_bool(.watch_review.notify; "error"; true)
+            watch: ((.watch // {}) + {
+                max_concurrent: (.watch.max_concurrent // 5),
+                poll_interval_seconds: (.watch.poll_interval_seconds // 60),
+                trigger: (.watch.trigger // "/open-pr"),
+                notify: ((.watch.notify // {}) + {
+                    review_started: default_bool(.watch.notify; "review_started"; true),
+                    question: default_bool(.watch.notify; "question"; true),
+                    draft_ready: default_bool(.watch.notify; "draft_ready"; true),
+                    posted: default_bool(.watch.notify; "posted"; true),
+                    re_review: default_bool(.watch.notify; "re_review"; true),
+                    error: default_bool(.watch.notify; "error"; true)
                 })
             }),
-            watch_review_configured: has("watch_review"),
+            watch_configured: has("watch"),
             schema_version: (.schema_version // null),
             memory_dir: $memdir,
             memory_found: $found,
@@ -1236,7 +1236,7 @@ Subcommands:
   settings --repo <repo> [--repo-dir D]
       `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`.
       Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
-      was read and whether its `settings.json` was there; `watch_review_configured` = node in the file
+      was read and whether its `settings.json` was there; `watch_configured` = node in the file
   stacks [--repo-dir D] <path>…
       `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
       ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`

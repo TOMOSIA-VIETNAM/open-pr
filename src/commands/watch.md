@@ -40,7 +40,7 @@ The chosen lines are the **watched set**; every `<watch>` call for one takes `--
 | `memory_found: false` or `.review.bootstrapped` != `true` | drop it: tell the user to run `/open-pr:review <any PR URL of it>` once from that repo's workspace, naming its `memory_dir`. Set empty ⇒ STOP |
 | `doctor_due` | `Read` `setup/doctor.md`, run it for that repo — one repo at a time, before any session opens |
 | no `chat_language` | resolve it per `core/repo-settings.md` |
-| `watch_review_configured: false` | Step 2 |
+| `watch_configured: false` | Step 2 |
 
 `<runner>` = your platform's row in the "Review-session runner" table of `adapters/root.md`; Claude
 Code (never reads that file) ⇒ `claude`.
@@ -58,7 +58,7 @@ Once, for the watched repos lacking the node — name them. Ask in turn:
 | what asks for a review — ONE CHOICE | `Default /open-pr (Recommended)` · `A mention` (no `/open-pr` visible on the PR) ⇒ then ask whose: `Me (@<account>)` (`<op> account`) or a typed login | `trigger`: `/open-pr` · `@me` · `@<login>` |
 | notifications — ONE CHOICE | `All (Recommended)` · `Only when I am needed` (`question`, `draft_ready`, `error`) · `None`; typed names pick events one by one | `notify.<event>`: `review_started`, `question`, `draft_ready`, `posted`, `re_review` |
 
-`Edit` into each such `<data>/<repo>/settings.json` the whole `watch_review` node — its `settings`
+`Edit` into each such `<data>/<repo>/settings.json` the whole `watch` node — its `settings`
 output's node with these answers — then `core/memory-commit.md`.
 
 ## Step 3 — Watch

@@ -2,7 +2,7 @@
 
 [← README](../../README.ja-JP.md)
 
-`/open-pr:watch-review` は、実行したターミナルを 1 つ以上のリポジトリの watcher にします。開発者が
+`/open-pr:watch` は、実行したターミナルを 1 つ以上のリポジトリの watcher にします。開発者が
 pull request にコメントしてレビューを依頼すると、あなたのマシンがその pull request 専用のレビュー
 セッションを開き、あなたの対応が必要なときに知らせます。
 
@@ -10,10 +10,10 @@ pull request にコメントしてレビューを依頼すると、あなたの�
 
 1. 各リポジトリで一度 `/open-pr:review <any PR URL>` を実行します。レビュー memory が未セットアップの
    リポジトリを watcher は拒否します。複数のセッションが同時にセットアップしないようにするためです。
-2. リポジトリ内、または複数のリポジトリを含むワークスペースで `/open-pr:watch-review` を実行します。
+2. リポジトリ内、または複数のリポジトリを含むワークスペースで `/open-pr:watch` を実行します。
    見つかったすべてのリポジトリとリモートを一覧にし（ホストごとにリモートを持つクローンはリモートごとに
    表示）、監視するものを尋ねます。レビュー memory 設定済みのものが推奨されます。
-   `/open-pr:watch-review owner/api owner/web`（または PR の URL）で直接指定できます。
+   `/open-pr:watch owner/api owner/web`（または PR の URL）で直接指定できます。
 3. リポジトリでの初回実行では、同時にアクティブにできるレビューセッションの数、レビューを依頼する方法
    （`/open-pr` またはあなたへのメンション）、受け取りたいトーストを尋ね、回答をそのリポジトリの
    `settings.json` に保存します。
@@ -138,7 +138,7 @@ Windows と Linux では、チャットで watcher に頼んでください（`s
 
 ## Setting
 
-`<data>/<repo>/settings.json` の `watch_review` 以下に保存されます:
+`<data>/<repo>/settings.json` の `watch` 以下に保存されます:
 
 | field | 既定値 | 意味 |
 |---|---|---|

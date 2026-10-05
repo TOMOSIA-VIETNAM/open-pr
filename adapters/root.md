@@ -63,7 +63,7 @@ step you cannot perform.
 
 ## 4 — Review-session runner
 
-`/open-pr:watch-review` opens each review in its own session through `<watch> spawn --runner <name>`:
+`/open-pr:watch` opens each review in its own session through `<watch> spawn --runner <name>`:
 
 | platform | runner |
 |---|---|

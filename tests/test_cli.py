@@ -1249,9 +1249,9 @@ def test_checkout_times_out_on_a_held_lock_and_reclaims_a_dead_one(two_pr_repo):
     assert not lock.exists()
 
 
-# ------------------------------------------------------ watch_review ----
+# ------------------------------------------------------ watch ----
 
-def test_settings_defaults_the_watch_review_node(data_dir, tmp_path):
+def test_settings_defaults_the_watch_node(data_dir, tmp_path):
     d = data_dir / "demo"
     d.mkdir(parents=True)
     defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "trigger": "/open-pr",
@@ -1259,11 +1259,11 @@ def test_settings_defaults_the_watch_review_node(data_dir, tmp_path):
                            "posted": True, "re_review": True, "error": True}}
     (d / "settings.json").write_text(json.dumps({"review": {"bootstrapped": True}}))
     out = json.loads(run("settings", "--repo", "demo", check=True).stdout)
-    assert out["watch_review"] == defaults and out["watch_review_configured"] is False
-    (d / "settings.json").write_text(json.dumps({"watch_review": {
+    assert out["watch"] == defaults and out["watch_configured"] is False
+    (d / "settings.json").write_text(json.dumps({"watch": {
         "max_concurrent": 2, "notify": {"posted": False}}}))
     part = json.loads(run("settings", "--repo", "demo", check=True).stdout)
-    assert part["watch_review_configured"] is True
-    assert part["watch_review"] == {**defaults, "max_concurrent": 2,
+    assert part["watch_configured"] is True
+    assert part["watch"] == {**defaults, "max_concurrent": 2,
                                     "notify": {**defaults["notify"], "posted": False}}, \
         "stored values win, an explicit false stays false, missing subfields take their default"

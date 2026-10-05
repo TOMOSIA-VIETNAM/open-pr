@@ -94,10 +94,10 @@ def _runtime_defaults():
     reported as a field with no default rather than matching."""
     body = cli_text()
     out = {}
-    for m in re.finditer(r"^ +([a-z_]+): \(\.(?:review|fix|watch_review)\.\1 // ([^)]+)\)", body, re.M):
+    for m in re.finditer(r"^ +([a-z_]+): \(\.(?:review|fix|watch)\.\1 // ([^)]+)\)", body, re.M):
         out[m.group(1)] = m.group(2).strip()
-    # an object field: stored keys merged over per-key defaults, e.g. `.watch_review.notify`
-    for m in re.finditer(r"^ +([a-z_]+): \(\(\.(?:review|fix|watch_review)\.\1 // \{\}\) \+", body, re.M):
+    # an object field: stored keys merged over per-key defaults, e.g. `.watch.notify`
+    for m in re.finditer(r"^ +([a-z_]+): \(\(\.(?:review|fix|watch)\.\1 // \{\}\) \+", body, re.M):
         out[m.group(1)] = "{}"
     for m in re.finditer(r'^ +([a-z_]+): default_bool\(\.(?:review|fix); "\1"; ([^)]+)\)', body, re.M):
         out[m.group(1)] = m.group(2).strip()
@@ -180,8 +180,8 @@ def test_bootstrap_asks_exactly_the_user_config_fields():
             f".{node}: bootstrap writes {sorted(fields)}, "
             f"the schema classifies {sorted(user_config.get(node, set()))} as its User config")
     unwritten = set(user_config) - set(written)
-    # `.fix` has fix's own bootstrap; watch-review writes `.watch_review` on its first run
-    assert unwritten == {"fix", "watch_review"}, \
+    # `.fix` has fix's own bootstrap; watch writes `.watch` on its first run
+    assert unwritten == {"fix", "watch"}, \
         f"User config nodes bootstrap never writes: {sorted(unwritten)}"
     assert "FORBIDDEN: creating `.fix` here" in " ".join(body.split()), \
         "the one node bootstrap skips must say so, and name the bootstrap that owns it"

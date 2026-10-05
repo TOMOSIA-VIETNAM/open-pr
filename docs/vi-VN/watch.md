@@ -2,7 +2,7 @@
 
 [← README](../../README.vi-VN.md)
 
-`/open-pr:watch-review` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo. Developer
+`/open-pr:watch` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo. Developer
 yêu cầu review bằng cách comment trên pull request; máy bạn mở một session review riêng cho pull request
 đó và báo bạn khi có việc cần bạn.
 
@@ -10,10 +10,10 @@ yêu cầu review bằng cách comment trên pull request; máy bạn mở một
 
 1. Chạy `/open-pr:review <any PR URL>` một lần trong từng repo. Watcher từ chối repo chưa thiết lập
    review memory, để không bao giờ có nhiều session cùng thiết lập nó một lúc.
-2. Chạy `/open-pr:watch-review` trong một repo, hoặc trong thư mục workspace chứa nhiều repo. Lệnh liệt
+2. Chạy `/open-pr:watch` trong một repo, hoặc trong thư mục workspace chứa nhiều repo. Lệnh liệt
    kê mọi repo và remote tìm thấy ở đó (clone có mỗi host một remote được liệt kê theo từng remote) rồi
    hỏi theo dõi những repo nào; repo đã thiết lập review memory được đề xuất.
-   `/open-pr:watch-review owner/api owner/web` (hoặc URL của PR) chọn thẳng.
+   `/open-pr:watch owner/api owner/web` (hoặc URL của PR) chọn thẳng.
 3. Lần chạy đầu trong một repo hỏi tối đa bao nhiêu session review được active cùng lúc, cái gì yêu cầu
    review (`/open-pr` hay một lần mention bạn) và bạn muốn nhận những toast nào, rồi lưu câu trả lời vào
    `settings.json` của repo đó.
@@ -140,7 +140,7 @@ thời gian poll (tối đa 15 phút) và quay về `poll_interval_seconds` sau 
 
 ## Setting
 
-Lưu ở `<data>/<repo>/settings.json` dưới `watch_review`:
+Lưu ở `<data>/<repo>/settings.json` dưới `watch`:
 
 | field | default | nghĩa |
 |---|---|---|
