@@ -833,7 +833,7 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
         "mid-body mentions, marked comments, non-open PRs, /open-prx and /open-pr:… never trigger; " \
         "the watcher's own account may ask (one person can be developer and reviewer)"
     assert rows[0]["authorized"] == "no", "author_association NONE has no write access"
-    assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "comment_id": "90", "kind": "line",
+    assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "pr_author": None, "comment_id": "90", "kind": "line",
                        "thread_id": None, "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk",
                        "authorized": "yes"}
     assert rows[2]["kind"] == "top" and rows[2]["authorized"] == "yes"
@@ -1014,10 +1014,184 @@ def test_triggers_bitbucket_lists_only_the_prs_updated_since(shims):
     serve(shims, "curl", [("pullrequests?state=OPEN", {"values": [], "next": None})])
     triggers(shims, "bitbucket", "--since", "2026-01-01T09:00:02+09:00")
     assert "pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href" \
-           "&q=updated_on%20%3E%202026-01-01T00%3A00%3A02%2B00%3A00" in shims["log"].read_text()
+           ",values.author.nickname,values.updated_on&q=updated_on%20%3E%202026-01-01T00%3A00%3A02%2B00%3A00" in shims["log"].read_text()
     shims["log"].write_text("")
     triggers(shims, "bitbucket")
     assert "q=updated_on" not in shims["log"].read_text()
+
+
+# ------------------------------------------------------- triggers: ETags ----
+
+def etag_gh(shims, pages, etag='W/"e1"', not_modified=True):
+    """gh answering `api -i` like the real one: status line + headers + body; a matching
+    If-None-Match gets `304` and exit 1 (gh treats every status > 299 as an error)."""
+    d = Path(shims["tmp"]) / "etag-pages"
+    d.mkdir(exist_ok=True)
+    cases = []
+    for i, (pat, body) in enumerate(pages):
+        (d / f"{i}.json").write_text(json.dumps(body))
+        cases.append(f'  *"{pat}"*) f="{d}/{i}.json" ;;')
+    make_shim(Path(shims["path"]), "gh", f'''printf '%s\\n' "gh $*" >> "{shims['log']}"
+f=""
+case "$*" in
+{chr(10).join(cases)}
+esac
+[ -n "$f" ] || {{ printf '[]\\n'; exit 0; }}
+case "$*" in
+  *'If-None-Match: {etag}'*) if [ "{1 if not_modified else ''}" = 1 ]; then
+        printf 'HTTP/2.0 304 Not Modified\\r\\nEtag: {etag}\\r\\n\\r\\n'; printf 'gh: HTTP 304\\n' >&2; exit 1; fi ;;
+esac
+case "$*" in
+  *" -i "*) printf 'HTTP/2.0 200 OK\\r\\nEtag: {etag}\\r\\nX-Ratelimit-Remaining: 4999\\r\\n\\r\\n' ;;
+esac
+cat "$f"
+''')
+
+
+ETAG_PAGES = [
+    ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5", "user": {"login": "dev"},
+                           "updated_at": "2026-01-01T00:00:09Z"}]),
+    ("issues/comments", [{"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
+                          "created_at": "2026-01-01T00:00:03Z", "body": "/open-pr", "author_association": "MEMBER"}]),
+    ("pulls/comments", []),
+]
+
+
+def test_triggers_github_sends_the_kept_etag_and_a_304_serves_the_cached_body(shims, tmp_path):
+    etag_gh(shims, ETAG_PAGES)
+    cache = tmp_path / "etags"
+    first = triggers(shims, "github", "--cache-dir", str(cache))
+    log = shims["log"].read_text()
+    assert "If-None-Match" not in log, "nothing cached yet: a plain request"
+    shims["log"].write_text("")
+    again = triggers(shims, "github", "--cache-dir", str(cache))
+    assert again == first and [r["comment_id"] for r in again] == ["1"]
+    assert again[0]["pr_author"] == "dev"
+    assert shims["log"].read_text().count('If-None-Match: W/"e1"') == 3, "every poll GET is conditional"
+
+
+def test_triggers_github_never_sends_a_cached_etag_outside_its_shape(shims, tmp_path):
+    etag_gh(shims, ETAG_PAGES, etag='W/e1;id')
+    cache = tmp_path / "etags"
+    triggers(shims, "github", "--cache-dir", str(cache))
+    shims["log"].write_text("")
+    triggers(shims, "github", "--cache-dir", str(cache))
+    assert "If-None-Match" not in shims["log"].read_text()
+
+
+def test_triggers_github_fetches_a_paged_listing_whole_and_uncached(shims, tmp_path):
+    make_shim(Path(shims["path"]), "gh", f'''printf '%s\\n' "gh $*" >> "{shims['log']}"
+case "$*" in
+  *" -i "*) printf 'HTTP/2.0 200 OK\\r\\nEtag: "x"\\r\\nLink: <https://api.github.com/x?page=2>; rel="next"\\r\\n\\r\\n[]' ;;
+  *--paginate*pulls?state=open*) printf '[{{"number": 5, "html_url": "u5"}}][{{"number": 6, "html_url": "u6"}}]' ;;
+  *) printf '[]' ;;
+esac
+''')
+    triggers(shims, "github", "--cache-dir", str(tmp_path / "etags"))
+    assert "--paginate repos/o/r/pulls?state=open" in shims["log"].read_text()
+    assert not list((tmp_path / "etags").glob("*.body")), "a partial page is never cached"
+
+
+def test_triggers_github_conditional_request_still_exits_9_on_a_rate_limit(shims, tmp_path):
+    make_shim(Path(shims["path"]), "gh", '''printf 'HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\n\\r\\n{}'
+printf 'gh: API rate limit exceeded (HTTP 403)\\n' >&2; exit 1
+''')
+    r = triggers(shims, "github", "--cache-dir", str(tmp_path / "etags"), check=False)
+    assert r.returncode == 9 and r.stdout == ""
+
+
+# ----------------------------------------------------- triggers: findings ----
+
+MF, MR = "<!-- bot-finding -->", "<!-- bot-reply -->"
+OVERVIEW = ("### Overview\nThanks 🙏\n\n#### 🔴 MUST FIX\n🔴 **`a.rb`** — nil deref\n\n" + MF +
+            "\n\n#### 🔵 SUGGESTION\n🔵 **`b.rb`** — rename\n\n" + MF + "\n")
+
+
+def test_findings_github_groups_one_review_with_its_line_and_file_findings(shims, tmp_path):
+    line = lambda i, body, at, review=70, reply_to=None, pr=5: {
+        "id": i, "pull_request_url": f"https://api.github.com/repos/o/r/pulls/{pr}", "user": {"login": "rev"},
+        "created_at": at, "body": body, "author_association": "MEMBER", "pull_request_review_id": review,
+        "in_reply_to_id": reply_to}
+    serve(shims, "gh", [
+        ("pulls?state=open", [
+            {"number": 5, "html_url": "https://github.com/o/r/pull/5", "user": {"login": "Dev"}, "updated_at": "2026-01-01T00:01:00Z"},
+            {"number": 6, "html_url": "https://github.com/o/r/pull/6", "user": {"login": "other"}, "updated_at": "2026-01-01T00:01:00Z"},
+            {"number": 7, "html_url": "https://github.com/o/r/pull/7", "user": {"login": "dev"}, "updated_at": "2025-12-01T00:00:00Z"}]),
+        ("pulls/comments", [
+            line(10, "🟠 **SHOULD FIX** guard it\n\n" + MF, "2026-01-01T00:00:10Z"),
+            line(11, "🟠 x\n\n" + MF, "2026-01-01T00:00:10Z"),
+            line(12, "Fixed\n\n" + MR, "2026-01-01T00:00:20Z", reply_to=11),
+            line(13, "📝 old\n\n" + MF, "2025-12-31T00:00:00Z", review=60),
+            line(14, "🔴 other PR\n\n" + MF, "2026-01-01T00:00:10Z", review=71, pr=6),
+        ]),
+        ("pulls/5/reviews", [{"id": 70, "state": "COMMENTED", "user": {"login": "rev"}, "body": OVERVIEW,
+                              "submitted_at": "2026-01-01T00:00:10Z"},
+                             {"id": 69, "state": "PENDING", "user": {"login": "rev"}, "body": OVERVIEW,
+                              "submitted_at": None}]),
+    ])
+    out = tmp_path / "findings"
+    triggers(shims, "github", "--since", "2026-01-01T00:00:00Z", "--findings-file", str(out), "--fix-author", "dev")
+    rows = [json.loads(l) for l in out.read_text().splitlines()]
+    assert rows == [{"pr": 5, "url": "https://github.com/o/r/pull/5", "review_id": "70", "comment_id": "10",
+                     "thread_id": None, "kind": "line", "user": "rev", "created_at": "2026-01-01T00:00:10Z",
+                     "counts": {"🔴": 1, "🟠": 1, "🔵": 1}}], \
+        "a replied finding, a finding before --since and another author's PR do not count; the " \
+        "heading emoji is not a finding"
+    log = shims["log"].read_text()
+    assert "pulls/5/reviews" in log and "pulls/7/reviews" not in log and "pulls/6/reviews" not in log, \
+        "reviews are fetched only for the user's own PRs updated since"
+
+
+def test_findings_listed_prs_count_whoever_wrote_them(shims, tmp_path):
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 6, "html_url": "u6", "user": {"login": "other"}, "updated_at": "2026-01-01T00:01:00Z"}]),
+        ("pulls/comments", [{"id": 14, "pull_request_url": "https://api.github.com/repos/o/r/pulls/6", "user": {"login": "rev"},
+                             "created_at": "2026-01-01T00:00:10Z", "body": "🔴 y\n\n" + MF, "pull_request_review_id": 71}]),
+    ])
+    out = tmp_path / "findings"
+    triggers(shims, "github", "--findings-file", str(out), "--fix-prs", "3,6")
+    assert [json.loads(l)["review_id"] for l in out.read_text().splitlines()] == ["71"]
+    assert triggers(shims, "github", "--findings-file", str(out), "--fix-prs", "6;id", check=False).returncode == 4
+
+
+def test_findings_gitlab_reads_them_from_the_discussions_already_fetched(shims, tmp_path):
+    note = lambda i, body, pos=None: {"id": i, "system": False, "type": "DiffNote" if pos else None, "position": pos,
+                                      "author": {"username": "rev", "id": 3}, "created_at": f"2026-01-01T00:00:{i:02d}Z", "body": body}
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": 9, "web_url": "https://gitlab.com/o/r/-/merge_requests/9",
+                                          "author": {"username": "dev"}, "updated_at": "2026-01-01T00:01:00Z"}]),
+        ("merge_requests/9/discussions", [
+            {"id": "d1", "notes": [note(11, "🟠 a\n\n" + MF, {"new_line": 3})]},
+            {"id": "d2", "notes": [note(12, "🔵 b\n\n" + MF, {"new_line": 4}), note(13, "done\n\n" + MR)]},
+            {"id": "d3", "notes": [note(14, OVERVIEW)]},
+        ]),
+    ])
+    out = tmp_path / "findings"
+    triggers(shims, "gitlab", "--findings-file", str(out), "--fix-author", "dev")
+    rows = [json.loads(l) for l in out.read_text().splitlines()]
+    assert [(r["review_id"], r["thread_id"], r["counts"]) for r in rows] == \
+        [("c11", "d1", {"🟠": 1, "🔴": 1, "🔵": 1})], "one review per PR; the replied discussion drops out"
+    assert "reviews" not in shims["log"].read_text(), "no request beyond the poll's own"
+
+
+def test_findings_bitbucket_takes_replies_by_parent(shims, tmp_path):
+    bmf, bmr = "[bot-finding]: #", "[bot-reply]: #"
+    serve(shims, "curl", [
+        ("pullrequests?state=OPEN", {"values": [{"id": 7, "links": {"html": {"href": "u7"}}, "author": {"nickname": "dev"},
+                                                 "updated_on": "2026-01-01T00:01:00+00:00"}], "next": None}),
+        ("pullrequests/7/comments", {"values": [
+            {"id": 21, "content": {"raw": "🔴 a\n\n" + bmf}, "user": {"nickname": "rev"}, "inline": {"path": "a", "to": 1},
+             "created_on": "2026-01-01T00:00:02+00:00", "deleted": False},
+            {"id": 22, "content": {"raw": "🟠 b\n\n" + bmf}, "user": {"nickname": "rev"}, "inline": {"path": "a", "to": 2},
+             "created_on": "2026-01-01T00:00:03+00:00", "deleted": False},
+            {"id": 23, "content": {"raw": "ok\n\n" + bmr}, "user": {"nickname": "dev"}, "inline": None, "parent": {"id": 22},
+             "created_on": "2026-01-01T00:00:04+00:00", "deleted": False},
+        ], "next": None}),
+    ])
+    out = tmp_path / "findings"
+    triggers(shims, "bitbucket", "--findings-file", str(out), "--fix-author", "dev")
+    assert [(json.loads(l)["comment_id"], json.loads(l)["counts"]) for l in out.read_text().splitlines()] == \
+        [("21", {"🔴": 1})]
 
 
 # ------------------------------------------------------------ open-prs ----

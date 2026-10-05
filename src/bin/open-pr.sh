@@ -784,45 +784,125 @@ rl() {
     cat "$TMPD/rl.err" >&2
     return "$rc"
 }
-# Open PRs -> $TMPD/tr.prs ({pr, url} lines); their comments -> stdout as
-# {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid}. $SINCE_Z only
-# narrows the fetch: vendors filter on update time (a superset), and a new comment updates its PR.
+# GitHub GET, conditional when --cache-dir is set: a 304 costs no quota (an authorized request) and
+# hands back the body cached with its ETag. A page with a next link is fetched whole, uncached.
+# $1 = API path, stdout = the body.
+gh_get() {
+    [ -n "$CACHE" ] || { rl gh api --paginate "$1"; return; }
+    c="$CACHE/$(printf '%s' "$1" | cksum | cut -d' ' -f1)"
+    # the ETag is vendor data: only its RFC 7232 shape reaches argv
+    et=""; [ ! -s "$c.body" ] || et=$(grep -Ex '(W/)?"[!#-~]*"' "$c.etag" 2>/dev/null || true)
+    rc=0
+    if [ -n "$et" ]; then gh api -i -H "If-None-Match: $et" "$1" > "$TMPD/gh.resp" 2> "$TMPD/rl.err" || rc=$?
+    else gh api -i "$1" > "$TMPD/gh.resp" 2> "$TMPD/rl.err" || rc=$?; fi
+    if [ "$(head -n 1 "$TMPD/gh.resp" | cut -d' ' -f2)" = 304 ]; then cat "$c.body"; return 0; fi
+    if [ "$rc" != 0 ]; then
+        cat "$TMPD/gh.resp" >> "$TMPD/rl.err"   # -i prints the X-RateLimit headers on stdout
+        ! rate_limited "$TMPD/rl.err" || die 9 "rate limited"
+        cat "$TMPD/rl.err" >&2
+        return "$rc"
+    fi
+    tr -d '\r' < "$TMPD/gh.resp" | awk 'h { print; next } /^$/ { h = 1 }' > "$TMPD/gh.body"
+    tr -d '\r' < "$TMPD/gh.resp" | awk '/^$/ { exit } { print }' > "$TMPD/gh.head"
+    if grep -Eiq '^link:.*rel="next"' "$TMPD/gh.head"; then
+        rm -f "$c.body" "$c.etag"
+        rl gh api --paginate "$1"; return
+    fi
+    sed -n 's/^[Ee][Tt][Aa][Gg]: *//p' "$TMPD/gh.head" | head -n 1 > "$c.etag"
+    cp "$TMPD/gh.body" "$c.body"
+    cat "$TMPD/gh.body"
+}
+# Open PRs -> $TMPD/tr.prs ({pr, url, author, updated_at} lines); their comments -> stdout as
+# {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid, in_reply_to, review_id}.
+# $SINCE_Z only narrows the fetch: vendors filter on update time (a superset), and a new comment
+# updates its PR.
 trg_fetch() {
     case "$V" in
         github)
-            rl gh api --paginate "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
-            jq -c '.[] | {pr: .number, url: .html_url}' "$TMPD/tr.page" > "$TMPD/tr.prs"
+            gh_get "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
+            jq -c '.[] | {pr: .number, url: .html_url, author: .user.login, updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             q="per_page=100"; [ -z "$SINCE_Z" ] || q="$q&since=$SINCE_Z"
             auth='(if .author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR" then "yes" else "no" end)'
-            rl gh api --paginate "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page"
-            rl gh api --paginate "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page" ;;
+            gh_get "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
+            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: null, review_id: null}" "$TMPD/tr.page"
+            gh_get "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
+            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}" "$TMPD/tr.page" ;;
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
             rl glab api --paginate "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
-            jq -c '.[] | {pr: .iid, url: .web_url}' "$TMPD/tr.page" > "$TMPD/tr.prs"
+            jq -c '.[] | {pr: .iid, url: .web_url, author: .author.username, updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r iid; do
                 check_ident '^[0-9]+$' "$iid"
                 # discussions, not notes: each note needs its discussion id to be replied to
                 rl glab api --paginate "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
-                jq -c --argjson pr "$iid" '.[] | .id as $tid | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id}' "$TMPD/tr.page"
+                jq -c --argjson pr "$iid" '.[] | .id as $tid | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id, in_reply_to: null, review_id: null}' "$TMPD/tr.page"
             done ;;
         bitbucket)
             # BBQL: `updated_on > <instant>`, URL-encoded; the offset form, not Z
             q=""; [ -z "$SINCE_Z" ] || q="&q=updated_on%20%3E%20$(printf '%s' "${SINCE_Z%Z}" | sed 's/:/%3A/g')%2B00%3A00"
-            rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href$q" \
-                '.values[] | {pr: .id, url: .links.html.href} | @json' > "$TMPD/tr.prs"
+            rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href,values.author.nickname,values.updated_on$q" \
+                '.values[] | {pr: .id, url: .links.html.href, author: .author.nickname, updated_at: .updated_on} | @json' > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r id; do
                 check_ident '^[0-9]+$' "$id"
-                rl bb_paged "$BB_API/pullrequests/$id/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted" \
-                    ".values[] | select(.deleted != true) | {pr: $id, comment_id: (.id | tostring), kind: (if .inline != null then \"line\" else \"top\" end), thread_id: null, user: .user.nickname, created_at: .created_on, body: (.content.raw // \"\"), authorized: \"UNKNOWN\", uid: null} | @json"
+                rl bb_paged "$BB_API/pullrequests/$id/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted,values.parent.id" \
+                    ".values[] | select(.deleted != true) | {pr: $id, comment_id: (.id | tostring), kind: (if .inline != null then \"line\" else \"top\" end), thread_id: null, user: .user.nickname, created_at: .created_on, body: (.content.raw // \"\"), authorized: \"UNKNOWN\", uid: null, in_reply_to: (.parent.id // null | if . then tostring else . end), review_id: null} | @json"
             done ;;
     esac
+}
+# --findings-file: one row per review this plugin posted after --since on a fix-role PR (author
+# --fix-author, or listed in --fix-prs): {pr, url, review_id, comment_id, thread_id, kind, user,
+# created_at, counts}; counts = unreplied findings per severity emoji. GitHub keeps FILE findings
+# in a review body: `pulls/N/reviews`, only for those PRs updated since.
+JQ_FINDINGS='def sev_of: [splits("\n") | sub("^[\\s>*_-]+"; "") | select(startswith("#") | not)
+        | (if startswith("🔴") then "🔴" elif startswith("🟠") then "🟠" elif startswith("🔵") then "🔵"
+           elif startswith("📝") then "📝" else empty end)][0] // empty;
+    def counts: [splits("bot-finding(\\s*-->|\\]:\\s*#)")] | .[:-1] | map(sev_of)
+        | reduce .[] as $e ({}; .[$e] += 1);'
+trg_findings() {
+    jq -c --arg a "$FIX_AUTHOR" --arg l ",$FIX_PRS," '
+        (.pr | tostring) as $n
+        | select(($a != "" and ((.author // "") | ascii_downcase) == ($a | ascii_downcase))
+                 or ($l | contains("," + $n + ",")))' "$TMPD/tr.prs" > "$TMPD/fx.prs"
+    : > "$TMPD/fx.reviews"
+    if [ "$V" = github ]; then
+        jq -r --arg s "$SINCE_Z" 'select($s == "" or .updated_at > $s) | .pr' "$TMPD/fx.prs" | while IFS= read -r n; do
+            check_ident '^[0-9]+$' "$n"
+            rl gh api --paginate "repos/$OWNER/$REPO/pulls/$n/reviews?per_page=100" > "$TMPD/fx.page"
+            jq -c --argjson pr "$n" '.[] | select(.state != "PENDING")
+                | {pr: $pr, comment_id: (.id | tostring), kind: "review", thread_id: null, user: .user.login,
+                   created_at: .submitted_at, body: (.body // ""), in_reply_to: null, review_id: (.id | tostring)}' "$TMPD/fx.page"
+        done > "$TMPD/fx.reviews"
+    fi
+    cat "$TMPD/tr.all" "$TMPD/fx.reviews" | jq -c -s --slurpfile prs "$TMPD/fx.prs" --arg since "$SINCE" \
+        "$JQ_EPOCH$JQ_FINDINGS"'
+        ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $fix
+        | ($since | if . == "" then null else epoch end) as $after
+        | . as $all
+        | [.[] | select($fix[.pr | tostring] != null and (.body | test("bot-finding(\\s*-->|\\]:\\s*#)"))
+                         and ($after == null or (.created_at | epoch) > $after)) | . as $f
+           | select(.kind == "review"
+                    or ([$all[] | select(.comment_id != $f.comment_id and (.body | test("bot-reply(\\s*-->|\\]:\\s*#)"))
+                                         and ((.in_reply_to != null and .in_reply_to == $f.comment_id)
+                                              or ($f.thread_id != null and .thread_id == $f.thread_id)))] | length) == 0)
+           | . + {counts: (.body | counts), url: $fix[.pr | tostring]}]
+        # GitLab and Bitbucket have no review object: the findings of a PR fetched together are one review
+        | group_by([.pr, (.review_id // "")])
+        | map(sort_by(.comment_id | tonumber) | .[0] as $h
+              | {pr: $h.pr, url: $h.url, review_id: ($h.review_id // ("c" + $h.comment_id)),
+                 comment_id: $h.comment_id, thread_id: $h.thread_id, kind: $h.kind, user: $h.user,
+                 created_at: (map(.created_at) | max),
+                 counts: ([.[].counts | to_entries[]] | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries)}
+              | select(.counts != {}))
+        | .[]' > "$FINDINGS"
 }
 cmd_triggers() {
     parse_args "$@"
     vendor_init; SINCE=$(arg since); MARK=$(arg mark_file)
+    CACHE=""; [ "$V" != github ] || CACHE=$(arg cache_dir)
+    [ -z "$CACHE" ] || mkdir -p "$CACHE"
+    FINDINGS=$(arg findings_file); FIX_AUTHOR=$(arg fix_author); FIX_PRS=$(arg fix_prs)
+    [ -z "$FIX_AUTHOR" ] || check_ident '^[A-Za-z0-9][A-Za-z0-9_.-]*$' "$FIX_AUTHOR"
+    [ -z "$FIX_PRS" ] || check_ident '^[0-9]+(,[0-9]+)*$' "$FIX_PRS"
     TOKEN=$(arg token); [ -n "$TOKEN" ] || TOKEN=/open-pr
     printf '%s' "$TOKEN" | grep -Eq '^(/[a-z][a-z0-9-]*|@[A-Za-z0-9][A-Za-z0-9_.-]*)$' \
         || die 1 "open-pr.sh triggers: --token must be /word (lowercase, digits, dashes) or @login: $TOKEN"
@@ -833,6 +913,7 @@ cmd_triggers() {
     fi
     mf=$(cmd_marker --vendor "$V" --kind finding); mr=$(cmd_marker --vendor "$V" --kind reply)
     trg_fetch > "$TMPD/tr.all"
+    [ -z "$FINDINGS" ] || trg_findings
     # --mark-file covers EVERY comment fetched, trigger or not, so a quiet repo's cursor moves.
     [ -z "$MARK" ] || jq -r -s "$JQ_EPOCH"' map(.created_at | epoch) | max // empty | floor | todate' \
         "$TMPD/tr.all" > "$MARK"
@@ -841,7 +922,7 @@ cmd_triggers() {
     # An @login token matches case-insensitively, as logins do.
     jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" \
         --arg tok "$TOKEN" "$JQ_EPOCH"'
-        ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $open
+        ($prs | map({key: (.pr | tostring), value: .}) | from_entries) as $open
         | ($since | if . == "" then null else epoch end) as $after
         | ("\\A\\s*" + ($tok | gsub("(?<c>[^A-Za-z0-9_])"; "\\\(.c)")) + "(\\s|\\z)") as $re
         | (if ($tok | startswith("@")) then "i" else "" end) as $fl
@@ -849,7 +930,7 @@ cmd_triggers() {
             | select(.body | test($re; $fl))
             | select((.body | contains($mf)) or (.body | contains($mr)) or (.body | contains("bot-claim:")) | not)
             | select($after == null or (.created_at | epoch) > $after)
-            | . + {url: $open[.pr | tostring]} ]
+            | . + {url: $open[.pr | tostring].url, pr_author: $open[.pr | tostring].author} ]
         | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
     printf '{}\n' > "$TMPD/tr.auth"
     if [ "$V" = gitlab ]; then
@@ -873,7 +954,7 @@ cmd_triggers() {
     fi
     jq -c --slurpfile a "$TMPD/tr.auth" '
         (if .uid != null then ($a[0][.uid | tostring] // "no") else .authorized end) as $auth
-        | {pr, url, comment_id, kind, thread_id, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
+        | {pr, url, pr_author, comment_id, kind, thread_id, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
 }
 
 # One open PR/MR number per line, every page: the watcher drops the rows of merged/closed ones.
@@ -1184,9 +1265,11 @@ Subcommands:
   list-repos [--dir D]
       every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote,
       vendor, owner, repo, host, last commit ISO-8601
-  triggers [--since T] [--mark-file F] [--token K]
+  triggers [--since T] [--mark-file F] [--token K] [--cache-dir C]
+           [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
       open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL;
-      contract in reference/vendor-interface.md
+      F2 gets the reviews this plugin posted on A's PRs or the listed ones; GitHub GETs are
+      conditional on the ETags kept in C; contract in reference/vendor-interface.md
   open-prs
       every open PR/MR number, 1 per line
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)

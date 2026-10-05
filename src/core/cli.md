@@ -26,7 +26,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `locate-repo --owner O --repo R --host H` | `<repo_dir>` whose git remote matches |
 | `repo-target --repo-dir D [--remote R]` | D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines |
 | `list-repos [--dir D]` | every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote, vendor, owner, repo, host, last commit ISO-8601 |
-| `triggers [--since T] [--mark-file F] [--token K]` | open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL; contract in reference/vendor-interface.md |
+| `triggers [--since T] [--mark-file F] [--token K] [--cache-dir C]` | [--findings-file F2 [--fix-author A] [--fix-prs N,N…]] open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL; F2 gets the reviews this plugin posted on A's PRs or the listed ones; GitHub GETs are conditional on the ETags kept in C; contract in reference/vendor-interface.md |
 | `open-prs` | every open PR/MR number, 1 per line |
 | `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per repo at a time: waits `--lock-timeout` s (120), then exit 1 |
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
