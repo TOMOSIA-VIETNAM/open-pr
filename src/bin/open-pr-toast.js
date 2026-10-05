@@ -1,22 +1,27 @@
 // macOS toast for open-pr-watch.sh notify: our own panel, so no Notifications permission (the
 // system centre would ask, and file it under "Script Editor"); mouse state is polled from NSEvent
 // class methods, which need no Accessibility permission either.
-//   click → focus (below) · ✕ → close · 1h → write the snooze file · hover → countdown pauses
+//   click → focus (below) · ✕ → close · 1h → write the snooze file · Fix now → run fix-now ·
+//   hover → countdown pauses
 // argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
-// `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, and the
-// watcher.json fields term, term_session, tty, session_id.
+// `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, the
+// watcher.json fields term, term_session, tty, session_id, then — a findings toast only — the
+// absolute open-pr-watch.sh, the repo dir, its remote and the PR number "Fix now" passes to
+// `open-pr-watch.sh fix-now`.
 // focus: pr → open url · watcher → the watcher's terminal tab, or `claude attach` of its session
 // when that tab is gone · session → the open command in the watcher's terminal app (no valid
 // command ⇒ watcher). A watcher in a terminal not in TERMS and with no session ⇒ url. The focus
 // code mirrors open-pr-menubar.js (goToTab, openIn).
 // Every string arrives as argv; nothing here is spliced into source: the open command reaches a
 // .command file or osascript argv only after matching OPEN_CMD, a tab id reaches osascript as argv
-// only after matching TAB_ID, a session id becomes `claude attach` only after matching SESSION_ID.
+// only after matching TAB_ID, a session id becomes `claude attach` only after matching SESSION_ID,
+// the fix-now values reach /bin/sh argv only after their own checks (fixArgs).
 ObjC.import('Cocoa');
 
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
 var SESSION_ID = /^[0-9a-f-]{8,64}$/;
+var REMOTE = /^[A-Za-z0-9._-]+$/;
 var TERMS = {   // by TERM_PROGRAM: bundle id
     'iTerm.app': 'com.googlecode.iterm2', 'Apple_Terminal': 'com.apple.Terminal',
     'ghostty': 'com.mitchellh.ghostty', 'WezTerm': 'com.github.wez.wezterm', 'WarpTerminal': 'dev.warp.Warp-Stable'
@@ -41,7 +46,7 @@ var ITERM_NEW_TAB = ['on run argv', 'tell application id "com.googlecode.iterm2"
 
 var ACCENT = {   // sRGB, by event
     review_started: [0.35, 0.53, 0.95], re_review: [0.35, 0.53, 0.95],
-    posted: [0.22, 0.7, 0.45], draft_ready: [0.93, 0.68, 0.16],
+    posted: [0.22, 0.7, 0.45], draft_ready: [0.93, 0.68, 0.16], findings: [0.93, 0.68, 0.16],
     question: [0.91, 0.27, 0.06], error: [0.86, 0.15, 0.15]
 };
 
@@ -50,7 +55,7 @@ function run(argv) {
     var accent = ACCENT[argv[3]] || [0.91, 0.27, 0.06];
     var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8);
     var snoozeFile = argv[7] || '';
-    var where = clickTarget(argv);
+    var where = clickTarget(argv), fix = fixArgs(argv);
 
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
@@ -94,8 +99,9 @@ function run(argv) {
         t.setLineBreakMode($.NSLineBreakByTruncatingTail);
         view.addSubview(t);
     }
-    label(title, 18, 12, W - 90, 12, true, 0.7);
+    label(title, 18, 12, fix ? W - 145 : W - 90, 12, true, 0.7);
     if (snoozeFile) label('1h', W - 56, 10, 22, 12, false, 0.55);
+    if (fix) label('Fix now', W - 118, 10, 56, 12, true, 0.9);
     label('✕', W - 26, 10, 16, 12, false, 0.55);
     label(summary, 18, 32, W - 30, 14, true, 1);
     if (detail) label(detail, 18, 56, W - 30, 12, false, 0.75);
@@ -116,7 +122,9 @@ function run(argv) {
             var top = p.y >= y + H - 30;
             var onClose = top && p.x >= x + W - 30;
             var onSnooze = snoozeFile && top && !onClose && p.x >= x + W - 62;
-            if (onSnooze) snoozeHour(snoozeFile);
+            var onFix = fix && top && !onClose && !onSnooze && p.x >= x + W - 124;
+            if (onFix) spawn('/bin/sh', fix);
+            else if (onSnooze) snoozeHour(snoozeFile);
             else if (!onClose) focus(where);
             break;
         }
@@ -131,6 +139,15 @@ function run(argv) {
 function clickTarget(argv) {
     return { focus: argv[8] || 'pr', url: argv[6] || '', open: argv[9] || '', snoozeFile: argv[7] || '',
              term: argv[10] || '', term_session: argv[11] || '', tty: argv[12] || '', session_id: argv[13] || '' };
+}
+// `open-pr-watch.sh fix-now` argv, or null when any value is outside its shape.
+function fixArgs(argv) {
+    var sh = argv[14] || '', dir = argv[15] || '', remote = argv[16] || '', pr = argv[17] || '';
+    var fm = $.NSFileManager.defaultManager, isDir = Ref();
+    if (!/^\/.*\/open-pr-watch\.sh$/.test(sh) || !fm.fileExistsAtPath(sh)) return null;
+    if (dir.charAt(0) !== '/' || !fm.fileExistsAtPathIsDirectory(dir, isDir) || !isDir[0]) return null;
+    if ((remote && !REMOTE.test(remote)) || !/^[0-9]+$/.test(pr)) return null;
+    return [sh, 'fix-now', '--repo-dir', dir].concat(remote ? ['--remote', remote] : [], ['--pr', pr]);
 }
 function focus(o) {
     if (o.focus === 'session' && openIn(o.term, o.open, o.snoozeFile)) return;

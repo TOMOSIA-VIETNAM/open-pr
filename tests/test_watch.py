@@ -1404,6 +1404,9 @@ def test_a_new_review_with_findings_is_delivered_once_and_kept_for_the_menu_bar(
     assert w.state()["findings"]["5"]["review_id"] == "70"
     w.spawn(5, extra=("--role", "fix"))
     assert "5" not in w.state().get("findings", {}), "a fix session takes the pending findings"
+    row = w.jsonl("status", "--pr", "5", "--role", "fix")[0]
+    assert row["findings"]["comment_id"] == "10" and row["findings"]["user"] == "rev", \
+        "what a re-review request replies to"
 
 
 def test_removing_a_pr_takes_it_out_of_the_fix_role(w):

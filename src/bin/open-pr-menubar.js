@@ -1,12 +1,14 @@
 // macOS menu bar item for `/open-pr:menubar` (a status item needs no permission). It
 // polls, in every data directory given, the files the watcher writes:
 //   <data>/<repo>/watch/heartbeat    the repo counts as watched while this is fresh
-//   <data>/<repo>/watch/state.json   sessions, one row per PR; active = not finished, working or question;
-//                                           PRs in `hidden` get no row
-//   <data>/<repo>/watch/feed.jsonl   notifications; a PR's latest one, when newer than its
+//   <data>/<repo>/watch/state.json   sessions, one row per PR and role (review | fix); active = not
+//                                           finished, working or question; `findings` = a fix row offering
+//                                           "Fix now" until a fix session opens; PRs in `hidden` get no row
+//   <data>/<repo>/watch/feed.jsonl   notifications; a PR role's latest one, when newer than its
 //                                           session's state, is its row's text
 //   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, and
-//                                           the repo_dir/remote "Remove from list" passes to `hide`
+//                                           the repo_dir/remote "Remove from list" passes to `hide` and
+//                                           "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop watcher"; the watcher's `wait` consumes it
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
@@ -37,6 +39,9 @@ var item = null, target = null, icons = {}, rowParts = {}, litRow = null;
 
 var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgtm_chat as lgtm); tints match open-pr-toast.js
     working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
+    fixing:   ['circle.dotted', [0.35, 0.53, 0.95], 'Fixing'],
+    findings: ['wrench.and.screwdriver', [0.93, 0.68, 0.16], 'New findings — Fix now'],
+    fixed:    ['checkmark.circle', [0.22, 0.7, 0.45], 'Fixed'],
     question: ['questionmark.bubble', [0.91, 0.27, 0.06], 'Needs your answer'],
     draft:    ['doc.badge.clock', [0.93, 0.68, 0.16], 'Draft waiting'],
     posted:   ['checkmark.bubble', [0.22, 0.7, 0.45], 'Posted'],
@@ -51,7 +56,7 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
-                   draft_ready: 'draft', posted: 'posted', error: 'failed' };
+                   draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
 // by TERM_PROGRAM: menu name, bundle id, app a session opens in (see openIn)
 var TERMS = {
     'iTerm.app':      ['iTerm', 'com.googlecode.iterm2', 'iTerm'],
@@ -111,6 +116,7 @@ ObjC.registerSubclass({
         'menuDidClose:': { types: ['void', ['id']], implementation: function () { highlightRow(null); } },
         'stopSession:': { types: ['void', ['id']], implementation: function (t) { stopSession(parse(unwrapString(t.userInfo))); } },
         'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
+        'fixNow:': { types: ['void', ['id']], implementation: function (s) { fixNow(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
         'poll:': { types: ['void', ['id']], implementation: function (s) { poll(Number(s.tag)); } },
         'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
@@ -211,31 +217,46 @@ function scan() {
             var at = pendingHide[repoDir + '#' + pr];
             return hidden[pr] || (at && Date.now() - at < HIDE_PENDING);
         };
-        var hideArg = function (pr) { return JSON.stringify({ repo_dir: repoDir, remote: remote, pr: Number(pr) }); };
-        Object.keys(ss).forEach(function (pr) {
-            var s = ss[pr];
-            if (!s || typeof s !== 'object' || gone(pr)) return;
-            var repo = str(s.repo) || name, state = str(s.last_state);
-            rows[repo + '#' + pr] = { title: repo + ' #' + pr, session: true, state: state,
-                active: s.finished !== true && (state === 'working' || state === 'question'),
-                url: str(s.url), open: str(s.open), hide: hideArg(pr),
-                stateAt: ms(s.last_state_at) || Math.max(ms(s.started_at), ms(s.finished_at)) };
+        var prArg = function (pr) { return JSON.stringify({ repo_dir: repoDir, remote: remote, pr: Number(pr) }); };
+        var row = function (repo, pr, role) {
+            var k = repo + '#' + pr + ':' + role;
+            return rows[k] || (rows[k] = { title: repo + (pr ? ' #' + pr : ''), role: role, session: false, state: '',
+                active: false, url: '', open: '', hide: pr ? prArg(pr) : '', fix: '', stateAt: 0 });
+        };
+        Object.keys(ss).forEach(function (key) {
+            var s = ss[key], m = /^([0-9]+):(review|fix)$/.exec(key);
+            if (!m || !s || typeof s !== 'object' || gone(m[1])) return;
+            var r = row(str(s.repo) || name, m[1], m[2]), state = str(s.last_state);
+            r.session = true;
+            r.state = m[2] === 'fix' && state === 'working' ? 'fixing' : state;
+            r.active = s.finished !== true && (state === 'working' || state === 'question');
+            r.url = str(s.url); r.open = str(s.open);
+            r.stateAt = ms(s.last_state_at) || Math.max(ms(s.started_at), ms(s.finished_at));
+        });
+        var fd = st && typeof st.findings === 'object' && st.findings ? st.findings : {};
+        Object.keys(fd).forEach(function (pr) {
+            var f = fd[pr];
+            if (!/^[0-9]+$/.test(pr) || !f || typeof f !== 'object' || gone(pr)) return;
+            var r = row(str(f.repo) || name, pr, 'fix'), at = ms(f.at);
+            if (at < r.stateAt) return;
+            r.session = true; r.state = 'findings'; r.stateAt = at; r.active = true;
+            r.findings = counts(f.counts); r.fix = prArg(pr);
+            if (!r.url) r.url = str(f.url);
         });
         readText(dir + '/feed.jsonl').split('\n').forEach(function (line) {
             var f = parse(line);
             if (!f || typeof f !== 'object' || !str(f.summary)) return;
             var repo = str(f.repo) || name, pr = typeof f.pr === 'number' ? String(f.pr) : '';
             if (pr && gone(pr)) return;
-            var r = rows[repo + '#' + pr] || (rows[repo + '#' + pr] =
-                { title: repo + (pr ? ' #' + pr : ''), session: false, state: '', active: false, url: '', open: '',
-                  hide: pr ? hideArg(pr) : '', stateAt: 0 });
+            var r = row(repo, pr, f.role === 'fix' ? 'fix' : 'review');
             if (!r.feed || str(f.at) >= str(r.feed.at)) r.feed = f;
             if (!r.url) r.url = str(f.url);
         });
         Object.keys(rows).forEach(function (k) { wr.rows.push(finish(rows[k])); });
     }); });
     out.watchers.forEach(function (w) {
-        w.rows.sort(function (a, b) { return (b.active - a.active) || (b.at - a.at); });
+        // review rows, then fix rows; each part: waiting on the user first, then the latest
+        w.rows.sort(function (a, b) { return ((a.role === 'fix') - (b.role === 'fix')) || (b.active - a.active) || (b.at - a.at); });
         w.rows = w.rows.slice(0, ROWS);
         w.rows.forEach(function (r) { if (r.active) out.active++; });
     });
@@ -243,6 +264,12 @@ function scan() {
     return out;
 }
 function ms(t) { var n = new Date(str(t)).getTime(); return isNaN(n) ? 0 : n; }
+// findings counts {"🟠": 2} → "2 🟠 · 4 🔵", severity order
+function counts(c) {
+    c = c && typeof c === 'object' ? c : {};
+    return ['🔴', '🟠', '🔵', '📝'].filter(function (e) { return typeof c[e] === 'number' && c[e] > 0; })
+        .map(function (e) { return c[e] + ' ' + e; }).join(' · ');
+}
 // A row's kind (key of KIND), text and latest activity. Same second: the line wins, its summary
 // says more than the state label.
 function finish(r) {
@@ -258,7 +285,12 @@ function finish(r) {
     var at = Math.max(r.stateAt, fat);
     r.kind = kind;
     r.at = at;
-    r.text = (f ? str(f.summary) : KIND[kind] ? KIND[kind][2] : kind) + (at ? ' · ' + when(new Date(at)) : '');
+    // a feed line saying "fixed" or "posted" after the findings ends the Fix now offer
+    if (kind !== 'findings') r.fix = '';
+    else if (!r.fix && r.hide) r.fix = r.hide;
+    var label = KIND[kind] ? KIND[kind][2] : kind;
+    if (kind === 'findings' && r.findings) label = r.findings + ' — Fix now';
+    r.text = (f ? str(f.summary) : label) + (at ? ' · ' + when(new Date(at)) : '');
     return r;
 }
 
@@ -460,8 +492,8 @@ function build(s) {
     head.setView(headerView(s.repos, s.watchers.length, until));
     m.addItem(head);
 
-    section(m, 'Reviews');
-    if (!s.watchers.length) add(m, 'No review yet');
+    section(m, 'Pull requests');
+    if (!s.watchers.length) add(m, 'Nothing yet');
     s.watchers.forEach(function (w) {
         // A record from before watcher.json existed has no tab to show.
         if (w.key) {
@@ -472,19 +504,20 @@ function build(s) {
             wi.setView(watcherRow(w.label, w.repos.join(', '), !!go));
             m.addItem(wi);
         }
-        if (!w.rows.length) add(m, 'No review yet').setIndentationLevel(w.key ? 1 : 0);
+        if (!w.rows.length) add(m, 'Nothing yet').setIndentationLevel(w.key ? 1 : 0);
         w.rows.forEach(function (x) {
             var spec = KIND[x.kind];
-            var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
+            var mi = add(m, x.title + ' · ' + x.role, isURL(x.url) ? 'openURL:' : null, x.url);
             subtitle(mi, x.text);
             if (spec) mi.setImage(symbol(spec));
             if (w.key) mi.setIndentationLevel(1);
             // Offered in every state: `open` also reopens a finished or stopped session.
             var sub = newMenu(x.title);
+            if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
             if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
             if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, term: w.term }));
             if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
-            if (x.hide && hideArgs(parse(x.hide))) add(sub, 'Remove from list', 'hide:', x.hide);
+            if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
             if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
         });
     });
@@ -620,15 +653,20 @@ function stopSession(o) {
     });
     if (bg) spawn('/usr/bin/env', ['claude', 'stop', o.session_id.slice(0, 8)]);
 }
-// `open-pr-watch.sh hide` argv, or null when a value is outside its shape.
-function hideArgs(o) {
+// `open-pr-watch.sh <sub>` argv for one PR (sub: hide | fix-now), or null when a value is outside its shape.
+function prArgs(o, sub) {
     if (!watchScript || !o || typeof o !== 'object') return null;
     var dir = str(o.repo_dir), remote = str(o.remote), pr = o.pr;
     if (!isDir(dir) || (remote && !REMOTE.test(remote)) || typeof pr !== 'number' || !/^[0-9]+$/.test(String(pr))) return null;
-    return [watchScript, 'hide', '--repo-dir', dir].concat(remote ? ['--remote', remote] : [], ['--pr', String(pr)]);
+    return [watchScript, sub, '--repo-dir', dir].concat(remote ? ['--remote', remote] : [], ['--pr', String(pr)]);
+}
+// The watcher's wait delivers it within seconds; the row turns to the fix session once it opens.
+function fixNow(o) {
+    var args = prArgs(o, 'fix-now');
+    if (args) spawn('/bin/sh', args);
 }
 function hide(o) {
-    var args = hideArgs(o);
+    var args = prArgs(o, 'hide');
     if (!args) return;
     spawn('/bin/sh', args);
     pendingHide[o.repo_dir + '#' + o.pr] = Date.now();

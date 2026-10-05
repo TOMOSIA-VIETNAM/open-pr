@@ -146,7 +146,7 @@ setting_int() {
 #   queue     [ {key,pr,role,runner,name,prompt_file,queued_at[,cwd][,url][,fresh]} ] waiting for a slot
 #   fix_prs   { "<pr>": "enrolled" | "off" } — enrolled: the user asked for a review of their own PR;
 #             off: `hide` took it out of the fix role (wins over authorship until a spawn for it)
-#   findings  { "<pr>": {review_id,counts,url,comment_id,thread_id,user,at} } the newest findings
+#   findings  { "<pr>": {review_id,counts,url,comment_id,thread_id,user,repo,at} } the newest findings
 #             event per PR, until a fix session opens for it (the menu bar offers "Fix now")
 #   seen_reviews  "<pr>:<review id>" already delivered (the newest 200)
 # etags/ (GitHub ETag cache, open-pr.sh triggers), fix_now/<pr> (a "Fix now" click, see fix-now).
@@ -423,7 +423,9 @@ cmd_status() {
     load_repo; lock
     status_all "$N" "$R" > "$TMPD/status"
     remember_ids "$TMPD/status"
-    jq -c '{pr, role, runner, id, state, open} + (if .note then {note} else {} end) + (if .finished then {finished} else {} end)
+    state_json > "$TMPD/state.in"
+    jq -c --slurpfile st "$TMPD/state.in" '{pr, role, runner, id, state, open}
+        + ($st[0].sessions[.key].findings | if . then {findings: .} else {} end) + (if .note then {note} else {} end) + (if .finished then {finished} else {} end)
         + (if .hidden then {hidden} else {} end)' "$TMPD/status"
 }
 
@@ -483,7 +485,7 @@ cmd_spawn() {
     case "$RUNNER" in claude) need claude ;; codex) need codex ;; gemini) need gemini ;; cursor) need agent ;; antigravity) need agy ;; esac
     lock
     state_update --argjson pr "$N" --arg role "$ROLE" '.hidden = [(.hidden // [])[] | select(. != $pr)]
-        | if $role == "fix" then del(.findings[$pr | tostring]) | del(.fix_prs[$pr | tostring] | select(. == "off")) else . end'
+        | if $role == "fix" then del(.fix_prs[$pr | tostring] | select(. == "off")) else . end'
     max=$(setting_int max_concurrent 5)
     status_all > "$TMPD/status"
     remember_ids "$TMPD/status"
@@ -530,6 +532,8 @@ cmd_spawn() {
                             name: $name, repo: $repo, url: (($url | nul) // .sessions[$key].url), open: ($open | nul),
                             cwd: $cwd, pid: ($pid | nul | if . then tonumber else . end), started_at: $at,
                             last_state: "working", last_state_at: $at, finished: false}
+                           + (if $role == "fix" then {findings: (.findings[$pr | tostring] // .sessions[$key].findings)} else {} end)
+         | del(.findings[if $role == "fix" then ($pr | tostring) else "" end])
          | .queue = [.queue[] | select(.key != $key)]'
     jq -n -c --argjson pr "$N" --arg role "$ROLE" --arg id "$RID" --arg open "$(open_cmd "$RUNNER" "$RID")" \
         --argjson resumed "$resumed" --arg warn "$WARNING" \
@@ -745,14 +749,15 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
         unlock; return 0
     fi
     jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/status" --slurpfile fnd "$TMPD/fnd" \
-        --slurpfile en "$TMPD/enroll.json" --arg m "$mark" --arg terminal "$TERMINAL" --arg at "$(now_iso)" '
+        --slurpfile en "$TMPD/enroll.json" --arg m "$mark" --arg terminal "$TERMINAL" --arg at "$(now_iso)" \
+        --arg repo "$OWNER/$REPO" '
         ([.cursor, $m] + [$new[]._k] | map(select(. != "")) | max) as $c
         | .seen = (if $c == .cursor then (.seen // []) else [] end
                    + [$new[] | select(._k == $c) | .comment_id | tostring] | unique)
         | .cursor = $c
         | reduce $en[0][] as $p (.; .fix_prs[$p] = "enrolled")
         | .seen_reviews = (((.seen_reviews // []) + [$fnd[] | "\(.pr):\(.review_id)"]) | .[-200:])
-        | reduce $fnd[] as $f (.; .findings[$f.pr | tostring] = ($f | del(.event, .pr) + {at: $at}))
+        | reduce $fnd[] as $f (.; .findings[$f.pr | tostring] = ($f | del(.event, .pr) + {repo: $repo, at: $at}))
         | ($terminal | split(" ")) as $done
         | reduce $status[] as $s (.; if .sessions[$s.key] then
               .sessions[$s.key] |= ((if .last_state != $s.state then .last_state_at = $at else . end)
@@ -1082,9 +1087,10 @@ Subcommands:
       session still running ⇒ `{"pr","role","queued":true,"reason"}`. The session runs in W (default
       the repo dir), recorded so a resume runs there again. `--fresh`: open a new session even when
       there is one; the old one is left untouched and untracked. U (the PR URL) is kept for the menu
-      bar. Takes N off the hidden list; a fix session also takes its pending findings
+      bar. Takes N off the hidden list; a fix session takes over the PR's pending findings
   status [--pr N] [--role R]
-      per session `{"pr","role","runner","id","state","open"}`, state one of working|question|draft|
+      per session `{"pr","role","runner","id","state","open"[,"findings"]}` (a fix session: the
+      findings it was opened for, as `findings` events carry them), state one of working|question|draft|
       posted|lgtm_chat|nothing|answered|fixed|failed|stopped (`"note"` says why when the session left
       no status file); a finished session shows its result with `"finished":true`, a hidden one
       `"hidden":true`

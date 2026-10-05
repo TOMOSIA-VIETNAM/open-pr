@@ -12,8 +12,10 @@
     "upgrade": 2282,
     "clean": 1388,
     "feedback": 2231,
-    "watch/first-run": 6653,
-    "menubar": 224,
+    "watch/first-run": 7603,
+    "watch/review-only": 6085,
+    "watch/both-roles": 6823,
+    "menubar": 230,
     "watch/answer-session": 3024,
     "review/watch-session-github": 9748,
     "fix/watch-session-github": 9107,
@@ -24,6 +26,6 @@
     "fix/multi-pr-submodule": 9168,
     "fix/first-run-gitlab": 8459
   },
-  "mean": 7794,
+  "mean": 7725,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }

@@ -75,6 +75,7 @@ ROLES = {
     "watch-cmd": ["commands/watch.md"],
     "case-watch-session": ["cases/watch-session.md"],
     "case-watch-answer": ["cases/watch-answer.md"],
+    "case-watch-fix": ["cases/watch-fix.md"],
     "menubar-cmd": ["commands/menubar.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
@@ -150,9 +151,17 @@ SCENARIOS = {
     "feedback": [
         "feedback-cmd", "guardrails",
     ],
-    # the watcher's own session: first run asks its settings and commits them
+    # the watcher's own session: first run asks its settings and commits them; both roles by default
     "watch/first-run": [
-        "watch-cmd", "guardrails", "cli", "repo-settings", "memory-commit",
+        "watch-cmd", "guardrails", "cli", "repo-settings", "memory-commit", "case-watch-fix",
+    ],
+    # a known repo, `/open-pr:watch review`: the fix role's prompt stays unread
+    "watch/review-only": [
+        "watch-cmd", "guardrails", "cli",
+    ],
+    # a known repo, both roles (`/open-pr:watch fix` reads the same files)
+    "watch/both-roles": [
+        "watch-cmd", "guardrails", "cli", "case-watch-fix",
     ],
     "menubar": [
         "menubar-cmd",
