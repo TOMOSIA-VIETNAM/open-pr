@@ -878,8 +878,13 @@ trg_findings() {
         ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $fix
         | ($since | if . == "" then null else epoch end) as $after
         | . as $all
+        # a review left as a draft and published later: its line comments keep their creation time
+        | [.[] | select(.kind == "review" and .created_at != null and ($after == null or (.created_at | epoch) > $after))
+           | .review_id] as $published
         | [.[] | select($fix[.pr | tostring] != null and (.body | test("bot-finding(\\s*-->|\\]:\\s*#)"))
-                         and ($after == null or (.created_at | epoch) > $after)) | . as $f
+                         and .created_at != null
+                         and ($after == null or (.created_at | epoch) > $after
+                              or (.review_id as $r | $r != null and ($published | index([$r]) != null)))) | . as $f
            | select(.kind == "review"
                     or ([$all[] | select(.comment_id != $f.comment_id and (.body | test("bot-reply(\\s*-->|\\]:\\s*#)"))
                                          and ((.in_reply_to != null and .in_reply_to == $f.comment_id)
@@ -1150,6 +1155,7 @@ cmd_settings() {
                     draft_ready: default_bool(.watch.notify; "draft_ready"; true),
                     posted: default_bool(.watch.notify; "posted"; true),
                     re_review: default_bool(.watch.notify; "re_review"; true),
+                    findings: default_bool(.watch.notify; "findings"; true),
                     error: default_bool(.watch.notify; "error"; true)
                 })
             }),

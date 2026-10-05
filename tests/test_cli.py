@@ -1142,6 +1142,20 @@ def test_findings_github_groups_one_review_with_its_line_and_file_findings(shims
         "reviews are fetched only for the user's own PRs updated since"
 
 
+def test_findings_github_counts_a_draft_reviews_older_line_comments_once_it_is_published(shims, tmp_path):
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "u5", "user": {"login": "dev"}, "updated_at": "2026-01-02T00:00:00Z"}]),
+        ("pulls/comments", [{"id": 10, "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "user": {"login": "rev"},
+                             "created_at": "2025-12-31T00:00:00Z", "body": "🟠 x\n\n" + MF, "pull_request_review_id": 70}]),
+        ("pulls/5/reviews", [{"id": 70, "state": "COMMENTED", "user": {"login": "rev"}, "body": "**LGTM** none",
+                              "submitted_at": "2026-01-01T12:00:00Z"}]),
+    ])
+    out = tmp_path / "findings"
+    triggers(shims, "github", "--since", "2026-01-01T00:00:00Z", "--findings-file", str(out), "--fix-author", "dev")
+    assert [(json.loads(l)["review_id"], json.loads(l)["counts"]) for l in out.read_text().splitlines()] == \
+        [("70", {"🟠": 1})], "the comment was written as a draft before --since, published after"
+
+
 def test_findings_listed_prs_count_whoever_wrote_them(shims, tmp_path):
     serve(shims, "gh", [
         ("pulls?state=open", [{"number": 6, "html_url": "u6", "user": {"login": "other"}, "updated_at": "2026-01-01T00:01:00Z"}]),
@@ -1430,7 +1444,7 @@ def test_settings_defaults_the_watch_node(data_dir, tmp_path):
     d.mkdir(parents=True)
     defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "trigger": "/open-pr",
                 "notify": {"review_started": True, "question": True, "draft_ready": True,
-                           "posted": True, "re_review": True, "error": True}}
+                           "posted": True, "re_review": True, "findings": True, "error": True}}
     (d / "settings.json").write_text(json.dumps({"review": {"bootstrapped": True}}))
     out = json.loads(run("settings", "--repo", "demo", check=True).stdout)
     assert out["watch"] == defaults and out["watch_configured"] is False

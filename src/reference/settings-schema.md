@@ -48,6 +48,7 @@ for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the fil
       "draft_ready": true,
       "posted": true,
       "re_review": true,
+      "findings": true,
       "error": true
     }
   }
