@@ -81,4 +81,18 @@ T2 đổi tên watch-review → watch (command, state dir, shim, docs)
 
 ## Kết quả tra cứu
 
-(Điền sau T1.)
+Tra ngày 2026-10-05, chỉ docs chính thức + mã nguồn `gh`.
+
+| Vendor | Giới hạn | Nguồn |
+|---|---|---|
+| GitHub REST | 5.000 req/giờ cho user đã xác thực; app/OAuth app thuộc org Enterprise Cloud 15.000. Request của app giới hạn cao trừ vào cùng ngân sách của user. Giới hạn phụ: ≤100 request đồng thời, ≤900 điểm/phút cho REST (GET = 1 điểm, ghi = 5), ≤80 request tạo nội dung/phút và ≤500/giờ | https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api |
+| GitHub conditional | Lưu `etag` (hoặc `last-modified`), gửi lại trong `if-none-match` (`if-modified-since`); dữ liệu không đổi ⇒ `304 Not Modified`, **không trừ primary rate limit** khi request có header `Authorization` hợp lệ (`gh` luôn gửi) | https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api |
+| `gh api` khi 304 | status > 299 ⇒ in `HTTP 304` ra stderr, exit 1 (`cmdutil.SilentError`); `-i` in dòng status + header (tên header kiểu Go: `Etag`) ra stdout; `--paginate` dừng (không có `Link: next`) | https://github.com/cli/cli/blob/trunk/pkg/cmd/api/api.go |
+| GitLab.com | Authenticated API: 2.000 req/phút mỗi user (hiện tại); đề xuất theo gói: Free 100, Premium 1.250, Ultimate 2.000/phút. Tạo note trên MR: 60/phút. Không nói gì về 304 | https://docs.gitlab.com/user/gitlab_com/rate_limits/ |
+| GitLab conditional | API v4 có `Rack::ConditionalGet` (304 với `If-None-Match`), nhưng rate limit đếm ở tầng request — 304 vẫn tính; docs không hứa miễn quota | như trên + https://gitlab.com/gitlab-org/gitlab-foss/issues/26926 |
+| Bitbucket Cloud | `/2.0/repositories/*`: 1.000 req/giờ, tính theo user ID; scaled tới 10.000/giờ chỉ với access token workspace/project/repo trên Standard/Premium ≥100 user trả phí (+10 req/giờ mỗi user). Header `X-RateLimit-Limit`, `X-RateLimit-NearLimit`. Không có conditional request trong docs | https://support.atlassian.com/bitbucket-cloud/docs/api-request-limits/ |
+
+Điều chỉnh thiết kế theo kết quả:
+- ETag chỉ cho GitHub (đúng spec). `gh api -i -H "If-None-Match: …"` một trang: 304 ⇒ dùng lại body đã lưu (cursor không đổi vì cùng dữ liệu); trang có `Link: rel="next"` ⇒ lấy đủ bằng `--paginate`, không cache. Giá trị ETag là dữ liệu vendor ⇒ kiểm dạng `(W/)?"…"` trước khi vào argv.
+- GitLab/Bitbucket không có lợi từ ETag ⇒ tiết kiệm bằng poll thưa khi rảnh (Bitbucket cần nhất: 1.000/giờ).
+- Bitbucket với workspace token: account `UNKNOWN` ⇒ vai fix tự nhận "PR của mình" không được; chỉ PR liệt kê.
