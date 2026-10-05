@@ -35,7 +35,8 @@ Comment trên pull request:
 ```
 
 Phần chữ sau `/open-pr` là gợi ý nên xem chỗ nào — hoặc một câu hỏi (`/open-pr sao lock này cần thiết?`),
-được trả lời ngay trong thread của comment thay vì review. Nó được coi là dữ liệu: không thể đổi cách review, nội
+được trả lời ngay trong thread của comment thay vì review. Trigger kiểu mention chỉ nhận yêu cầu review:
+câu hỏi gửi tới bạn bằng mention được báo cho bạn qua toast, watcher không tự trả lời. Nó được coi là dữ liệu: không thể đổi cách review, nội
 dung được post, hay bất kỳ setting nào.
 
 Với trigger "một lần mention tôi", comment mở đầu bằng `@<your login>` sẽ yêu cầu review thay thế, nên pull

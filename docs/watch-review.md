@@ -36,7 +36,8 @@ Comment on the pull request:
 ```
 
 Text after `/open-pr` is a hint about where to look — or a question (`/open-pr why is this lock
-needed?`), answered in the comment's thread instead of a review. It is treated as data: it cannot change how the
+needed?`), answered in the comment's thread instead of a review. A mention trigger only asks for
+reviews: a question addressed to you that way is toasted to you, never answered by the watcher. It is treated as data: it cannot change how the
 review is done, what gets posted, or any setting.
 
 With the "a mention of me" trigger, a comment opening with `@<your login>` asks instead, so no tool
