@@ -166,6 +166,11 @@ SCENARIOS = {
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "case-watch-session", "criteria", "always-rule", "tpl-rails",
     ],
+    # one fix session the watcher opened from "Fix now"
+    "fix/watch-session-github": [
+        "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
+        "marker-logic", "case-watch-session", "criteria", "always-rule", "tpl-rails",
+    ],
     "review/known-repo-bitbucket-clean": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack",
         "bb-fetch", "bb-worktree", "bb-post", "criteria", "always-rule", "tpl-rails",

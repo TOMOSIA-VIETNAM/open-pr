@@ -15,14 +15,15 @@
     "watch/first-run": 6653,
     "menubar": 224,
     "watch/answer-session": 3024,
-    "review/watch-session-github": 9571,
+    "review/watch-session-github": 9748,
+    "fix/watch-session-github": 9107,
     "review/known-repo-bitbucket-clean": 8850,
     "review/known-repo-bitbucket-rereview": 10892,
-    "fix/known-repo-bitbucket": 8185,
-    "fix/known-repo-github": 8185,
-    "fix/multi-pr-submodule": 9144,
-    "fix/first-run-gitlab": 8435
+    "fix/known-repo-bitbucket": 8209,
+    "fix/known-repo-github": 8209,
+    "fix/multi-pr-submodule": 9168,
+    "fix/first-run-gitlab": 8459
   },
-  "mean": 7722,
+  "mean": 7794,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand \u2014 lower them by hand when a change wins tokens back."
 }
