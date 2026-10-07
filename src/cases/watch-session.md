@@ -22,7 +22,9 @@ this one is its ONLY writer. Every other rule of the command running (`commands/
   without asking. `auto_push: false` ⇒ instead of stopping at local, ask `Push and reply
   (Recommended)` · `Keep it local`.
 - **Status file.** Every end of this run — the last Step's report, any STOP or error — is 1 `Write` of
-  `F` (overwrite) once the outcome is known. FORBIDDEN: writing it earlier, or ending without it.
+  `F` (overwrite) once the outcome is known. FORBIDDEN: writing it earlier, or ending without it. The
+  user changes the outcome later in this conversation (publishes the draft, answers what you asked)
+  ⇒ `Write` `F` again with the new outcome.
 
   ```json
   {"state": "posted|draft|lgtm_chat|nothing|fixed|question|failed", "url": "<PR URL>", "counts": {"<severity label>": 0}, "note": "<1 sentence>", "lessons": [], "question": ""}

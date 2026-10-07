@@ -322,7 +322,7 @@ claude_resume() {   # sets RID SID WARNING; $1 id, $2 session id, $3 prompt
 }
 
 # -------------------------------------------------------------- status ----
-# A finished session reads as the result it reported, whatever the user does in it since.
+# A finished session reads as the result in its status file, whatever its live state.
 from_status_file() {   # $1 session key
     f=$(status_file "$1")
     s=$(jq -r '.state // empty' "$f" 2>/dev/null || true)
@@ -357,6 +357,10 @@ EOF
     if [ "$fin" = true ]; then
         [ -n "$id" ] || id=$(lazy_id "$runner" "$key")
         st="$last"
+        # Its live state stays unread, but a result the user reached there (a draft they
+        # published) is rewritten to the status file: that one is reported.
+        fs=$(jq -r '.state // empty' "$(status_file "$key")" 2>/dev/null || true)
+        case " $TERMINAL " in *" $fs "*) [ -z "$fs" ] || st="$fs" ;; esac
         # The user may still be talking in it: a new request waits rather than stops it.
         if [ "$runner" = claude ]; then
             [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
@@ -1068,7 +1072,8 @@ Subcommands:
       per `fix-now` since (with the PR's latest findings), within 5 s while waiting.
       `{"event":"session","repo","pr","role","state","open"}` per session whose state changed.
       Once a session's result (draft|posted|lgtm_chat|nothing|answered|fixed|failed|stopped) is
-      delivered the session is finished: no more events from it, no slot held, until spawn resumes it.
+      delivered the session is finished: no slot held, and no more events from it until spawn resumes
+      it, except a new result its status file is rewritten to (a draft the user published there).
       `{"event":"ready","repo","pr","role"}` = a queued session's turn has come (run `next`). The
       first run starts the cursor at now (no replay). Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.

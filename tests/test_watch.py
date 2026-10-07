@@ -1018,6 +1018,21 @@ def test_a_finished_session_stays_silent_while_the_user_chats_in_it(w):
                                   "open": f"claude attach {sp['id']}", "finished": True}]
 
 
+def test_a_draft_the_user_publishes_in_a_finished_session_reports_posted(w):
+    """The menu bar row must leave "draft waiting" once the session rewrites its status file."""
+    sp = w.spawn(5)
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "done")
+    w.status_file(5, state="draft")
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["draft"]
+    w.claude_set(sp["id"], "working")
+    assert w.run("wait", "--once").stdout == ""
+    w.status_file(5, state="posted")
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["posted"]
+    assert w.state()["sessions"]["5:review"]["last_state"] == "posted"
+    assert w.run("wait", "--once").stdout == ""
+
+
 def test_a_resumed_session_reports_again(w):
     sp = finish(w)
     w.claude_set(sp["id"], "done")
