@@ -106,7 +106,7 @@ request out of both roles.
 A toast in the top-right corner says what is happening — "Reviewing PR #12", "Posted review on PR #12 —
 1 🔴 2 🟠", "LGTM on PR #12", a draft waiting, a session needing an answer. Click it to go where you act: a
 session's question opens that session in your terminal, the watcher's own question or an error brings
-the watcher's tab forward, anything else opens the pull request; hover to keep it on screen; its "1h" control turns toasts off for an hour. When you have to
+the watcher's tab forward, anything else opens the pull request; hover to keep it on screen and show its close button and "1h" control, which turns toasts off for an hour. When you have to
 act, it shows the command that opens the session. On macOS the watcher draws the toast itself (no
 notification permission needed); on Linux it uses `notify-send`.
 
