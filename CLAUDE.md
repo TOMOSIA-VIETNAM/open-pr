@@ -4,7 +4,7 @@ How an agent works in this repo. Orientation + durable invariants — not a ritu
 
 ## Plugin
 
-Claude Code plugin `open-pr`. Markdown + one JSON config + ONE POSIX-sh runtime (`src/bin/open-pr.sh`) that owns every vendor/git mechanic. No build. Only `src/` ships (`/plugin install` copies `src/`).
+Claude Code plugin `open-pr`. Markdown + one JSON config + ONE POSIX-sh runtime (`src/bin/open-pr.sh`) that owns every vendor/git mechanic, plus `src/bin/open-pr-watch.sh`, which owns watch state and each platform's session CLI and reaches vendors only through `open-pr.sh`. No build. Only `src/` ships (`/plugin install` copies `src/`).
 
 | command | does |
 |---|---|
@@ -12,6 +12,8 @@ Claude Code plugin `open-pr`. Markdown + one JSON config + ONE POSIX-sh runtime 
 | `/open-pr:fix <PR_URL>` | read findings, edit real code at pwd, one commit, reply on the PR |
 | `/open-pr:upgrade` | migrate this repo's config to latest `schema_version`; fetches `llm-upgrades/` live |
 | `/open-pr:clean` | remove review worktrees after confirm. Never touches memory or config |
+| `/open-pr:watch-review` | watch the repos picked under pwd for `/open-pr` PR comments; open 1 review session per PR (`claude --bg` or a platform's headless CLI), relay questions/drafts |
+| `/open-pr:menubar [close]` | macOS menu bar item for every watcher on this machine: reviews in progress, recent toasts, snooze |
 | `/open-pr:feedback` | turn this chat into one issue on this plugin's tracker (user-approved, de-identified) |
 
 Vendors: GitHub, GitLab, Bitbucket.
@@ -19,7 +21,7 @@ Vendors: GitHub, GitLab, Bitbucket.
 ## Layout
 
 ```
-src/bin/          open-pr.sh — the deterministic runtime; code, never `Read` into context
+src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar; code, never `Read` into context
 src/commands/     entry points; only these have frontmatter
 src/core/         shared procedure
 src/setup/        bootstrap, doctor, template, lesson

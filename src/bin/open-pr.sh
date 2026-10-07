@@ -69,7 +69,7 @@ bb_paged() {
     next="$1"
     while [ -n "$next" ]; do
         page=$(bb_curl -L "$next") || { err "paged: $page"; return 1; }
-        printf '%s' "$page" | jq -r "$2"
+        printf '%s' "$page" | jq -r "$2" || return 1
         next=$(printf '%s' "$page" | jq -r '.next // empty')
     done
 }
@@ -293,6 +293,66 @@ cmd_locate_repo() {
     esac
 }
 
+# ----------------------------------------------------------- list-repos ----
+# A remote repo-target cannot read is skipped.
+cmd_list_repos() {
+    parse_args "$@"
+    D=$(arg dir); [ -n "$D" ] || D=.
+    [ -d "$D" ] || die 5 "open-pr.sh list-repos: no such directory: $D"
+    D=$(cd "$D" && pwd)
+    find "$D" -maxdepth 4 -name .git 2>/dev/null \
+        | grep -Ev '/(node_modules|notebooks/review|worktrees)/' | sort \
+        | while IFS= read -r g; do
+            d=${g%/.git}
+            last=$(git -C "$d" log -1 --format=%cI 2>/dev/null || true)
+            for r in $(git -C "$d" remote 2>/dev/null); do
+                rt=$( (cmd_repo_target --repo-dir "$d" --remote "$r") 2>/dev/null) || continue
+                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$d" "$r" \
+                    "$(printf '%s\n' "$rt" | sed -n 's/^vendor=//p')" "$(printf '%s\n' "$rt" | sed -n 's/^owner=//p')" \
+                    "$(printf '%s\n' "$rt" | sed -n 's/^repo=//p')" "$(printf '%s\n' "$rt" | sed -n 's/^host=//p')" "$last"
+            done
+        done
+}
+
+# ---------------------------------------------------------- repo-target ----
+# Same lines as target, minus pull_number.
+cmd_repo_target() {
+    parse_args "$@"
+    D=$(req repo_dir); RM=$(arg remote)
+    if [ -n "$RM" ]; then
+        check_ident '^[A-Za-z0-9_.-]+$' "$RM"
+        url=$(git -C "$D" remote get-url "$RM" 2>/dev/null) \
+            || die 5 "open-pr.sh repo-target: $D has no remote named $RM"
+    else
+        url=$(git -C "$D" remote get-url origin 2>/dev/null) || {
+            rs=$(git -C "$D" remote 2>/dev/null) || rs=""
+            [ -n "$rs" ] && [ "$(printf '%s\n' "$rs" | grep -c .)" = 1 ] \
+                || die 5 "open-pr.sh repo-target: $D has no origin remote and not exactly one other"
+            url=$(git -C "$D" remote get-url "$rs")
+        }
+    fi
+    # https://[user@]host[:port]/o/r · ssh://[user@]host[:port]/o/r · [user@]host:o/r
+    case "$url" in
+        https://*|http://*) hp=${url#*://}; auth=${hp%%/*}; path=${hp#*/}; host=${auth##*@} ;;
+        ssh://*) hp=${url#ssh://}; auth=${hp%%/*}; path=${hp#*/}; host=${auth##*@}; host=${host%%:*} ;;
+        *://*) die 5 "open-pr.sh repo-target: unsupported remote URL scheme: $url" ;;
+        *:*) auth=${url%%:*}; path=${url#*:}; host=${auth##*@} ;;
+        *) die 5 "open-pr.sh repo-target: the remote is not a hosted URL: $url" ;;
+    esac
+    path=$(printf '%s' "$path" | sed -E 's~^/+~~; s~/+$~~; s~\.git$~~')
+    # owner/repo exactly — the only shape target and every other subcommand take
+    printf '%s' "$path" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' \
+        || die 5 "open-pr.sh repo-target: remote path is not owner/repo: $path"
+    printf '%s' "$host" | grep -Eq '^[A-Za-z0-9.-]+(:[0-9]+)?$' \
+        || die 5 "open-pr.sh repo-target: invalid remote host: $host"
+    case "$(printf '%s' "$host" | tr 'A-Z' 'a-z')" in
+        github.com) vendor=github ;;
+        bitbucket.org) vendor=bitbucket ;;
+        *) vendor=gitlab ;;
+    esac
+    printf 'vendor=%s\nowner=%s\nrepo=%s\nhost=%s\n' "$vendor" "${path%%/*}" "${path#*/}" "$host"
+}
+
 # ------------------------------------------------------------ checkout ----
 # The remote whose URL matches the PR's host + owner/repo; falls back to origin.
 # A clone can carry one remote per vendor — fetching the PR ref or the base from
@@ -330,6 +390,32 @@ vendor_checkout() {   # $1 = directory
     esac
 }
 
+# Checkouts of one repo share its .git: two at once race on fetch ref locks and the worktree
+# list. The lock holds the owner's pid so one left by a killed run is reclaimed.
+LOCK_DIR=""
+repo_lock() {   # $1 = any directory inside the repo
+    common=$(git -C "$1" rev-parse --git-common-dir) || die 1 "open-pr.sh checkout: $1 is not a git repository"
+    case "$common" in /*|[A-Za-z]:[\\/]*) ;; *) common="$(cd "$1" && pwd)/$common" ;; esac
+    lock="$common/open-pr-checkout.lock"
+    wait_max=$(arg lock_timeout); [ -n "$wait_max" ] || wait_max=120
+    check_ident '^[0-9]+$' "$wait_max"
+    waited=0
+    until mkdir "$lock" 2>/dev/null; do
+        owner=$(cat "$lock/pid" 2>/dev/null || true)
+        if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
+            # rename first: of two waiters reclaiming the same stale lock, one wins
+            mv "$lock" "$lock.stale.$$" 2>/dev/null && rm -rf "$lock.stale.$$"
+            continue
+        fi
+        [ "$waited" -lt "$wait_max" ] \
+            || die 1 "open-pr.sh checkout: another checkout of this repo still holds $lock after ${wait_max}s. If no review is running, delete that directory and call the run again."
+        sleep 1; waited=$((waited + 1))
+    done
+    LOCK_DIR="$lock"
+    printf '%s\n' "$$" > "$lock/pid"
+}
+repo_unlock() { [ -z "$LOCK_DIR" ] || rm -rf "$LOCK_DIR"; LOCK_DIR=""; }
+
 cmd_checkout() {
     parse_args "$@"
     V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); N=$(req pr)
@@ -347,13 +433,15 @@ cmd_checkout() {
         # Submodule variant: init the bumped path, check the submodule PR out
         # into it, gate it, and fetch ITS base ref. Runs inside --worktree.
         W=$(req worktree)
+        repo_lock "$W"
         git -C "$W" submodule update --init -- "$sub"
         target="$W/$sub"
         REMOTE=$(find_remote "$target" "$HOST" "$OWNER/$REPO")
     else
         repo_dir=$(req repo_dir)
-        data=$(data_dir)
+        data=$(data_dir "$repo_dir")
         target="$data/$REPO/worktrees/pr$N-$$$(awk 'BEGIN{srand();printf "%d", rand()*32768}')"
+        repo_lock "$repo_dir"
         git -C "$repo_dir" worktree add "$target" --detach >&2
         REMOTE=$(find_remote "$repo_dir" "$HOST" "$OWNER/$REPO")
     fi
@@ -387,6 +475,7 @@ cmd_checkout() {
     # but it may not stay silent either: LEFT confirmation degrades without it.
     git -C "$target" fetch "$REMOTE" "+$BASE:refs/remotes/origin/$BASE" >&2 \
         || err "warning: could not fetch $REMOTE/$BASE — LEFT line confirmation will be UNCONFIRMABLE"
+    repo_unlock
     printf 'worktree=%s\nhead=%s\n' "$target" "$(git -C "$target" rev-parse HEAD)"
 }
 
@@ -429,11 +518,16 @@ cmd_verify_line() {
 # publish-> make it visible (GitHub: event=COMMENT; GitLab: bulk_publish;
 #           Bitbucket: one POST per part, overview first).
 # verify -> report what the PR actually shows.
-post_init() {
-    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo); N=$(req pr)
-    check_ident '^[A-Za-z0-9_.-]+$' "$OWNER"; check_ident '^[A-Za-z0-9_.-]+$' "$REPO"; check_ident '^[0-9]+$' "$N"
-    case "$V" in github) need gh ;; gitlab) gl_init "$OWNER" "$REPO" ;; bitbucket) bb_init "$OWNER" "$REPO" ;; esac
+# vendor_init: the repo-level half (vendor, owner, repo, credentials); post_init adds the PR.
+vendor_init() {
+    V=$(req vendor); OWNER=$(req owner); REPO=$(req repo)
+    check_ident '^[A-Za-z0-9_.-]+$' "$OWNER"; check_ident '^[A-Za-z0-9_.-]+$' "$REPO"
+    case "$V" in
+        github) need gh ;; gitlab) gl_init "$OWNER" "$REPO" ;; bitbucket) bb_init "$OWNER" "$REPO" ;;
+        *) die 1 "open-pr.sh: unknown vendor: $V" ;;
+    esac
 }
+post_init() { vendor_init; N=$(req pr); check_ident '^[0-9]+$' "$N"; }
 post_error_hint() {
     case "$V" in
         github) err "hint: 422 = a comments[] entry off the diff (missing line, line outside every hunk, or wrong side). commit_id rejected = force-pushed since the diff was read — no payload fix exists, the run must be called again." ;;
@@ -520,32 +614,40 @@ cmd_post_verify() {
 }
 
 # -------------------------------------------------------------- thread ----
+# reply_post <body file> <kind> <comment id> <thread id> -> new comment's JSON in $TMPD/reply.out.
+# GitLab replies to the DISCUSSION (not a note id), or top-level with no thread. Bodies travel
+# via files: argv is readable through `ps`, and the text quotes the PR.
+reply_post() {
+    case "$V" in
+        github)
+            jq -Rs '{body: .}' "$1" > "$TMPD/reply.json"
+            if [ "$2" = line ]; then
+                check_ident '^[0-9]+$' "$3"
+                gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments/$3/replies" --input "$TMPD/reply.json" > "$TMPD/reply.out"
+            else
+                gh api -X POST "repos/$OWNER/$REPO/issues/$N/comments" --input "$TMPD/reply.json" > "$TMPD/reply.out"
+            fi ;;
+        gitlab)
+            jq -Rs '{body: .}' "$1" > "$TMPD/reply.json"
+            [ -z "$4" ] || check_ident '^[A-Za-z0-9_-]+$' "$4"
+            if [ -n "$4" ]; then ep="merge_requests/$N/discussions/$4/notes"; else ep="merge_requests/$N/notes"; fi
+            glab api -X POST -H "Content-Type: application/json" \
+                "projects/$GL_PROJ/$ep" --input "$TMPD/reply.json" > "$TMPD/reply.out" ;;
+        bitbucket)
+            check_ident '^[0-9]+$' "$3"
+            jq -Rs -c '{content: {raw: .}, parent: {id: '"$3"'}}' "$1" > "$TMPD/reply.json"
+            bb_curl -X POST -H "Content-Type: application/json" \
+                "$BB_API/pullrequests/$N/comments" --data @"$TMPD/reply.json" > "$TMPD/reply.out" ;;
+    esac
+}
 cmd_reply() {
     parse_args "$@"; post_init
     F=$(req body_file); [ -s "$F" ] || die 1 "open-pr.sh reply: body file missing/empty"
     CID=$(arg comment_id); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
-    case "$V" in
-        github)
-            if [ "$KIND" = line ]; then
-                check_ident '^[0-9]+$' "$CID"
-                jq -Rs '{body: .}' "$F" | gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments/$CID/replies" --input - --jq '.id'
-            else
-                jq -Rs '{body: .}' "$F" | gh api -X POST "repos/$OWNER/$REPO/issues/$N/comments" --input - --jq '.id'
-            fi ;;
-        gitlab)
-            # The reply lands in the DISCUSSION (not on a note id) — the caller maps
-            # the comment to its thread via the "Review threads" section. Body via
-            # --input: argv is readable through `ps`, and the text quotes the PR.
-            T=$(req thread_id)
-            jq -Rs '{body: .}' "$F" > "$TMPD/gl.reply.json"
-            glab api -X POST -H "Content-Type: application/json" \
-                "projects/$GL_PROJ/merge_requests/$N/discussions/$T/notes" --input "$TMPD/gl.reply.json" | jq -r '.id' ;;
-        bitbucket)
-            check_ident '^[0-9]+$' "$CID"
-            jq -Rs -c '{content: {raw: .}, parent: {id: '"$CID"'}}' "$F" > "$TMPD/bb.reply.json"
-            bb_curl -X POST -H "Content-Type: application/json" \
-                "$BB_API/pullrequests/$N/comments" --data @"$TMPD/bb.reply.json" | jq -r '.id' ;;
-    esac
+    # GitLab: the caller maps the comment to its thread via the "Review threads" section
+    case "$V" in gitlab) T=$(req thread_id) ;; github|bitbucket) T="" ;; esac
+    reply_post "$F" "$KIND" "$CID" "$T"
+    jq -r '.id' "$TMPD/reply.out"
 }
 cmd_resolve() {
     parse_args "$@"; post_init
@@ -558,15 +660,232 @@ cmd_resolve() {
 }
 cmd_react() {
     parse_args "$@"; post_init
-    CID=$(req comment_id); E=$(req emoji)
+    CID=$(req comment_id); E=$(req emoji); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
     check_ident '^[0-9]+$' "$CID"; check_ident '^(\+1|heart|hooray|rocket|confused|eyes)$' "$E"
+    check_ident '^(line|top)$' "$KIND"
     case "$V" in
-        github) gh api -X POST "repos/$OWNER/$REPO/pulls/comments/$CID/reactions" -f content="$E" --jq '.id' ;;
-        gitlab) glab api -X POST "projects/$GL_PROJ/notes/$CID/award_emoji" -f name="$E" | jq -r '.id' ;;
+        github)
+            # a diff comment and a conversation comment are separate id spaces
+            if [ "$KIND" = line ]; then
+                gh api -X POST "repos/$OWNER/$REPO/pulls/comments/$CID/reactions" -f content="$E" --jq '.id'
+            else
+                gh api -X POST "repos/$OWNER/$REPO/issues/comments/$CID/reactions" -f content="$E" --jq '.id'
+            fi ;;
+        gitlab) glab api -X POST "projects/$GL_PROJ/merge_requests/$N/notes/$CID/award_emoji" -f name="$E" | jq -r '.id' ;;
         bitbucket) printf 'NO-EQUIVALENT\n' ;;
     esac
 }
-cmd_account() { parse_args "$@"; post_init; ctx_account; }
+# ---------------------------------------------------------------- claim ----
+# Several machines may watch one repo: a reply carrying the claim marker for the trigger comment
+# is the lock. The EARLIEST (created_at, then id) wins — an order every machine computes alike.
+# A loser deletes its own reply, so one claim stays visible.
+# claim_rows: every PR comment as {id, user, created_at, body}, one JSON line each.
+claim_norm() {
+    case "$V" in
+        github)    printf '%s' '{id, user: .user.login, created_at, body: (.body // "")}' ;;
+        gitlab)    printf '%s' '{id, user: .author.username, created_at, body: (.body // "")}' ;;
+        bitbucket) printf '%s' '{id, user: .user.nickname, created_at: .created_on, body: (.content.raw // "")}' ;;
+    esac
+}
+claim_rows() {
+    case "$V" in
+        github)
+            gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments?per_page=100" > "$TMPD/claim.page"
+            jq -c ".[] | $(claim_norm)" "$TMPD/claim.page"
+            gh api --paginate "repos/$OWNER/$REPO/pulls/$N/comments?per_page=100" > "$TMPD/claim.page"
+            jq -c ".[] | $(claim_norm)" "$TMPD/claim.page" ;;
+        gitlab)
+            glab api --paginate "projects/$GL_PROJ/merge_requests/$N/discussions?per_page=100" > "$TMPD/claim.page"
+            jq -c ".[] | .notes[]? | select(.system != true) | $(claim_norm)" "$TMPD/claim.page" ;;
+        bitbucket)
+            bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.deleted" \
+                ".values[] | select(.deleted != true) | $(claim_norm) | @json" ;;
+    esac
+}
+# claim_first <rows file>: "<id> <login>" of the earliest comment carrying bot-claim:$CID
+# in either vendor form, or nothing.
+claim_first() {
+    jq -r -s --arg c "$CID" "$JQ_EPOCH"'
+        map(select(.body | test("bot-claim:" + $c + "(\\s*-->|\\]:)")))
+        | sort_by([(.created_at | epoch), (.id | tonumber)]) | .[0] // empty | "\(.id) \(.user)"' "$1"
+}
+claim_delete() {   # $1 = our comment id
+    check_ident '^[0-9]+$' "$1"
+    case "$V" in
+        github)
+            if [ "$KIND" = line ]; then gh api -X DELETE "repos/$OWNER/$REPO/pulls/comments/$1" > /dev/null
+            else gh api -X DELETE "repos/$OWNER/$REPO/issues/comments/$1" > /dev/null; fi ;;
+        gitlab) glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/notes/$1" > /dev/null ;;
+        bitbucket) bb_curl -X DELETE "$BB_API/pullrequests/$N/comments/$1" > /dev/null ;;
+    esac
+}
+cmd_claim() {
+    parse_args "$@"; post_init
+    CID=$(req comment_id); KIND=$(req kind); F=$(req body_file); T=$(arg thread_id)
+    check_ident '^[0-9]+$' "$CID"; check_ident '^(line|top)$' "$KIND"
+    [ -s "$F" ] || die 1 "open-pr.sh claim: body file missing/empty"
+    claim_rows > "$TMPD/claim.before"
+    first=$(claim_first "$TMPD/claim.before")
+    [ -z "$first" ] || { printf 'taken %s\n' "${first#* }"; return 0; }
+    m=$(cmd_marker --vendor "$V" --kind claim --comment-id "$CID")
+    : > "$TMPD/claim.body"
+    # A GitHub conversation comment has no thread: quote the request as GitHub's "Quote reply"
+    # does (20 lines at most), with its plain URL. It stays inside jq: attacker text never
+    # reaches the shell.
+    if [ "$V" = github ] && [ "$KIND" = top ]; then
+        gh api "repos/$OWNER/$REPO/issues/comments/$CID" > "$TMPD/claim.req" \
+            && jq -r '(.html_url // "") as $u | (.body // "" | sub("\\s+$"; "") | split("\n")) as $l
+                      | ($l[:20] + (if ($l | length) > 20 then ["…"] else [] end))
+                      | map("> " + sub("\r$"; "")) + (if $u != "" then [">", "> " + $u] else [] end)
+                      | join("\n") + "\n"' "$TMPD/claim.req" > "$TMPD/claim.body" \
+            || : > "$TMPD/claim.body"
+    fi
+    { cat "$F"; printf '\n\n%s\n' "$m"; } >> "$TMPD/claim.body"
+    reply_post "$TMPD/claim.body" "$KIND" "$CID" "$T" \
+        || die 1 "open-pr.sh claim: could not post the claim reply on comment $CID"
+    mine=$(jq -r '.id' "$TMPD/reply.out")
+    check_ident '^[0-9]+$' "$mine"
+    # our own reply joins the listing even before the vendor lists it
+    claim_rows > "$TMPD/claim.after"
+    jq -c "$(claim_norm)" "$TMPD/reply.out" >> "$TMPD/claim.after"
+    jq -c -s 'unique_by(.id) | .[]' "$TMPD/claim.after" > "$TMPD/claim.rows"
+    first=$(claim_first "$TMPD/claim.rows")
+    if [ "${first%% *}" = "$mine" ]; then printf 'claimed %s\n' "$mine"; return 0; fi
+    claim_delete "$mine" || err "open-pr.sh claim: could not delete the losing claim reply $mine — remove it by hand"
+    printf 'taken %s\n' "${first#* }"
+}
+cmd_account() { parse_args "$@"; vendor_init; ctx_account; }
+
+# ------------------------------------------------------------ triggers ----
+# Bodies are attacker-controlled and never leave jq — no shell variable ever holds one.
+# ISO-8601 -> epoch seconds, fraction kept: the strict --since must not drop a comment in the
+# same second.
+JQ_EPOCH='def epoch:
+    capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?<f>\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:?[0-9]{2})$") as $c
+    | ($c.d + "Z" | fromdateiso8601)
+      + (if $c.f then ("0" + $c.f | tonumber) else 0 end)
+      - (if $c.z == "Z" then 0 else ($c.z | capture("(?<s>[+-])(?<h>[0-9]{2}):?(?<m>[0-9]{2})")
+            | (if .s == "+" then 1 else -1 end) * ((.h | tonumber) * 3600 + (.m | tonumber) * 60)) end);'
+# "Slow down", judged from the failed call's stderr (curl's includes the body `bb_paged` echoes).
+# GitHub: 403/429 naming a rate limit (primary or secondary), or an exhausted
+# X-RateLimit-Remaining; GitLab and Bitbucket: 429.
+rate_limited() {   # $1 stderr file
+    case "$V" in
+        github) grep -Eiq 'x-ratelimit-remaining: *0([^0-9]|$)' "$1" \
+                    || { grep -Eq 'HTTP (403|429)' "$1" && grep -Eiq 'rate limit' "$1"; } ;;
+        gitlab) grep -Eq 'HTTP 429|(^|[^0-9])429 Too Many Requests' "$1" ;;
+        bitbucket) grep -Eq 'returned error: 429([^0-9]|$)|HTTP 429' "$1" ;;
+    esac
+}
+# rl <command…>: a rate limit exits 9 so the watcher backs off; other failures pass through.
+rl() {
+    rc=0; "$@" 2> "$TMPD/rl.err" || rc=$?
+    [ "$rc" = 0 ] || ! rate_limited "$TMPD/rl.err" || die 9 "rate limited"
+    cat "$TMPD/rl.err" >&2
+    return "$rc"
+}
+# Open PRs -> $TMPD/tr.prs ({pr, url} lines); their comments -> stdout as
+# {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid}. $SINCE_Z only
+# narrows the fetch: vendors filter on update time (a superset), and a new comment updates its PR.
+trg_fetch() {
+    case "$V" in
+        github)
+            rl gh api --paginate "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
+            jq -c '.[] | {pr: .number, url: .html_url}' "$TMPD/tr.page" > "$TMPD/tr.prs"
+            q="per_page=100"; [ -z "$SINCE_Z" ] || q="$q&since=$SINCE_Z"
+            auth='(if .author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR" then "yes" else "no" end)'
+            rl gh api --paginate "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
+            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page"
+            rl gh api --paginate "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
+            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null}" "$TMPD/tr.page" ;;
+        gitlab)
+            q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
+            rl glab api --paginate "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
+            jq -c '.[] | {pr: .iid, url: .web_url}' "$TMPD/tr.page" > "$TMPD/tr.prs"
+            jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r iid; do
+                check_ident '^[0-9]+$' "$iid"
+                # discussions, not notes: each note needs its discussion id to be replied to
+                rl glab api --paginate "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
+                jq -c --argjson pr "$iid" '.[] | .id as $tid | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id}' "$TMPD/tr.page"
+            done ;;
+        bitbucket)
+            # BBQL: `updated_on > <instant>`, URL-encoded; the offset form, not Z
+            q=""; [ -z "$SINCE_Z" ] || q="&q=updated_on%20%3E%20$(printf '%s' "${SINCE_Z%Z}" | sed 's/:/%3A/g')%2B00%3A00"
+            rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href$q" \
+                '.values[] | {pr: .id, url: .links.html.href} | @json' > "$TMPD/tr.prs"
+            jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r id; do
+                check_ident '^[0-9]+$' "$id"
+                rl bb_paged "$BB_API/pullrequests/$id/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted" \
+                    ".values[] | select(.deleted != true) | {pr: $id, comment_id: (.id | tostring), kind: (if .inline != null then \"line\" else \"top\" end), thread_id: null, user: .user.nickname, created_at: .created_on, body: (.content.raw // \"\"), authorized: \"UNKNOWN\", uid: null} | @json"
+            done ;;
+    esac
+}
+cmd_triggers() {
+    parse_args "$@"
+    vendor_init; SINCE=$(arg since); MARK=$(arg mark_file)
+    TOKEN=$(arg token); [ -n "$TOKEN" ] || TOKEN=/open-pr
+    printf '%s' "$TOKEN" | grep -Eq '^(/[a-z][a-z0-9-]*|@[A-Za-z0-9][A-Za-z0-9_.-]*)$' \
+        || die 1 "open-pr.sh triggers: --token must be /word (lowercase, digits, dashes) or @login: $TOKEN"
+    SINCE_Z=""
+    if [ -n "$SINCE" ]; then
+        SINCE_Z=$(jq -rn --arg s "$SINCE" "$JQ_EPOCH"' $s | epoch | floor | todate' 2>/dev/null) && [ -n "$SINCE_Z" ] \
+            || die 1 "open-pr.sh triggers: --since must be ISO-8601 (e.g. 2026-01-31T09:00:00Z): $SINCE"
+    fi
+    mf=$(cmd_marker --vendor "$V" --kind finding); mr=$(cmd_marker --vendor "$V" --kind reply)
+    trg_fetch > "$TMPD/tr.all"
+    # --mark-file covers EVERY comment fetched, trigger or not, so a quiet repo's cursor moves.
+    [ -z "$MARK" ] || jq -r -s "$JQ_EPOCH"' map(.created_at | epoch) | max // empty | floor | todate' \
+        "$TMPD/tr.all" > "$MARK"
+    # Marker-carrying (plugin-authored) comments are excluded, so a posted review never triggers
+    # the next. The watcher's own account may ask: one person can be developer and reviewer.
+    # An @login token matches case-insensitively, as logins do.
+    jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" \
+        --arg tok "$TOKEN" "$JQ_EPOCH"'
+        ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $open
+        | ($since | if . == "" then null else epoch end) as $after
+        | ("\\A\\s*" + ($tok | gsub("(?<c>[^A-Za-z0-9_])"; "\\\(.c)")) + "(\\s|\\z)") as $re
+        | (if ($tok | startswith("@")) then "i" else "" end) as $fl
+        | [ .[] | select($open[.pr | tostring] != null)
+            | select(.body | test($re; $fl))
+            | select((.body | contains($mf)) or (.body | contains($mr)) or (.body | contains("bot-claim:")) | not)
+            | select($after == null or (.created_at | epoch) > $after)
+            | . + {url: $open[.pr | tostring]} ]
+        | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
+    printf '{}\n' > "$TMPD/tr.auth"
+    if [ "$V" = gitlab ]; then
+        # write access = Developer (30) or above; 404 = not a member. Any other failure stops
+        # the run so no trigger is misjudged.
+        jq -r '.uid // empty' "$TMPD/tr.cand" | sort -u | while IFS= read -r uid; do
+            check_ident '^[0-9]+$' "$uid"
+            if glab api "projects/$GL_PROJ/members/all/$uid" > "$TMPD/gl.member" 2> "$TMPD/gl.member.err"; then
+                a=$(jq -r 'if (.access_level // 0) >= 30 then "yes" else "no" end' "$TMPD/gl.member")
+            elif rate_limited "$TMPD/gl.member.err"; then
+                die 9 "rate limited"
+            elif grep -q '404' "$TMPD/gl.member.err"; then
+                a=no
+            else
+                cat "$TMPD/gl.member.err" >&2
+                die 1 "open-pr.sh triggers: could not read the membership of GitLab user $uid"
+            fi
+            jq -nc --arg u "$uid" --arg a "$a" '{($u): $a}'
+        done > "$TMPD/tr.auth.l"
+        jq -s 'add // {}' "$TMPD/tr.auth.l" > "$TMPD/tr.auth"
+    fi
+    jq -c --slurpfile a "$TMPD/tr.auth" '
+        (if .uid != null then ($a[0][.uid | tostring] // "no") else .authorized end) as $auth
+        | {pr, url, comment_id, kind, thread_id, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
+}
+
+# One open PR/MR number per line, every page: the watcher drops the rows of merged/closed ones.
+cmd_open_prs() {
+    parse_args "$@"; vendor_init
+    case "$V" in
+        github)    rl gh api --paginate "repos/$OWNER/$REPO/pulls?state=open&per_page=100" --jq '.[].number' ;;
+        gitlab)    rl glab api --paginate "projects/$GL_PROJ/merge_requests?state=opened&per_page=100" > "$TMPD/op.page"
+                   jq -r '.[].iid' "$TMPD/op.page" ;;
+        bitbucket) rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id" '.values[].id' ;;
+    esac
+}
 
 cmd_commit_url() {
     parse_args "$@"
@@ -582,19 +901,21 @@ cmd_commit_url() {
 cmd_marker() {
     parse_args "$@"
     V=$(req vendor); K=$(req kind)
+    # claim markers name the trigger comment they lock: bot-claim:<comment id>
+    if [ "$K" = claim ]; then C=$(req comment_id); check_ident '^[0-9]+$' "$C"; K="claim:$C"; fi
     case "$V/$K" in
-        github/finding|gitlab/finding) printf '<!-- bot-finding -->\n' ;;
-        github/reply|gitlab/reply)     printf '<!-- bot-reply -->\n' ;;
-        bitbucket/finding)             printf '[bot-finding]: #\n' ;;
-        bitbucket/reply)               printf '[bot-reply]: #\n' ;;
-        *) die 1 "open-pr.sh marker: --kind finding|reply" ;;
+        github/finding|github/reply|github/claim:*|gitlab/finding|gitlab/reply|gitlab/claim:*)
+            printf '<!-- bot-%s -->\n' "$K" ;;
+        bitbucket/finding|bitbucket/reply|bitbucket/claim:*)
+            printf '[bot-%s]: #\n' "$K" ;;
+        *) die 1 "open-pr.sh marker: --kind finding|reply|claim (claim takes --comment-id)" ;;
     esac
 }
 
 # ------------------------------------------------------------ data-dir ----
-# Review memory and worktrees live under ONE directory the user picks, recorded
-# in the user-level config — never inside a reviewed repo, so no repo has to
-# .gitignore it. Unset ⇒ exit 7: the caller asks the user, then --set.
+# Never inside a reviewed repo, so no repo has to .gitignore it. Config: `data_dir` (default)
+# plus `data_dirs` [{"root","dir"}]; the longest root at or above the repo wins, so separate
+# workspaces keep separate memory.
 data_conf() {
     [ -n "${XDG_CONFIG_HOME:-}${HOME:-}" ] || die 1 "open-pr: neither XDG_CONFIG_HOME nor HOME is set"
     printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/open-pr/config.json"
@@ -608,30 +929,69 @@ conf_json() {
         || die 1 "open-pr: $f is not a JSON object — fix it or delete it"
     cat "$f"
 }
+# `~` and a relative path → absolute (not yet resolved: the caller cd's into it).
+expand_path() {
+    case "$1" in
+        "~"|"~/"*) printf '%s' "${HOME:?HOME is not set}${1#\~}" ;;
+        /*|[A-Za-z]:[\\/]*) printf '%s' "$1" ;;
+        *) printf '%s' "$PWD/$1" ;;
+    esac
+}
+# data_dir [L]: `<data>` for location L (default the cwd), symlinks resolved.
 data_dir() {
-    c=$(conf_json)
-    v=$(printf '%s' "$c" | jq -r '.data_dir // empty')
-    [ -n "$v" ] || die 7 "open-pr: data directory not set ($(data_conf) has no data_dir)"
+    loc=${1:-.}
+    [ -d "$loc" ] || die 1 "open-pr: no such directory: $loc"
+    loc=$(cd "$loc" && pwd -P)
+    c=$(conf_json) || exit $?
+    v=$(printf '%s' "$c" | jq -r --arg l "$loc" '. as $c
+        | [(.data_dirs // [])[] | objects
+           | select((.root | type) == "string" and .root != "" and (.dir | type) == "string" and .dir != "")
+           | (.root | rtrimstr("/")) as $r
+           | select($r == $l or ($l | startswith($r + "/")))
+           | {n: ($r | length), dir}]
+        | max_by(.n).dir // ($c.data_dir | strings | select(. != ""))')
+    [ -n "$v" ] || die 7 "open-pr: data directory not set for $loc ($(data_conf) has no data_dirs root above it and no data_dir)"
     printf '%s' "$v"
 }
+# Write the config with jq filter $1 applied (--arg d = $2, --arg r = $3).
+conf_write() {
+    conf=$(conf_json); conf_f=$(data_conf)
+    mkdir -p "$(dirname "$conf_f")"
+    printf '%s' "$conf" | jq --arg d "$2" --arg r "${3:-}" "$1" > "$TMPD/config.json"
+    mv "$TMPD/config.json" "$conf_f"
+}
 cmd_data_dir() {
-    parse_args "$@"
-    s=$(arg set)
-    conf_f=$(data_conf)
-    if [ -n "$s" ]; then
-        conf=$(conf_json)
-        case "$s" in
-            "~"|"~/"*) s="${HOME:?HOME is not set}${s#\~}" ;;
-            /*|[A-Za-z]:[\\/]*) ;;
-            *) s="$PWD/$s" ;;
-        esac
-        mkdir -p "$s" "$(dirname "$conf_f")"
-        s=$(cd "$s" && pwd)
-        printf '%s' "$conf" | jq --arg d "$s" '.data_dir = $d' > "$TMPD/config.json"
-        mv "$TMPD/config.json" "$conf_f"
+    if [ "${1:-}" = --all ]; then
+        [ $# -eq 1 ] || die 1 "open-pr.sh data-dir: --all takes no other option"
+        c=$(conf_json) || exit $?
+        all=$(printf '%s' "$c" | jq -r '[((.data_dirs // [])[] | objects | .dir), .data_dir]
+            | map(select(type == "string" and . != ""))
+            | reduce .[] as $d ([]; if index([$d]) then . else . + [$d] end) | .[]')
+        [ -n "$all" ] || die 7 "open-pr: data directory not set ($(data_conf) has no data_dir or data_dirs)"
+        printf '%s\n' "$all"
+        return 0
     fi
-    d=$(data_dir)
-    printf '%s\n' "$d"
+    parse_args "$@"
+    s=$(arg set); ar=$(arg add_root); ad=$(arg dir)
+    [ -z "$ar$ad" ] || { [ -n "$ar" ] && [ -n "$ad" ] && [ -z "$s" ]; } \
+        || die 1 "open-pr.sh data-dir: --add-root R and --dir P go together, without --set"
+    if [ -n "$s" ]; then
+        conf_json >/dev/null
+        s=$(expand_path "$s"); mkdir -p "$s"; s=$(cd "$s" && pwd)
+        conf_write '.data_dir = $d' "$s"
+        printf '%s\n' "$s"
+    elif [ -n "$ar" ]; then
+        conf_json >/dev/null
+        ar=$(expand_path "$ar")
+        [ -d "$ar" ] || die 1 "open-pr: no such directory: $ar"
+        ar=$(cd "$ar" && pwd -P)
+        ad=$(expand_path "$ad"); mkdir -p "$ad"; ad=$(cd "$ad" && pwd)
+        conf_write '.data_dirs = ([(.data_dirs // [])[] | select((objects | .root) != $r)] + [{root: $r, dir: $d}])' "$ad" "$ar"
+        printf '%s\n' "$ad"
+    else
+        d=$(data_dir "$(arg repo_dir)")
+        printf '%s\n' "$d"
+    fi
 }
 
 # --------------------------------------------------------- find-memory ----
@@ -660,7 +1020,7 @@ cmd_find_memory() {
 # the computed doctor_due. Never writes anything.
 cmd_settings() {
     parse_args "$@"
-    data=$(data_dir)
+    data=$(data_dir "$(arg repo_dir)")
     # memory_dir rides along: "never bootstrapped" and "memory kept somewhere
     # else" print byte-identical defaults otherwise.
     mem_dir="$data/$(req repo)"
@@ -699,6 +1059,20 @@ cmd_settings() {
                 auto_push: (.fix.auto_push // false)
             }),
             shared: (.shared // {}),
+            watch_review: ((.watch_review // {}) + {
+                max_concurrent: (.watch_review.max_concurrent // 5),
+                poll_interval_seconds: (.watch_review.poll_interval_seconds // 60),
+                trigger: (.watch_review.trigger // "/open-pr"),
+                notify: ((.watch_review.notify // {}) + {
+                    review_started: default_bool(.watch_review.notify; "review_started"; true),
+                    question: default_bool(.watch_review.notify; "question"; true),
+                    draft_ready: default_bool(.watch_review.notify; "draft_ready"; true),
+                    posted: default_bool(.watch_review.notify; "posted"; true),
+                    re_review: default_bool(.watch_review.notify; "re_review"; true),
+                    error: default_bool(.watch_review.notify; "error"; true)
+                })
+            }),
+            watch_review_configured: has("watch_review"),
             schema_version: (.schema_version // null),
             memory_dir: $memdir,
             memory_found: $found,
@@ -792,8 +1166,9 @@ usage: open-pr.sh <subcommand> [--option value ...]
 
 Common options:
   `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
-  `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N`
-  on every networked one; `--host H` where self-hostable.
+  `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
+  `--owner O --repo R --pr N` on every networked one (`triggers`, `open-prs`, `account`: no `--pr`); `--host H`
+  where self-hostable.
 
 Subcommands:
   target <url>
@@ -804,9 +1179,20 @@ Subcommands:
       `--max-patch-bytes` required with `diff` — omission happens inside the call, never post-hoc
   locate-repo --owner O --repo R --host H
       `<repo_dir>` whose git remote matches
+  repo-target --repo-dir D [--remote R]
+      D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines
+  list-repos [--dir D]
+      every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote,
+      vendor, owner, repo, host, last commit ISO-8601
+  triggers [--since T] [--mark-file F] [--token K]
+      open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL;
+      contract in reference/vendor-interface.md
+  open-prs
+      every open PR/MR number, 1 per line
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
-      against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`
+      against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per
+      repo at a time: waits `--lock-timeout` s (120), then exit 1
   verify-line --worktree W --path P --line N --side LEFT|RIGHT --base B
       print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the
       caller judges the match
@@ -826,25 +1212,31 @@ Subcommands:
   push --branch B [--dir D]
       `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and
       STOPS the flow; the plugin never works around credentials
-  react --comment-id C --emoji E
-      `NO-EQUIVALENT` on Bitbucket
+  react --comment-id C --emoji E [--kind line|top]
+      `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket
+  claim --comment-id C --kind line|top --body-file F [--thread-id T]
+      cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else
+      top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim,
+      else `taken <login>`
   account
       login name, or `UNKNOWN` (marker-only detection)
   commit-url --sha S
       markdown commit link, for the anchor
-  marker --kind finding|reply
-      the marker literal — end every finding/reply with it
-  data-dir [--set P]
-      print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in
-      the user-level config first. A config that is not a JSON object stops with exit 1
+  marker --kind finding|reply|claim [--comment-id C]
+      the marker literal — end every finding/reply with it; `claim` needs C
+  data-dir [--repo-dir D] | --set P | --add-root R --dir P | --all
+      absolute `<data>` for D (default cwd): the `data_dirs` entry with the nearest `root` at or above
+      D, else the default `data_dir`. `--set` records P as the default, `--add-root` maps R and below
+      to P; both take `~`/relative, create P, print it. `--all`: every distinct `<data>`, 1 per line.
+      A config that is not a JSON object ⇒ exit 1
   find-memory [--repo R]
       memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or
       at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`:
       `found=<path>` per `notebooks/review/R`
-  settings --repo <repo>
-      `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`.
+  settings --repo <repo> [--repo-dir D]
+      `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`.
       Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
-      was read and whether its `settings.json` was there
+      was read and whether its `settings.json` was there; `watch_review_configured` = node in the file
   stacks [--repo-dir D] <path>…
       `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
       ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`
@@ -858,7 +1250,8 @@ Exit codes:
   4  invalid PR URL
   5  repo dir unresolvable
   6  missing credentials
-  7  `<data>` not set
+  7  `<data>` not set for that location
+  9  vendor rate limit (`triggers`, `open-prs`)
 EOF
 }
 
@@ -866,13 +1259,20 @@ case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 need jq
 
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr.XXXXXX")
-trap 'rm -rf "$TMPD"' EXIT INT TERM
+cleanup() { repo_unlock; rm -rf "$TMPD"; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 sub="${1:-}"; [ -n "$sub" ] && shift || die 1 "open-pr.sh: no subcommand (see --help)"
 case "$sub" in
     target)       cmd_target "$@" ;;
     context)      cmd_context "$@" ;;
     locate-repo)  cmd_locate_repo "$@" ;;
+    repo-target)  cmd_repo_target "$@" ;;
+    list-repos)   cmd_list_repos "$@" ;;
+    triggers)     cmd_triggers "$@" ;;
+    open-prs)     cmd_open_prs "$@" ;;
     checkout)     cmd_checkout "$@" ;;
     verify-line)  cmd_verify_line "$@" ;;
     post)         cmd_post "$@" ;;
@@ -882,6 +1282,7 @@ case "$sub" in
     reply)        cmd_reply "$@" ;;
     resolve)      cmd_resolve "$@" ;;
     react)        cmd_react "$@" ;;
+    claim)        cmd_claim "$@" ;;
     account)      cmd_account "$@" ;;
     commit-url)   cmd_commit_url "$@" ;;
     marker)       cmd_marker "$@" ;;

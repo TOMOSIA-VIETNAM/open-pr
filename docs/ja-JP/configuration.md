@@ -16,9 +16,23 @@
 ~/workspace/repo-backend/       ← 触れない
 ```
 
-データディレクトリが未設定なら、最初のコマンドがそのパスを尋ねます。推奨はリポジトリのすぐ外側のディレクトリにある `notebooks/review/` です — `~/workspace/repo-backend` なら `~/workspace/notebooks/review/`。任意のパスも指定できます。リポジトリ内に既にある `notebooks/review/` はそこへ **コピー** され（worktree は除く）、元の場所にも残ります。その後も、データディレクトリにまだないリポジトリは立っている場所の下で同じように探され、見つかった `notebooks/review/<repo>/` の取り込みを提案します。選択は `~/.config/open-pr/config.json` の `data_dir` に保存されます — 場所を変えるにはこのファイルを編集します。
+データディレクトリが未設定なら、最初のコマンドがそのパスを尋ねます。推奨はリポジトリのすぐ外側のディレクトリにある `notebooks/review/` です — `~/workspace/repo-backend` なら `~/workspace/notebooks/review/`。任意のパスも指定できます。リポジトリ内に既にある `notebooks/review/` はそこへ **コピー** され（worktree は除く）、元の場所にも残ります。その後も、データディレクトリにまだないリポジトリは立っている場所の下で同じように探され、見つかった `notebooks/review/<repo>/` の取り込みを提案します。選択は `~/.config/open-pr/config.json` に保存されます。
 
-立つ場所はデータの置き場所に影響しません。複数リポジトリを含むワークスペースからなら、1 回の実行で **リポジトリ横断** PR をレビューできます（並列ではなく順番に）：
+別々のワークスペース — たとえば 2 つのクライアント — は memory を分けて持てます。最初のコマンドが尋ねたときに "this workspace" を選ぶと、立っているフォルダがルートになり、その下のすべてのリポジトリがそのデータディレクトリを使います。どのルートの下にもないリポジトリは `data_dir` を使います。
+
+```json
+{
+  "data_dir": "/Users/me/notebooks/review",
+  "data_dirs": [
+    {"root": "/Users/me/clients/acme", "dir": "/Users/me/clients/acme/notebooks/review"},
+    {"root": "/Users/me/clients/globex", "dir": "/Users/me/clients/globex/notebooks/review"}
+  ]
+}
+```
+
+リポジトリより上にある最も深いルートが優先されます。コマンドは実行した場所（リポジトリ、またはそれを含むワークスペース）から、`/open-pr:watch-review` は監視するリポジトリごとに解決します。`/open-pr:upgrade` と `/open-pr:clean` はすべてのデータディレクトリを巡回します。
+
+同じワークスペース内では、立つ場所はデータの置き場所に影響しません。複数リポジトリを含むワークスペースからなら、1 回の実行で **リポジトリ横断** PR をレビューできます（並列ではなく順番に）：
 
 ```bash
 cd ~/workspace
