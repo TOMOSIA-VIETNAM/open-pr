@@ -80,7 +80,7 @@ developer vừa là reviewer.
 Một toast ở góc trên bên phải cho biết chuyện gì đang diễn ra — "Reviewing PR #12", "Posted review on PR
 #12 — 1 🔴 2 🟠", "LGTM on PR #12", một draft đang chờ, một session cần câu trả lời. Click để tới đúng chỗ cần xử lý: câu
 hỏi của session review thì mở session đó trong terminal của bạn, câu hỏi của chính watcher hoặc lỗi thì
-đưa tab watcher lên trước, còn lại thì mở pull request; rê chuột vào để giữ toast lại; nút "1h" trên toast tắt toast trong một giờ. Khi bạn cần làm gì
+đưa tab watcher lên trước, còn lại thì mở pull request; rê chuột vào để giữ toast lại và hiện nút đóng cùng nút "1h" (tắt toast trong một giờ). Khi bạn cần làm gì
 đó, toast hiện command mở session. Trên macOS watcher tự vẽ toast (không cần quyền thông báo); trên
 Linux nó dùng `notify-send`.
 

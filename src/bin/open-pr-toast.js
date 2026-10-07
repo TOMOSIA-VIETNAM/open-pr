@@ -1,7 +1,7 @@
 // macOS toast for open-pr-watch.sh notify: our own panel, so no Notifications permission (the
 // system centre would ask, and file it under "Script Editor"); mouse state is polled from NSEvent
 // class methods, which need no Accessibility permission either.
-//   click → focus (below) · ✕ → close · 1h → write the snooze file · hover → countdown pauses
+//   click → focus (below) · hover → countdown pauses and shows ✕ (close) and 1h (write the snooze file)
 // argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
 // `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, and the
 // watcher.json fields term, term_session, tty, session_id.
@@ -39,28 +39,42 @@ var ITERM_NEW_TAB = ['on run argv', 'tell application id "com.googlecode.iterm2"
     'else', 'create window with default profile', 'end if',
     'tell current session of current window to write text (item 1 of argv)', 'end tell', 'end run'];
 
-var ACCENT = {   // sRGB, by event
-    review_started: [0.35, 0.53, 0.95], re_review: [0.35, 0.53, 0.95],
-    posted: [0.22, 0.7, 0.45], draft_ready: [0.93, 0.68, 0.16],
-    question: [0.91, 0.27, 0.06], error: [0.86, 0.15, 0.15]
+// The event shows as a badge on the app icon, as a macOS banner shows its sender: SF Symbol, sRGB.
+var BADGE = {
+    review_started: ['eye.circle.fill', [0.04, 0.52, 1]], re_review: ['eye.circle.fill', [0.04, 0.52, 1]],
+    posted: ['checkmark.circle.fill', [0.2, 0.78, 0.35]], draft_ready: ['pencil.circle.fill', [1, 0.62, 0.04]],
+    question: ['questionmark.circle.fill', [1, 0.42, 0.04]], error: ['exclamationmark.circle.fill', [1, 0.23, 0.19]]
 };
+// docs/images/logo/favicon.svg (viewBox 128×128), as open-pr-menubar.js draws it.
+var MOTH = [
+    ['#FFC49E', [54,36, 6,12, 2,54, 24,90, 50,84]], ['#FFC49E', [78,84, 104,90, 126,54, 122,12, 74,36]],
+    ['#FF8A50', [54,40, 14,28, 10,52, 50,76]],      ['#FF8A50', [78,76, 118,52, 114,28, 74,40]],
+    ['#FF8A50', [56,32, 64,27, 30,6, 21,16]],       ['#FF8A50', [107,16, 98,6, 64,27, 72,32]],
+    ['#A32C06', [55,26, 73,26, 71,94, 64,110, 57,94]]
+];
+var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
+
+// Geometry of a macOS notification banner. The window is wider than the card by OUT on the left
+// and top, so the hover close button can sit on the card's corner as the system one does.
+var W = 344, PAD = 14, ICON = 36, RADIUS = 16, OUT = 8, M = 10, GAP = 8, SLOT_H = 76, CLOSE = 18;
 
 function run(argv) {
     var title = argv[0] || 'open-pr', summary = argv[1] || '', detail = argv[2] || '';
-    var accent = ACCENT[argv[3]] || [0.91, 0.27, 0.06];
+    var badge = BADGE[argv[3]] || BADGE.question;
     var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8);
     var snoozeFile = argv[7] || '';
     var where = clickTarget(argv);
 
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
+    var dark = isDark(app);
 
-    var W = 380, H = detail ? 90 : 70, M = 16, GAP = 8, SLOT_H = 90;
+    var H = PAD + 17 + 17 + (detail ? 17 : 0) + PAD - 2;
     var scr = $.NSScreen.mainScreen.visibleFrame;
-    var x = scr.origin.x + scr.size.width - W - M;
-    var y = scr.origin.y + scr.size.height - M - slot * (SLOT_H + GAP) - H;
+    var x = scr.origin.x + scr.size.width - W - M - OUT;       // window origin; the card sits at OUT, 0
+    var y = scr.origin.y + scr.size.height - M - slot * (SLOT_H + GAP) - H - OUT;
     var win = $.NSPanel.alloc.initWithContentRectStyleMaskBackingDefer(
-        $.NSMakeRect(x, y, W, H), $.NSWindowStyleMaskBorderless | $.NSWindowStyleMaskNonactivatingPanel,
+        $.NSMakeRect(x, y, W + OUT, H + OUT), $.NSWindowStyleMaskBorderless | $.NSWindowStyleMaskNonactivatingPanel,
         $.NSBackingStoreBuffered, false);
     win.setLevel($.NSStatusWindowLevel);
     win.setOpaque(false);
@@ -70,53 +84,111 @@ function run(argv) {
     win.setCollectionBehavior($.NSWindowCollectionBehaviorFullScreenAuxiliary | $.NSWindowCollectionBehaviorCanJoinAllSpaces |
                               $.NSWindowCollectionBehaviorStationary);
 
-    var view = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, W, H));
-    view.setWantsLayer(true);
-    view.layer.setCornerRadius(10);
-    view.layer.setMasksToBounds(true);
-    function paint(hover) {
-        var g = hover ? 0.25 : 0.19;
-        view.layer.setBackgroundColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(g, g + 0.01, g + 0.04, 0.97).CGColor);
+    var root = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, W + OUT, H + OUT));
+    root.setWantsLayer(true);
+    // The system banner material: blurred desktop behind, light or dark with the system.
+    var card = $.NSVisualEffectView.alloc.initWithFrame($.NSMakeRect(OUT, 0, W, H));
+    card.setMaterial($.NSVisualEffectMaterialPopover);
+    card.setBlendingMode($.NSVisualEffectBlendingModeBehindWindow);
+    card.setState($.NSVisualEffectStateActive);
+    card.setMaskImage(roundedMask(RADIUS));
+    root.addSubview(card);
+    var rim = $.NSView.alloc.initWithFrame($.NSMakeRect(OUT, 0, W, H));   // the banner's hairline edge
+    rim.setWantsLayer(true);
+    rim.layer.setCornerRadius(RADIUS);
+    rim.layer.setBorderWidth(0.5);
+    rim.layer.setBorderColor((dark ? gray(1, 0.18) : gray(0, 0.12)).CGColor);
+    root.addSubview(rim);
+
+    var iconTop = PAD;
+    var icon = $.NSImageView.imageViewWithImage(mothImage(ICON));
+    icon.setFrame($.NSMakeRect(PAD, H - iconTop - ICON, ICON, ICON));
+    card.addSubview(icon);
+    var sym = symbol(badge);
+    if (sym) {
+        var B = 17, ring = $.NSView.alloc.initWithFrame($.NSMakeRect(PAD + ICON - B + 3, H - iconTop - ICON - 3, B, B));
+        ring.setWantsLayer(true);
+        ring.layer.setCornerRadius(B / 2);
+        ring.layer.setBackgroundColor((dark ? gray(0.17, 1) : gray(1, 1)).CGColor);
+        var bv = $.NSImageView.imageViewWithImage(sym);
+        bv.setFrame($.NSMakeRect(1, 1, B - 2, B - 2));
+        ring.addSubview(bv);
+        card.addSubview(ring);
     }
-    paint(false);
 
-    var bar = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, 5, H));
-    bar.setWantsLayer(true);
-    bar.layer.setBackgroundColor(
-        $.NSColor.colorWithSRGBRedGreenBlueAlpha(accent[0], accent[1], accent[2], 1).CGColor);
-    view.addSubview(bar);
-
-    function label(text, left, top, width, size, bold, alpha) {
+    var tx = PAD + ICON + 10, tw = W - tx - PAD, labels = [];
+    function label(text, top, weight, color) {
         var t = $.NSTextField.labelWithString(text);
-        t.setFrame($.NSMakeRect(left, H - top - size - 6, width, size + 6));
-        t.setFont(bold ? $.NSFont.boldSystemFontOfSize(size) : $.NSFont.systemFontOfSize(size));
-        t.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, alpha));
+        t.setFrame($.NSMakeRect(tx, H - top - 17, tw, 17));
+        t.setFont($.NSFont.systemFontOfSizeWeight(13, weight));
+        t.setTextColor(color);
         t.setLineBreakMode($.NSLineBreakByTruncatingTail);
-        view.addSubview(t);
+        card.addSubview(t);
+        labels.push(t);
     }
-    label(title, 18, 12, W - 90, 12, true, 0.7);
-    if (snoozeFile) label('1h', W - 56, 10, 22, 12, false, 0.55);
-    label('✕', W - 26, 10, 16, 12, false, 0.55);
-    label(summary, 18, 32, W - 30, 14, true, 1);
-    if (detail) label(detail, 18, 56, W - 30, 12, false, 0.75);
+    label(title, PAD - 2, $.NSFontWeightSemibold, $.NSColor.labelColor);
+    label(summary, PAD + 15, $.NSFontWeightRegular, $.NSColor.labelColor);
+    if (detail) label(detail, PAD + 32, $.NSFontWeightRegular, $.NSColor.secondaryLabelColor);
 
-    win.setContentView(view);
+    // Shown on hover only, as the system banner shows its close button and actions.
+    var hoverViews = [], buttons = [];
+    var close = pill($.NSMakeRect(OUT - CLOSE / 2 + 2, H - CLOSE / 2 - 2, CLOSE, CLOSE), dark ? gray(0.3, 1) : gray(0.98, 1),
+                     dark ? gray(1, 0.2) : gray(0, 0.15));
+    var xm = symbol(['xmark', null], 7);
+    hoverViews.push(close);
+    if (xm) {
+        var xv = $.NSImageView.imageViewWithImage(xm);
+        xv.setFrame($.NSMakeRect(OUT - CLOSE / 2 + 6, H - CLOSE / 2 + 2, CLOSE - 8, CLOSE - 8));
+        hoverViews.push(xv);
+    }
+    function button(text, act) {
+        var font = $.NSFont.systemFontOfSizeWeight(12, $.NSFontWeightMedium);
+        var bw = Math.ceil($(text).sizeWithAttributes($({ NSFont: font })).width) + 20, bh = 22;
+        var right = buttons.length ? buttons[buttons.length - 1].left - 6 : OUT + W - PAD + 4;
+        var left = right - bw, b = pill($.NSMakeRect(left, (H - bh) / 2, bw, bh), dark ? gray(0.36, 1) : gray(0.9, 1),
+                                         dark ? gray(1, 0.12) : gray(0, 0.08));
+        var t = $.NSTextField.labelWithString(text);
+        t.setFont(font);
+        t.setTextColor($.NSColor.labelColor);
+        // centred by frame: JXA's NSTextAlignmentCenter carries the Intel value, "right" on Apple silicon
+        var iw = t.intrinsicContentSize.width;
+        t.setFrame($.NSMakeRect(left + (bw - iw) / 2, (H - bh) / 2 + 3, iw, 16));
+        hoverViews.push(b, t);   // siblings: an NSBox insets what it contains
+        buttons.push({ left: left, right: right, bottom: (H - bh) / 2, top: (H + bh) / 2, act: act });
+    }
+    if (snoozeFile) button('1h', function () { snoozeHour(snoozeFile); });
+    hoverViews.forEach(function (v) { v.setHidden(true); root.addSubview(v); });
+
+    win.setContentView(root);
+    // Slides in from the right edge, easing out, as a banner arrives.
+    var i, from = W + OUT + M;
     win.setAlphaValue(0);
     win.orderFrontRegardless;
-    var i;
-    for (i = 1; i <= 10; i++) { win.setAlphaValue(i / 10); pause(0.015); }
+    for (i = 1; i <= 14; i++) {
+        var k = 1 - Math.pow(1 - i / 14, 3);
+        win.setFrameOrigin($.NSMakePoint(x + from * (1 - k), y));
+        win.setAlphaValue(Math.min(1, k * 1.4));
+        pause(0.012);
+    }
+    win.invalidateShadow;
 
     var TICK = 0.05, left = secs, wasDown = false, hovering = false;
     while (left > 0) {
-        var p = $.NSEvent.mouseLocation;
-        var inside = p.x >= x && p.x <= x + W && p.y >= y && p.y <= y + H;
-        if (inside !== hovering) { hovering = inside; paint(inside); }
+        var p = $.NSEvent.mouseLocation, lx = p.x - x, ly = p.y - y;
+        var onCard = lx >= OUT && lx <= OUT + W && ly >= 0 && ly <= H;
+        var onClose = hovering && Math.pow(lx - (OUT + 2), 2) + Math.pow(ly - (H - 2), 2) <= Math.pow(CLOSE / 2 + 2, 2);
+        var inside = onCard || onClose;
+        if (inside !== hovering) {
+            hovering = inside;
+            hoverViews.forEach(function (v) { v.setHidden(!inside); });
+            // the text makes room for the buttons rather than running under them
+            var room = inside && buttons.length ? OUT + W - PAD - buttons[buttons.length - 1].left + 4 : 0;
+            labels.forEach(function (t, n) { if (n) t.setFrameSize($.NSMakeSize(tw - room, 17)); });
+        }
         var down = ($.NSEvent.pressedMouseButtons & 1) === 1;
         if (wasDown && !down && inside) {
-            var top = p.y >= y + H - 30;
-            var onClose = top && p.x >= x + W - 30;
-            var onSnooze = snoozeFile && top && !onClose && p.x >= x + W - 62;
-            if (onSnooze) snoozeHour(snoozeFile);
+            var hit = buttons.filter(function (b) { return lx >= b.left && lx <= b.right && ly >= b.bottom && ly <= b.top; })[0];
+            if (hit) hit.act();
             else if (!onClose) focus(where);
             break;
         }
@@ -124,8 +196,76 @@ function run(argv) {
         if (!inside) left -= TICK;
         pause(TICK);
     }
-    for (i = 9; i >= 0; i--) { win.setAlphaValue(i / 10); pause(0.03); }
+    for (i = 9; i >= 0; i--) { win.setAlphaValue(i / 10); pause(0.025); }
     win.orderOut(null);
+}
+
+function isDark(app) {
+    var a = app.effectiveAppearance.bestMatchFromAppearancesWithNames($([$.NSAppearanceNameAqua, $.NSAppearanceNameDarkAqua]));
+    return ObjC.unwrap(a) === ObjC.unwrap($.NSAppearanceNameDarkAqua);
+}
+// A rounded box drawn by AppKit itself (a layer colour is not drawn in a view added hidden).
+function pill(frame, fill, border) {
+    var b = $.NSBox.alloc.initWithFrame(frame);
+    b.setBoxType($.NSBoxCustom);
+    b.setTitlePosition($.NSNoTitle);
+    b.setContentViewMargins($.NSMakeSize(0, 0));
+    b.setCornerRadius(Math.min(frame.size.width, frame.size.height) / 2);
+    b.setFillColor(fill);
+    b.setBorderWidth(0.5);
+    b.setBorderColor(border);
+    return b;
+}
+function gray(w, a) { return $.NSColor.colorWithSRGBRedGreenBlueAlpha(w, w, w, a); }
+// Stretchable rounded-rect mask: corners kept, middle stretched.
+function roundedMask(r) {
+    var n = 2 * r + 1, img = $.NSImage.alloc.initWithSize($.NSMakeSize(n, n));
+    img.lockFocus;
+    $.NSColor.blackColor.set;
+    $.NSBezierPath.bezierPathWithRoundedRectXRadiusYRadius($.NSMakeRect(0, 0, n, n), r, r).fill;
+    img.unlockFocus;
+    img.setCapInsets($.NSEdgeInsetsMake(r, r, r, r));
+    img.setResizingMode($.NSImageResizingModeStretch);
+    return img;
+}
+// spec: [SF Symbol name, sRGB or null for the label colour]. Description '': JXA passes null as
+// NSNull, which AppKit rejects.
+function symbol(spec, pt) {
+    var img = $.NSImage.imageWithSystemSymbolNameAccessibilityDescription(spec[0], '');
+    if (img.isNil()) return null;
+    var conf = $.NSImageSymbolConfiguration.configurationWithPointSizeWeight(pt || 15, $.NSFontWeightBold);
+    if (spec[1]) conf = conf.configurationByApplyingConfiguration($.NSImageSymbolConfiguration.configurationWithPaletteColors(
+        $([$.NSColor.whiteColor, $.NSColor.colorWithSRGBRedGreenBlueAlpha(spec[1][0], spec[1][1], spec[1][2], 1)])));
+    var out = img.imageWithSymbolConfiguration(conf);
+    return out.isNil() ? img : out;
+}
+function mothImage(pt) {   // 3× bitmap for sharpness
+    var px = pt * 3, k = px / 128;
+    var rep = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel(
+        null, px, px, 8, 4, true, false, 'NSDeviceRGBColorSpace', 0, 0);
+    $.NSGraphicsContext.saveGraphicsState;
+    $.NSGraphicsContext.setCurrentContext($.NSGraphicsContext.graphicsContextWithBitmapImageRep(rep));
+    MOTH.forEach(function (m) { hexColor(m[0]).set; polygon(m[1], k).fill; });
+    hexColor('#A32C06').set;
+    EYESPOTS.forEach(function (e) { polygon(e, k).fill; });
+    $.NSGraphicsContext.restoreGraphicsState;
+    rep.setSize($.NSMakeSize(pt, pt));
+    var img = $.NSImage.alloc.initWithSize($.NSMakeSize(pt, pt));
+    img.addRepresentation(rep);
+    return img;
+}
+function hexColor(h) {
+    var n = parseInt(h.slice(1), 16);
+    return $.NSColor.colorWithSRGBRedGreenBlueAlpha((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1);
+}
+function polygon(pts, k) {   // SVG y grows downward, AppKit's upward
+    var p = $.NSBezierPath.bezierPath;
+    for (var i = 0; i < pts.length; i += 2) {
+        var pt = $.NSMakePoint(pts[i] * k, (128 - pts[i + 1]) * k);
+        if (i === 0) p.moveToPoint(pt); else p.lineToPoint(pt);
+    }
+    p.closePath;
+    return p;
 }
 
 function clickTarget(argv) {
