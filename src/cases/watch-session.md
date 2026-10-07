@@ -17,7 +17,9 @@ this one is its ONLY writer. Every other rule of `commands/review.md` holds.
   | log a lesson (`setup/lesson.md`) | put the lesson's text — content + stack tag — into `lessons`; the watcher asks the user and logs it |
 
 - **Status file.** Every end of this run — Step 9's report, any STOP or error — is 1 `Write` of `F`
-  (overwrite) once the outcome is known. FORBIDDEN: writing it earlier, or ending without it.
+  (overwrite) once the outcome is known. FORBIDDEN: writing it earlier, or ending without it. The
+  user changes the outcome later in this conversation (publishes the draft, answers what you asked)
+  ⇒ `Write` `F` again with the new outcome.
 
   ```json
   {"state": "posted|draft|lgtm_chat|nothing|question|failed", "url": "<PR URL>", "counts": {"<severity label>": 0}, "note": "<1 sentence>", "lessons": [], "question": ""}
