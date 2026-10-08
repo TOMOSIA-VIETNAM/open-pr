@@ -1011,7 +1011,13 @@ cmd_menubar() {
         [ -n "$live" ] || { rm -f "$pf"; printf 'not running\n'; return 0; }
         kill "$pid" 2>/dev/null || true; rm -f "$pf"; printf 'closed\n'; return 0
     fi
-    [ -z "$live" ] || { printf 'running\n'; return 0; }
+    # It reads the data dirs it was started with: a mapping added since (`data-dir --add-root`)
+    # restarts it, else the repos under that mapping never show.
+    if [ -n "$live" ]; then
+        [ "$dirs" != "$(cat "$WD/menubar.dirs" 2>/dev/null || true)" ] || { printf 'running\n'; return 0; }
+        kill "$pid" 2>/dev/null || true
+    fi
+    printf '%s\n' "$dirs" > "$WD/menubar.dirs"
     # one data dir per argv element (a path holding a newline is not supported)
     nl='
 '
@@ -1130,7 +1136,8 @@ Subcommands:
   menubar [--close]
       macOS: start the menu bar item (review and fix rows grouped by watcher tab, recent toasts,
       snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
-      `started` | `running`; it stays until closed. `--close` → `closed` | `not running`. Elsewhere
+      `started` | `running`; one running on other data dirs than `data-dir --all` now prints is
+      restarted (`started`); it stays until closed. `--close` → `closed` | `not running`. Elsewhere
       `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]
       will R open a session in W (default the repo dir) without a prompt? claude: `trusted` | `untrusted` plus

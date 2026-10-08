@@ -24,7 +24,7 @@ WATCH = REPO / "src" / "bin" / "open-pr-watch.sh"
 FAKE_OPEN_PR = r"""#!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_HOME/open-pr.calls"
 case "$1" in
-    data-dir) if [ "${2:-}" = --all ]; then printf '%s\n' "$FAKE_HOME/data" "$FAKE_HOME/data2"
+    data-dir) if [ "${2:-}" = --all ]; then printf '%s\n' "$FAKE_HOME/data" "$FAKE_HOME/data2" ${FAKE_DATA3:+"$FAKE_DATA3"}
               else printf '%s\n' "$FAKE_HOME/data"; fi ;;
     repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
                  printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
@@ -1233,6 +1233,22 @@ def test_menubar_closes_on_request(w):
     w.wait_dead(pid)
     assert not (w.watch / "menubar.pid").exists()
     assert w.run("menubar", "--close").stdout == "not running\n"
+
+def test_a_data_dir_mapped_after_the_menubar_started_restarts_it(w):
+    """A watcher on a repo under a new `data_dirs` root writes where the running menu bar never looks."""
+    env = {"FAKE_SLEEP": "30"}
+    assert w.run("menubar", env_extra=env).stdout == "started\n"
+    old = int((w.watch / "menubar.pid").read_text())
+    try:
+        assert w.run("menubar", env_extra=env).stdout == "running\n"
+        assert w.run("menubar", env_extra={**env, "FAKE_DATA3": str(w.home / "data3")}).stdout == "started\n"
+        w.wait_dead(old)
+        assert w.recorded("osascript", 1)["argv"][-2] == str(w.home / "data3")
+    finally:
+        for f in (w.watch / "menubar.pid",):
+            try: os.kill(int(f.read_text()), 9)
+            except (OSError, ValueError): pass
+
 
 def test_menubar_runs_detached_once_per_machine(w):
     env = {"FAKE_SLEEP": "30"}
