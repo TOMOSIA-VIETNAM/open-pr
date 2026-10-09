@@ -11,7 +11,8 @@
 //                                           "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
-//   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE)
+//   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE); the Settings
+//                                           submenu reads and writes it through `open-pr-watch.sh settings`
 //   heartbeat, watcher.json, stop and quota.json belong to the wait serving both roles; a wait serving one
 //   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
@@ -21,8 +22,8 @@
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, written into a .command file or passed to osascript as argv after matching OPEN_CMD,
 // passed to osascript as argv after matching TAB_ID, turned into `claude attach` after matching
-// SESSION_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits —
-// never spliced into source.
+// SESSION_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits or a
+// SETTINGS key and one of its values — never spliced into source.
 ObjC.import('Cocoa');
 
 var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
@@ -124,6 +125,32 @@ var MOTH = [
 var QUOTA = { warn: 0.5, low: 0.3, critical: 0.1 };
 var VENDOR_NAME = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' };
 var VENDOR_HOST = { github: 'github.com', gitlab: 'gitlab.com', bitbucket: 'bitbucket.org' };
+// A watched repo's Settings submenu, by group: [key, label, options]. options = [[value, label]…] for
+// a pick, EVENTS for one checkmark per watch.notify.<event>, none for one checkmark. Only these
+// keys and values reach `open-pr-watch.sh settings --set` (settingArgs); open-pr.sh checks them again.
+var EVENTS = [['review_started', 'Review started'], ['question', 'Question'], ['draft_ready', 'Draft ready'],
+              ['posted', 'Posted'], ['re_review', 'Re-review'], ['findings', 'New findings'], ['error', 'Error']];
+var SETTINGS = [
+    ['Watch', [
+        ['watch.max_concurrent', 'Sessions at once', [[1, '1'], [2, '2'], [3, '3'], [5, '5'], [8, '8'], [10, '10']]],
+        ['watch.poll_interval_seconds', 'Poll every', [[60, '1 minute'], [120, '2 minutes'], [180, '3 minutes'], [300, '5 minutes'], [600, '10 minutes']]],
+        ['watch.trigger', 'Trigger', [['/open-pr', '/open-pr'], ['@me', '@me (a mention of you)']]],
+        ['watch.notify', 'Toasts', EVENTS]]],
+    ['Review', [
+        ['review.auto_submit_review', 'Post reviews without a draft'],
+        ['review.post_lgtm', 'Post LGTM when nothing is found'],
+        ['review.auto_resolve_fixed_findings', 'Resolve fixed findings'],
+        ['review.review_ci_status', 'Warn about failing CI'],
+        ['review.doctor_schedule', 'Doctor every', [['1 weeks', '1 week'], ['2 weeks', '2 weeks'], ['1 months', '1 month'], ['3 months', '3 months'], ['never', 'Never']]]]]
+];
+// key → the values a click may write, as argv strings
+var SETTING_VALUES = {};
+SETTINGS.forEach(function (g) { g[1].forEach(function (k) {
+    if (k[2] === EVENTS) EVENTS.forEach(function (e) { SETTING_VALUES[k[0] + '.' + e[0]] = ['true', 'false']; });
+    else SETTING_VALUES[k[0]] = k[2] ? k[2].map(function (o) { return String(o[0]); }) : ['true', 'false'];
+}); });
+// <data>/<repo> → { mt: settings.json mtime, dir, remote, conf: what `settings` printed | null, at }
+var settingsCache = {}, SETTINGS_RETRY = 60000;   // ms before a failed read is tried again
 var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
 
 // The Stop button over its hand-drawn pill: darkens the pill while the pointer is on it.
@@ -152,6 +179,7 @@ ObjC.registerSubclass({
         'fixNow:': { types: ['void', ['id']], implementation: function (s) { fixNow(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
         'poll:': { types: ['void', ['id']], implementation: function (s) { poll(Number(s.tag)); } },
+        'setting:': { types: ['void', ['id']], implementation: function (s) { setSetting(parse(unwrapString(s.representedObject))); } },
         'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
     }
 });
@@ -189,12 +217,13 @@ function listDir(path) {
     var a = $.NSFileManager.defaultManager.contentsOfDirectoryAtPathError(path, null);
     return a.isNil() ? [] : ObjC.deepUnwrap(a);
 }
-function ageSeconds(path) {
+function mtime(path) {   // seconds since 1970, 0 when there is no such file
     var at = $.NSFileManager.defaultManager.attributesOfItemAtPathError(path, null);
-    if (at.isNil()) return Infinity;
+    if (at.isNil()) return 0;
     var d = at.objectForKey($.NSFileModificationDate);
-    return d.isNil() ? Infinity : -d.timeIntervalSinceNow;
+    return d.isNil() ? 0 : d.timeIntervalSince1970;
 }
+function ageSeconds(path) { var t = mtime(path); return t ? Date.now() / 1000 - t : Infinity; }
 function parse(text) { try { return JSON.parse(text); } catch (e) { return null; } }
 function str(v) { return typeof v === 'string' ? v : ''; }
 function p2(n) { return (n < 10 ? '0' : '') + n; }
@@ -224,7 +253,7 @@ function watcherOf(w, set) {
              cwdName: cwd ? basename(cwd) : '', termName: term ? (t ? t[0] : term) : '',
              role: set.sfx.replace('-', ''), start: 0, beat: Infinity, poll: 0,
              term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx,
-             repos: [], dirs: [], rows: [] };
+             repos: [], dirs: [], rows: [], settings: [] };
 }
 
 function scan() {
@@ -257,6 +286,10 @@ function scan() {
         };
         // what "Remove from list" hands `hide` for this repo
         var repoDir = wj && typeof wj === 'object' ? str(wj.repo_dir) : '', remote = wj && typeof wj === 'object' ? str(wj.remote) : '';
+        var conf = repoSettings(data + '/' + name, repoDir, remote);
+        if (conf) live.forEach(function (set) {
+            at[set.sfx].settings.push({ name: name, conf: conf, doctor: doctorLine(conf), arg: { repo_dir: repoDir, remote: remote } });
+        });
         var rows = {};
         var st = parse(readText(dir + '/state.json'));
         var ss = st && typeof st.sessions === 'object' && st.sessions ? st.sessions : {};
@@ -370,6 +403,30 @@ function estimate(quotas, seconds) {
     });
     return worst ? '  ≈' + worst.perHour.toLocaleString('en-US') + '/h' + (worst.share > QUOTA.warn ? ' ⚠' : '') : '';
 }
+// The repo's settings as `open-pr-watch.sh settings` prints them (read-time defaults applied), read
+// again only once settings.json changes; null when its watcher left no repo_dir to name it by.
+function repoSettings(repo, dir, remote) {
+    if (!watchScript || !isDir(dir) || (remote && !REMOTE.test(remote))) return null;
+    var mt = mtime(repo + '/settings.json'), c = settingsCache[repo];
+    if (c && c.mt === mt && c.dir === dir && c.remote === remote && (c.conf || Date.now() - c.at < SETTINGS_RETRY)) return c.conf;
+    var conf = parse(output('/bin/sh', repoArgs({ repo_dir: dir, remote: remote }, 'settings')) || '');
+    conf = conf && typeof conf === 'object' && conf.watch && conf.review ? conf : null;
+    settingsCache[repo] = { mt: mt, dir: dir, remote: remote, conf: conf, at: Date.now() };
+    return conf;
+}
+function valueAt(conf, key) {
+    return key.split('.').reduce(function (o, k) { return o && typeof o === 'object' ? o[k] : undefined; }, conf);
+}
+// "Doctor: <when it last ran> · next in N days" (or due now), from open-pr.sh's doctor_next_at.
+function doctorLine(c) {
+    var r = c.review || {}, last = ms(r.doctored_at), next = ms(c.doctor_next_at);
+    if (r.doctored !== true) return 'Doctor: never run';
+    var head = 'Doctor: ' + (last ? new Date(last).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' · ' : '');
+    if (r.doctor_schedule === 'never') return head + 'not scheduled';
+    if (!next || next <= Date.now()) return head + 'due now';
+    var n = Math.ceil((next - Date.now()) / 86400000);
+    return head + 'next in ' + n + (n === 1 ? ' day' : ' days');
+}
 function repoPoll(repoDir) {
     var st = parse(readText(repoDir + '/settings.json')), v = st && st.watch ? st.watch.poll_interval_seconds : null;
     return typeof v === 'number' && v >= 1 ? v : STALE.poll;
@@ -470,10 +527,16 @@ function blank() {
 }
 
 // ---------------------------------------------------------------- menu ----
+// A settings read waits on a task while the run loop turns, so the timer can fire inside it.
+var refreshing = false;
 function refresh() {
-    var s = scan();
-    item.button.setTitle(s.active ? String(s.active) : '');
-    item.setMenu(build(s));
+    if (refreshing) return;
+    refreshing = true;
+    try {
+        var s = scan();
+        item.button.setTitle(s.active ? String(s.active) : '');
+        item.setMenu(build(s));
+    } finally { refreshing = false; }
 }
 
 function clip(t) { return t.length > CLIP ? t.slice(0, CLIP - 1) + '…' : t; }
@@ -710,6 +773,18 @@ function build(s) {
             if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
             if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
         });
+        // one repo: Settings ▸ its settings; several: Settings ▸ <repo> ▸
+        if (w.settings.length) {
+            var si = add(m, 'Settings');
+            si.setImage(symbol(['gearshape']));
+            si.setEnabled(true);
+            if (w.settings.length === 1) si.setSubmenu(settingsMenu(w.settings[0], s.quotas));
+            else {
+                var sm = newMenu('Settings');
+                w.settings.forEach(function (x) { var ri = add(sm, x.name); ri.setSubmenu(settingsMenu(x, s.quotas)); ri.setEnabled(true); });
+                si.setSubmenu(sm);
+            }
+        }
     });
 
     m.addItem($.NSMenuItem.separatorItem);
@@ -739,6 +814,53 @@ function build(s) {
     sn.setEnabled(true);
     sn.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription(until ? 'bell.slash' : 'bell', ''));
     add(m, 'Quit menu bar', 'quit:').setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('power', ''));
+    return m;
+}
+
+function check(mi, on) { mi.setState(on ? $.NSControlStateValueOn : $.NSControlStateValueOff); return mi; }
+function span(sec) { return sec % 60 ? sec + ' seconds' : sec / 60 + (sec === 60 ? ' minute' : ' minutes'); }
+// x: { name, conf, doctor, arg }. Each item's value is what a click writes; the checked one is the
+// current value, and a current value the menu does not offer (set in a chat) shows checked, disabled.
+function settingsMenu(x, quotas) {
+    var m = newMenu(x.name), arg = function (key, value) { return JSON.stringify({ repo_dir: x.arg.repo_dir, remote: x.arg.remote, key: key, value: String(value) }); };
+    SETTINGS.forEach(function (g, i) {
+        if (i) m.addItem($.NSMenuItem.separatorItem);
+        add(m, g[0]);
+        g[1].forEach(function (k) {
+            var cur = valueAt(x.conf, k[0]);
+            if (!k[2]) {
+                var mi = add(m, k[1], 'setting:', arg(k[0], cur !== true));
+                // review_ci_status unset: on when the PR has CI checks, decided per review
+                if (cur === undefined) { mi.setState($.NSControlStateValueMixed); mi.setToolTip('Not set: on when the pull request has CI checks'); }
+                else check(mi, cur === true);
+                return;
+            }
+            var sub = newMenu(k[1]), shown = '';
+            if (k[2] === EVENTS) {
+                EVENTS.forEach(function (e) { check(add(sub, e[1], 'setting:', arg(k[0] + '.' + e[0], !(cur && cur[e[0]] === true))), cur && cur[e[0]] === true); });
+                shown = EVENTS.filter(function (e) { return cur && cur[e[0]] === true; }).length + ' of ' + EVENTS.length;
+            } else {
+                if (k[0] === 'watch.poll_interval_seconds' && pollSeconds()) {
+                    add(sub, 'This machine polls every ' + span(pollSeconds()) + ' (Poll every)');
+                    sub.addItem($.NSMenuItem.separatorItem);
+                }
+                k[2].forEach(function (o) {
+                    var extra = k[0] === 'watch.poll_interval_seconds' ? estimate(quotas, o[0]) : '';
+                    check(add(sub, o[1] + extra, 'setting:', arg(k[0], o[0])), cur === o[0]);
+                    if (cur === o[0]) shown = o[1];
+                });
+                if (!shown && cur !== undefined) {
+                    shown = k[0] === 'watch.poll_interval_seconds' && typeof cur === 'number' ? span(cur) : String(cur);
+                    check(add(sub, shown + ' (set in a chat)'), true);
+                }
+            }
+            var pi = add(m, k[1] + (shown ? ': ' + shown : ''));
+            pi.setSubmenu(sub);
+            pi.setEnabled(true);
+        });
+    });
+    m.addItem($.NSMenuItem.separatorItem);
+    add(m, x.doctor).setImage(symbol(['stethoscope']));
     return m;
 }
 
@@ -851,12 +973,30 @@ function stopSession(o) {
     });
     if (bg) spawn('/usr/bin/env', ['claude', 'stop', o.session_id.slice(0, 8)]);
 }
-// `open-pr-watch.sh <sub>` argv for one PR (sub: hide | fix-now), or null when a value is outside its shape.
-function prArgs(o, sub) {
+// `open-pr-watch.sh <sub>` argv naming the repo of o {repo_dir, remote}, or null when a value is outside its shape.
+function repoArgs(o, sub) {
     if (!watchScript || !o || typeof o !== 'object') return null;
-    var dir = str(o.repo_dir), remote = str(o.remote), pr = o.pr;
-    if (!isDir(dir) || (remote && !REMOTE.test(remote)) || typeof pr !== 'number' || !/^[0-9]+$/.test(String(pr))) return null;
-    return [watchScript, sub, '--repo-dir', dir].concat(remote ? ['--remote', remote] : [], ['--pr', String(pr)]);
+    var dir = str(o.repo_dir), remote = str(o.remote);
+    if (!isDir(dir) || (remote && !REMOTE.test(remote))) return null;
+    return [watchScript, sub, '--repo-dir', dir].concat(remote ? ['--remote', remote] : []);
+}
+// … for one PR (sub: hide | fix-now)
+function prArgs(o, sub) {
+    var a = repoArgs(o, sub), pr = o && o.pr;
+    return a && typeof pr === 'number' && /^[0-9]+$/.test(String(pr)) ? a.concat(['--pr', String(pr)]) : null;
+}
+// … for a Settings click: a SETTINGS key and one of its values
+function settingArgs(o) {
+    var a = repoArgs(o, 'settings'), ok = o && SETTING_VALUES[str(o.key)];
+    return a && ok && ok.indexOf(str(o.value)) >= 0 ? a.concat(['--set', o.key, '--value', o.value]) : null;
+}
+// Waits for the write (the run loop turns meanwhile), then reads every repo's settings afresh.
+function setSetting(o) {
+    var args = settingArgs(o);
+    if (!args) return;
+    output('/bin/sh', args);
+    settingsCache = {};
+    refresh();
 }
 // The watcher's wait delivers it within seconds; the row turns to the fix session once it opens.
 function fixNow(o) {

@@ -1702,15 +1702,18 @@ def test_the_menu_bar_lists_each_role_watcher_with_the_rows_of_its_role(w):
     assert got == {"-review": ("s:w0t0p1:AA-review", ["o/r #5"]), "-fix": ("s:w0t0p2:BB-fix", ["o/r #6"])}
 
 
-def _menubar_js(w, body):
+def _menubar_js(w, body, script=False):
     """The menu bar's own functions run headless: its Cocoa classes (registering one outside an
-    app run hangs osascript) left out, its run() replaced by `body`."""
+    app run hangs osascript) left out, its run() replaced by `body`. script: it runs the sandbox's
+    open-pr-watch.sh (beside the fake open-pr.sh), as the real one is handed its own."""
     src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), flags=re.S | re.M)
+    ws = json.dumps(str(w.bin / "open-pr-watch.sh")) if script else "''"
     js = src.replace("function run(argv) {", "function runApp(argv) {", 1) + (
-        f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700; {body} }}")
+        f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700; watchScript = {ws}; {body} }}")
     f = w.home / "menubar-headless.js"
     f.write_text(js)
-    out = subprocess.run(["osascript", "-l", "JavaScript", str(f)], capture_output=True, text=True, timeout=30)
+    out = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", str(f)], capture_output=True, text=True,
+                         timeout=30, env=w.env)
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
 
@@ -1763,3 +1766,82 @@ def test_a_watcher_row_names_its_repos_and_says_when_it_last_polled(w):
                          " return [x.sfx, x.repos.join(', '), watcherLine(x)]; }));")
     assert got == [["-review", "r", [["Review · iTerm · polled just now", False]]],
                    ["-fix", "r", [["Fix · iTerm · in tms · ", False], ["no poll for 25m — check the watcher tab", True]]]]
+
+
+def _watched(w, repo_dir=True):
+    w.sd.mkdir(parents=True, exist_ok=True)
+    (w.sd / "heartbeat").write_text("")
+    (w.sd / "watcher.json").write_text(json.dumps(
+        {"pid": 1, "cwd": "/x", "repo_dir": str(w.repo) if repo_dir else "", "remote": "origin"}))
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("review, next_in, want", [
+    ({"doctored": True, "doctored_at": "2026-07-13T10:00:00Z", "doctor_schedule": "1 months"}, 3 * 86400 - 60,
+     "Doctor: Jul 13, 2026 · next in 3 days"),
+    ({"doctored": True, "doctored_at": "2026-07-13T10:00:00Z", "doctor_schedule": "1 months"}, -60,
+     "Doctor: Jul 13, 2026 · due now"),
+    ({"doctored": True, "doctored_at": "2026-07-13T10:00:00Z", "doctor_schedule": "never"}, None,
+     "Doctor: Jul 13, 2026 · not scheduled"),
+    ({"bootstrapped": True}, None, "Doctor: never run"),
+])
+def test_the_menu_bar_reads_each_repos_settings_and_says_when_its_doctor_runs(w, review, next_in, want):
+    _watched(w)
+    at = None if next_in is None else time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + next_in))
+    (w.home / "settings.json").write_text(json.dumps(
+        {"review": review, "watch": {"max_concurrent": 2}, "doctor_next_at": at}))
+    got = _menubar_js(w, "return JSON.stringify(scan().watchers.map(function (x) {"
+                         " return x.settings.map(function (r) { return [r.name, r.doctor, r.conf.watch.max_concurrent]; }); }));",
+                      script=True)
+    assert got == [[["r", want, 2]]]
+    calls = (w.home / "open-pr.calls").read_text().splitlines()
+    assert f"settings --repo r --repo-dir {w.repo.resolve()}" in calls, "read through open-pr.sh settings"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_bar_offers_no_settings_for_a_repo_it_cannot_name(w):
+    _watched(w, repo_dir=False)
+    (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {}}))
+    assert _menubar_js(w, "return JSON.stringify(scan().watchers[0].settings);", script=True) == []
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_settings_click_hands_open_pr_watch_only_a_listed_key_and_value(w):
+    ok = {"repo_dir": str(w.repo), "remote": "origin"}
+    cases = [dict(ok, key="watch.max_concurrent", value="8"), dict(ok, key="watch.notify.posted", value="false"),
+             dict(ok, key="review.doctor_schedule", value="2 weeks"), dict(ok, key="watch.trigger", value="@me"),
+             dict(ok, key="watch.max_concurrent", value="7"), dict(ok, key="review.many_files_threshold", value="9"),
+             dict(ok, key="watch.notify.bogus", value="true"), dict(ok, key="watch.trigger", value="@alice"),
+             dict(ok, key="watch.notify.posted", value="true; rm -rf ~"),
+             dict(ok, remote="a b", key="review.post_lgtm", value="false"),
+             dict(ok, repo_dir="/no/such/dir", key="review.post_lgtm", value="false")]
+    got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(settingArgs));", script=True)
+    base = [str(w.bin / "open-pr-watch.sh"), "settings", "--repo-dir", str(w.repo), "--remote", "origin", "--set"]
+    assert got[:4] == [base + ["watch.max_concurrent", "--value", "8"], base + ["watch.notify.posted", "--value", "false"],
+                       base + ["review.doctor_schedule", "--value", "2 weeks"], base + ["watch.trigger", "--value", "@me"]]
+    assert got[4:] == [None] * 7, "a value the menu does not offer, an unlisted key, or a bad repo reached argv"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_settings_submenu_checks_each_current_value(w):
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({
+        "review": {"doctored": False, "post_lgtm": True, "auto_submit_review": False, "doctor_schedule": "7 days"},
+        "watch": {"max_concurrent": 5, "poll_interval_seconds": 180, "trigger": "@alice",
+                  "notify": {e: e != "posted" for e in ("review_started", "question", "draft_ready", "posted",
+                                                       "re_review", "findings", "error")}}}))
+    got = _menubar_js(w, """var x = scan().watchers[0].settings[0], m = settingsMenu(x, []);
+        function dump(menu) { var a = []; for (var i = 0; i < menu.numberOfItems; i++) { var mi = menu.itemAtIndex(i);
+            if (mi.isSeparatorItem) continue;
+            a.push([ObjC.unwrap(mi.title), Number(mi.state), mi.hasSubmenu ? dump(mi.submenu) : null]); } return a; }
+        return JSON.stringify(dump(m));""", script=True)
+    by = {t: (st, sub) for t, st, sub in got}
+    on = lambda sub: [t for t, st, _ in sub if st == 1]
+    assert on(by["Sessions at once: 5"][1]) == ["5"]
+    assert on(by["Poll every: 3 minutes"][1]) == ["3 minutes"]
+    assert on(by["Trigger: @alice"][1]) == ["@alice (set in a chat)"], "a typed login shows, unchanged"
+    assert by["Toasts: 6 of 7"][1][3][:2] == ["Posted", 0]
+    assert on(by["Doctor every: 7 days"][1]) == ["7 days (set in a chat)"]
+    assert by["Post LGTM when nothing is found"][0] == 1 and by["Post reviews without a draft"][0] == 0
+    assert by["Warn about failing CI"][0] == -1, "unset: decided per review by its CI checks"
+    assert got[0][0] == "Watch" and got[-1][0] == "Doctor: never run"
