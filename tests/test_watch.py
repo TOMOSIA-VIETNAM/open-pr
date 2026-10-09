@@ -795,6 +795,16 @@ def notify(w, event="posted", text="PR #3 posted", **kw):
     return w.jsonl("notify", "--event", event, "--text-file", f, **kw)[0]
 
 
+def test_a_quiet_notify_writes_the_feed_line_and_no_toast(w):
+    """An answered question's outcome: the menu bar must stop showing the question."""
+    f = w.prompt("#49: re-review requested", "note.txt")
+    out = w.jsonl("notify", "--event", "posted", "--text-file", f, "--pr", "49", "--role", "fix", "--quiet")
+    assert out == [{"event": "posted", "sent": False, "reason": "quiet"}]
+    assert not list(w.home.glob("osascript.*.json"))
+    line = json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])
+    assert (line["pr"], line["role"], line["event"], line["summary"]) == (49, "fix", "posted", "#49: re-review requested")
+
+
 def test_notify_skips_a_disabled_event(w):
     w.settings(notify={"posted": False, "question": True})
     assert notify(w) == {"event": "posted", "sent": False, "reason": "event disabled"}

@@ -46,15 +46,15 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
     fixing:   ['circle.dotted', [0.35, 0.53, 0.95], 'Fixing'],
     findings: ['wrench.and.screwdriver', [0.93, 0.68, 0.16], 'New findings — Fix now'],
     fix_requested: ['clock', [0.35, 0.53, 0.95], 'Fix requested — starting'],
-    fixed:    ['checkmark.circle', [0.22, 0.7, 0.45], 'Fixed'],
+    fixed:    ['checkmark.circle', [0.12, 0.56, 0.3], 'Fixed'],
     question: ['questionmark.bubble', [0.91, 0.27, 0.06], 'Needs your answer'],
     draft:    ['doc.badge.clock', [0.93, 0.68, 0.16], 'Draft waiting'],
-    posted:   ['checkmark.bubble', [0.22, 0.7, 0.45], 'Posted'],
-    lgtm:     ['checkmark.seal', [0.22, 0.7, 0.45], 'LGTM'],
+    posted:   ['checkmark.bubble', [0.12, 0.56, 0.3], 'Posted'],
+    lgtm:     ['checkmark.seal', [0.12, 0.56, 0.3], 'LGTM'],
     failed:   ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Failed'],
     stopped:  ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Stopped'],
     nothing:  ['hourglass', [0.91, 0.27, 0.06], 'Nothing new to review'],
-    answered: ['text.bubble', [0.22, 0.7, 0.45], 'Answered']
+    answered: ['text.bubble', [0.12, 0.56, 0.3], 'Answered']
 };
 // A row shows whichever happened last: the session's state or the PR's latest feed line (a
 // disabled event writes no line, so that line can be older than the state). A line wins through
@@ -449,12 +449,10 @@ function headerView(repos, watchers, until) {
 // A view item gets neither the item's action nor the menu's highlight: a transparent button over
 // the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
 function watcherRow(title, sub, canGo, role) {
-    var stop = $.NSButton.buttonWithTitleTargetAction('Stop', target, 'stopRow:');
-    stop.setBezelStyle($.NSBezelStyleInline);
-    stop.setControlSize($.NSControlSizeSmall);
-    stop.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
-    stop.sizeToFit;
-    var bw = stop.frame.size.width, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
+    // Drawn by hand (a pill + its word) under a transparent button: a bezel goes dark on the
+    // selection colour, and its title with it.
+    var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
+    var bw = Math.ceil($('Stop').sizeWithAttributes($({ NSFont: stopFont })).width) + 20, bh = 20, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
     var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[1] ? rgb(look[1]) : $.NSColor.labelColor;
     sub = look[2] + ' · ' + sub;
     var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
@@ -492,10 +490,27 @@ function watcherRow(title, sub, canGo, role) {
     } else {
         t.setTextColor($.NSColor.disabledControlTextColor);
     }
-    stop.setFrame($.NSMakeRect(w - bw - 14, (ROW_H - stop.frame.size.height) / 2, bw, stop.frame.size.height));
+    var pill = $.NSBox.alloc.initWithFrame($.NSMakeRect(w - bw - 14, (ROW_H - bh) / 2, bw, bh));
+    pill.setBoxType($.NSBoxCustom);
+    pill.setTitlePosition($.NSNoTitle);
+    pill.setBorderWidth(0);
+    pill.setCornerRadius(bh / 2);
+    pill.setAutoresizingMask($.NSViewMinXMargin);
+    v.addSubview(pill);
+    var word = $.NSTextField.labelWithString('Stop');
+    word.setFont(stopFont);
+    var ww = word.intrinsicContentSize.width;
+    word.setFrame($.NSMakeRect(w - bw - 14 + (bw - ww) / 2, (ROW_H - 16) / 2, ww, 16));
+    word.setAutoresizingMask($.NSViewMinXMargin);
+    v.addSubview(word);
+    var stop = $.NSButton.buttonWithTitleTargetAction('', target, 'stopRow:');
+    stop.setTransparent(true);
+    stop.setFrame(pill.frame);
     stop.setAutoresizingMask($.NSViewMinXMargin);
+    stop.setToolTip('Stop watcher');
     v.addSubview(stop);
-    rowParts[v.hash] = { bg: bg, icon: iv, tint: tint, title: t, sub: st, canGo: canGo };
+    rowParts[v.hash] = { bg: bg, icon: iv, tint: tint, title: t, sub: st, pill: pill, word: word, canGo: canGo };
+    paintStop(rowParts[v.hash], false);
     return v;
 }
 function highlightRow(mi) {
@@ -510,6 +525,11 @@ function paintRow(p, on) {
     p.title.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.labelColor);
     p.sub.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.secondaryLabelColor);
     p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : p.tint);
+    paintStop(p, on);
+}
+function paintStop(p, on) {
+    p.pill.setFillColor(on ? $.NSColor.colorWithWhiteAlpha(1, 0.28) : $.NSColor.colorWithWhiteAlpha(0.5, 0.18));
+    p.word.setTextColor(on ? $.NSColor.whiteColor : $.NSColor.labelColor);
 }
 function rowAction(sender, which) {
     var mi = sender.enclosingMenuItem;
@@ -543,13 +563,13 @@ function build(s) {
             wi.setView(watcherRow(w.label, w.repos.join(', '), !!go, w.role));
             m.addItem(wi);
         }
-        if (!w.rows.length) add(m, 'Nothing yet').setIndentationLevel(w.key ? 2 : 0);
+        if (!w.rows.length) add(m, 'Nothing yet').setIndentationLevel(w.key ? 1 : 0);
         w.rows.forEach(function (x) {
             var spec = KIND[x.kind];
             var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
             subtitle(mi, x.text);
             if (spec) mi.setImage(symbol(spec));
-            if (w.key) mi.setIndentationLevel(2);
+            if (w.key) mi.setIndentationLevel(1);
             // Offered in every state: `open` also reopens a finished or stopped session.
             var sub = newMenu(x.title);
             if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);

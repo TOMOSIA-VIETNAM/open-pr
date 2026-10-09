@@ -54,6 +54,7 @@ parse_args() {
             --off) ARG_off=1; shift ;;
             --fresh) ARG_fresh=1; shift ;;
             --close) ARG_close=1; shift ;;
+            --quiet) ARG_quiet=1; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
                 printf '%s' "$key" | grep -Eq '^[a-z_]+$' || die 1 "open-pr-watch.sh: bad option $1"
@@ -944,6 +945,13 @@ cmd_notify() {
     WF="$SD/watcher-$ROLE.json"; [ -s "$WF" ] || WF="$SD/watcher.json"
     off=$(settings | jq -r --arg e "$E" '(.watch.notify // {}) as $n
         | if ($n | has($e)) and $n[$e] == false then "yes" else "" end')
+    # --quiet: the feed line alone — an outcome the menu bar must show, not worth a toast
+    if [ -n "$(arg quiet)" ]; then
+        title="open-pr · $OWNER/$REPO"; summary=$(sed -n 1p "$F"); detail=$(sed -n 2p "$F")
+        feed_add
+        jq -n -c --arg e "$E" '{event: $e, sent: false, reason: "quiet"}'
+        return 0
+    fi
     if [ -n "$off" ]; then
         jq -n -c --arg e "$E" '{event: $e, sent: false, reason: "event disabled"}'
         return 0
@@ -1172,7 +1180,7 @@ Subcommands:
       clicks before then are one, and a click while that PR's fix session runs is dropped
   paths [--pr N] [--role R]
       `dir=…` `prompts=…` lines; with `--pr` also `status_file=…` (that session writes it) and `log=…`
-  notify --event E --text-file F [--pr N] [--role R] [--url U] [--focus pr|watcher|session]
+  notify --event E --text-file F [--pr N] [--role R] [--url U] [--focus pr|watcher|session] [--quiet]
       toast titled `open-pr · <owner>/<repo>`: F line 1 = summary, line 2 = detail; E one of
       review_started|question|draft_ready|posted|re_review|findings|error. Skipped (`"sent":false` +
       reason) when `watch.notify.E` is false, or while snoozed (see snooze). Each one not disabled
@@ -1181,7 +1189,8 @@ Subcommands:
       now", which runs `fix-now`), else notify-send, else stderr. A click goes where `--focus` says:
       `pr` (default) opens U; `watcher` brings the watcher's terminal tab forward; `session` opens
       PR N's session of role R in the watcher's terminal app (no valid open command ⇒ as
-      `watcher`); a watcher in an unknown terminal ⇒ opens U. The watcher = the wait serving R
+      `watcher`); a watcher in an unknown terminal ⇒ opens U. The watcher = the wait serving R.
+      `--quiet`: the feed line only (whatever the setting or snooze), no toast
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
