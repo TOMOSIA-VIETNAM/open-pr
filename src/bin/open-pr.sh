@@ -1012,7 +1012,10 @@ cmd_triggers() {
             | . + {url: $open[.pr | tostring].url, pr_author: $open[.pr | tostring].author} ]
         | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
     printf '{}\n' > "$TMPD/tr.auth"
-    if [ "$V" = gitlab ]; then
+    case "$V" in
+    # trg_fetch already set `authorized`: GitHub's author_association, Bitbucket's UNKNOWN
+    github|bitbucket) ;;
+    gitlab)
         # write access = Developer (30) or above; 404 = not a member. Any other failure stops
         # the run so no trigger is misjudged.
         jq -r '.uid // empty' "$TMPD/tr.cand" | sort -u | while IFS= read -r uid; do
@@ -1030,8 +1033,8 @@ cmd_triggers() {
             fi
             jq -nc --arg u "$uid" --arg a "$a" '{($u): $a}'
         done > "$TMPD/tr.auth.l"
-        jq -s 'add // {}' "$TMPD/tr.auth.l" > "$TMPD/tr.auth"
-    fi
+        jq -s 'add // {}' "$TMPD/tr.auth.l" > "$TMPD/tr.auth" ;;
+    esac
     quota_write
     jq -c --slurpfile a "$TMPD/tr.auth" '
         (if .uid != null then ($a[0][.uid | tostring] // "no") else .authorized end) as $auth
@@ -1432,11 +1435,10 @@ Subcommands:
       at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`:
       `found=<path>` per `notebooks/review/R`
   settings --repo <repo> [--repo-dir D] [--set K --value V]
-      `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`
-      and `doctor_next_at` (ISO-8601, null when never run or unscheduled). Missing file ⇒ pure defaults, and
-      `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there;
-      `watch_configured` = node in the file. `--set`: the menu bar's write of one key
-      (reference/settings-schema.md lists them), atomic; other key or bad value ⇒ exit 4, no file ⇒ exit 1
+      `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`,
+      `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
+      was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: the
+      menu bar's one-key write (reference/settings-schema.md), exit 4 on a key or value it refuses
   stacks [--repo-dir D] <path>…
       `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
       ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`
