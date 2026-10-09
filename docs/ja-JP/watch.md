@@ -140,9 +140,18 @@ watcher が起動すると、メニューバーに蛾のアイコンと進行中
   示し、常に、新しい指摘のある行では **Fix now**、pull request を開く、
   その watcher が動いている terminal でセッションを開く（iTerm・Terminal・Ghostty・WezTerm では新しいタブ、
   それ以外の terminal では Terminal）、コマンドをコピーする、を選べます。
+- 各 watcher の下に **Settings**（リポジトリが複数なら **Settings ▸ <repo>**）: そのリポジトリの設定を
+  現在値付きで表示 — 同時セッション数（1・2・3・5・8・10）、ポーリング間隔（1・2・3・5・10 分、各 1 時間あたりの
+  リクエスト数付き）、トリガー（`/open-pr` または `@me`）、イベントごとのトーストのチェック、レビューの
+  オプション（ドラフトなしで投稿、指摘なしなら LGTM を投稿、修正済みの指摘を resolve、CI の失敗を警告、
+  doctor の間隔: 1 週・2 週・1 か月・3 か月・なし）。最後の行は doctor の前回と次回: `Doctor: Sep 20,
+  2026 · next in 11 days`、`· due now`、`· not scheduled`、または `Doctor: never run`。
 - ポーリング間隔: 15 秒、30 秒、1・2・3・5・10 分、または各リポジトリの設定 — 数秒で反映。各選択肢に 1 時間あたりの
   リクエスト見積もり付き（レート制限を参照）。
 - スヌーズ: 30 分、1 時間、明日 9:00 まで、またはトーストを再びオンにする。
+
+Settings のクリックはそのキー 1 つだけを `settings.json` に書きます（下の Setting を参照）。チャットで
+設定した、メニューにない値はチェック付きのグレー表示になります。
 
 行の "Remove from list" でその pull request を隠し、fix の役割からも外します。マージまたはクローズされた pull request は 10 分以内に自動で消え、
 その pull request に新しい依頼が来ると行が戻ります。
@@ -180,7 +189,10 @@ Windows と Linux では、チャットで watcher に頼んでください（`s
 
 ## Setting
 
-`<data>/<repo>/settings.json` の `watch` 以下に保存されます:
+`<data>/<repo>/settings.json` の `watch` 以下に保存されます。メニューバーの Settings サブメニューで
+変更できます（そこに並ぶレビューのオプションも）。変更は watcher の次のポーリングと次のレビュー
+セッションから反映され、実行中のセッションは読み込んだ値のままです。手入力のトリガー login（`@alice`）、
+数値のしきい値、doctor が検出する項目はチャットで変更します。
 
 | field | 既定値 | 意味 |
 |---|---|---|
