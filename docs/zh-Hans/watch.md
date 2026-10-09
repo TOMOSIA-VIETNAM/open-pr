@@ -23,9 +23,9 @@
    相同的信任。在 Claude Code 上，该文件夹必须是 trusted workspace；watcher 启动时会检查，如果不是，会让
    你在那里打开一次 `claude` 并接受信任提示。
 
-每个被监视的仓库保留自己的设置，包括会话上限（评审和修复会话共用）。同一台机器上每个仓库最多只有一个
-watcher，一次轮询同时服务两个角色：第二个会说明哪个
-进程已在监视，然后不再处理该仓库。当主机持续无法连接（无网络、登录过期）时，watcher 会告诉你。
+每个被监视的仓库保留自己的设置，包括会话上限（评审和修复会话共用）。同一台机器上每个仓库每个角色最多只有一个
+watcher：评审 watcher 和修复 watcher（一个标签页运行 `/open-pr:watch review`，另一个运行 `/open-pr:watch fix`）
+可以并行，各自只处理自己的角色。为已被占用的角色再启动一个时，它会说明哪个进程已在监视，然后不再处理该仓库。当主机持续无法连接（无网络、登录过期）时，watcher 会告诉你。
 
 ## 请求评审
 
@@ -112,11 +112,11 @@ non-interactive 会话使用你为该平台配置的权限设置；watcher 不�
 watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整台机器只有一个，涵盖所有 watcher；它一直保留到
 `/open-pr:menubar close`（或菜单中的 Quit），`/open-pr:menubar` 可让它重新出现。它的菜单列出：
 
-- 每个 pull request 的每个角色一行，按 watcher 分组（`<folder> · <terminal>`），评审行在前、修复行在后，每行
+- 每个 pull request 的每个角色一行，按 watcher 分组（`<folder> · <terminal>`，只服务一个角色的 watcher 另加 `· review` 或 `· fix`；每行归在其角色的 watcher 下），评审行在前、修复行在后，每行
   标注 `· review` 或 `· fix`—— 分组中的 "Go to watcher tab" 会把该 terminal
   标签页调到前台（iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后会选中确切的标签页；其他情况下把
   terminal 应用调到前台；标签页已关闭的 watcher 会用 `claude attach` 重新打开），分组的 "Stop watcher" 会停止该
-  watcher 监视的所有仓库；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、
+  watcher 监视的所有仓库（另一角色的 watcher 继续运行）；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、
   已修复、失败），并始终可以：在有新发现的行上 **Fix now**、打开 pull request、在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的新标签页；其他
   terminal 则打开 Terminal），或复制命令；
 - 轮询间隔：15 秒、30 秒、1/2/5 分钟，或各仓库的设置 —— 几秒内生效；

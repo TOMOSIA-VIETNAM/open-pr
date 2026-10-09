@@ -438,14 +438,16 @@ def test_a_quiet_repo_moves_the_cursor_to_the_newest_comment_fetched(w):
     assert w.run("wait", "--once").stdout == ""
 
 
-def _long_wait(w):
+def _long_wait(w, *roles):
+    """A `wait` left running; roles = its `--roles` value, when given."""
+    args = ("--roles", roles[0]) if roles else ()
     w.settings(poll_interval_seconds=30)
-    w.run("wait", "--once")                                   # cursor set: nothing to deliver
-    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
+    w.run("wait", "--once", *args)                            # cursor set: nothing to deliver
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait", *args], cwd=w.repo, env=w.env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     w.children.append(proc)
     for _ in range(50):                  # exec keeps the pid: the copy has taken over when it writes it
-        pf = w.sd / "wait.pid"
+        pf = w.sd / ("wait-fix.pid" if roles == ("fix",) else "wait-review.pid")
         if pf.exists() and pf.read_text().strip() == str(proc.pid):
             break
         time.sleep(0.1)
@@ -474,7 +476,7 @@ def test_a_second_wait_on_the_same_repo_is_refused(w):
     proc = _long_wait(w)
     try:
         r = w.run("wait", "--once", check=False)
-        assert r.returncode == 10 and "already watched" in r.stderr
+        assert r.returncode == 10 and f"already watched for review on this machine (wait pid {proc.pid})" in r.stderr
     finally:
         proc.kill(); proc.wait()
     assert w.run("wait", "--once", check=False).returncode == 0, "a dead holder frees the repo"
@@ -1407,7 +1409,10 @@ def finding(pr=5, review="70", **kw):
 
 
 def fix_ready(w, *rows):
-    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    """Every role set's cursor at one time: a wait of any `--roles` delivers what follows it."""
+    c = "2026-01-01T00:00:00Z"
+    w.put_state({"cursor": c, "seen": [], "sessions": {}, "queue": [],
+                 "cursors": {"review": {"cursor": c, "seen": []}, "fix": {"cursor": c, "seen": []}}})
     (w.home / "findings.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
 
 
@@ -1464,7 +1469,7 @@ def test_a_review_only_watcher_moves_its_cursor_without_trigger_events_for_fix(w
     w.triggers(trig("41", "2026-01-01T00:00:05Z"))
     ev = w.jsonl("wait", "--once", "--roles", "fix")
     assert [e["event"] for e in ev] == ["findings"], "the fix role alone takes no review request"
-    assert w.state()["cursor"] == "2026-01-01T00:00:05Z"
+    assert w.state()["cursors"]["fix"]["cursor"] == "2026-01-01T00:00:05Z"
 
 
 def test_fix_now_is_delivered_by_the_running_wait_with_the_pending_findings(w):
@@ -1506,3 +1511,139 @@ def test_a_pr_holds_a_review_and_a_fix_session_side_by_side(w):
         [{"event": "session", "repo": "o/r", "pr": 5, "role": "fix", "state": "fixed", "open": f"claude attach {fx['id']}"}]
     assert w.jsonl("forget", "--pr", "5", "--role", "fix") == [{"pr": 5, "role": "fix", "forgotten": True}]
     assert list(w.state()["sessions"]) == ["5:review"]
+
+
+# ------------------------------------------- a review and a fix watcher ----
+# One machine runs `/open-pr:watch review` in one tab and `/open-pr:watch fix` in another: one
+# `wait` per repo and role.
+
+def test_a_review_wait_and_a_fix_wait_watch_one_repo_side_by_side(w):
+    rv = _long_wait(w, "review")
+    try:
+        assert w.run("wait", "--once", "--roles", "fix", check=False).returncode == 0
+        for roles in ("review", "review,fix"):
+            r = w.run("wait", "--once", "--roles", roles, check=False)
+            assert r.returncode == 10 and f"for review on this machine (wait pid {rv.pid})" in r.stderr, roles
+        fx = _long_wait(w, "fix")
+        r = w.run("wait", "--once", "--roles", "fix", check=False)
+        assert r.returncode == 10 and f"for fix on this machine (wait pid {fx.pid})" in r.stderr
+        assert rv.poll() is None and fx.poll() is None
+    finally:
+        for p in w.children:
+            p.kill(); p.wait()
+    (w.sd / "wait-fix.pid").write_text("999999\n")
+    assert w.run("wait", "--once", "--roles", "fix", check=False).returncode == 0, "a dead holder frees its role"
+
+
+def test_each_role_wait_keeps_its_own_cursor(w):
+    fix_ready(w)
+    w.triggers(trig("61", "2026-01-01T00:00:05Z"))
+    assert w.run("wait", "--once", "--roles", "fix").stdout == ""
+    ev = w.jsonl("wait", "--once", "--roles", "review")
+    assert [e["comment_id"] for e in ev] == ["61"], "the fix wait moving its cursor took the trigger"
+    st = w.state()
+    assert st["cursors"]["review"]["cursor"] == st["cursors"]["fix"]["cursor"] == "2026-01-01T00:00:05Z"
+    assert st["cursor"] == "2026-01-01T00:00:00Z", "the both-roles cursor is a third one"
+    del st["cursors"]["fix"]
+    w.put_state(st)
+    assert w.run("wait", "--once", "--roles", "fix").stdout == ""
+    assert w.state()["cursors"]["fix"]["cursor"] > "2026-01-01T00:00:05Z", "a new role set starts at now"
+
+
+def test_a_session_change_reaches_the_wait_of_its_role_only(w):
+    fix_ready(w)
+    rv = w.spawn(5)
+    fx = w.spawn(6, extra=("--role", "fix"))
+    w.claude_set(rv["id"], "done")
+    w.status_file(5, state="posted")
+    w.claude_set(fx["id"], "done")
+    (w.sd / "pr-6-fix.status.json").write_text(json.dumps({"state": "fixed"}))
+    ev = w.jsonl("wait", "--once", "--roles", "fix")
+    assert [(e["pr"], e["state"]) for e in ev] == [(6, "fixed")], "the fix wait took the review's change"
+    assert w.state()["sessions"]["5:review"]["last_state"] == "working"
+    ev = w.jsonl("wait", "--once", "--roles", "review")
+    assert [(e["pr"], e["state"]) for e in ev] == [(5, "posted")]
+    assert w.run("wait", "--once", "--roles", "fix").stdout == ""
+
+
+def test_a_queued_session_is_ready_for_and_popped_by_the_wait_of_its_role(w):
+    fix_ready(w)
+    w.settings(max_concurrent=1)
+    rv = w.spawn(1)
+    assert w.spawn(2, extra=("--role", "fix"))["queued"] is True, "both roles share the slots"
+    w.claude_set(rv["id"], "done")
+    w.status_file(1, state="posted")
+    ev = w.jsonl("wait", "--once", "--roles", "review")
+    assert [e["event"] for e in ev] == ["session"], "a fix session's turn told to the review wait"
+    assert w.run("next", "--roles", "review").stdout == ""
+    assert [e["event"] for e in w.jsonl("wait", "--once", "--roles", "fix")] == ["ready"]
+    assert w.jsonl("next", "--roles", "fix")[0]["role"] == "fix"
+
+
+def test_fix_now_reaches_only_a_wait_serving_fix(w):
+    fix_ready(w, finding())
+    w.run("wait", "--once", "--roles", "fix")
+    w.run("fix-now", "--pr", "5")
+    assert w.run("wait", "--once", "--roles", "review").stdout == ""
+    assert (w.sd / "fix_now" / "5").exists(), "the review wait consumed the click"
+    assert [e["event"] for e in w.jsonl("wait", "--once", "--roles", "fix")] == ["fix_now"]
+
+
+def test_each_watcher_keeps_its_own_record_heartbeat_and_stop_file(w):
+    w.env = watcher_env(w, TERM_PROGRAM="iTerm.app", ITERM_SESSION_ID="w0t0p1:AA")
+    w.run("wait", "--once", "--roles", "review")
+    w.env = watcher_env(w, TERM_PROGRAM="iTerm.app", ITERM_SESSION_ID="w0t0p2:BB")
+    w.run("wait", "--once", "--roles", "fix")
+    tab = lambda f: json.loads((w.sd / f).read_text())["term_session"]
+    assert (tab("watcher-review.json"), tab("watcher-fix.json")) == ("w0t0p1:AA", "w0t0p2:BB")
+    assert (w.sd / "heartbeat-review").exists() and (w.sd / "heartbeat-fix").exists()
+    assert not (w.sd / "watcher.json").exists()
+    # the toast's `watcher` focus goes to the tab of the event's role
+    w.run("notify", "--event", "error", "--text-file", w.prompt("x"), "--role", "fix", "--focus", "watcher")
+    assert w.recorded("osascript")["argv"][14] == "w0t0p2:BB"
+    w.run("wait", "--once")
+    assert sorted(f.name for f in w.sd.glob("watcher*.json")) == ["watcher.json"], \
+        "a wait serving both roles replaces the records of the waits it now stands for"
+    assert not (w.sd / "heartbeat-fix").exists()
+
+
+def test_stop_watcher_stops_only_the_wait_it_names(w):
+    rv = _long_wait(w, "review")
+    fx = _long_wait(w, "fix")
+    try:
+        (w.sd / "stop-fix").write_text("")
+        _, err = fx.communicate(timeout=20)
+        assert fx.returncode == 11 and "stopped from the menu bar" in err
+        time.sleep(1)
+        assert rv.poll() is None, "the review wait stopped with the fix one"
+        assert not (w.sd / "stop-fix").exists()
+    finally:
+        for p in w.children:
+            if p.poll() is None:
+                p.kill(); p.wait()
+
+
+MENUBAR = REPO / "src" / "bin" / "open-pr-menubar.js"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_bar_lists_each_role_watcher_with_the_rows_of_its_role(w):
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "5:review": {"pr": 5, "role": "review", "repo": "o/r", "last_state": "working"},
+        "6:fix": {"pr": 6, "role": "fix", "repo": "o/r", "last_state": "working"}}})
+    for sfx, ts in (("-review", "w0t0p1:AA"), ("-fix", "w0t0p2:BB")):
+        (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
+            {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": ts, "tty": "", "session_id": ""}))
+        (w.sd / f"heartbeat{sfx}").write_text("")
+    # scan() alone: the app's own run() renamed, its Cocoa target class (registering it outside an
+    # app run hangs osascript) left out
+    src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), count=1, flags=re.S | re.M)
+    js = src.replace("function run(argv) {", "function runApp(argv) {", 1) + (
+        f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700;"
+        " return JSON.stringify(scan().watchers.map(function (x) {"
+        " return { key: x.key, sfx: x.sfx, rows: x.rows.map(function (r) { return r.title; }) }; })); }")
+    f = w.home / "scan.js"
+    f.write_text(js)
+    out = subprocess.run(["osascript", "-l", "JavaScript", str(f)], capture_output=True, text=True, timeout=30)
+    got = {x["sfx"]: (x["key"], x["rows"]) for x in json.loads(out.stdout)}
+    assert got == {"-review": ("s:w0t0p1:AA-review", ["o/r #5"]), "-fix": ("s:w0t0p2:BB-fix", ["o/r #6"])}, out.stderr

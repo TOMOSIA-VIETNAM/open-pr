@@ -80,7 +80,7 @@ there is one — inside it `wait` reaches no host and no session starts.
 | `wait` exit | do |
 |---|---|
 | 0 | handle every line, then run that repo's `wait` again |
-| 10 | another watcher on this machine has that repo: notify `error` and tell the user now — repo, the pid from stderr, its requests go to that watcher — and stop watching it here. FORBIDDEN: running it again |
+| 10 | another watcher on this machine has that repo for that role: notify `error` and tell the user now — repo, role and pid from stderr, its requests go to that watcher — and stop watching it here. FORBIDDEN: running it again |
 | 11 | stopped from the menu bar: stop watching that repo — no toast, no restart; once none is left, tell the user and that `/exit` closes this session |
 | any other | notify `error`; its stderr in chat now; its lines are NOT events (the next `wait` prints them again); run it again |
 
@@ -144,7 +144,7 @@ Per `{"event":"session",…}` (it carries `open`; `role: fix` ⇒ `cases/watch-f
 
 Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`.
 
-Per `{"event":"ready",…}` (a queued session's turn): `<watch> next`; a PR printed ⇒ step 7 with the
+Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <roles>`; a PR printed ⇒ step 7 with the
 `role`, `prompt_file`, `name` and `url` it prints.
 
 ## User messages while watching

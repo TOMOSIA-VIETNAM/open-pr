@@ -1,6 +1,6 @@
 // macOS menu bar item for `/open-pr:menubar` (a status item needs no permission). It
 // polls, in every data directory given, the files the watcher writes:
-//   <data>/<repo>/watch/heartbeat    the repo counts as watched while this is fresh
+//   <data>/<repo>/watch/heartbeat    a watcher counts as watching the repo while this is fresh
 //   <data>/<repo>/watch/state.json   sessions, one row per PR and role (review | fix); active = not
 //                                           finished, working or question; `findings` = a fix row offering
 //                                           "Fix now" until a fix session opens; PRs in `hidden` get no row
@@ -10,6 +10,8 @@
 //                                           the repo_dir/remote "Remove from list" passes to `hide` and
 //                                           "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop watcher"; the watcher's `wait` consumes it
+//   heartbeat, watcher.json and stop belong to the wait serving both roles; a wait serving one
+//   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
 // argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs,
@@ -32,6 +34,8 @@ var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._
 var TAB_ID = /^[A-Za-z0-9\/._-]{1,128}$/;
 var SESSION_ID = /^[0-9a-f-]{8,64}$/;   // watcher.json session_id: the Claude Code session running the watcher
 var REMOTE = /^[A-Za-z0-9._-]+$/;
+// The role sets a `wait` serves, by the suffix of its files; one wait per repo and role.
+var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['review'] }, { sfx: '-fix', roles: ['fix'] }];
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000;
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {};
@@ -182,14 +186,14 @@ function isDir(p) {
     return !at.isNil() && ObjC.unwrap(at.objectForKey($.NSFileType)) === ObjC.unwrap($.NSFileTypeDirectory);
 }
 function basename(p) { return p.replace(/\/+$/, '').split('/').pop() || p; }
-// One per watcher tab: the waits of one watcher (one per repo) share its tab.
-function watcherOf(w) {
+// One per watcher tab and role set: the waits of one watcher (one per repo) share its tab.
+function watcherOf(w, set) {
     w = w && typeof w === 'object' ? w : {};
     var term = str(w.term), ts = str(w.term_session), tty = str(w.tty), cwd = str(w.cwd), sid = str(w.session_id);
-    var t = TERMS[term];
-    return { key: ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '',
-             label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : ''),
-             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal',
+    var t = TERMS[term], tab = ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '';
+    return { key: tab ? tab + set.sfx : '',
+             label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : '') + (set.sfx ? ' ·' + set.sfx.replace('-', ' ') : ''),
+             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx,
              repos: [], dirs: [], rows: [] };
 }
 
@@ -198,16 +202,25 @@ function scan() {
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch';
-        if (ageSeconds(dir + '/heartbeat') > fresh) return;
+        var live = SETS.filter(function (set) { return ageSeconds(dir + '/heartbeat' + set.sfx) <= fresh; });
+        if (!live.length) return;
         out.repos++;
-        var wj = parse(readText(dir + '/watcher.json'));
-        var wr = watcherOf(wj);
+        var wj = null, at = {};
+        live.forEach(function (set) {
+            var j = parse(readText(dir + '/watcher' + set.sfx + '.json')), wr = watcherOf(j, set);
+            wj = wj || j;
+            if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
+            at[set.sfx] = byKey[wr.key];
+            at[set.sfx].repos.push(name);
+            at[set.sfx].dirs.push(dir);
+        });
+        // a row goes to the watcher serving its role, else (no wait serves it) the repo's first one
+        var to = function (role) {
+            var set = live.filter(function (x) { return x.roles.indexOf(role) >= 0; })[0] || live[0];
+            return at[set.sfx];
+        };
         // what "Remove from list" hands `hide` for this repo
         var repoDir = wj && typeof wj === 'object' ? str(wj.repo_dir) : '', remote = wj && typeof wj === 'object' ? str(wj.remote) : '';
-        if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
-        wr = byKey[wr.key];
-        wr.repos.push(name);
-        wr.dirs.push(dir);
         var rows = {};
         var st = parse(readText(dir + '/state.json'));
         var ss = st && typeof st.sessions === 'object' && st.sessions ? st.sessions : {};
@@ -252,7 +265,7 @@ function scan() {
             if (!r.feed || str(f.at) >= str(r.feed.at)) r.feed = f;
             if (!r.url) r.url = str(f.url);
         });
-        Object.keys(rows).forEach(function (k) { wr.rows.push(finish(rows[k])); });
+        Object.keys(rows).forEach(function (k) { to(rows[k].role).rows.push(finish(rows[k])); });
     }); });
     out.watchers.forEach(function (w) {
         // review rows, then fix rows; each part: waiting on the user first, then the latest
@@ -500,7 +513,7 @@ function build(s) {
             var go = TERMS[w.term] || SESSION_ID.test(w.session_id)
                 ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id } : null;
             var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(w.label, null, '');
-            wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, session_id: w.session_id } })));
+            wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.session_id } })));
             wi.setView(watcherRow(w.label, w.repos.join(', '), !!go));
             m.addItem(wi);
         }
@@ -626,16 +639,20 @@ function output(path, args) {
     return ObjC.unwrap(out).trim();
 }
 // Each `wait` of the watcher exits on its stop file and the watcher session stops watching that
-// repo. Killing a `wait` instead would read as a failure: an error toast, then a restart.
+// repo. Killing a `wait` instead would read as a failure: an error toast, then a restart. Another
+// role's wait on the same repo has its own stop file and goes on.
+function stopFile(d, sfx) { return d + '/stop' + sfx; }
 function stopWatcher(o) {
     if (!o || !Array.isArray(o.dirs)) return;
+    var sfx = SETS.some(function (x) { return x.sfx === o.sfx; }) ? o.sfx : null;
+    if (sfx === null) return;
     var dirs = o.dirs.filter(function (d) {
         return typeof d === 'string' && /\/watch$/.test(d) && d.indexOf('/../') < 0 && isDir(d)
             && dataDirs.some(function (data) { return d.indexOf(data + '/') === 0; });
     });
-    dirs.forEach(function (d) { $('').writeToFileAtomicallyEncodingError(d + '/stop', true, $.NSUTF8StringEncoding, null); });
+    dirs.forEach(function (d) { $('').writeToFileAtomicallyEncodingError(stopFile(d, sfx), true, $.NSUTF8StringEncoding, null); });
     var sid = str(o.session_id);
-    if (dirs.length && SESSION_ID.test(sid)) stopLater({ dirs: dirs, session_id: sid, tries: 0 });
+    if (dirs.length && SESSION_ID.test(sid)) stopLater({ dirs: dirs, sfx: sfx, session_id: sid, tries: 0 });
 }
 function stopLater(o) {
     $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(3, target, 'stopSession:', $(JSON.stringify(o)), false);
@@ -645,7 +662,8 @@ function stopLater(o) {
 function stopSession(o) {
     if (!o || !Array.isArray(o.dirs) || !SESSION_ID.test(str(o.session_id))) return;
     var fm = $.NSFileManager.defaultManager;
-    var pending = o.dirs.some(function (d) { return typeof d === 'string' && fm.fileExistsAtPath(d + '/stop'); });
+    var sfx = SETS.some(function (x) { return x.sfx === o.sfx; }) ? o.sfx : '';
+    var pending = o.dirs.some(function (d) { return typeof d === 'string' && fm.fileExistsAtPath(stopFile(d, sfx)); });
     if (pending && o.tries < 4) { o.tries++; stopLater(o); return; }
     var list = parse(output('/usr/bin/env', ['claude', 'agents', '--json']) || '');
     var bg = Array.isArray(list) && list.some(function (a) {

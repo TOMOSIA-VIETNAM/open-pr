@@ -69,6 +69,15 @@ req() { v=$(arg "$1"); [ -n "$v" ] || die 1 "open-pr-watch.sh: --$(printf '%s' "
 check_ident() { printf '%s' "$2" | grep -Eq "$1" || die 4 "open-pr-watch.sh: invalid value: $2"; }
 pr_arg() { n=$(req pr); check_ident '^[0-9]+$' "$n"; printf '%s' "$n"; }
 role_arg() { r=$(arg role); r=${r:-review}; check_ident '^(review|fix)$' "$r"; printf '%s' "$r"; }
+# --roles (default both) -> ROLES, normalized to review | fix | review,fix; SFX = its file suffix.
+roles_arg() {
+    ROLES=$(arg roles); ROLES=${ROLES:-review,fix}
+    check_ident '^(review|fix)(,(review|fix))?$' "$ROLES"
+    case ",$ROLES," in *,review,*) case ",$ROLES," in *,fix,*) ROLES=review,fix ;; *) ROLES=review ;; esac ;; *) ROLES=fix ;; esac
+    SFX=$(sfx "$ROLES")
+}
+sfx() { [ "$1" = review,fix ] || printf -- '-%s' "$1"; }
+has_role() { case ",$ROLES," in *",$1,"*) return 0 ;; esac; return 1; }
 
 # ---------------------------------------------------------------- repo ----
 # D = repo dir, SD = watch state dir, W = where runner CLIs run (spawn sets it per session).
@@ -132,7 +141,8 @@ setting_int() {
 
 # --------------------------------------------------------------- state ----
 # state.json:
-#   cursor    newest processed comment created_at, UTC, second precision
+#   cursor    newest processed comment created_at, UTC, second precision — of the wait serving
+#             both roles; a wait serving one role keeps its own under cursors.<role>, with its seen
 #   seen      comment ids at exactly that created_at (ties the cursor cannot order)
 #   sessions  { "<pr>:<role>": {pr,role,runner,id,session_id,name,repo,url,open,cwd,pid,started_at,
 #                        last_state,last_state_at,finished[,closed]} }   role = review | fix
@@ -150,6 +160,8 @@ setting_int() {
 #             event per PR, until a fix session opens for it (the menu bar offers "Fix now")
 #   seen_reviews  "<pr>:<review id>" already delivered (the newest 200)
 # etags/ (GitHub ETag cache, open-pr.sh triggers), fix_now/<pr> (a "Fix now" click, see fix-now).
+# One wait per repo and role: wait-<role>.pid. Per role set a wait serves (file suffix SFX: none
+# for both roles, else -review | -fix): heartbeat, watcher.json, stop.
 LOCKED=""
 lock() {   # $1 lock dir, default the repo's state lock
     lk="${1:-$SD/.lock}"; i=0; nopid=0
@@ -442,9 +454,10 @@ IN_USE_GRACE=600
 # Sessions the watcher did not open are never touched — only those in state.json. A closed PR's
 # session is stopped without the idle wait.
 IDLE_PARK=600
-park_idle() {   # $1 status JSONL
-    state_json | jq -r --slurpfile s "$1" --argjson idle "$IDLE_PARK" '
+park_idle() {   # $1 status JSONL; only sessions of the roles this wait serves
+    state_json | jq -r --slurpfile s "$1" --argjson idle "$IDLE_PARK" --arg roles "$ROLES" '
         .sessions | to_entries[] | .key as $key | .value
+        | select(.role as $r | $roles | split(",") | index([$r]))
         | select(.runner == "claude" and .finished == true and .parked != true and .id != null
                  and (.closed == true or ((.finished_at // null) != null
                                            and (now - (.finished_at | fromdateiso8601)) >= $idle)))
@@ -549,13 +562,16 @@ cmd_spawn() {
 # ---------------------------------------------------------- next/forget ----
 cmd_next() {
     parse_args "$@"
+    roles_arg
     load_repo; lock
     max=$(setting_int max_concurrent 5)
     status_all > "$TMPD/status"
     remember_ids "$TMPD/status"
     [ "$(active_count "$TMPD/status")" -lt "$max" ] || return 0
-    pick=$(state_json | jq -c --slurpfile s "$TMPD/status" "$JQ_BUSY"'
-        busy($s; .queue; now) as $busy | [.queue[] | select(.pr as $p | $busy | index($p) | not)][0] // empty')
+    pick=$(state_json | jq -c --slurpfile s "$TMPD/status" --arg roles "$ROLES" "$JQ_BUSY"'
+        busy($s; .queue; now) as $busy
+        | [.queue[] | select((.key as $k | $busy | index([$k]) | not) and (.role as $r | $roles | split(",") | index([$r])))][0]
+        // empty')
     [ -n "$pick" ] || return 0
     state_update --argjson pick "$pick" '.queue = [.queue[] | select(.key != $pick.key)]'
     printf '%s\n' "$pick" | jq -c 'del(.key)'
@@ -603,8 +619,8 @@ TOKEN=""
 account() {
     f="$SD/account"
     if [ ! -s "$f" ] || [ -n "$(find "$f" -mmin +60 2>/dev/null)" ]; then
-        opr account --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} > "$f.tmp" || exit $?
-        mv "$f.tmp" "$f"
+        opr account --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} > "$f.$$" || exit $?
+        mv "$f.$$" "$f"
     fi
     v=$(head -n 1 "$f")
     printf '%s' "$v" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9_.-]*' && [ "$v" != UNKNOWN ] && printf '%s' "$v" || true
@@ -659,19 +675,19 @@ check_open() {
 # Killed before the rename, the next `wait` reprints it; the caller acts only on exit 0, so a
 # comment is neither lost nor handled twice.
 # ROLES = the roles this wait serves; FIX_LISTED = the PRs `--fix-prs` names (else the user's own).
-has_role() { case ",$ROLES," in *",$1,"*) return 0 ;; esac; return 1; }
 poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), ACTIVE (sessions active)
     GOT=""; LIMITED=""; : "${FAILS:=0}" "${ACTIVE:=0}"
-    touch "$SD/heartbeat"   # read by the menu bar
+    touch "$SD/heartbeat$SFX"   # read by the menu bar
     lock
-    cursor=$(state_json | jq -r "$JQ_UTC"' .cursor // empty | utc')
+    cursor=$(state_json | jq -r --argjson p "$CP" "$JQ_UTC"' getpath($p + ["cursor"]) // empty | utc')
     if [ -z "$cursor" ]; then
-        # First run: no replay of history.
-        state_update --arg c "$(now_iso)" '.cursor = $c | .seen = []'
+        # First run of this role set: no replay of history.
+        state_update --argjson p "$CP" --arg c "$(now_iso)" 'setpath($p + ["cursor"]; $c) | setpath($p + ["seen"]; [])'
         unlock; return 0
     fi
     # A cursor stored with an offset is rewritten in UTC: comparisons below are string compares.
-    [ "$cursor" = "$(state_json | jq -r '.cursor')" ] || state_update --arg c "$cursor" '.cursor = $c'
+    [ "$cursor" = "$(state_json | jq -r --argjson p "$CP" 'getpath($p + ["cursor"])')" ] \
+        || state_update --argjson p "$CP" --arg c "$cursor" 'setpath($p + ["cursor"]; $c)'
     unlock
     check_open
     # --since is strict and the cursor has second precision: ask from 1s earlier; `seen` drops repeats.
@@ -702,8 +718,8 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     me=""; ! has_role fix || me=$(account)
     lock
     state_json > "$TMPD/state.in"
-    jq -c -s --slurpfile st "$TMPD/state.in" "$JQ_UTC"'
-        ($st[0].cursor) as $cur | ($st[0].seen // []) as $seen
+    jq -c -s --slurpfile st "$TMPD/state.in" --argjson p "$CP" "$JQ_UTC"'
+        ($st[0] | getpath($p + ["cursor"])) as $cur | ($st[0] | getpath($p + ["seen"]) // []) as $seen
         | map(select(type == "object") | . + {_k: (.created_at | utc)})
         | map(select(._k > $cur or (._k == $cur and ((.comment_id | tostring) as $c | $seen | index([$c]) | not))))
         | reduce .[] as $t ([]; if any(.[]; .comment_id == $t.comment_id) then . else . + [$t] end)
@@ -717,24 +733,29 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
         | .[] | "\(.pr):\(.review_id)" as $k
         | select(($fp[.pr | tostring] // "") != "off" and ($seen | index([$k]) | not))
         | {event: "findings", pr, review_id, counts, url, comment_id, thread_id, user}' "$TMPD/findings" > "$TMPD/fnd"
-    ls "$SD/fix_now" 2>/dev/null | grep -Ex '[0-9]+' > "$TMPD/fixnow" || :
+    : > "$TMPD/fixnow"
+    ! has_role fix || ls "$SD/fix_now" 2>/dev/null | grep -Ex '[0-9]+' > "$TMPD/fixnow" || :
     jq -c -R --slurpfile st "$TMPD/state.in" 'tonumber as $pr | ($st[0].findings // {})[$pr | tostring] as $f
         | {event: "fix_now", pr: $pr} + (if $f then {url: $f.url, review_id: $f.review_id, counts: $f.counts,
                                                        comment_id: $f.comment_id, thread_id: $f.thread_id, user: $f.user}
                                           else {} end)' "$TMPD/fixnow" > "$TMPD/fixev"
+    # Session events, their reduce, `ready` and parking concern this wait's roles only: another
+    # role's wait on this repo delivers its own. The slot count spans both roles.
     status_all > "$TMPD/status"
-    ACTIVE=$(active_count "$TMPD/status")
+    jq -c --arg roles "$ROLES" 'select(.role as $r | $roles | split(",") | index([$r]))' "$TMPD/status" > "$TMPD/own"
+    ACTIVE=$(active_count "$TMPD/own")
     jq -c -s --slurpfile st "$TMPD/state.in" '
         .[] | select(.state != ($st[0].sessions[.key].last_state // null))
-        | {event: "session", pr, role, state, open} + (if .note then {note} else {} end)' "$TMPD/status" > "$TMPD/sess"
+        | {event: "session", pr, role, state, open} + (if .note then {note} else {} end)' "$TMPD/own" > "$TMPD/sess"
     # `ready`: nothing else wakes the watcher to run `next`.
     max=$(setting_int max_concurrent 5)
-    jq -c -s --slurpfile st "$TMPD/state.in" --argjson max "$max" "$JQ_BUSY"'
+    jq -c -s --slurpfile st "$TMPD/state.in" --argjson max "$max" --arg roles "$ROLES" "$JQ_BUSY"'
         . as $s
         | ([$s[] | select(.finished != true and (.state == "working" or .state == "question"))] | length) as $active
         | busy($s; $st[0].queue; now) as $busy
         | if $active < $max then
-              ([$st[0].queue[]? | select(.key as $k | $busy | index([$k]) | not)][0] // empty)
+              ([$st[0].queue[]? | select((.key as $k | $busy | index([$k]) | not)
+                                          and (.role as $r | $roles | split(",") | index([$r])))][0] // empty)
               | {event: "ready", pr, role}
           else empty end' "$TMPD/status" > "$TMPD/ready"
     # The cursor follows every comment fetched, trigger or not: else a quiet repo re-fetches
@@ -745,20 +766,21 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
         && [ ! -s "$TMPD/fixev" ]; then
         remember_ids "$TMPD/status"
         jq -r '._k' "$TMPD/new" | sort | tail -n 1 > "$TMPD/newest"
-        state_update --arg m "$mark" --arg n "$(cat "$TMPD/newest")" --slurpfile en "$TMPD/enroll.json" \
+        state_update --arg m "$mark" --arg n "$(cat "$TMPD/newest")" --slurpfile en "$TMPD/enroll.json" --argjson p "$CP" \
             '([$m, $n] | map(select(. != "")) | max) as $c
-             | (if $c != null and $c > .cursor then .cursor = $c | .seen = [] else . end)
+             | (if $c != null and $c > getpath($p + ["cursor"]) then setpath($p + ["cursor"]; $c) | setpath($p + ["seen"]; []) else . end)
              | reduce $en[0][] as $p (.; .fix_prs[$p] = "enrolled")'
         park_idle "$TMPD/status"
         unlock; return 0
     fi
-    jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/status" --slurpfile fnd "$TMPD/fnd" \
+    jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/own" --slurpfile fnd "$TMPD/fnd" \
         --slurpfile en "$TMPD/enroll.json" --arg m "$mark" --arg terminal "$TERMINAL" --arg at "$(now_iso)" \
-        --arg repo "$OWNER/$REPO" '
-        ([.cursor, $m] + [$new[]._k] | map(select(. != "")) | max) as $c
-        | .seen = (if $c == .cursor then (.seen // []) else [] end
+        --arg repo "$OWNER/$REPO" --argjson p "$CP" '
+        getpath($p + ["cursor"]) as $cur
+        | ([$cur, $m] + [$new[]._k] | map(select(. != "")) | max) as $c
+        | setpath($p + ["seen"]; if $c == $cur then (getpath($p + ["seen"]) // []) else [] end
                    + [$new[] | select(._k == $c) | .comment_id | tostring] | unique)
-        | .cursor = $c
+        | setpath($p + ["cursor"]; $c)
         | reduce $en[0][] as $p (.; .fix_prs[$p] = "enrolled")
         | .seen_reviews = (((.seen_reviews // []) + [$fnd[] | "\(.pr):\(.review_id)"]) | .[-200:])
         | reduce $fnd[] as $f (.; .findings[$f.pr | tostring] = ($f | del(.event, .pr) + {repo: $repo, at: $at}))
@@ -770,7 +792,6 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
                                     | .open = (.open // $s.open)
                                     | if any($done[]; . == $s.state) then .finished = true | .finished_at = (.finished_at // $at) else . end)
           else . end)' "$TMPD/state.in" > "$STATE.tmp" || die 1 "open-pr-watch.sh: state update failed"
-    # One watcher may run a `wait` per repo.
     { jq -c '{event: "trigger"} + del(._k, .pr_author)' "$TMPD/new.ev"; cat "$TMPD/fnd" "$TMPD/fixev" "$TMPD/sess" "$TMPD/ready"; } \
         | jq -c --arg r "$OWNER/$REPO" '{event, repo: $r} + del(.event)' > "$TMPD/events"
     cat "$TMPD/events"
@@ -780,7 +801,7 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     unlock
     GOT=1
 }
-# watcher.json: which terminal tab runs this watcher, for the menu bar to group its repos and
+# watcher$SFX.json: which terminal tab runs this watcher, for the menu bar to group its repos and
 # focus that tab. Env values are data: a value outside its pattern is recorded as "".
 NL='
 '
@@ -820,15 +841,15 @@ write_watcher() {
         --arg term "$(t=$(fit "${TERM_PROGRAM:-}" "$TERM_RE"); [ -n "$t" ] || t=$(watcher_field term "$TERM_RE"); printf '%s' "$t")" \
         --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
         --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" \
-        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}' > "$SD/watcher.json.tmp"
-    mv "$SD/watcher.json.tmp" "$SD/watcher.json"
+        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}' > "$WF.tmp"
+    mv "$WF.tmp" "$WF"
 }
-watcher_field() {   # $1 key of watcher.json, $2 ERE → its value, or "" when it does not match
-    fit "$(jq -r --arg k "$1" '.[$k] // "" | strings' "$SD/watcher.json" 2>/dev/null || true)" "$2"
+watcher_field() {   # $1 key of the watcher record WF, $2 ERE → its value, or "" when it does not match
+    fit "$(jq -r --arg k "$1" '.[$k] // "" | strings' "$WF" 2>/dev/null || true)" "$2"
 }
 stop_requested() {
-    [ -e "$SD/stop" ] || return 0
-    rm -f "$SD/stop"
+    [ -e "$SD/stop$SFX" ] || return 0
+    rm -f "$SD/stop$SFX"
     die 11 "open-pr-watch.sh: stopped from the menu bar"
 }
 # A repo with nothing active and no event for IDLE_AFTER s polls every IDLE_POLL s — unless the
@@ -841,23 +862,33 @@ next_interval() {   # $1 = the repo setting
         && [ "$v" -lt "$IDLE_POLL" ]; then v=$IDLE_POLL; fi
     printf '%s' "$v"
 }
-fix_now_pending() { [ -n "$(ls "$SD/fix_now" 2>/dev/null | grep -Ex '[0-9]+' || true)" ]; }
+fix_now_pending() { has_role fix && [ -n "$(ls "$SD/fix_now" 2>/dev/null | grep -Ex '[0-9]+' || true)" ]; }
 cmd_wait() {
     parse_args "$@"
-    ROLES=$(arg roles); ROLES=${ROLES:-review,fix}
-    check_ident '^(review|fix)(,(review|fix))?$' "$ROLES"
+    roles_arg; CP='[]'; [ "$ROLES" = review,fix ] || CP="[\"cursors\",\"$ROLES\"]"
     FIX_LISTED=$(arg fix_prs); [ -z "$FIX_LISTED" ] || check_ident '^[0-9]+(,[0-9]+)*$' "$FIX_LISTED"
     load_repo
-    # Two waits on one repo would share state.json and split the events between them.
-    wp="$SD/wait.pid"
-    old=$(cat "$wp" 2>/dev/null || true)
-    if [ -n "$old" ] && [ "$old" != "$$" ] && kill -0 "$old" 2>/dev/null \
-        && ps -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
-        die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched on this machine (wait pid $old) — stop that watcher first"
-    fi
+    WF="$SD/watcher$SFX.json"
     # Written by the menu bar's "Stop watcher"; one left from an earlier run must not stop this one.
-    rm -f "$SD/stop"
-    printf '%s\n' "$$" > "$wp"
+    rm -f "$SD/stop$SFX"
+    # Two waits serving one role on one repo would split its events between them; a review and a
+    # fix wait run side by side. Checked and claimed under the state lock.
+    lock
+    for r in review fix; do
+        has_role "$r" || continue
+        old=$(cat "$SD/wait-$r.pid" 2>/dev/null || true)
+        if [ -n "$old" ] && [ "$old" != "$$" ] && kill -0 "$old" 2>/dev/null \
+            && ps -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
+            die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched for $r on this machine (wait pid $old) — stop that watcher first"
+        fi
+    done
+    for r in review fix; do ! has_role "$r" || printf '%s\n' "$$" > "$SD/wait-$r.pid"; done
+    # The records of a role set sharing a role with this one belong to a wait no longer running.
+    for x in review,fix review fix; do
+        [ "$x" != "$ROLES" ] && { [ "$x" = review,fix ] || has_role "$x"; } || continue
+        rm -f "$SD/watcher$(sfx "$x").json" "$SD/heartbeat$(sfx "$x")" "$SD/stop$(sfx "$x")"
+    done
+    unlock
     write_watcher
     watch_dir
     STARTED=$(date +%s)
@@ -899,6 +930,8 @@ cmd_notify() {
     FOCUS=$(arg focus); FOCUS=${FOCUS:-pr}
     case "$FOCUS" in pr|watcher|session) ;; *) die 1 "open-pr-watch.sh: unknown focus: $FOCUS (valid: pr watcher session)" ;; esac
     load_repo; watch_dir
+    # the watcher serving ROLE: its own role set's record, else the one serving both
+    WF="$SD/watcher-$ROLE.json"; [ -s "$WF" ] || WF="$SD/watcher.json"
     off=$(settings | jq -r --arg e "$E" '(.watch.notify // {}) as $n
         | if ($n | has($e)) and $n[$e] == false then "yes" else "" end')
     if [ -n "$off" ]; then
@@ -1065,7 +1098,8 @@ Common options:
 Subcommands:
   wait [--once] [--roles review,fix] [--fix-prs N,N…]
       poll every `watch.poll_interval_seconds` until something happens, print it, exit 0; `repo` =
-      owner/repo in every event. `--roles` (default both) picks what is delivered:
+      owner/repo in every event. `--roles` (default both) picks what is delivered; one wait per repo
+      and role on a machine, so a review wait and a fix wait run side by side:
       review: `{"event":"trigger","repo",<trigger fields>}` per new comment starting with the trigger
       (`watch.trigger`, default `/open-pr`; `@me` = a mention of this machine's own account,
       exit 1 when that account cannot be read).
@@ -1076,12 +1110,12 @@ Subcommands:
       PR out.
       `{"event":"fix_now","repo","pr"[,"url","review_id","counts","comment_id","thread_id","user"]}`
       per `fix-now` since (with the PR's latest findings), within 5 s while waiting.
-      `{"event":"session","repo","pr","role","state","open"}` per session whose state changed.
+      `{"event":"session","repo","pr","role","state","open"}` per session of its roles whose state changed.
       Once a session's result (draft|posted|lgtm_chat|nothing|answered|fixed|failed|stopped) is
       delivered the session is finished: no slot held, and no more events from it until spawn resumes
       it, except a new result its status file is rewritten to (a draft the user published there).
-      `{"event":"ready","repo","pr","role"}` = a queued session's turn has come (run `next`). The
-      first run starts the cursor at now (no replay). Events count as delivered only when wait exits
+      `{"event":"ready","repo","pr","role"}` = a queued session of its roles has its turn (run `next`
+      with the same `--roles`). The first run of a role set starts its cursor at now (no replay). Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
       Nothing active and no event for 600 s ⇒ polls every 180 s, unless the setting is slower or
       `poll` set this machine's interval. A vendor rate limit doubles the wait (up to 900 s, one
@@ -1090,6 +1124,8 @@ Subcommands:
       a failed check prints one stderr line and waits for the next. Every poll touches `heartbeat`;
       each start writes `watcher.json` {pid, cwd, term, term_session, tty, session_id, repo_dir,
       remote} (the terminal tab it runs in, its Claude Code session, and the repo, for the menu bar).
+      A wait serving one role names these and `stop` with a suffix: `heartbeat-fix`,
+      `watcher-fix.json`, `stop-fix`.
       `--once`: one poll, exit 0 with nothing printed when nothing happened
   spawn --runner R --pr N --name S --prompt-file F [--role review|fix] [--url U] [--cwd W] [--fresh]
       open PR N's session for that role (default review) with the prompt read from F →
@@ -1105,8 +1141,8 @@ Subcommands:
       posted|lgtm_chat|nothing|answered|fixed|failed|stopped (`"note"` says why when the session left
       no status file); a finished session shows its result with `"finished":true`, a hidden one
       `"hidden":true`
-  next
-      a slot is free ⇒ pop the first queued session not running → `{"pr","role","runner","name",
+  next [--roles review,fix]
+      a slot is free ⇒ pop the first queued session of those roles (default both) not running → `{"pr","role","runner","name",
       "prompt_file","queued_at"[,"cwd"][,"url"][,"fresh"]}`, to pass back to spawn; else nothing
   forget --pr N [--role R]
       drop that session (default review), so the next spawn opens a fresh one
@@ -1126,7 +1162,7 @@ Subcommands:
       now", which runs `fix-now`), else notify-send, else stderr. A click goes where `--focus` says:
       `pr` (default) opens U; `watcher` brings the watcher's terminal tab forward; `session` opens
       PR N's session of role R in the watcher's terminal app (no valid open command ⇒ as
-      `watcher`); a watcher in an unknown terminal ⇒ opens U
+      `watcher`); a watcher in an unknown terminal ⇒ opens U. The watcher = the wait serving R
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
@@ -1134,8 +1170,8 @@ Subcommands:
       this machine's poll interval, every repo, min 15 s, over `poll_interval_seconds`; a running
       wait applies it within 5 s. `--off` returns to the setting → `{"poll_seconds"}`. Menu bar too
   menubar [--close]
-      macOS: start the menu bar item (review and fix rows grouped by watcher tab, recent toasts,
-      snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
+      macOS: start the menu bar item (review and fix rows grouped by the watcher serving their role,
+      recent toasts, snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
       `started` | `running`; one running on other data dirs than `data-dir --all` now prints is
       restarted (`started`); it stays until closed. `--close` → `closed` | `not running`. Elsewhere
       `NO-EQUIVALENT`. Plain lines
@@ -1153,8 +1189,9 @@ Exit codes:
   7  `<data>` not set
   8  the runner refuses the session's directory as untrusted — the message names the command to run once
   9  `wait --once` hit a vendor rate limit
-  10 another `wait` already watches this repo on this machine — the message names its pid
-  11 `wait` found `stop` in the repo's state dir (the menu bar's "Stop watcher"); it consumes the
+  10 another `wait` already watches this repo for one of these roles on this machine — the message
+     names the role and its pid
+  11 `wait` found its `stop` in the repo's state dir (the menu bar's "Stop watcher"); it consumes the
      file and prints no events. A `wait` start clears one left from before
      (`wait` also exits 1 once triggers has failed 3 polls in a row, naming the last error)
 EOF

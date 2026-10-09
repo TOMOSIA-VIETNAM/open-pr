@@ -31,8 +31,10 @@ role only.
    trust prompt.
 
 Each watched repository keeps its own settings, including its session limit (review and fix sessions
-share it). A repository has at most one watcher per machine, serving both roles from one poll: a second one names the process that already has it and leaves that repository
-alone. When the host stays unreachable (no network, an expired login), the watcher tells you.
+share it). A repository has at most one watcher per machine and role: a review watcher and a fix
+watcher (`/open-pr:watch review` in one tab, `/open-pr:watch fix` in another) run side by side, each
+delivering only its own role. A second watcher for a role already taken names the process that has it
+and leaves that repository alone. When the host stays unreachable (no network, an expired login), the watcher tells you.
 
 ## Asking for a review
 
@@ -133,11 +135,12 @@ A watcher puts the moth in the menu bar when it starts, with the number of sessi
 is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
 Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 
-- one row per pull request and role, grouped by watcher (`<folder> · <terminal>`), review rows first,
+- one row per pull request and role, grouped by watcher (`<folder> · <terminal>`, plus `· review` or
+  `· fix` for a watcher serving one role; each row under the watcher of its role), review rows first,
   then fix rows, each labelled `· review` or `· fix` — the group's "Go to watcher
   tab" brings that terminal tab to the front (iTerm and Terminal select the exact tab after macOS asks
   once for Automation permission; otherwise the terminal app comes to the front; a watcher whose tab was
-  closed is reopened with `claude attach`), and its "Stop watcher" ends every repo it watches; a row shows the latest
+  closed is reopened with `claude attach`), and its "Stop watcher" ends every repo it watches, leaving another role's watcher running; a row shows the latest
   state in place (reviewing, posted with counts, LGTM, draft, needs an answer, new findings, fixing,
   fixed, failed) and always offers: **Fix now** on a row with new findings,
   open the pull request, open its session in the terminal that watcher runs in (a new tab of iTerm,

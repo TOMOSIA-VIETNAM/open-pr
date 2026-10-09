@@ -5,7 +5,7 @@
 //   and, on a findings toast, Fix now (run fix-now)
 // argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
 // `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, the
-// watcher.json fields term, term_session, tty, session_id, then — a findings toast only — the
+// watcher record fields term, term_session, tty, session_id, then — a findings toast only — the
 // absolute open-pr-watch.sh, the repo dir, its remote and the PR number "Fix now" passes to
 // `open-pr-watch.sh fix-now`.
 // focus: pr → open url · watcher → the watcher's terminal tab, or `claude attach` of its session

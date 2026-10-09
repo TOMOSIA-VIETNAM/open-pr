@@ -29,7 +29,7 @@
    trust の確認を承認するよう伝えます。
 
 監視する各リポジトリは自分の設定（セッション数の上限を含み、レビューと修正のセッションで共有）を持ちます。
-1 台のマシンで 1 つのリポジトリを監視する watcher は 1 つだけで、1 回のポーリングで両方の役割をこなします。2 つ目はすでに監視しているプロセスを伝え、そのリポジトリには触れません。
+1 台のマシンで 1 つのリポジトリを監視する watcher は役割ごとに 1 つだけです。レビュー用と修正用の watcher（あるタブで `/open-pr:watch review`、別のタブで `/open-pr:watch fix`）は並べて動かせ、それぞれ自分の役割だけを受け取ります。すでに使われている役割の 2 つ目は監視中のプロセスを伝え、そのリポジトリには触れません。
 ホストに接続できない状態が続くと（ネットワークなし、ログイン期限切れ）、watcher が知らせます。
 
 ## レビューを依頼する
@@ -129,11 +129,11 @@ watcher が起動すると、メニューバーに蛾のアイコンと進行中
 すべての watcher が対象です。`/open-pr:menubar close`（またはメニューの Quit）まで残り、`/open-pr:menubar`
 で再表示できます。メニューには次の内容が並びます:
 
-- pull request と役割ごとに 1 行（watcher ごとにグループ化: `<folder> · <terminal>`、レビューの行が先で修正の行が
+- pull request と役割ごとに 1 行（watcher ごとにグループ化: `<folder> · <terminal>`、1 つの役割だけの watcher には `· review` または `· fix` が付き、各行はその役割の watcher の下、レビューの行が先で修正の行が
   後、各行に `· review` または `· fix` のラベル）— グループの "Go to watcher tab" で
   その terminal のタブが前面に出ます（iTerm と Terminal では、macOS が一度だけ Automation の権限を求めた
   あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます。タブが閉じられた watcher は
-  `claude attach` で開き直します）。グループの "Stop watcher" はその watcher が監視する全リポジトリを止めます。各行はその場で最新の
+  `claude attach` で開き直します）。グループの "Stop watcher" はその watcher が監視する全リポジトリを止めます（もう一方の役割の watcher は動き続けます）。各行はその場で最新の
   状態（レビュー中、指摘数付きの投稿済み、LGTM、ドラフト、回答待ち、新しい指摘、修正中、修正済み、失敗）を
   示し、常に、新しい指摘のある行では **Fix now**、pull request を開く、
   その watcher が動いている terminal でセッションを開く（iTerm・Terminal・Ghostty・WezTerm では新しいタブ、

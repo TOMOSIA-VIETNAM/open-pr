@@ -30,7 +30,7 @@ vai.
    tra khi khởi động và, nếu chưa, bảo bạn mở `claude` ở đó một lần rồi chấp nhận lời hỏi trust.
 
 Mỗi repo được theo dõi giữ setting riêng, kể cả giới hạn session (session review và fix dùng chung). Mỗi
-repo có tối đa một watcher trên một máy, phục vụ cả hai vai bằng một lượt poll: watcher thứ hai báo tiến trình nào đang giữ repo rồi bỏ qua repo đó. Khi host không kết nối được kéo
+repo có tối đa một watcher cho mỗi vai trên một máy: watcher review và watcher fix (`/open-pr:watch review` ở một tab, `/open-pr:watch fix` ở tab khác) chạy song song, mỗi watcher chỉ nhận việc của vai mình. Watcher thứ hai cho một vai đã có người giữ sẽ báo tiến trình nào đang giữ rồi bỏ qua repo đó. Khi host không kết nối được kéo
 dài (mất mạng, login hết hạn), watcher báo cho bạn.
 
 ## Yêu cầu review
@@ -133,11 +133,11 @@ Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số sessio
 mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
 `/open-pr:menubar` đưa nó trở lại. Menu của nó liệt kê:
 
-- mỗi pull request và vai một dòng, nhóm theo watcher (`<folder> · <terminal>`), dòng review trước rồi
+- mỗi pull request và vai một dòng, nhóm theo watcher (`<folder> · <terminal>`, thêm `· review` hoặc `· fix` với watcher chỉ phục vụ một vai; mỗi dòng nằm dưới watcher của vai nó), dòng review trước rồi
   tới dòng fix, mỗi dòng gắn nhãn `· review` hoặc `· fix` — mục "Go to watcher tab" của nhóm đưa
   tab terminal đó lên trước (iTerm và Terminal chọn đúng tab sau khi macOS hỏi xin quyền Automation một
   lần; nếu không thì ứng dụng terminal được đưa lên trước; watcher đã bị đóng tab được mở lại bằng
-  `claude attach`), còn "Stop watcher" của nhóm dừng theo dõi mọi repo của watcher đó; mỗi dòng hiện trạng thái mới nhất ngay tại
+  `claude attach`), còn "Stop watcher" của nhóm dừng theo dõi mọi repo của watcher đó, watcher của vai kia vẫn chạy; mỗi dòng hiện trạng thái mới nhất ngay tại
   chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, có finding mới, đang fix, đã fix,
   lỗi) và luôn có: **Fix now** trên dòng có finding mới, mở pull request,
   mở session trong terminal mà watcher đó đang chạy (tab mới của iTerm, Terminal, Ghostty hoặc WezTerm;
