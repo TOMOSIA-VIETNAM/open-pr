@@ -866,7 +866,7 @@ stop_requested() {
 # A repo with nothing active and no event for IDLE_AFTER s polls every IDLE_POLL s — unless the
 # setting is slower, or this machine chose an interval (`poll`), which always holds.
 IDLE_AFTER=600
-IDLE_POLL=180
+IDLE_POLL=600
 next_interval() {   # $1 = the repo setting
     v=$(poll_interval "$1")
     if [ ! -s "$WD/poll_seconds" ] && [ "${ACTIVE:-0}" = 0 ] && [ $(($(date +%s) - STARTED)) -ge "$IDLE_AFTER" ] \
@@ -903,7 +903,7 @@ cmd_wait() {
     write_watcher
     watch_dir
     STARTED=$(date +%s)
-    base=$(setting_int poll_interval_seconds 60)
+    base=$(setting_int poll_interval_seconds 180)
     interval=$(next_interval "$base"); delay=$interval
     while :; do
         stop_requested
@@ -1143,7 +1143,7 @@ Subcommands:
       `{"event":"ready","repo","pr","role"}` = a queued session of its roles has its turn (run `next`
       with the same `--roles`). The first run of a role set starts its cursor at now (no replay). Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
-      Nothing active and no event for 600 s ⇒ polls every 180 s, unless the setting is slower or
+      Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower or
       `poll` set this machine's interval. A vendor rate limit doubles the wait (up to 900 s, one
       stderr line each time) until a poll succeeds. At most every 600 s, a tracked PR no longer
       open (merged or closed) is hidden and its sessions marked closed, then stopped once not in use;

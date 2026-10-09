@@ -145,7 +145,7 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
 一次轮询同时服务两个角色。在 GitHub 上是三次条件请求：没有任何变化时主机返回 `304 Not Modified`，不计入
 限额；fix 角色会为自上次轮询以来有更新的你自己的每个 pull request 多调用一次。在 GitLab 和 Bitbucket 上是一次，
 外加自上次轮询以来每个有更新的 pull request 一次，发现的问题也包含在内。没有活跃会话且 10 分钟内没有新内容时，
-watcher 每 3 分钟轮询一次（绝不比设置更快；整台机器的 "Poll every" 选择始终优先）。当托管平台报告限速时，watcher 会把轮询间隔加倍（最多 15 分钟），并在下一次轮询成功后
+watcher 每 10 分钟轮询一次（绝不比设置更快；整台机器的 "Poll every" 选择始终优先）。当托管平台报告限速时，watcher 会把轮询间隔加倍（最多 15 分钟），并在下一次轮询成功后
 恢复为 `poll_interval_seconds`。
 
 ## 设置
@@ -155,7 +155,7 @@ watcher 每 3 分钟轮询一次（绝不比设置更快；整台机器的 "Poll
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `max_concurrent` | `5` | 同时活跃的会话数，评审与修复合计（运行中或等待回答） |
-| `poll_interval_seconds` | `60` | 多久检查一次 pull request |
+| `poll_interval_seconds` | `180` | 多久检查一次 pull request |
 | `notify.review_started` | `true` | toast：打开了一个评审会话 |
 | `notify.question` | `true` | toast：某个会话需要回答，或失败了 |
 | `notify.draft_ready` | `true` | toast：一份草稿评审等待你批准 |

@@ -40,7 +40,7 @@ for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the fil
   },
   "watch": {
     "max_concurrent": 5,
-    "poll_interval_seconds": 60,
+    "poll_interval_seconds": 180,
     "trigger": "/open-pr",
     "notify": {
       "review_started": true,

@@ -1558,7 +1558,7 @@ def test_checkout_times_out_on_a_held_lock_and_reclaims_a_dead_one(two_pr_repo):
 def test_settings_defaults_the_watch_node(data_dir, tmp_path):
     d = data_dir / "demo"
     d.mkdir(parents=True)
-    defaults = {"max_concurrent": 5, "poll_interval_seconds": 60, "trigger": "/open-pr",
+    defaults = {"max_concurrent": 5, "poll_interval_seconds": 180, "trigger": "/open-pr",
                 "notify": {"review_started": True, "question": True, "draft_ready": True,
                            "posted": True, "re_review": True, "findings": True, "error": True}}
     (d / "settings.json").write_text(json.dumps({"review": {"bootstrapped": True}}))

@@ -166,7 +166,7 @@ Windows と Linux では、チャットで watcher に頼んでください（`s
 `304 Not Modified` を返し、これはレート制限に数えられません。fix の役割では、前回のポーリング以降に更新された
 自分の pull request 1 件ごとに 1 回が加わります。GitLab と Bitbucket では 1 回に加えて、前回のポーリング以降に
 更新された pull request 1 件ごとに 1 回で、指摘もそこに含まれます。アクティブなセッションがなく 10 分間何も
-新しくなければ、watcher は 3 分ごとにポーリングします（設定より速くはならず、マシン全体の "Poll every" の選択は
+新しくなければ、watcher は 10 分ごとにポーリングします（設定より速くはならず、マシン全体の "Poll every" の選択は
 常に優先されます）。ホストがレート制限を返すと、watcher は間隔を
 2 倍にし（最大 15 分）、次にポーリングが成功した後で `poll_interval_seconds` に戻ります。
 
@@ -177,7 +177,7 @@ Windows と Linux では、チャットで watcher に頼んでください（`s
 | field | 既定値 | 意味 |
 |---|---|---|
 | `max_concurrent` | `5` | 同時にアクティブなセッション数、レビューと修正の合計（実行中または回答待ち） |
-| `poll_interval_seconds` | `60` | pull request を確認する間隔 |
+| `poll_interval_seconds` | `180` | pull request を確認する間隔 |
 | `notify.review_started` | `true` | トースト: レビューセッションが開いた |
 | `notify.question` | `true` | トースト: セッションが回答を必要としている、または失敗した |
 | `notify.draft_ready` | `true` | トースト: ドラフトのレビューがあなたの承認を待っている |

@@ -173,7 +173,7 @@ One poll serves both roles. On GitHub it costs three conditional requests: while
 host answers `304 Not Modified`, which does not count against the limit; the fix role adds one call per
 own pull request updated since the last poll. On GitLab and Bitbucket a poll costs one call plus one per
 pull request updated since the last poll, findings included. With no session active and nothing new for
-10 minutes, the watcher polls every 3 minutes (never faster than the setting; a machine-wide "Poll
+10 minutes, the watcher polls every 10 minutes (never faster than the setting; a machine-wide "Poll
 every" choice always holds). When the host reports a rate limit, the watcher doubles its interval (up to
 15 minutes) and returns to `poll_interval_seconds` after the next successful poll.
 
@@ -184,7 +184,7 @@ Stored in `<data>/<repo>/settings.json` under `watch`:
 | field | default | meaning |
 |---|---|---|
 | `max_concurrent` | `5` | sessions active at once, review and fix together (running or waiting for an answer) |
-| `poll_interval_seconds` | `60` | how often the pull requests are checked |
+| `poll_interval_seconds` | `180` | how often the pull requests are checked |
 | `notify.review_started` | `true` | toast: a review session opened |
 | `notify.question` | `true` | toast: a session needs an answer, or failed |
 | `notify.draft_ready` | `true` | toast: a draft review waits for your approval |

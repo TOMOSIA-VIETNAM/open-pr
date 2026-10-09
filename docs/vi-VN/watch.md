@@ -170,7 +170,7 @@ Một lượt poll phục vụ cả hai vai. Trên GitHub nó tốn ba request c
 host trả `304 Not Modified`, không bị tính vào giới hạn; vai fix thêm một call cho mỗi pull request của bạn
 được cập nhật kể từ lần poll trước. Trên GitLab và Bitbucket, một lượt poll tốn một call, cộng thêm một cho
 mỗi pull request được cập nhật kể từ lần poll trước, đã gồm cả finding. Khi không có session nào active và
-không có gì mới trong 10 phút, watcher poll mỗi 3 phút (không bao giờ nhanh hơn setting; lựa chọn "Poll
+không có gì mới trong 10 phút, watcher poll mỗi 10 phút (không bao giờ nhanh hơn setting; lựa chọn "Poll
 every" cho cả máy luôn được giữ). Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng thời gian poll
 (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
 
@@ -181,7 +181,7 @@ Lưu ở `<data>/<repo>/settings.json` dưới `watch`:
 | field | default | nghĩa |
 |---|---|---|
 | `max_concurrent` | `5` | số session active cùng lúc, tính chung review và fix (đang chạy hoặc đang chờ câu trả lời) |
-| `poll_interval_seconds` | `60` | bao lâu kiểm tra pull request một lần |
+| `poll_interval_seconds` | `180` | bao lâu kiểm tra pull request một lần |
 | `notify.review_started` | `true` | toast: một session review vừa mở |
 | `notify.question` | `true` | toast: một session cần câu trả lời, hoặc bị lỗi |
 | `notify.draft_ready` | `true` | toast: một review draft đang chờ bạn duyệt |

@@ -1166,7 +1166,7 @@ cmd_settings() {
             shared: (.shared // {}),
             watch: ((.watch // {}) + {
                 max_concurrent: (.watch.max_concurrent // 5),
-                poll_interval_seconds: (.watch.poll_interval_seconds // 60),
+                poll_interval_seconds: (.watch.poll_interval_seconds // 180),
                 trigger: (.watch.trigger // "/open-pr"),
                 notify: ((.watch.notify // {}) + {
                     review_started: default_bool(.watch.notify; "review_started"; true),
