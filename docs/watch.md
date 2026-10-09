@@ -98,7 +98,9 @@ only those you named. A pull request also joins when you ask for a review of it 
    touched. 🔵 and 📝 findings still ask you first; with `auto_push` off it asks before pushing.
 3. When it is done, the watcher toasts the result and asks whether to ask for a re-review. Only on
    your yes does it reply on the pull request with the trigger (`/open-pr re-review`, or a mention of
-   the reviewer when the repository uses mentions) — it never asks for one on its own.
+   the reviewer when the repository uses mentions) — it never asks for one on its own. The request
+   goes in the thread of the original review request, so request, claim and re-review stay together;
+   a GitHub conversation comment has no thread, so there it is a new comment.
 
 Nothing is fixed without your click. `remove #12` (or the row's "Remove from list") takes a pull
 request out of both roles.

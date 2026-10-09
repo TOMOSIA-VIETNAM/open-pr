@@ -80,7 +80,8 @@ fix 角色监视你创建的 pull request（作者 = watcher 运行所用的账�
    分支专属的 worktree 中运行 `/open-pr:fix` —— 绝不碰你正在工作的目录。🔵 和 📝 仍会先问你；`auto_push`
    关闭时，推送前会先询问。
 3. 完成后，watcher 用 toast 报告结果，并询问是否请求再次评审。只有在你同意后，它才会在 pull request 上用触发词
-   回复（`/open-pr re-review`，仓库使用提及时则提及评审者）—— 它从不自行请求。
+   回复（`/open-pr re-review`，仓库使用提及时则提及评审者）—— 它从不自行请求。该请求发在最初评审请求的
+   讨论串里，请求、认领回复与再次评审因此集中在一处；GitHub 的对话评论没有讨论串，那里会是一条新评论。
 
 没有你的点击，什么都不会被修复。`remove #12`（或该行的 "Remove from list"）会把 pull request 移出两个角色。
 

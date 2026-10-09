@@ -615,15 +615,16 @@ cmd_post_verify() {
 
 # -------------------------------------------------------------- thread ----
 # reply_post <body file> <kind> <comment id> <thread id> -> new comment's JSON in $TMPD/reply.out.
-# GitLab replies to the DISCUSSION (not a note id), or top-level with no thread. Bodies travel
-# via files: argv is readable through `ps`, and the text quotes the PR.
+# GitLab replies to the DISCUSSION (not a note id), or top-level with no thread. GitHub takes no
+# reply to a reply: a thread id there is the thread's root review comment, replied to instead.
+# Bodies travel via files: argv is readable through `ps`, and the text quotes the PR.
 reply_post() {
     case "$V" in
         github)
             jq -Rs '{body: .}' "$1" > "$TMPD/reply.json"
             if [ "$2" = line ]; then
-                check_ident '^[0-9]+$' "$3"
-                gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments/$3/replies" --input "$TMPD/reply.json" > "$TMPD/reply.out"
+                to="${4:-$3}"; check_ident '^[0-9]+$' "$to"
+                gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments/$to/replies" --input "$TMPD/reply.json" > "$TMPD/reply.out"
             else
                 gh api -X POST "repos/$OWNER/$REPO/issues/$N/comments" --input "$TMPD/reply.json" > "$TMPD/reply.out"
             fi ;;
@@ -645,7 +646,7 @@ cmd_reply() {
     F=$(req body_file); [ -s "$F" ] || die 1 "open-pr.sh reply: body file missing/empty"
     CID=$(arg comment_id); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
     # GitLab: the caller maps the comment to its thread via the "Review threads" section
-    case "$V" in gitlab) T=$(req thread_id) ;; github|bitbucket) T="" ;; esac
+    case "$V" in gitlab) T=$(req thread_id) ;; github) T=$(arg thread_id) ;; bitbucket) T="" ;; esac
     reply_post "$F" "$KIND" "$CID" "$T"
     jq -r '.id' "$TMPD/reply.out"
 }
@@ -679,12 +680,18 @@ cmd_react() {
 # Several machines may watch one repo: a reply carrying the claim marker for the trigger comment
 # is the lock. The EARLIEST (created_at, then id) wins — an order every machine computes alike.
 # A loser deletes its own reply, so one claim stays visible.
-# claim_rows: every PR comment as {id, user, created_at, body}, one JSON line each.
+# claim_rows: every PR comment as {id, user, created_at, body, kind, thread}, one JSON line each;
+# thread = what `reply --thread-id` takes to answer in the same thread (GitHub: the root review
+# comment; GitLab: the discussion), else null.
 claim_norm() {
     case "$V" in
-        github)    printf '%s' '{id, user: .user.login, created_at, body: (.body // "")}' ;;
-        gitlab)    printf '%s' '{id, user: .author.username, created_at, body: (.body // "")}' ;;
-        bitbucket) printf '%s' '{id, user: .user.nickname, created_at: .created_on, body: (.content.raw // "")}' ;;
+        github)    printf '%s' '{id, user: .user.login, created_at, body: (.body // ""),
+                                 kind: (if .pull_request_url then "line" else "top" end),
+                                 thread: (.in_reply_to_id // null | if . then tostring else . end)}' ;;
+        gitlab)    printf '%s' '{id, user: .author.username, created_at, body: (.body // ""),
+                                 kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread: $tid}' ;;
+        bitbucket) printf '%s' '{id, user: .user.nickname, created_at: .created_on, body: (.content.raw // ""),
+                                 kind: (if .inline != null then "line" else "top" end), thread: null}' ;;
     esac
 }
 claim_rows() {
@@ -696,9 +703,9 @@ claim_rows() {
             jq -c ".[] | $(claim_norm)" "$TMPD/claim.page" ;;
         gitlab)
             glab api --paginate "projects/$GL_PROJ/merge_requests/$N/discussions?per_page=100" > "$TMPD/claim.page"
-            jq -c ".[] | .notes[]? | select(.system != true) | $(claim_norm)" "$TMPD/claim.page" ;;
+            jq -c ".[] | .id as \$tid | .notes[]? | select(.system != true) | $(claim_norm)" "$TMPD/claim.page" ;;
         bitbucket)
-            bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.deleted" \
+            bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted" \
                 ".values[] | select(.deleted != true) | $(claim_norm) | @json" ;;
     esac
 }
@@ -747,12 +754,23 @@ cmd_claim() {
     check_ident '^[0-9]+$' "$mine"
     # our own reply joins the listing even before the vendor lists it
     claim_rows > "$TMPD/claim.after"
-    jq -c "$(claim_norm)" "$TMPD/reply.out" >> "$TMPD/claim.after"
+    jq -c --arg tid "$T" "$(claim_norm)" "$TMPD/reply.out" >> "$TMPD/claim.after"
     jq -c -s 'unique_by(.id) | .[]' "$TMPD/claim.after" > "$TMPD/claim.rows"
     first=$(claim_first "$TMPD/claim.rows")
     if [ "${first%% *}" = "$mine" ]; then printf 'claimed %s\n' "$mine"; return 0; fi
     claim_delete "$mine" || err "open-pr.sh claim: could not delete the losing claim reply $mine — remove it by hand"
     printf 'taken %s\n' "${first#* }"
+}
+# last-claim: where the newest claim on PR N answered its trigger C, as the reply that keeps a
+# follow-up in that thread: {comment_id: C, kind, thread_id}; nothing when no claim exists.
+cmd_last_claim() {
+    parse_args "$@"; post_init
+    claim_rows > "$TMPD/claim.rows"
+    jq -c -s "$JQ_EPOCH"'
+        map(. as $r | (.body | capture("bot-claim:(?<c>[0-9]+)(\\s*-->|\\]:)")?) as $m
+            | select($m != null) | $r + {trigger: $m.c})
+        | sort_by([(.created_at | epoch), (.id | tonumber)]) | last // empty
+        | {comment_id: .trigger, kind, thread_id: .thread}' "$TMPD/claim.rows"
 }
 cmd_account() { parse_args "$@"; vendor_init; ctx_account; }
 
@@ -827,7 +845,7 @@ trg_fetch() {
             gh_get "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
             jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: null, review_id: null}" "$TMPD/tr.page"
             gh_get "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}" "$TMPD/tr.page" ;;
+            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: (.in_reply_to_id // null | if . then tostring else . end), user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}" "$TMPD/tr.page" ;;
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
             rl glab api --paginate "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
@@ -1308,6 +1326,8 @@ Subcommands:
       cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else
       top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim,
       else `taken <login>`
+  last-claim
+      `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing
   account
       login name, or `UNKNOWN` (marker-only detection)
   commit-url --sha S
@@ -1373,6 +1393,7 @@ case "$sub" in
     resolve)      cmd_resolve "$@" ;;
     react)        cmd_react "$@" ;;
     claim)        cmd_claim "$@" ;;
+    last-claim)   cmd_last_claim "$@" ;;
     account)      cmd_account "$@" ;;
     commit-url)   cmd_commit_url "$@" ;;
     marker)       cmd_marker "$@" ;;

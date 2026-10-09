@@ -1386,6 +1386,122 @@ def test_claim_rejects_what_it_cannot_prove(shims, claim_body, tmp_path):
     assert claim(shims, "github", empty, "--kind", "top", check=False).returncode == 1
 
 
+
+def test_claim_github_answers_a_trigger_made_in_a_review_thread_at_its_root(shims, claim_body):
+    """GitHub takes no reply to a reply: a trigger posted inside a thread is claimed at the root."""
+    ours = {**gh_comment(502, "me", "2026-01-01T00:00:05Z", "x\n\n<!-- bot-claim:9 -->"),
+            "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "in_reply_to_id": 4}
+    serve(shims, "gh", [
+        ("-X POST repos/o/r/pulls/5/comments/4/replies", ours),
+        ("repos/o/r/issues/5/comments?per_page=100", []),
+        ("repos/o/r/pulls/5/comments?per_page=100", Seq([[], [ours]])),
+    ])
+    assert claim(shims, "github", claim_body, "--kind", "line", "--thread-id", "4") == "claimed 502"
+    sent = json.JSONDecoder().raw_decode((shims["tmp"] / "calls.log.bodies").read_text())[0]
+    assert sent["body"].endswith("<!-- bot-claim:9 -->\n"), "the marker still names the trigger, not the root"
+
+
+def test_triggers_pick_up_a_request_posted_as_a_thread_reply(shims):
+    """A re-review request lands inside the original request's thread; it must still trigger and
+    carry what `claim` needs to answer in that thread."""
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
+        ("pulls/comments", [
+            {"id": 40, "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "user": {"login": "dev"},
+             "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr re-review", "author_association": "MEMBER",
+             "in_reply_to_id": 4}]),
+    ])
+    assert [(r["comment_id"], r["kind"], r["thread_id"]) for r in triggers(shims, "github")] == [("40", "line", "4")]
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": 9, "web_url": "u"}]),
+        ("merge_requests/9/discussions", [{"id": "d1", "notes": [
+            {"id": 1, "author": {"username": "dev", "id": 7}, "created_at": "2026-01-01T00:00:01Z", "body": "/open-pr"},
+            {"id": 2, "author": {"username": "bot", "id": 1}, "created_at": "2026-01-01T00:00:02Z",
+             "body": "on it <!-- bot-claim:1 -->"},
+            {"id": 3, "author": {"username": "dev", "id": 7}, "created_at": "2026-01-01T00:00:03Z",
+             "body": "/open-pr re-review"}]}]),
+        ("members/all/7", {"access_level": 30}),
+    ])
+    rows = triggers(shims, "gitlab", "--since", "2026-01-01T00:00:01Z")
+    assert [(r["comment_id"], r["thread_id"]) for r in rows] == [("3", "d1")]
+    serve(shims, "curl", [
+        ("pullrequests?state=OPEN", {"values": [{"id": 7, "links": {"html": {"href": "u7"}}}], "next": None}),
+        ("pullrequests/7/comments", {"values": [
+            {"id": 33, "content": {"raw": "/open-pr re-review"}, "user": {"nickname": "dev"}, "inline": None,
+             "parent": {"id": 31}, "created_on": "2026-01-01T00:00:03+00:00", "deleted": False}], "next": None}),
+    ])
+    assert [(r["comment_id"], r["thread_id"]) for r in triggers(shims, "bitbucket")] == [("33", None)], \
+        "Bitbucket replies to any comment: claim's parent is the request itself"
+
+
+# ---------------------------------------------------------- last-claim ----
+
+def last_claim(shims, vendor):
+    r = run("last-claim", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5",
+            env_extra=env_for(shims), check=True)
+    return json.loads(r.stdout) if r.stdout.strip() else None
+
+
+def test_last_claim_github_points_into_the_newest_claims_thread(shims):
+    review = lambda cid, at, body, reply_to=None: {
+        **gh_comment(cid, "x", at, body), "pull_request_url": "https://api.github.com/repos/o/r/pulls/5",
+        "in_reply_to_id": reply_to}
+    serve(shims, "gh", [
+        ("repos/o/r/issues/5/comments?per_page=100", [
+            gh_comment(9, "dev", "2026-01-01T00:00:01Z", "/open-pr"),
+            gh_comment(10, "bot", "2026-01-01T00:00:02Z", "> /open-pr\n\non it\n\n<!-- bot-claim:9 -->")]),
+        ("repos/o/r/pulls/5/comments?per_page=100", [
+            review(20, "2026-01-01T00:00:03Z", "/open-pr this hunk"),
+            review(21, "2026-01-01T00:00:04Z", "on it <!-- bot-claim:20 -->", 20),
+            review(30, "2026-01-01T00:00:05Z", "/open-pr re-review", 20),
+            review(31, "2026-01-01T00:00:06Z", "on it <!-- bot-claim:30 -->", 20)]),
+    ])
+    assert last_claim(shims, "github") == {"comment_id": "30", "kind": "line", "thread_id": "20"}
+    serve(shims, "gh", [
+        ("repos/o/r/issues/5/comments?per_page=100", [
+            gh_comment(9, "dev", "2026-01-01T00:00:01Z", "/open-pr"),
+            gh_comment(10, "bot", "2026-01-01T00:00:02Z", "on it\n\n<!-- bot-claim:9 -->")]),
+        ("repos/o/r/pulls/5/comments?per_page=100", []),
+    ])
+    assert last_claim(shims, "github") == {"comment_id": "9", "kind": "top", "thread_id": None}, \
+        "a conversation comment has no thread: the follow-up is top-level"
+
+
+def test_last_claim_gitlab_and_bitbucket_name_the_trigger_and_its_thread(shims):
+    serve(shims, "glab", [("merge_requests/5/discussions?per_page=100", [
+        {"id": "d1", "notes": [
+            {"id": 11, "author": {"username": "dev"}, "created_at": "2026-01-01T00:00:01Z", "body": "/open-pr"},
+            {"id": 12, "author": {"username": "bot"}, "created_at": "2026-01-01T00:00:02Z",
+             "body": "on it\n\n<!-- bot-claim:11 -->"}]},
+        {"id": "d2", "notes": [{"id": 13, "author": {"username": "dev"}, "created_at": "2026-01-01T00:00:09Z",
+                                "body": "unrelated"}]}])])
+    assert last_claim(shims, "gitlab") == {"comment_id": "11", "kind": "top", "thread_id": "d1"}
+    serve(shims, "curl", [("pullrequests/5/comments?pagelen=100", {"values": [
+        {"id": 21, "content": {"raw": "/open-pr"}, "user": {"nickname": "dev"}, "inline": None,
+         "created_on": "2026-01-01T00:00:01+00:00", "deleted": False},
+        {"id": 22, "content": {"raw": "on it\n\n[bot-claim:21]: #"}, "user": {"nickname": "bot"}, "inline": None,
+         "created_on": "2026-01-01T00:00:02+00:00", "deleted": False}], "next": None})])
+    assert last_claim(shims, "bitbucket") == {"comment_id": "21", "kind": "top", "thread_id": None}
+
+
+def test_last_claim_prints_nothing_when_no_claim_exists(shims):
+    serve(shims, "gh", [
+        ("repos/o/r/issues/5/comments?per_page=100", [gh_comment(9, "dev", "2026-01-01T00:00:01Z", HOSTILE)]),
+        ("repos/o/r/pulls/5/comments?per_page=100", []),
+    ])
+    assert last_claim(shims, "github") is None
+    assert "pwned" not in shims["log"].read_text()
+
+
+def test_reply_github_line_with_a_thread_answers_its_root(shims, tmp_path):
+    f = tmp_path / "b.md"
+    f.write_text("/open-pr re-review")
+    serve(shims, "gh", [("-X POST repos/o/r/pulls/5/comments/20/replies", {"id": 40})])
+    r = run("reply", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "30",
+            "--kind", "line", "--thread-id", "20", "--body-file", str(f), env_extra=env_for(shims), check=True)
+    assert r.stdout.strip() == "40"
+
+
 # ------------------------------------------------------- checkout lock ----
 
 @pytest.fixture

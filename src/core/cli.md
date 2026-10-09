@@ -38,6 +38,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
 | `react --comment-id C --emoji E [--kind line\|top]` | `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket |
 | `claim --comment-id C --kind line\|top --body-file F [--thread-id T]` | cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim, else `taken <login>` |
+| `last-claim` | `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing |
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
 | `marker --kind finding\|reply\|claim [--comment-id C]` | the marker literal — end every finding/reply with it; `claim` needs C |

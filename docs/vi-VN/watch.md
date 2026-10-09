@@ -96,7 +96,9 @@ request bạn nêu tên. Một pull request cũng được thêm vào khi chính
    bị đụng tới. Finding 🔵 và 📝 vẫn hỏi bạn trước; khi `auto_push` tắt, session hỏi trước khi push.
 3. Xong việc, watcher báo kết quả bằng toast và hỏi có yêu cầu re-review không. Chỉ khi bạn đồng ý, nó mới
    reply trên pull request bằng trigger (`/open-pr re-review`, hoặc mention reviewer khi repo dùng
-   mention) — nó không bao giờ tự yêu cầu.
+   mention) — nó không bao giờ tự yêu cầu. Yêu cầu đó nằm trong thread của yêu cầu review ban đầu, để
+   yêu cầu, lời nhận review và re-review ở cùng một chỗ; comment hội thoại trên GitHub không có thread,
+   nên ở đó nó là một comment mới.
 
 Không có gì được fix nếu bạn chưa click. `remove #12` (hoặc "Remove from list" trên dòng đó) đưa pull
 request ra khỏi cả hai vai.

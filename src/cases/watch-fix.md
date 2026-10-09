@@ -32,6 +32,7 @@ table.
 `question` first — `Ask for a re-review (Recommended)` · `Not now`. Only on that yes, with
 `findings` = `<watch> status --pr N --role fix`'s: `Write` `<prompts>/pr-N-rereview.md` = this repo's
 `trigger` when it is a `/word`, else `@<findings.user>`, then ` re-review` — no marker, or it never
-triggers — and `<op> reply --vendor … --owner … --repo … --pr N --comment-id <findings.comment_id>
---kind top --body-file <it>` (+ `--thread-id <findings.thread_id>` when set). FORBIDDEN: posting it
-without that yes.
+triggers — and `<op> reply --vendor … --owner … --repo … --pr N --body-file <it>` + the target
+`<op> last-claim … --pr N` prints (`--comment-id`, `--kind`, `--thread-id` when not null: the
+original request's thread), else `--comment-id <findings.comment_id> --kind top` (+ `--thread-id
+<findings.thread_id>` when set). FORBIDDEN: posting it without that yes.
