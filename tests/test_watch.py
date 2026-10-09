@@ -1187,6 +1187,31 @@ def test_a_running_wait_picks_up_a_faster_poll_within_seconds(w):
             proc.kill()
     assert [json.loads(l)["comment_id"] for l in out.splitlines() if l.strip()] == ["61"]
 
+def test_a_running_wait_re_reads_the_repos_settings_at_each_poll(w):
+    """A change made in the menu bar mid-wait (interval, slots) applies from the next poll."""
+    w.settings(poll_interval_seconds=15)
+    w.run("wait", "--once")                                    # cursor set
+    calls = lambda: sum(1 for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("settings "))
+    before = calls()
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    w.children.append(proc)
+    try:
+        time.sleep(18)                                         # 2 polls, 15 s apart
+        assert calls() - before >= 3, "read once at start, then cached for the life of the wait"
+    finally:
+        proc.kill(); proc.wait()
+
+
+def test_settings_names_the_repo_and_passes_a_write_through_to_open_pr(w):
+    (w.home / "settings.json").write_text(json.dumps({"watch": {"max_concurrent": 3}}))
+    assert w.jsonl("settings")[0] == {"watch": {"max_concurrent": 3}}
+    w.run("settings", "--set", "watch.max_concurrent", "--value", "8")
+    last = (w.home / "open-pr.calls").read_text().splitlines()[-1]
+    assert last == f"settings --repo r --repo-dir {w.repo.resolve()} --set watch.max_concurrent --value 8"
+    assert w.run("settings", "--set", "watch.max_concurrent", check=False).returncode == 1, "--set needs --value"
+
+
 # -------------------------------------------------------------- snooze ----
 
 def test_snooze_for_until_and_off_share_one_machine_file(w):

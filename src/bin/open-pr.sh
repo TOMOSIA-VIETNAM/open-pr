@@ -400,20 +400,25 @@ repo_lock() {   # $1 = any directory inside the repo
     lock="$common/open-pr-checkout.lock"
     wait_max=$(arg lock_timeout); [ -n "$wait_max" ] || wait_max=120
     check_ident '^[0-9]+$' "$wait_max"
+    dir_lock "$lock" "$wait_max" \
+        "open-pr.sh checkout: another checkout of this repo still holds $lock after ${wait_max}s. If no review is running, delete that directory and call the run again."
+}
+# dir_lock <lock dir> <seconds to wait> <message on timeout>: mkdir + the owner's pid, the same
+# protocol as open-pr-watch.sh's state lock, so either script waits on the other.
+dir_lock() {
     waited=0
-    until mkdir "$lock" 2>/dev/null; do
-        owner=$(cat "$lock/pid" 2>/dev/null || true)
+    until mkdir "$1" 2>/dev/null; do
+        owner=$(cat "$1/pid" 2>/dev/null || true)
         if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
             # rename first: of two waiters reclaiming the same stale lock, one wins
-            mv "$lock" "$lock.stale.$$" 2>/dev/null && rm -rf "$lock.stale.$$"
+            mv "$1" "$1.stale.$$" 2>/dev/null && rm -rf "$1.stale.$$"
             continue
         fi
-        [ "$waited" -lt "$wait_max" ] \
-            || die 1 "open-pr.sh checkout: another checkout of this repo still holds $lock after ${wait_max}s. If no review is running, delete that directory and call the run again."
+        [ "$waited" -lt "$2" ] || die 1 "$3"
         sleep 1; waited=$((waited + 1))
     done
-    LOCK_DIR="$lock"
-    printf '%s\n' "$$" > "$lock/pid"
+    LOCK_DIR="$1"
+    printf '%s\n' "$$" > "$1/pid"
 }
 repo_unlock() { [ -z "$LOCK_DIR" ] || rm -rf "$LOCK_DIR"; LOCK_DIR=""; }
 
@@ -978,7 +983,7 @@ cmd_triggers() {
     [ -z "$FIX_AUTHOR" ] || check_ident '^[A-Za-z0-9][A-Za-z0-9_.-]*$' "$FIX_AUTHOR"
     [ -z "$FIX_PRS" ] || check_ident '^[0-9]+(,[0-9]+)*$' "$FIX_PRS"
     TOKEN=$(arg token); [ -n "$TOKEN" ] || TOKEN=/open-pr
-    printf '%s' "$TOKEN" | grep -Eq '^(/[a-z][a-z0-9-]*|@[A-Za-z0-9][A-Za-z0-9_.-]*)$' \
+    printf '%s' "$TOKEN" | grep -Eq "$TOKEN_RE" \
         || die 1 "open-pr.sh triggers: --token must be /word (lowercase, digits, dashes) or @login: $TOKEN"
     SINCE_Z=""
     if [ -n "$SINCE" ]; then
@@ -1173,8 +1178,36 @@ cmd_find_memory() {
 }
 
 # ------------------------------------------------------------ settings ----
-# Prints the repo's settings.json with every read-time default applied, plus
-# the computed doctor_due. Never writes anything.
+# What a comment must start with to call a watcher (watch.trigger, triggers --token).
+TOKEN_RE='^(/[a-z][a-z0-9-]*|@[A-Za-z0-9][A-Za-z0-9_.-]*)$'
+NL='
+'
+# settings_set <file> <key> <value>: the keys the menu bar changes, each value checked against
+# reference/settings-schema.md; written via a temp file renamed into place, under the watcher's
+# state lock. Refused (exit 4) ⇒ the file is untouched.
+settings_set() {
+    case "$2" in
+        watch.max_concurrent|watch.poll_interval_seconds) re='^[1-9][0-9]{0,5}$'; as=argjson ;;
+        watch.trigger) re=$TOKEN_RE; as=arg ;;
+        watch.notify.review_started|watch.notify.question|watch.notify.draft_ready|watch.notify.posted|\
+        watch.notify.re_review|watch.notify.findings|watch.notify.error|review.auto_submit_review|\
+        review.post_lgtm|review.auto_resolve_fixed_findings|review.review_ci_status) re='^(true|false)$'; as=argjson ;;
+        review.doctor_schedule) re='^([1-9][0-9]{0,3} (days|weeks|months)|never)$'; as=arg ;;
+        *) die 4 "open-pr.sh settings: --set takes one of watch.max_concurrent, watch.poll_interval_seconds, watch.trigger, watch.notify.<event>, review.auto_submit_review, review.post_lgtm, review.auto_resolve_fixed_findings, review.review_ci_status, review.doctor_schedule — not: $2" ;;
+    esac
+    case "$3" in *"$NL"*) die 4 "open-pr.sh settings: invalid value for $2" ;; esac
+    printf '%s' "$3" | grep -Eq "$re" || die 4 "open-pr.sh settings: invalid value for $2: $3"
+    [ -s "$1" ] || die 1 "open-pr.sh settings: $1 does not exist yet — the first review or watch in that repo writes it"
+    mkdir -p "$(dirname "$1")/watch"
+    dir_lock "$(dirname "$1")/watch/.lock" 30 "open-pr.sh settings: $(dirname "$1")/watch/.lock still held after 30s"
+    jq --argjson p "$(printf '%s' "$2" | jq -R 'split(".")')" "--$as" v "$3" \
+        'if type == "object" then setpath($p; $v) else error("not a JSON object") end' "$1" > "$1.tmp.$$" \
+        || { rm -f "$1.tmp.$$"; die 1 "open-pr.sh settings: $1 is not a JSON object — left as it is"; }
+    mv "$1.tmp.$$" "$1"
+    repo_unlock
+}
+# Prints the repo's settings.json with every read-time default applied, plus the computed
+# doctor_due and doctor_next_at. `--set K --value V` writes one key first (settings_set).
 cmd_settings() {
     parse_args "$@"
     data=$(data_dir "$(arg repo_dir)")
@@ -1182,16 +1215,11 @@ cmd_settings() {
     # else" print byte-identical defaults otherwise.
     mem_dir="$data/$(req repo)"
     f="$mem_dir/settings.json"
+    k=$(arg set)
+    if [ -n "$k" ]; then v=$(req value); settings_set "$f" "$k" "$v"
+    elif [ -n "$(arg value)" ]; then die 1 "open-pr.sh settings: --value needs --set"; fi
     if [ -s "$f" ]; then raw=$(cat "$f"); found=true; else raw='{}'; found=false; fi
-    now=$(date +%s)
-    d_at=$(printf '%s' "$raw" | jq -r '.review.doctored_at // empty')
-    d_ep=""
-    if [ -n "$d_at" ]; then
-        d_ep=$(date -j -f '%Y-%m-%dT%H:%M:%S' "$(printf '%.19s' "$d_at")" +%s 2>/dev/null \
-            || date -j -f '%Y-%m-%d' "$(printf '%.10s' "$d_at")" +%s 2>/dev/null \
-            || date -d "$d_at" +%s 2>/dev/null || true)
-    fi
-    printf '%s' "$raw" | jq --argjson now "$now" --arg dep "${d_ep:-}" --arg memdir "$mem_dir" --argjson found "$found" '
+    printf '%s' "$raw" | jq --arg memdir "$mem_dir" --argjson found "$found" "$JQ_EPOCH"'
         # A boolean defaulting to true needs has(): the // operator treats an explicit
         # false as absent and would flip a stored false back to the default.
         def default_bool($node; $key; $fallback):
@@ -1199,7 +1227,12 @@ cmd_settings() {
         def dur_secs:
             capture("(?<n>[0-9]+) (?<u>day|week|month)s?") as $m
             | ($m.n | tonumber) * (if $m.u == "day" then 86400 elif $m.u == "week" then 604800 else 2592000 end);
-        {
+        # doctored_at in UTC, its zone honoured; a bare date counts from its midnight UTC
+        ([.review.doctored_at | strings | (epoch?, (.[0:10] + "T00:00:00Z" | fromdateiso8601?))] | .[0]) as $dep
+        | (.review.doctor_schedule // "1 months") as $sched
+        | (if (.review.doctored // false) != true or $sched == "never" or $dep == null then null
+           else (try ($dep + ($sched | dur_secs) | floor | todate) catch null) end) as $next
+        | {
             review: ((.review // {}) + {
                 auto_submit_review: (.review.auto_submit_review // false),
                 auto_resolve_fixed_findings: (.review.auto_resolve_fixed_findings // false),
@@ -1234,11 +1267,13 @@ cmd_settings() {
             schema_version: (.schema_version // null),
             memory_dir: $memdir,
             memory_found: $found,
+            # when the schedule next makes it due: null when never run, unscheduled or unreadable
+            doctor_next_at: $next,
             doctor_due: (
                 if (.review.doctored // false) != true then true
                 elif (.review.doctor_schedule // "1 months") == "never" then false
-                elif ($dep == "") then true
-                else ($now > (($dep | tonumber) + ((.review.doctor_schedule // "1 months") | dur_secs)))
+                elif $next == null then true
+                else (now > ($next | fromdateiso8601))
                 end
             )
         }'
@@ -1396,10 +1431,12 @@ Subcommands:
       memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or
       at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`:
       `found=<path>` per `notebooks/review/R`
-  settings --repo <repo> [--repo-dir D]
-      `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`.
-      Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
-      was read and whether its `settings.json` was there; `watch_configured` = node in the file
+  settings --repo <repo> [--repo-dir D] [--set K --value V]
+      `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`
+      and `doctor_next_at` (ISO-8601, null when never run or unscheduled). Missing file ⇒ pure defaults, and
+      `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there;
+      `watch_configured` = node in the file. `--set`: the menu bar's write of one key
+      (reference/settings-schema.md lists them), atomic; other key or bad value ⇒ exit 4, no file ⇒ exit 1
   stacks [--repo-dir D] <path>…
       `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
       ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`
@@ -1410,7 +1447,7 @@ Exit codes:
   1  other — post errors add a `hint:` line
   2  head-SHA gate failed after its one retry
   3  vendor checkout error (e.g. force-push)
-  4  invalid PR URL
+  4  invalid PR URL or value
   5  repo dir unresolvable
   6  missing credentials
   7  `<data>` not set for that location

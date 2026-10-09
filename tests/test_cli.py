@@ -12,6 +12,7 @@ import json
 import os
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -1655,3 +1656,114 @@ def test_settings_defaults_the_watch_node(data_dir, tmp_path):
     assert part["watch"] == {**defaults, "max_concurrent": 2,
                                     "notify": {**defaults["notify"], "posted": False}}, \
         "stored values win, an explicit false stays false, missing subfields take their default"
+
+
+def _demo_settings(data_dir, body):
+    d = data_dir / "demo"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "settings.json").write_text(json.dumps(body))
+    return d / "settings.json"
+
+
+@pytest.mark.parametrize("key, value, path, want", [
+    ("review.post_lgtm", "false", ["review", "post_lgtm"], False),
+    ("watch.notify.question", "false", ["watch", "notify", "question"], False),
+    ("watch.trigger", "@me", ["watch", "trigger"], "@me"),
+    ("watch.max_concurrent", "8", ["watch", "max_concurrent"], 8),
+    ("watch.poll_interval_seconds", "600", ["watch", "poll_interval_seconds"], 600),
+    ("review.doctor_schedule", "2 weeks", ["review", "doctor_schedule"], "2 weeks"),
+    ("review.doctor_schedule", "never", ["review", "doctor_schedule"], "never"),
+])
+def test_settings_set_writes_one_key_with_its_json_type(data_dir, key, value, path, want):
+    f = _demo_settings(data_dir, {"schema_version": 1, "review": {"bootstrapped": True, "_comments": {"x": "y"}},
+                                  "watch": {"max_concurrent": 2}})
+    out = json.loads(run("settings", "--repo", "demo", "--set", key, "--value", value, check=True).stdout)
+    stored = json.loads(f.read_text())
+    node = stored
+    for k in path:
+        node = node[k]
+    assert node == want, "a number or boolean stored as a string reads back as the wrong type"
+    printed = out
+    for k in path:
+        printed = printed[k]
+    assert printed == want, "the write prints the settings as they now read"
+    assert stored["schema_version"] == 1 and stored["review"]["_comments"] == {"x": "y"}, \
+        "a write touches its own key only"
+    if key != "watch.max_concurrent":
+        assert stored["watch"]["max_concurrent"] == 2
+
+
+def test_settings_set_leaves_every_other_key_at_its_read_time_default(data_dir):
+    f = _demo_settings(data_dir, {"review": {"bootstrapped": True}})
+    out = json.loads(run("settings", "--repo", "demo", "--set", "watch.notify.posted", "--value", "false",
+                         check=True).stdout)
+    assert json.loads(f.read_text())["watch"] == {"notify": {"posted": False}}, "no default backfilled on disk"
+    assert out["watch"]["notify"]["question"] is True and out["watch"]["max_concurrent"] == 5
+
+
+@pytest.mark.parametrize("key, value", [
+    ("review.many_files_threshold", "10"), ("schema_version", "2"), ("review.project_docs_found", "[]"),
+    ("watch", "{}"), ("watch.notify.bogus", "true"), ("review.doctored_at", "2026-01-01"),
+    ("review.post_lgtm", "yes"), ("review.post_lgtm", "true\nfalse"), ("watch.max_concurrent", "0"),
+    ("watch.max_concurrent", "3.5"), ("watch.poll_interval_seconds", "-1"), ("watch.trigger", "x y"),
+    ("watch.trigger", "@a;rm"), ("review.doctor_schedule", "2 fortnights"), ("review.doctor_schedule", "0 days"),
+])
+def test_settings_set_refuses_a_key_or_value_outside_the_allowlist_and_leaves_the_file(data_dir, key, value):
+    f = _demo_settings(data_dir, {"review": {"post_lgtm": True}})
+    before = f.read_bytes()
+    r = run("settings", "--repo", "demo", "--set", key, "--value", value)
+    assert r.returncode == 4 and r.stdout == ""
+    assert f.read_bytes() == before
+    assert [p.name for p in f.parent.iterdir()] == ["settings.json"], "refused after touching the directory"
+
+
+def test_settings_set_never_creates_a_missing_file_or_rewrites_a_broken_one(data_dir):
+    r = run("settings", "--repo", "ghost", "--set", "review.post_lgtm", "--value", "false")
+    assert r.returncode == 1 and not (data_dir / "ghost" / "settings.json").exists()
+    d = data_dir / "demo"
+    d.mkdir(parents=True)
+    (d / "settings.json").write_text("[1, 2]")
+    assert run("settings", "--repo", "demo", "--set", "review.post_lgtm", "--value", "false").returncode == 1
+    assert (d / "settings.json").read_text() == "[1, 2]"
+    assert not [p for p in d.iterdir() if ".tmp." in p.name]
+    assert run("settings", "--repo", "demo", "--value", "x").returncode == 1, "--value alone writes nothing"
+
+
+def test_settings_set_renames_into_place_under_the_watchers_state_lock(data_dir):
+    f = _demo_settings(data_dir, {"review": {"post_lgtm": True}})
+    ino = f.stat().st_ino
+    lock = f.parent / "watch" / ".lock"
+    lock.mkdir(parents=True)
+    holder = subprocess.Popen(["sleep", "30"])
+    (lock / "pid").write_text(f"{holder.pid}\n")
+    try:
+        p = subprocess.Popen([str(CLI), "settings", "--repo", "demo", "--set", "review.post_lgtm", "--value", "false"],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        time.sleep(1.5)
+        assert p.poll() is None and json.loads(f.read_text())["review"]["post_lgtm"] is True, \
+            "wrote while the watcher held its state lock"
+        holder.kill(); holder.wait()   # a dead holder's lock is reclaimed
+        assert p.wait(timeout=20) == 0, p.stderr.read()
+    finally:
+        if holder.poll() is None:
+            holder.kill(); holder.wait()
+    assert json.loads(f.read_text())["review"]["post_lgtm"] is False
+    assert f.stat().st_ino != ino, "rewritten in place: a concurrent reader can see half a file"
+    assert not lock.exists(), "the lock outlives the write"
+
+
+@pytest.mark.parametrize("review, next_at, due", [
+    ({"doctored": True, "doctored_at": "2026-01-01T09:00:00+09:00", "doctor_schedule": "2 weeks"},
+     "2026-01-15T00:00:00Z", True),
+    ({"doctored": True, "doctored_at": "2999-01-01T00:00:00Z", "doctor_schedule": "1 months"},
+     "2999-01-31T00:00:00Z", False),
+    ({"doctored": True, "doctored_at": "2999-01-01", "doctor_schedule": "7 days"}, "2999-01-08T00:00:00Z", False),
+    ({"doctored": True, "doctored_at": "2999-01-01T00:00:00Z", "doctor_schedule": "never"}, None, False),
+    ({"doctored": True, "doctored_at": "garbage"}, None, True),
+    ({"bootstrapped": True}, None, True),
+])
+def test_settings_says_when_the_doctor_is_next_due(data_dir, review, next_at, due):
+    _demo_settings(data_dir, {"review": review})
+    out = json.loads(run("settings", "--repo", "demo", check=True).stdout)
+    assert (out["doctor_next_at"], out["doctor_due"]) == (next_at, due), \
+        "doctored_at is read in its own zone, not the machine's"

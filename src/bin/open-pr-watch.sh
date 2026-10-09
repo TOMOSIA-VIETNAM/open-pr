@@ -135,6 +135,14 @@ cmd_poll() {
     printf '%s\n' "$n" > "$WD/poll_seconds.tmp" && mv "$WD/poll_seconds.tmp" "$WD/poll_seconds"
     printf '{"poll_seconds":%s}\n' "$n"
 }
+# The menu bar's read and write of the repo's settings: open-pr.sh owns both, this only names the repo.
+cmd_settings() {
+    parse_args "$@"
+    load_repo
+    K=$(arg set)
+    if [ -n "$K" ]; then V=$(req value); opr settings --repo "$REPO" --repo-dir "$D" --set "$K" --value "$V"
+    else opr settings --repo "$REPO" --repo-dir "$D"; fi
+}
 setting_int() {
     v=$(settings | jq -r --arg k "$1" '.watch[$k] // empty | select(type == "number" and . >= 1) | floor')
     printf '%s' "${v:-$2}"
@@ -679,6 +687,7 @@ check_open() {
 # ROLES = the roles this wait serves; FIX_LISTED = the PRs `--fix-prs` names (else the user's own).
 poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), ACTIVE (sessions active)
     GOT=""; LIMITED=""; : "${FAILS:=0}" "${ACTIVE:=0}"
+    SETTINGS=""   # a change made since the last poll (menu bar, chat) applies from this one
     touch "$SD/heartbeat$SFX"   # read by the menu bar
     lock
     cursor=$(state_json | jq -r --argjson p "$CP" "$JQ_UTC"' getpath($p + ["cursor"]) // empty | utc')
@@ -916,6 +925,7 @@ cmd_wait() {
         poll_once
         [ -z "$GOT" ] || return 0
         [ -z "$(arg once)" ] || return 0
+        base=$(setting_int poll_interval_seconds 180)
         if [ -n "$LIMITED" ]; then
             delay=$((delay * 2))
             [ "$delay" -le "$BACKOFF_CAP" ] || delay=$BACKOFF_CAP
@@ -1203,6 +1213,11 @@ Subcommands:
   poll --seconds N | --off
       this machine's poll interval, every repo, min 15 s, over `poll_interval_seconds`; a running
       wait applies it within 5 s. `--off` returns to the setting → `{"poll_seconds"}`. Menu bar too
+  settings [--set K --value V]
+      the repo's settings as `open-pr.sh settings` prints them; `--set` first writes V at K through it
+      (its key allowlist, its exit codes; the file untouched on a refusal). A running wait applies
+      `poll_interval_seconds` and `max_concurrent` from its next poll; a running session keeps the values
+      it read. The menu bar's Settings submenu runs it
   menubar [--close]
       macOS: start the menu bar item (review and fix rows grouped by the watcher serving their role,
       recent toasts, snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
@@ -1262,6 +1277,7 @@ case "$sub" in
     trust)   cmd_trust "$@" ;;
     snooze)  cmd_snooze "$@" ;;
     poll)    cmd_poll "$@" ;;
+    settings) cmd_settings "$@" ;;
     menubar) cmd_menubar "$@" ;;
     *) die 1 "open-pr-watch.sh: unknown subcommand: $sub (see --help)" ;;
 esac

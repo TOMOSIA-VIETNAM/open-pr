@@ -89,6 +89,18 @@ table, so that every token in a cell can be checked against the JSON above:
 - `output_language` is the language both commands POST in. The language they TALK in is
   `chat_language`, a separate field with its own group.
 
+## What the menu bar writes
+
+The menu bar's Settings submenu changes these keys, and only these, through `<op> settings --set K
+--value V` (the sole writer outside a chat): `watch.max_concurrent`, `watch.poll_interval_seconds`
+(positive integers), `watch.trigger` (a `trigger` value as above), `watch.notify.<event>`,
+`review.auto_submit_review`, `review.post_lgtm`, `review.auto_resolve_fixed_findings`,
+`review.review_ci_status` (`true`/`false`), `review.doctor_schedule` (`"{N} days|weeks|months"` or
+`"never"`). Any other key, or a value outside these, is refused and the file left as it was; a write
+is a temp file renamed into place under `<data>/<repo>/watch/.lock`, the watcher's state lock. It
+never creates the file. Doctor-detected and internal fields, `schema_version` and the numeric
+thresholds stay chat or `/open-pr:upgrade` changes.
+
 **Adding a field:** classify it in the table above, and — if it is User config — give it a read-time
 default in `<op> settings` (`src/bin/open-pr.sh`), the SOLE place a default is applied. Skipping that
 leaves an older repo with no fallback until `/open-pr:upgrade` upgrades it.
