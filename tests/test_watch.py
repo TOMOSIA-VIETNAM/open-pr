@@ -1484,6 +1484,20 @@ def test_fix_now_is_delivered_by_the_running_wait_with_the_pending_findings(w):
     assert w.run("fix-now", "--pr", "5;id", check=False).returncode == 4
 
 
+def test_a_fix_now_click_while_that_fix_session_runs_opens_nothing(w):
+    """A second click (or the toast's after the menu bar's) must not queue a second fix run."""
+    fix_ready(w, finding())
+    w.run("wait", "--once")
+    w.run("fix-now", "--pr", "5")
+    w.run("fix-now", "--pr", "5")
+    assert [e["event"] for e in w.jsonl("wait", "--once")] == ["fix_now"], "two clicks before delivery are one"
+    w.spawn(5, extra=("--role", "fix"))
+    w.run("wait", "--once")
+    w.run("fix-now", "--pr", "5")
+    assert w.run("wait", "--once").stdout == ""
+    assert not (w.sd / "fix_now" / "5").exists(), "the dropped click stays pending and wakes every poll"
+
+
 def test_a_fix_now_click_wakes_a_sleeping_wait(w):
     fix_ready(w)
     (w.watch).mkdir(parents=True, exist_ok=True)

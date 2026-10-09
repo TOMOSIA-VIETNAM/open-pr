@@ -13,7 +13,8 @@ Per `{"event":"fix_now",…}`, or `fix #N` in chat (`<url>` = the event's `url`,
 hold; none ⇒ ask the user):
 
 1. `<watch> paths --pr N --role fix` → `prompts=`, `status_file=`. `<watch> status --pr N --role fix`
-   lists a session ⇒ resume it, else a new one.
+   lists a session ⇒ resume it, else a new one; that session `working`/`question` and not `finished`
+   ⇒ 1 chat line (already fixing #N, its `open`), nothing else.
 2. `Write` `<prompts>/pr-N-fix.md`:
    - resumed: `New findings on <url>: act on them as before. --status-file <status_file>`
    - new, `claude`: `/open-pr:fix <url> --status-file <status_file>`

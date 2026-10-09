@@ -37,14 +37,15 @@ var REMOTE = /^[A-Za-z0-9._-]+$/;
 // The role sets a `wait` serves, by the suffix of its files; one wait per repo and role.
 var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['review'] }, { sfx: '-fix', roles: ['fix'] }];
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
-var HIDE_PENDING = 30000;
-var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {};
+var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
+var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
 var item = null, target = null, icons = {}, rowParts = {}, litRow = null;
 
 var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgtm_chat as lgtm); tints match open-pr-toast.js
     working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
     fixing:   ['circle.dotted', [0.35, 0.53, 0.95], 'Fixing'],
     findings: ['wrench.and.screwdriver', [0.93, 0.68, 0.16], 'New findings — Fix now'],
+    fix_requested: ['clock', [0.35, 0.53, 0.95], 'Fix requested — starting'],
     fixed:    ['checkmark.circle', [0.22, 0.7, 0.45], 'Fixed'],
     question: ['questionmark.bubble', [0.91, 0.27, 0.06], 'Needs your answer'],
     draft:    ['doc.badge.clock', [0.93, 0.68, 0.16], 'Draft waiting'],
@@ -59,6 +60,9 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
 // disabled event writes no line, so that line can be older than the state). A line wins through
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
+// The role tag after a row's title, coloured so review and fix rows tell apart at a glance.
+var ROLE_TAG = { review: ['REVIEW', [0.04, 0.48, 1]], fix: ['FIX', [1, 0.5, 0]] };
+var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a project's watchers: both roles, review, fix
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
 // by TERM_PROGRAM: menu name, bundle id, app a session opens in (see openIn)
@@ -192,7 +196,8 @@ function watcherOf(w, set) {
     var term = str(w.term), ts = str(w.term_session), tty = str(w.tty), cwd = str(w.cwd), sid = str(w.session_id);
     var t = TERMS[term], tab = ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '';
     return { key: tab ? tab + set.sfx : '',
-             label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : '') + (set.sfx ? ' ·' + set.sfx.replace('-', ' ') : ''),
+             label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : ''),
+             role: set.sfx.replace('-', ''), start: 0,
              term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx,
              repos: [], dirs: [], rows: [] };
 }
@@ -211,6 +216,8 @@ function scan() {
             wj = wj || j;
             if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
             at[set.sfx] = byKey[wr.key];
+            // when this wait started: the watcher record is written at each start
+            at[set.sfx].start = Math.max(at[set.sfx].start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
             at[set.sfx].repos.push(name);
             at[set.sfx].dirs.push(dir);
         });
@@ -233,7 +240,7 @@ function scan() {
         var prArg = function (pr) { return JSON.stringify({ repo_dir: repoDir, remote: remote, pr: Number(pr) }); };
         var row = function (repo, pr, role) {
             var k = repo + '#' + pr + ':' + role;
-            return rows[k] || (rows[k] = { title: repo + (pr ? ' #' + pr : ''), role: role, session: false, state: '',
+            return rows[k] || (rows[k] = { title: repo + (pr ? ' #' + pr : ''), pr: pr, role: role, session: false, state: '',
                 active: false, url: '', open: '', hide: pr ? prArg(pr) : '', fix: '', stateAt: 0 });
         };
         Object.keys(ss).forEach(function (key) {
@@ -265,7 +272,19 @@ function scan() {
             if (!r.feed || str(f.at) >= str(r.feed.at)) r.feed = f;
             if (!r.url) r.url = str(f.url);
         });
-        Object.keys(rows).forEach(function (k) { to(rows[k].role).rows.push(finish(rows[k])); });
+        Object.keys(rows).forEach(function (k) {
+            var r = rows[k], w = to(r.role);
+            // a repo-wide line (a failed start, a poll error) from before this watcher started is over
+            if (!r.hide && !r.session && r.feed && ms(r.feed.at) < w.start) return;
+            finish(r);
+            // clicked: no second Fix now until the fix session shows (or the click is stale)
+            var clicked = pendingFix[repoDir + '#' + r.pr];
+            if (r.kind === 'findings' && clicked && Date.now() - clicked < FIX_PENDING) {
+                r.kind = 'fix_requested'; r.fix = ''; r.active = true;
+                r.text = KIND.fix_requested[2] + ' · ' + when(new Date(clicked));
+            }
+            w.rows.push(r);
+        });
     }); });
     out.watchers.forEach(function (w) {
         // review rows, then fix rows; each part: waiting on the user first, then the latest
@@ -273,7 +292,13 @@ function scan() {
         w.rows = w.rows.slice(0, ROWS);
         w.rows.forEach(function (r) { if (r.active) out.active++; });
     });
-    out.watchers.sort(function (a, b) { return a.label < b.label ? -1 : a.label > b.label ? 1 : 0; });
+    // by project, so a project's review and fix watchers sit together; then role, then tab
+    var key = function (w) { return [w.repos.slice().sort().join(',').toLowerCase(), ROLE_RANK[w.sfx], w.label.toLowerCase()]; };
+    out.watchers.sort(function (a, b) {
+        var x = key(a), y = key(b);
+        for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+        return 0;
+    });
     return out;
 }
 function ms(t) { var n = new Date(str(t)).getTime(); return isNaN(n) ? 0 : n; }
@@ -403,6 +428,15 @@ function section(menu, title) {
     else add(menu, title);
 }
 
+// text, then its role tag: smaller, bold, in the role's colour
+function tagged(text, role, font) {
+    var s = $.NSMutableAttributedString.alloc.initWithStringAttributes(text, $({ NSFont: font }));
+    var tag = ROLE_TAG[role];
+    if (tag) s.appendAttributedString($.NSAttributedString.alloc.initWithStringAttributes('  ' + tag[0], $({
+        NSFont: $.NSFont.systemFontOfSizeWeight(font.pointSize - 2, $.NSFontWeightBold), NSForegroundColor: rgb(tag[1]),
+        NSKern: 0.6 })));
+    return s;
+}
 function label(text, font, color, x, y) {
     var f = $.NSTextField.labelWithString(text);
     f.setFont(font);
@@ -426,14 +460,14 @@ function headerView(repos, watchers, until) {
 
 // A view item gets neither the item's action nor the menu's highlight: a transparent button over
 // the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
-function watcherRow(title, sub, canGo) {
+function watcherRow(title, sub, canGo, role) {
     var stop = $.NSButton.buttonWithTitleTargetAction('Stop watcher', target, 'stopRow:');
     stop.setBezelStyle($.NSBezelStyleInline);
     stop.setControlSize($.NSControlSizeSmall);
     stop.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
     stop.sizeToFit;
     var bw = stop.frame.size.width, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
-    var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
+    var tw = Math.max(tagged(clip(title), role, $.NSFont.menuFontOfSize(0)).size.width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
     var w = Math.max(HEADER_W, ROW_TEXT_X + tw + 12 + bw + 14);
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
     v.setAutoresizingMask($.NSViewWidthSizable);
@@ -452,6 +486,7 @@ function watcherRow(title, sub, canGo) {
     var right = w - ROW_TEXT_X - bw - 26;
     var t = label(clip(title), $.NSFont.menuFontOfSize(0), $.NSColor.labelColor, ROW_TEXT_X, ROW_H / 2);
     var st = label(clip(sub), $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor, ROW_TEXT_X, ROW_H / 2 - 15);
+    if (role) t.setAttributedStringValue(tagged(clip(title), role, $.NSFont.menuFontOfSize(0)));
     [t, st].forEach(function (f) {
         f.setFrame($.NSMakeRect(ROW_TEXT_X, f.frame.origin.y, right, 17));
         f.setAutoresizingMask($.NSViewWidthSizable);
@@ -514,13 +549,14 @@ function build(s) {
                 ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id } : null;
             var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(w.label, null, '');
             wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.session_id } })));
-            wi.setView(watcherRow(w.label, w.repos.join(', '), !!go));
+            wi.setView(watcherRow(w.label, w.repos.join(', '), !!go, w.role));
             m.addItem(wi);
         }
         if (!w.rows.length) add(m, 'Nothing yet').setIndentationLevel(w.key ? 1 : 0);
         w.rows.forEach(function (x) {
             var spec = KIND[x.kind];
-            var mi = add(m, x.title + ' · ' + x.role, isURL(x.url) ? 'openURL:' : null, x.url);
+            var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
+            mi.setAttributedTitle(tagged(clip(x.title), x.role, $.NSFont.menuFontOfSize(0)));
             subtitle(mi, x.text);
             if (spec) mi.setImage(symbol(spec));
             if (w.key) mi.setIndentationLevel(1);
@@ -681,7 +717,10 @@ function prArgs(o, sub) {
 // The watcher's wait delivers it within seconds; the row turns to the fix session once it opens.
 function fixNow(o) {
     var args = prArgs(o, 'fix-now');
-    if (args) spawn('/bin/sh', args);
+    if (!args) return;
+    spawn('/bin/sh', args);
+    pendingFix[o.repo_dir + '#' + o.pr] = Date.now();
+    refresh();
 }
 function hide(o) {
     var args = prArgs(o, 'hide');

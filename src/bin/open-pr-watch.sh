@@ -744,6 +744,16 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     status_all > "$TMPD/status"
     jq -c --arg roles "$ROLES" 'select(.role as $r | $roles | split(",") | index([$r]))' "$TMPD/status" > "$TMPD/own"
     ACTIVE=$(active_count "$TMPD/own")
+    # A click while that PR's fix session runs (a second click, or the toast's after the menu
+    # bar's) opens nothing: the click is used up here.
+    jq -c --slurpfile own "$TMPD/own" '.pr as $p
+        | select([$own[] | select(.role == "fix" and .pr == $p and .finished != true
+                                  and (.state == "working" or .state == "question"))] | length == 0)' \
+        "$TMPD/fixev" > "$TMPD/fixev.ok"
+    jq -r '.pr' "$TMPD/fixev" | while IFS= read -r n; do
+        jq -e --argjson p "$n" 'select(.pr == $p)' "$TMPD/fixev.ok" > /dev/null || rm -f "$SD/fix_now/$n"
+    done
+    mv "$TMPD/fixev.ok" "$TMPD/fixev"
     jq -c -s --slurpfile st "$TMPD/state.in" '
         .[] | select(.state != ($st[0].sessions[.key].last_state // null))
         | {event: "session", pr, role, state, open} + (if .note then {note} else {} end)' "$TMPD/own" > "$TMPD/sess"
@@ -1150,7 +1160,8 @@ Subcommands:
       both roles: leave PR N out of the menu bar until the next spawn for it, out of the fix role,
       its pending findings dropped → `{"pr","hidden":true}`
   fix-now --pr N
-      a "Fix now" click: the running wait delivers it as `fix_now` → `{"pr","fix_now":true}`
+      a "Fix now" click: the running wait delivers it as `fix_now` → `{"pr","fix_now":true}`; repeat
+      clicks before then are one, and a click while that PR's fix session runs is dropped
   paths [--pr N] [--role R]
       `dir=…` `prompts=…` lines; with `--pr` also `status_file=…` (that session writes it) and `log=…`
   notify --event E --text-file F [--pr N] [--role R] [--url U] [--focus pr|watcher|session]
