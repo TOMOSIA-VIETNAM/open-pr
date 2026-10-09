@@ -25,7 +25,7 @@ ObjC.import('Cocoa');
 
 var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
 // A watcher row (a view item, so laid out by hand): height, and where its text starts.
-var ROW_H = 36, ROW_TEXT_X = 38;   // a watcher row lines up with the plain items; its PR rows indent under it
+var ROW_H = 36, ROW_TEXT_X = 35;   // icon and text in line with the plain items and PR rows
 // Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
 var SUBTITLE_PAD = 100;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
@@ -39,7 +39,7 @@ var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['re
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
-var item = null, target = null, icons = {}, rowParts = {}, litRow = null;
+var item = null, target = null, icons = {}, rowParts = {}, stopParts = {}, litRow = null;
 
 var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgtm_chat as lgtm); tints match open-pr-toast.js
     working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
@@ -112,6 +112,15 @@ var MOTH = [
 ];
 var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
 
+// The Stop button over its hand-drawn pill: darkens the pill while the pointer is on it.
+ObjC.registerSubclass({
+    name: 'OPRStopButton',
+    superclass: 'NSButton',
+    methods: {
+        'mouseEntered:': { types: ['void', ['id']], implementation: function () { hoverStop(this, true); } },
+        'mouseExited:': { types: ['void', ['id']], implementation: function () { hoverStop(this, false); } }
+    }
+});
 ObjC.registerSubclass({
     name: 'OPRMenuTarget',
     methods: {
@@ -470,7 +479,7 @@ function watcherRow(title, sub, canGo, role) {
     v.addSubview(bg);
     var iv = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription(look[0], ''));
     iv.setContentTintColor(tint);
-    iv.setFrame($.NSMakeRect(ROW_TEXT_X - 23, (ROW_H - 16) / 2, 16, 16));
+    iv.setFrame($.NSMakeRect(ROW_TEXT_X - 20, (ROW_H - 16) / 2, 16, 16));
     v.addSubview(iv);
     var right = w - ROW_TEXT_X - bw - 26;
     var t = label(clip(title), $.NSFont.menuFontOfSize(0), $.NSColor.labelColor, ROW_TEXT_X, ROW_H / 2);
@@ -499,17 +508,24 @@ function watcherRow(title, sub, canGo, role) {
     v.addSubview(pill);
     var word = $.NSTextField.labelWithString('Stop');
     word.setFont(stopFont);
-    var ww = word.intrinsicContentSize.width;
+    var ww = Math.ceil(word.intrinsicContentSize.width) + 4;   // room for the last glyph's overhang
     word.setFrame($.NSMakeRect(w - bw - 14 + (bw - ww) / 2, (ROW_H - 16) / 2, ww, 16));
     word.setAutoresizingMask($.NSViewMinXMargin);
     v.addSubview(word);
-    var stop = $.NSButton.buttonWithTitleTargetAction('', target, 'stopRow:');
+    var stop = $.OPRStopButton.alloc.initWithFrame(pill.frame);
+    stop.setTitle('');
+    stop.setTarget(target);
+    stop.setAction('stopRow:');
     stop.setTransparent(true);
-    stop.setFrame(pill.frame);
+    // InVisibleRect: the area follows the button; ActiveAlways: a menu window is never key
+    stop.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect,
+        $.NSTrackingMouseEnteredAndExited | $.NSTrackingActiveAlways | $.NSTrackingInVisibleRect, stop, null));
     stop.setAutoresizingMask($.NSViewMinXMargin);
     stop.setToolTip('Stop watcher');
     v.addSubview(stop);
     rowParts[v.hash] = { bg: bg, icon: iv, tint: tint, title: t, sub: st, pill: pill, word: word, canGo: canGo };
+    rowParts[v.hash].stopHash = stop.hash;
+    stopParts[stop.hash] = rowParts[v.hash];
     paintStop(rowParts[v.hash], false);
     return v;
 }
@@ -527,9 +543,18 @@ function paintRow(p, on) {
     p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : p.tint);
     paintStop(p, on);
 }
+// on: its row is highlighted. A pointer on the pill darkens it, as a pressed-looking button does.
 function paintStop(p, on) {
-    p.pill.setFillColor(on ? $.NSColor.colorWithWhiteAlpha(1, 0.28) : $.NSColor.colorWithWhiteAlpha(0.5, 0.18));
+    p.lit = on;
+    p.pill.setFillColor(p.hover ? $.NSColor.colorWithWhiteAlpha(0, on ? 0.28 : 0.22)
+                                : on ? $.NSColor.colorWithWhiteAlpha(1, 0.28) : $.NSColor.colorWithWhiteAlpha(0.5, 0.18));
     p.word.setTextColor(on ? $.NSColor.whiteColor : $.NSColor.labelColor);
+}
+function hoverStop(button, on) {
+    var p = stopParts[button.hash];
+    if (!p) return;
+    p.hover = on;
+    paintStop(p, !!p.lit);
 }
 function rowAction(sender, which) {
     var mi = sender.enclosingMenuItem;
@@ -544,7 +569,7 @@ function rowAction(sender, which) {
 function build(s) {
     var m = newMenu('open-pr');
     m.setDelegate(target);
-    rowParts = {}; litRow = null;
+    rowParts = {}; stopParts = {}; litRow = null;
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
     head.setView(headerView(s.repos, s.watchers.length, until));
@@ -553,7 +578,8 @@ function build(s) {
     // no section title: a menu indents the items under one
     m.addItem($.NSMenuItem.separatorItem);
     if (!s.watchers.length) add(m, 'Nothing yet');
-    s.watchers.forEach(function (w) {
+    s.watchers.forEach(function (w, i) {
+        if (i) m.addItem($.NSMenuItem.separatorItem);   // one block per watcher
         // A record from before watcher.json existed has no tab to show.
         if (w.key) {
             var go = TERMS[w.term] || SESSION_ID.test(w.session_id)
@@ -563,13 +589,12 @@ function build(s) {
             wi.setView(watcherRow(w.label, w.repos.join(', '), !!go, w.role));
             m.addItem(wi);
         }
-        if (!w.rows.length) add(m, 'Nothing yet').setIndentationLevel(w.key ? 1 : 0);
+        if (!w.rows.length) add(m, 'Nothing yet');
         w.rows.forEach(function (x) {
             var spec = KIND[x.kind];
             var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
             subtitle(mi, x.text);
             if (spec) mi.setImage(symbol(spec));
-            if (w.key) mi.setIndentationLevel(1);
             // Offered in every state: `open` also reopens a finished or stopped session.
             var sub = newMenu(x.title);
             if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
