@@ -808,8 +808,9 @@ gh_get() {
         rm -f "$c.body" "$c.etag"
         rl gh api --paginate "$1"; return
     fi
-    sed -n 's/^[Ee][Tt][Aa][Gg]: *//p' "$TMPD/gh.head" | head -n 1 > "$c.etag"
-    cp "$TMPD/gh.body" "$c.body"
+    # Two waits on one repo share the cache: each file renamed into place, the body before its ETag.
+    cp "$TMPD/gh.body" "$c.body.$$" && mv "$c.body.$$" "$c.body"
+    sed -n 's/^[Ee][Tt][Aa][Gg]: *//p' "$TMPD/gh.head" | head -n 1 > "$c.etag.$$" && mv "$c.etag.$$" "$c.etag"
     cat "$TMPD/gh.body"
 }
 # Open PRs -> $TMPD/tr.prs ({pr, url, author, updated_at} lines); their comments -> stdout as
