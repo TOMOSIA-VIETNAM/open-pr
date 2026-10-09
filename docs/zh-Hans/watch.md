@@ -113,7 +113,7 @@ non-interactive 会话使用你为该平台配置的权限设置；watcher 不�
 watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整台机器只有一个，涵盖所有 watcher；它一直保留到
 `/open-pr:menubar close`（或菜单中的 Quit），`/open-pr:menubar` 可让它重新出现。它的菜单列出：
 
-- 每个 pull request 的每个角色一行，按 watcher 分组（`<folder> · <terminal>`，只服务一个角色的 watcher 另加 `· review` 或 `· fix`；每行归在其角色的 watcher 下），评审行在前、修复行在后，每行
+- 每个 pull request 的每个角色一行，按 watcher 分组（标题为它监视的仓库；下方是它服务的角色、终端、与其唯一仓库名不同时的运行文件夹，以及最近一次轮询——错过两次轮询后显示橙色的 `no poll for …`；还没有行的 watcher 显示 "No pull requests yet"；每行归在其角色的 watcher 下），评审行在前、修复行在后，每行
   标注 `· review` 或 `· fix`—— 分组中的 "Go to watcher tab" 会把该 terminal
   标签页调到前台（iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后会选中确切的标签页；其他情况下把
   terminal 应用调到前台；标签页已关闭的 watcher 会用 `claude attach` 重新打开），分组的 "Stop" 会停止该

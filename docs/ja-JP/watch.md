@@ -131,7 +131,7 @@ watcher が起動すると、メニューバーに蛾のアイコンと進行中
 すべての watcher が対象です。`/open-pr:menubar close`（またはメニューの Quit）まで残り、`/open-pr:menubar`
 で再表示できます。メニューには次の内容が並びます:
 
-- pull request と役割ごとに 1 行（watcher ごとにグループ化: `<folder> · <terminal>`、1 つの役割だけの watcher には `· review` または `· fix` が付き、各行はその役割の watcher の下、レビューの行が先で修正の行が
+- pull request と役割ごとに 1 行（watcher ごとにグループ化: 見出しは監視中のリポジトリ、その下に担う役割・ターミナル・唯一のリポジトリ名と異なる場合は実行フォルダ・最後のポーリング時刻（2 回ポーリングを逃すとオレンジの `no poll for …`）、行がまだない watcher には "No pull requests yet"、各行はその役割の watcher の下、レビューの行が先で修正の行が
   後、各行に `· review` または `· fix` のラベル）— グループの "Go to watcher tab" で
   その terminal のタブが前面に出ます（iTerm と Terminal では、macOS が一度だけ Automation の権限を求めた
   あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます。タブが閉じられた watcher は

@@ -11,6 +11,7 @@
 //                                           "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
+//   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE)
 //   heartbeat, watcher.json, stop and quota.json belong to the wait serving both roles; a wait serving one
 //   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
@@ -42,6 +43,10 @@ var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
 var item = null, target = null, icons = {}, rowParts = {}, stopParts = {}, litRow = null;
 
+// A watcher row says "no poll for …" once its newest heartbeat is older than STALE.factor × the
+// interval it polls at: this machine's "Poll every" choice, else the slowest of its repos' setting
+// (default STALE.poll) and STALE.idle — an idle repo slows to that (IDLE_POLL in open-pr-watch.sh).
+var STALE = { factor: 2, poll: 180, idle: 600 };
 var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as lgtm); the symbol alone tells the state, in the menu's own colour
     working:  ['circle.dotted', 'Reviewing'],
     fixing:   ['circle.dotted', 'Fixing'],
@@ -216,8 +221,8 @@ function watcherOf(w, set) {
     var term = str(w.term), ts = str(w.term_session), tty = str(w.tty), cwd = str(w.cwd), sid = str(w.session_id);
     var t = TERMS[term], tab = ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '';
     return { key: tab ? tab + set.sfx : '',
-             label: (cwd ? basename(cwd) : 'watcher') + (term ? ' · ' + (t ? t[0] : term) : ''),
-             role: set.sfx.replace('-', ''), start: 0,
+             cwdName: cwd ? basename(cwd) : '', termName: term ? (t ? t[0] : term) : '',
+             role: set.sfx.replace('-', ''), start: 0, beat: Infinity, poll: 0,
              term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx,
              repos: [], dirs: [], rows: [] };
 }
@@ -239,6 +244,8 @@ function scan() {
             // when this wait started: the watcher record is written at each start
             at[set.sfx].start = Math.max(at[set.sfx].start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
             at[set.sfx].repos.push(name);
+            at[set.sfx].beat = Math.min(at[set.sfx].beat, ageSeconds(dir + '/heartbeat' + set.sfx));
+            at[set.sfx].poll = Math.max(at[set.sfx].poll, repoPoll(data + '/' + name));
             at[set.sfx].dirs.push(dir);
             var q = parse(readText(dir + '/quota' + set.sfx + '.json'));
             if (q && typeof q === 'object' && VENDOR_NAME[q.vendor]) out.quotas.push(q);
@@ -315,7 +322,7 @@ function scan() {
         w.rows.forEach(function (r) { if (r.active) out.active++; });
     });
     // by project, so a project's review and fix watchers sit together; then role, then tab
-    var key = function (w) { return [w.repos.slice().sort().join(',').toLowerCase(), ROLE_RANK[w.sfx], w.label.toLowerCase()]; };
+    var key = function (w) { return [w.repos.slice().sort().join(',').toLowerCase(), ROLE_RANK[w.sfx], (w.cwdName + ' ' + w.termName).toLowerCase()]; };
     out.watchers.sort(function (a, b) {
         var x = key(a), y = key(b);
         for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
@@ -362,6 +369,21 @@ function estimate(quotas, seconds) {
         if (!worst || share > worst.share || (share === worst.share && perHour > worst.perHour)) worst = { perHour: perHour, share: share };
     });
     return worst ? '  ≈' + worst.perHour.toLocaleString('en-US') + '/h' + (worst.share > QUOTA.warn ? ' ⚠' : '') : '';
+}
+function repoPoll(repoDir) {
+    var st = parse(readText(repoDir + '/settings.json')), v = st && st.watch ? st.watch.poll_interval_seconds : null;
+    return typeof v === 'number' && v >= 1 ? v : STALE.poll;
+}
+function age(sec) { return sec < 3600 ? Math.floor(sec / 60) + 'm' : Math.floor(sec / 3600) + 'h'; }
+// A watcher row's subtitle as [text, warn] parts: role, terminal, the folder it runs in when that
+// is not its one repo, then when it last polled.
+function watcherLine(w) {
+    var head = (ROLE_LOOK[w.role] || ROLE_LOOK[''])[1] + (w.termName ? ' · ' + w.termName : '') +
+               (w.cwdName && !(w.repos.length === 1 && w.repos[0] === w.cwdName) ? ' · in ' + w.cwdName : '');
+    if (!isFinite(w.beat)) return [[head, false]];
+    var every = pollSeconds() || Math.max(w.poll, STALE.idle);
+    if (w.beat > STALE.factor * every) return [[head + ' · ', false], ['no poll for ' + age(w.beat) + ' — check the watcher tab', true]];
+    return [[head + ' · polled ' + (w.beat < 60 ? 'just now' : age(w.beat) + ' ago'), false]];
 }
 function ms(t) { var n = new Date(str(t)).getTime(); return isNaN(n) ? 0 : n; }
 // findings counts {"🟠": 2} → "2 🟠 · 4 🔵", severity order
@@ -443,6 +465,10 @@ function symbol(spec) {
     return (icons[spec[0]] = img);
 }
 
+function blank() {
+    return icons.blank || (icons.blank = $.NSImage.alloc.initWithSize($.NSMakeSize(16, 16)));
+}
+
 // ---------------------------------------------------------------- menu ----
 function refresh() {
     var s = scan();
@@ -512,15 +538,15 @@ function headerView(repos, watchers, until, quota) {
 
 // A view item gets neither the item's action nor the menu's highlight: a transparent button over
 // the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
-function watcherRow(title, sub, canGo, role) {
+function watcherRow(title, parts, canGo, role) {
     // Drawn by hand (a pill + its word) under a transparent button: a bezel goes dark on the
     // selection colour, and its title with it.
     var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
     var bw = Math.ceil($('Stop').sizeWithAttributes($({ NSFont: stopFont })).width) + 20, bh = 20, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
     var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[0] ? rgb(look[0]) : $.NSColor.labelColor;
-    sub = look[1] + ' · ' + sub;
+    var sub = parts.map(function (x) { return x[0]; }).join('');
     var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
-    var w = Math.max(HEADER_W, ROW_TEXT_X + tw + 12 + bw + 14);
+    var w = Math.max(HEADER_W, ROW_TEXT_X + Math.ceil(tw) + 20 + bw + 14);   // 8 pt of it: the field's own inset
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
     v.setAutoresizingMask($.NSViewWidthSizable);
     var bg = $.NSVisualEffectView.alloc.initWithFrame($.NSMakeRect(5, 0, w - 10, ROW_H));
@@ -578,7 +604,27 @@ function watcherRow(title, sub, canGo, role) {
     stop.setAutoresizingMask($.NSViewMinXMargin);
     stop.setToolTip('Stop watcher');
     v.addSubview(stop);
-    rowParts[v.hash] = { bg: bg, icon: iv, tint: tint, title: t, sub: st, pill: pill, word: word, canGo: canGo };
+    // a warning part in orange: an attributed string, built up piece by piece (JXA does not bridge
+    // NSAttributedString's initWithString… initializers)
+    var subAttr = null;
+    if (parts.some(function (x) { return x[1]; })) {
+        subAttr = $.NSMutableAttributedString.alloc.init;
+        // an attributed value brings its own line breaking: wrapped, a cut line falls out of sight
+        var ps = $.NSMutableParagraphStyle.alloc.init;
+        ps.setLineBreakMode($.NSLineBreakByTruncatingTail);
+        var at = 0;
+        parts.forEach(function (x) {
+            var text = x[0];   // a long line is cut by the field (truncating tail)
+            subAttr.mutableString.appendString(text);
+            var r = $.NSMakeRange(at, text.length);
+            subAttr.addAttributeValueRange('NSFont', $.NSFont.menuFontOfSize(11), r);
+            subAttr.addAttributeValueRange('NSColor', x[1] ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor, r);
+            subAttr.addAttributeValueRange('NSParagraphStyle', ps, r);
+            at += text.length;
+        });
+        st.setAttributedStringValue(subAttr);
+    }
+    rowParts[v.hash] = { bg: bg, icon: iv, tint: tint, title: t, sub: st, subText: sub, subAttr: subAttr, pill: pill, word: word, canGo: canGo };
     rowParts[v.hash].stopHash = stop.hash;
     stopParts[stop.hash] = rowParts[v.hash];
     paintStop(rowParts[v.hash], false);
@@ -594,7 +640,10 @@ function highlightRow(mi) {
 function paintRow(p, on) {
     p.bg.setHidden(!on);
     p.title.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.labelColor);
-    p.sub.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.secondaryLabelColor);
+    if (on || !p.subAttr) {
+        if (p.subAttr) p.sub.setStringValue(p.subText);
+        p.sub.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.secondaryLabelColor);
+    } else p.sub.setAttributedStringValue(p.subAttr);
     p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : p.tint);
     paintStop(p, on);
 }
@@ -639,12 +688,14 @@ function build(s) {
         if (w.key) {
             var go = TERMS[w.term] || SESSION_ID.test(w.session_id)
                 ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id } : null;
-            var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(w.label, null, '');
+            var wt = w.repos.join(', ');
+            var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
             wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.session_id } })));
-            wi.setView(watcherRow(w.label, w.repos.join(', '), !!go, w.role));
+            wi.setView(watcherRow(wt, watcherLine(w), !!go, w.role));
             m.addItem(wi);
         }
-        if (!w.rows.length) add(m, 'Nothing yet');
+        // a blank image of an icon's size puts the text in the rows' text column
+        if (!w.rows.length) add(m, 'No pull requests yet').setImage(blank());
         w.rows.forEach(function (x) {
             var spec = KIND[x.kind];
             var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);

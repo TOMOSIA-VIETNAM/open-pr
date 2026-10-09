@@ -1723,3 +1723,18 @@ def test_wait_keeps_the_hosts_quota_per_role_set_even_when_rate_limited(w):
     (w.home / "quota.json").write_text(json.dumps({"vendor": "github", "limit": 5000, "remaining": 0, "calls": 1}))
     w.run("wait", "--once", check=False)
     assert json.loads((w.sd / "quota.json").read_text())["remaining"] == 0
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_watcher_row_names_its_repos_and_says_when_it_last_polled(w):
+    w.sd.mkdir(parents=True, exist_ok=True)
+    for sfx, cwd in (("-review", "/x/r"), ("-fix", "/x/tms")):
+        (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
+            {"pid": 1, "cwd": cwd, "term": "iTerm.app", "term_session": "w0t0p" + sfx + ":A", "tty": "", "session_id": ""}))
+        (w.sd / f"heartbeat{sfx}").write_text("")
+    old = time.time() - 1500   # past 2 × the 600 s an idle repo may poll at
+    os.utime(w.sd / "heartbeat-fix", (old, old))
+    got = _menubar_js(w, "return JSON.stringify(scan().watchers.map(function (x) {"
+                         " return [x.sfx, x.repos.join(', '), watcherLine(x)]; }));")
+    assert got == [["-review", "r", [["Review · iTerm · polled just now", False]]],
+                   ["-fix", "r", [["Fix · iTerm · in tms · ", False], ["no poll for 25m — check the watcher tab", True]]]]

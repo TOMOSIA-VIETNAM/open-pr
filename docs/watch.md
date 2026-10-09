@@ -137,8 +137,10 @@ A watcher puts the moth in the menu bar when it starts, with the number of sessi
 is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
 Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 
-- one row per pull request and role, grouped by watcher (`<folder> · <terminal>`, plus `· review` or
-  `· fix` for a watcher serving one role; each row under the watcher of its role), review rows first,
+- one row per pull request and role, grouped by watcher (titled with the repos it watches; under them
+  the role it serves, its terminal, the folder it runs in when that is not its one repo, and when it
+  last polled — `no poll for …` in orange once it missed two polls; each row under the watcher of its
+  role); a watcher with none says "No pull requests yet"; review rows first,
   then fix rows, each labelled `· review` or `· fix` — the group's "Go to watcher
   tab" brings that terminal tab to the front (iTerm and Terminal select the exact tab after macOS asks
   once for Automation permission; otherwise the terminal app comes to the front; a watcher whose tab was

@@ -135,7 +135,7 @@ Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số sessio
 mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
 `/open-pr:menubar` đưa nó trở lại. Menu của nó liệt kê:
 
-- mỗi pull request và vai một dòng, nhóm theo watcher (`<folder> · <terminal>`, thêm `· review` hoặc `· fix` với watcher chỉ phục vụ một vai; mỗi dòng nằm dưới watcher của vai nó), dòng review trước rồi
+- mỗi pull request và vai một dòng, nhóm theo watcher (tiêu đề là các repo nó watch; bên dưới là vai nó phục vụ, terminal, thư mục nó chạy khi khác tên repo duy nhất của nó, và lần poll gần nhất — `no poll for …` màu cam khi đã lỡ hai lượt poll; mỗi dòng nằm dưới watcher của vai nó); watcher chưa có dòng nào ghi "No pull requests yet"; dòng review trước rồi
   tới dòng fix, mỗi dòng gắn nhãn `· review` hoặc `· fix` — mục "Go to watcher tab" của nhóm đưa
   tab terminal đó lên trước (iTerm và Terminal chọn đúng tab sau khi macOS hỏi xin quyền Automation một
   lần; nếu không thì ứng dụng terminal được đưa lên trước; watcher đã bị đóng tab được mở lại bằng
