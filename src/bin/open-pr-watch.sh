@@ -162,7 +162,8 @@ setting_int() {
 #   seen_reviews  "<pr>:<review id>" already delivered (the newest 200)
 # etags/ (GitHub ETag cache, open-pr.sh triggers), fix_now/<pr> (a "Fix now" click, see fix-now).
 # One wait per repo and role: wait-<role>.pid. Per role set a wait serves (file suffix SFX: none
-# for both roles, else -review | -fix): heartbeat, watcher.json, stop.
+# for both roles, else -review | -fix): heartbeat, watcher.json, stop, quota.json (the host's
+# rate limit as that wait's last poll read it: open-pr.sh triggers --quota-file, plus host and at).
 LOCKED=""
 lock() {   # $1 lock dir, default the repo's state lock
     lk="${1:-$SD/.lock}"; i=0; nopid=0
@@ -694,7 +695,7 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     # --since is strict and the cursor has second precision: ask from 1s earlier; `seen` drops repeats.
     since=$(jq -n -r --arg c "$cursor" '$c | fromdateiso8601 - 1 | todateiso8601')
     [ -n "$TOKEN" ] || TOKEN=$(trigger_token)
-    set -- --since "$since" --mark-file "$TMPD/mark" --token "$TOKEN" --cache-dir "$SD/etags"
+    set -- --since "$since" --mark-file "$TMPD/mark" --token "$TOKEN" --cache-dir "$SD/etags" --quota-file "$TMPD/quota"
     : > "$TMPD/findings"
     if has_role fix; then
         prs=$(state_json | jq -r --arg l "$FIX_LISTED" '[($l | split(",")[] | select(. != "")),
@@ -702,9 +703,13 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
         who=""; [ -n "$FIX_LISTED" ] || who=$(account)
         set -- "$@" --findings-file "$TMPD/findings" ${who:+--fix-author "$who"} ${prs:+--fix-prs "$prs"}
     fi
-    rc=0
+    rc=0; rm -f "$TMPD/quota"
     opr triggers --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} "$@" \
         > "$TMPD/triggers" 2> "$TMPD/triggers.err" || rc=$?
+    if [ -s "$TMPD/quota" ]; then
+        jq -c --arg h "$HOST" --arg at "$(now_iso)" '. + {host: $h, at: $at}' "$TMPD/quota" > "$SD/quota$SFX.json.$$" \
+            && mv "$SD/quota$SFX.json.$$" "$SD/quota$SFX.json"
+    fi
     if [ "$rc" = 9 ] && [ -z "$(arg once)" ]; then LIMITED=1; return 0; fi
     cat "$TMPD/triggers.err" >&2
     if [ "$rc" != 0 ]; then
@@ -1144,14 +1149,15 @@ Subcommands:
       with the same `--roles`). The first run of a role set starts its cursor at now (no replay). Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
       Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower or
-      `poll` set this machine's interval. A vendor rate limit doubles the wait (up to 900 s, one
+      `poll` set this machine's interval. Each poll writes `quota.json`: the host's rate limit as
+      `triggers --quota-file` read it, plus `host` and `at`. A vendor rate limit doubles the wait (up to 900 s, one
       stderr line each time) until a poll succeeds. At most every 600 s, a tracked PR no longer
       open (merged or closed) is hidden and its sessions marked closed, then stopped once not in use;
       a failed check prints one stderr line and waits for the next. Every poll touches `heartbeat`;
       each start writes `watcher.json` {pid, cwd, term, term_session, tty, session_id, repo_dir,
       remote} (the terminal tab it runs in, its Claude Code session, and the repo, for the menu bar).
       A wait serving one role names these and `stop` with a suffix: `heartbeat-fix`,
-      `watcher-fix.json`, `stop-fix`.
+      `watcher-fix.json`, `stop-fix`, `quota-fix.json`.
       `--once`: one poll, exit 0 with nothing printed when nothing happened
   spawn --runner R --pr N --name S --prompt-file F [--role review|fix] [--url U] [--cwd W] [--fresh]
       open PR N's session for that role (default review) with the prompt read from F →

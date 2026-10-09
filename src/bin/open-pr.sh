@@ -68,7 +68,8 @@ bb_curl() { curl -sS --fail-with-body --config "$TMPD/bb.curlrc" "$@"; }
 bb_paged() {
     next="$1"
     while [ -n "$next" ]; do
-        page=$(bb_curl -L "$next") || { err "paged: $page"; return 1; }
+        page=$(bb_curl -D "$TMPD/bb.head" -L "$next") || { quota_note "$TMPD/bb.head"; err "paged: $page"; return 1; }
+        quota_note "$TMPD/bb.head"; api_call
         printf '%s' "$page" | jq -r "$2" || return 1
         next=$(printf '%s' "$page" | jq -r '.next // empty')
     done
@@ -795,10 +796,45 @@ rate_limited() {   # $1 stderr file
         bitbucket) grep -Eq 'returned error: 429([^0-9]|$)|HTTP 429' "$1" ;;
     esac
 }
+# --quota-file Q: the host's own rate-limit headers, from the responses `triggers` reads anyway
+# (last one carrying them wins), as {vendor, window, measured, limit, remaining, reset, near_limit,
+# calls}. window = seconds the limit spans (GitLab counts per minute); limit = the host's header,
+# else the documented default for its window (null: none documented); remaining, reset and
+# near_limit null when the host sent none; calls = requests this run sent that count against the
+# quota (a GitHub 304 does not; a paginated call counts once). Header values are vendor data:
+# only digits, and true/false for NearLimit, are kept.
+QF=""
+quota_note() {   # $1 = response(s) as printed with their headers: `gh api -i`, `glab api -i`, `-D` dumps
+    [ -n "$QF" ] && [ -s "$1" ] || return 0
+    tr -d '\r' < "$1" | awk -v out="$TMPD/quota.h" '
+        /^HTTP\/[0-9.]+ [0-9]+/ { h = 1; next }
+        h && /^$/ { h = 0; next }
+        h { i = index($0, ":"); if (!i) next
+            k = tolower(substr($0, 1, i - 1)); v = substr($0, i + 1); gsub(/^[ \t]+|[ \t]+$/, "", v)
+            sub(/^x-/, "", k)
+            if (k ~ /^ratelimit-(limit|remaining|reset)$/ && v ~ /^[0-9]+$/ && length(v) <= 12) q[substr(k, 11)] = v
+            else if (k == "ratelimit-nearlimit" && (v == "true" || v == "false")) q["near"] = v }
+        END { for (k in q) print k "=" q[k] > out }'
+}
+api_call() { [ -z "$QF" ] || printf '%s\n' "${1:-1}" >> "$TMPD/quota.calls"; }
+quota_write() {
+    [ -n "$QF" ] || return 0
+    case "$V" in github) win=3600 def=5000 ;; gitlab) win=60 def=null ;; *) win=3600 def=1000 ;; esac
+    qh() { sed -n "s/^$1=//p" "$TMPD/quota.h" 2>/dev/null | head -n 1; }
+    n=$(awk '{ s += $1 } END { print s + 0 }' "$TMPD/quota.calls" 2>/dev/null || echo 0)
+    jq -n -c --arg v "$V" --arg l "$(qh limit)" --arg r "$(qh remaining)" --arg t "$(qh reset)" --arg near "$(qh near)" \
+        --argjson win "$win" --argjson def "$def" --argjson calls "${n:-0}" '
+        {vendor: $v, window: $win, measured: ($l != "" or $r != ""),
+         limit: (if $l != "" then ($l | tonumber) else $def end),
+         remaining: (if $r != "" then ($r | tonumber) else null end),
+         reset: (if $t != "" and ($t | tonumber) >= 1000000000 then ($t | tonumber | todate) else null end),
+         near_limit: (if $near == "" then null else $near == "true" end), calls: $calls}' > "$QF.$$" && mv "$QF.$$" "$QF"
+}
+limited() { quota_write; die 9 "rate limited"; }
 # rl <command…>: a rate limit exits 9 so the watcher backs off; other failures pass through.
 rl() {
     rc=0; "$@" 2> "$TMPD/rl.err" || rc=$?
-    [ "$rc" = 0 ] || ! rate_limited "$TMPD/rl.err" || die 9 "rate limited"
+    [ "$rc" = 0 ] || ! rate_limited "$TMPD/rl.err" || limited
     cat "$TMPD/rl.err" >&2
     return "$rc"
 }
@@ -806,17 +842,19 @@ rl() {
 # hands back the body cached with its ETag. A page with a next link is fetched whole, uncached.
 # $1 = API path, stdout = the body.
 gh_get() {
-    [ -n "$CACHE" ] || { rl gh api --paginate "$1"; return; }
+    [ -n "$CACHE" ] || { api_call; rl gh api --paginate "$1"; return; }
     c="$CACHE/$(printf '%s' "$1" | cksum | cut -d' ' -f1)"
     # the ETag is vendor data: only its RFC 7232 shape reaches argv
     et=""; [ ! -s "$c.body" ] || et=$(grep -Ex '(W/)?"[!#-~]*"' "$c.etag" 2>/dev/null || true)
     rc=0
     if [ -n "$et" ]; then gh api -i -H "If-None-Match: $et" "$1" > "$TMPD/gh.resp" 2> "$TMPD/rl.err" || rc=$?
     else gh api -i "$1" > "$TMPD/gh.resp" 2> "$TMPD/rl.err" || rc=$?; fi
+    quota_note "$TMPD/gh.resp"
     if [ "$(head -n 1 "$TMPD/gh.resp" | cut -d' ' -f2)" = 304 ]; then cat "$c.body"; return 0; fi
+    api_call
     if [ "$rc" != 0 ]; then
         cat "$TMPD/gh.resp" >> "$TMPD/rl.err"   # -i prints the X-RateLimit headers on stdout
-        ! rate_limited "$TMPD/rl.err" || die 9 "rate limited"
+        ! rate_limited "$TMPD/rl.err" || limited
         cat "$TMPD/rl.err" >&2
         return "$rc"
     fi
@@ -824,12 +862,23 @@ gh_get() {
     tr -d '\r' < "$TMPD/gh.resp" | awk '/^$/ { exit } { print }' > "$TMPD/gh.head"
     if grep -Eiq '^link:.*rel="next"' "$TMPD/gh.head"; then
         rm -f "$c.body" "$c.etag"
-        rl gh api --paginate "$1"; return
+        api_call; rl gh api --paginate "$1"; return
     fi
     # Two waits on one repo share the cache: each file renamed into place, the body before its ETag.
     cp "$TMPD/gh.body" "$c.body.$$" && mv "$c.body.$$" "$c.body"
     sed -n 's/^[Ee][Tt][Aa][Gg]: *//p' "$TMPD/gh.head" | head -n 1 > "$c.etag.$$" && mv "$c.etag.$$" "$c.etag"
     cat "$TMPD/gh.body"
+}
+# GitLab GET of every page, with the headers `glab api -i` prints before each page's body (status
+# line, headers, blank line). $1 = API path, stdout = the bodies.
+gl_get() {
+    rc=0; glab api -i --paginate "$1" > "$TMPD/gl.resp" 2> "$TMPD/rl.err" || rc=$?
+    n=$(grep -c '^HTTP/' "$TMPD/gl.resp" || true); [ "$n" -ge 1 ] || n=1   # one per page
+    quota_note "$TMPD/gl.resp"; api_call "$n"
+    [ "$rc" = 0 ] || ! rate_limited "$TMPD/rl.err" || limited
+    cat "$TMPD/rl.err" >&2
+    [ "$rc" = 0 ] || return "$rc"
+    tr -d '\r' < "$TMPD/gl.resp" | awk '/^HTTP\/[0-9.]+ [0-9]+/ { h = 1; next } h && /^$/ { h = 0; next } !h'
 }
 # Open PRs -> $TMPD/tr.prs ({pr, url, author, updated_at} lines); their comments -> stdout as
 # {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid, in_reply_to, review_id}.
@@ -848,12 +897,12 @@ trg_fetch() {
             jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: (.in_reply_to_id // null | if . then tostring else . end), user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}" "$TMPD/tr.page" ;;
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
-            rl glab api --paginate "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
+            gl_get "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
             jq -c '.[] | {pr: .iid, url: .web_url, author: .author.username, updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r iid; do
                 check_ident '^[0-9]+$' "$iid"
                 # discussions, not notes: each note needs its discussion id to be replied to
-                rl glab api --paginate "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
+                gl_get "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
                 jq -c --argjson pr "$iid" '.[] | .id as $tid | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id, in_reply_to: null, review_id: null}' "$TMPD/tr.page"
             done ;;
         bitbucket)
@@ -886,7 +935,7 @@ trg_findings() {
     if [ "$V" = github ]; then
         jq -r --arg s "$SINCE_Z" 'select($s == "" or .updated_at > $s) | .pr' "$TMPD/fx.prs" | while IFS= read -r n; do
             check_ident '^[0-9]+$' "$n"
-            rl gh api --paginate "repos/$OWNER/$REPO/pulls/$n/reviews?per_page=100" > "$TMPD/fx.page"
+            api_call; rl gh api --paginate "repos/$OWNER/$REPO/pulls/$n/reviews?per_page=100" > "$TMPD/fx.page"
             jq -c --argjson pr "$n" '.[] | select(.state != "PENDING")
                 | {pr: $pr, comment_id: (.id | tostring), kind: "review", thread_id: null, user: .user.login,
                    created_at: .submitted_at, body: (.body // ""), in_reply_to: null, review_id: (.id | tostring)}' "$TMPD/fx.page"
@@ -924,6 +973,7 @@ cmd_triggers() {
     vendor_init; SINCE=$(arg since); MARK=$(arg mark_file)
     CACHE=""; [ "$V" != github ] || CACHE=$(arg cache_dir)
     [ -z "$CACHE" ] || mkdir -p "$CACHE"
+    QF=$(arg quota_file)
     FINDINGS=$(arg findings_file); FIX_AUTHOR=$(arg fix_author); FIX_PRS=$(arg fix_prs)
     [ -z "$FIX_AUTHOR" ] || check_ident '^[A-Za-z0-9][A-Za-z0-9_.-]*$' "$FIX_AUTHOR"
     [ -z "$FIX_PRS" ] || check_ident '^[0-9]+(,[0-9]+)*$' "$FIX_PRS"
@@ -962,10 +1012,11 @@ cmd_triggers() {
         # the run so no trigger is misjudged.
         jq -r '.uid // empty' "$TMPD/tr.cand" | sort -u | while IFS= read -r uid; do
             check_ident '^[0-9]+$' "$uid"
+            api_call
             if glab api "projects/$GL_PROJ/members/all/$uid" > "$TMPD/gl.member" 2> "$TMPD/gl.member.err"; then
                 a=$(jq -r 'if (.access_level // 0) >= 30 then "yes" else "no" end' "$TMPD/gl.member")
             elif rate_limited "$TMPD/gl.member.err"; then
-                die 9 "rate limited"
+                limited
             elif grep -q '404' "$TMPD/gl.member.err"; then
                 a=no
             else
@@ -976,6 +1027,7 @@ cmd_triggers() {
         done > "$TMPD/tr.auth.l"
         jq -s 'add // {}' "$TMPD/tr.auth.l" > "$TMPD/tr.auth"
     fi
+    quota_write
     jq -c --slurpfile a "$TMPD/tr.auth" '
         (if .uid != null then ($a[0][.uid | tostring] // "no") else .authorized end) as $auth
         | {pr, url, pr_author, comment_id, kind, thread_id, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
@@ -1290,11 +1342,12 @@ Subcommands:
   list-repos [--dir D]
       every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote,
       vendor, owner, repo, host, last commit ISO-8601
-  triggers [--since T] [--mark-file F] [--token K] [--cache-dir C]
+  triggers [--since T] [--mark-file F] [--token K] [--cache-dir C] [--quota-file Q]
            [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
       open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL;
       F2 gets the reviews this plugin posted on A's PRs or the listed ones; GitHub GETs are
-      conditional on the ETags kept in C; contract in reference/vendor-interface.md
+      conditional on the ETags kept in C; Q gets the host's rate limit; contract in
+      reference/vendor-interface.md
   open-prs
       every open PR/MR number, 1 per line
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)

@@ -147,7 +147,8 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
   fixed, failed) and always offers: **Fix now** on a row with new findings,
   open the pull request, open its session in the terminal that watcher runs in (a new tab of iTerm,
   Terminal, Ghostty or WezTerm; any other terminal opens Terminal), copy the command;
-- poll every 15 s, 30 s, 1, 2 or 5 minutes, or each repo's setting — applies within seconds;
+- poll every 15 s, 30 s, 1, 2, 3, 5 or 10 minutes, or each repo's setting — applies within seconds, each
+  with its estimated requests per hour (see Rate limits);
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
 A row's "Remove from list" hides the pull request and takes it out of the fix role, a merged or closed
@@ -176,6 +177,13 @@ pull request updated since the last poll, findings included. With no session act
 10 minutes, the watcher polls every 10 minutes (never faster than the setting; a machine-wide "Poll
 every" choice always holds). When the host reports a rate limit, the watcher doubles its interval (up to
 15 minutes) and returns to `poll_interval_seconds` after the next successful poll.
+
+The menu bar shows, under its header, the tightest quota left on the hosts watched, read from the
+rate-limit headers of the poll's own requests (no extra request) — e.g. `GitHub API 4,812/5,000 left`,
+orange under 30 % left, red under 10 %. Each "Poll every" choice shows the requests per hour it would
+cost, from each repo's last poll, and ⚠ when that passes half the host's hourly limit (GitLab's
+per-minute limit counted per hour). Bitbucket may only say it is near its limit; a host that sends no
+rate-limit headers shows no gauge.
 
 ## Settings
 

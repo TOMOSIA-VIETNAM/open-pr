@@ -29,6 +29,9 @@ case "$1" in
     repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
                  printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
     triggers) printf '%s\n' "$*" >> "$FAKE_HOME/triggers.args"
+              # quota.json: what --quota-file gets, a rate-limited poll included
+              qf=$(printf '%s\n' "$@" | sed -n '/^--quota-file$/{n;p;}')
+              [ -z "$qf" ] || [ ! -f "$FAKE_HOME/quota.json" ] || cp "$FAKE_HOME/quota.json" "$qf"
               # triggers.rc: one outcome per call, consumed in order — 9 = rate limited, 1 = no
               # network, quiet = nothing
               if [ -s "$FAKE_HOME/triggers.rc" ]; then
@@ -1668,15 +1671,55 @@ def test_the_menu_bar_lists_each_role_watcher_with_the_rows_of_its_role(w):
         (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
             {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": ts, "tty": "", "session_id": ""}))
         (w.sd / f"heartbeat{sfx}").write_text("")
-    # scan() alone: the app's own run() renamed, its Cocoa classes (registering one outside an
-    # app run hangs osascript) left out
+    got = {x["sfx"]: (x["key"], x["rows"]) for x in _menubar_js(w,
+        "return JSON.stringify(scan().watchers.map(function (x) {"
+        " return { key: x.key, sfx: x.sfx, rows: x.rows.map(function (r) { return r.title; }) }; }));")}
+    assert got == {"-review": ("s:w0t0p1:AA-review", ["o/r #5"]), "-fix": ("s:w0t0p2:BB-fix", ["o/r #6"])}
+
+
+def _menubar_js(w, body):
+    """The menu bar's own functions run headless: its Cocoa classes (registering one outside an
+    app run hangs osascript) left out, its run() replaced by `body`."""
     src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), flags=re.S | re.M)
     js = src.replace("function run(argv) {", "function runApp(argv) {", 1) + (
-        f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700;"
-        " return JSON.stringify(scan().watchers.map(function (x) {"
-        " return { key: x.key, sfx: x.sfx, rows: x.rows.map(function (r) { return r.title; }) }; })); }")
-    f = w.home / "scan.js"
+        f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700; {body} }}")
+    f = w.home / "menubar-headless.js"
     f.write_text(js)
     out = subprocess.run(["osascript", "-l", "JavaScript", str(f)], capture_output=True, text=True, timeout=30)
-    got = {x["sfx"]: (x["key"], x["rows"]) for x in json.loads(out.stdout)}
-    assert got == {"-review": ("s:w0t0p1:AA-review", ["o/r #5"]), "-fix": ("s:w0t0p2:BB-fix", ["o/r #6"])}, out.stderr
+    assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout)
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_bar_shows_the_tightest_quota_and_warns_before_a_fast_poll(w):
+    soon = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 1800))
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    w.sd.mkdir(parents=True, exist_ok=True)
+    (w.sd / "heartbeat").write_text("")
+    (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x"}))
+    (w.sd / "quota.json").write_text(json.dumps(
+        {"vendor": "github", "host": "github.com", "window": 3600, "measured": True, "limit": 5000,
+         "remaining": 1200, "reset": soon, "near_limit": None, "calls": 3, "at": now}))
+    got = _menubar_js(w, "var q = scan().quotas; return JSON.stringify("
+                         "[gauge(q), estimate(q, 15), estimate(q, 180), estimate([], 15)]);")
+    assert got[0] == {"ratio": 0.24, "text": "GitHub API 1,200/5,000 left", "level": "low"}
+    assert got[1:] == ["  ≈720/h", "  ≈60/h", ""], "720/h is under half of 5000/h"
+    (w.sd / "quota.json").write_text(json.dumps(
+        {"vendor": "gitlab", "host": "gitlab.com", "window": 60, "limit": 10, "remaining": 0,
+         "reset": None, "calls": 5, "at": now}))
+    got = _menubar_js(w, "var q = scan().quotas; return JSON.stringify([gauge(q).level, estimate(q, 15)]);")
+    assert got == ["critical", "  ≈1,200/h ⚠"], "a per-minute limit is converted to per hour (600/h)"
+
+
+def test_wait_keeps_the_hosts_quota_per_role_set_even_when_rate_limited(w):
+    fix_ready(w)
+    w.run("wait", "--once")
+    assert not (w.sd / "quota.json").exists(), "no quota read, nothing kept"
+    (w.home / "quota.json").write_text(json.dumps({"vendor": "github", "limit": 5000, "remaining": 7, "calls": 3}))
+    w.run("wait", "--once", "--roles", "fix")
+    q = json.loads((w.sd / "quota-fix.json").read_text())
+    assert (q["remaining"], q["host"]) == (7, "github.com") and q["at"].endswith("Z")
+    (w.home / "triggers.rc").write_text("9\n")
+    (w.home / "quota.json").write_text(json.dumps({"vendor": "github", "limit": 5000, "remaining": 0, "calls": 1}))
+    w.run("wait", "--once", check=False)
+    assert json.loads((w.sd / "quota.json").read_text())["remaining"] == 0

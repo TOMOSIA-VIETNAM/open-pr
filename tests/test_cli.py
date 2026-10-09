@@ -1022,7 +1022,7 @@ def test_triggers_bitbucket_lists_only_the_prs_updated_since(shims):
 
 # ------------------------------------------------------- triggers: ETags ----
 
-def etag_gh(shims, pages, etag='W/"e1"', not_modified=True):
+def etag_gh(shims, pages, etag='W/"e1"', not_modified=True, headers="X-Ratelimit-Remaining: 4999\\r\\n"):
     """gh answering `api -i` like the real one: status line + headers + body; a matching
     If-None-Match gets `304` and exit 1 (gh treats every status > 299 as an error)."""
     d = Path(shims["tmp"]) / "etag-pages"
@@ -1039,10 +1039,10 @@ esac
 [ -n "$f" ] || {{ printf '[]\\n'; exit 0; }}
 case "$*" in
   *'If-None-Match: {etag}'*) if [ "{1 if not_modified else ''}" = 1 ]; then
-        printf 'HTTP/2.0 304 Not Modified\\r\\nEtag: {etag}\\r\\n\\r\\n'; printf 'gh: HTTP 304\\n' >&2; exit 1; fi ;;
+        printf 'HTTP/2.0 304 Not Modified\\r\\nEtag: {etag}\\r\\n{headers}\\r\\n'; printf 'gh: HTTP 304\\n' >&2; exit 1; fi ;;
 esac
 case "$*" in
-  *" -i "*) printf 'HTTP/2.0 200 OK\\r\\nEtag: {etag}\\r\\nX-Ratelimit-Remaining: 4999\\r\\n\\r\\n' ;;
+  *" -i "*) printf 'HTTP/2.0 200 OK\\r\\nEtag: {etag}\\r\\n{headers}\\r\\n' ;;
 esac
 cat "$f"
 ''')
@@ -1098,6 +1098,90 @@ printf 'gh: API rate limit exceeded (HTTP 403)\\n' >&2; exit 1
 ''')
     r = triggers(shims, "github", "--cache-dir", str(tmp_path / "etags"), check=False)
     assert r.returncode == 9 and r.stdout == ""
+
+
+# ------------------------------------------------------- triggers: quota ----
+
+def quota(shims, tmp_path, vendor, *extra, check=True):
+    q = tmp_path / "quota.json"
+    q.unlink(missing_ok=True)
+    r = triggers(shims, vendor, "--quota-file", str(q), *extra, check=check)
+    return json.loads(q.read_text()) if q.exists() else None, r
+
+
+GH_QUOTA = "X-RateLimit-Limit: 5000\\r\\nX-RateLimit-Remaining: 4812\\r\\nX-RateLimit-Reset: 1767225600\\r\\n"
+
+
+def test_quota_github_reads_the_headers_of_the_polls_own_requests(shims, tmp_path):
+    etag_gh(shims, ETAG_PAGES, headers=GH_QUOTA)
+    cache = str(tmp_path / "etags")
+    q, _ = quota(shims, tmp_path, "github", "--cache-dir", cache)
+    assert q == {"vendor": "github", "window": 3600, "measured": True, "limit": 5000, "remaining": 4812,
+                 "reset": "2026-01-01T00:00:00Z", "near_limit": None, "calls": 3}
+    assert shims["log"].read_text().count("gh ") == 3, "no request is added to read the quota"
+    q, _ = quota(shims, tmp_path, "github", "--cache-dir", cache)
+    assert q["remaining"] == 4812 and q["calls"] == 0, "a 304 carries the headers and costs nothing"
+
+
+def test_quota_github_without_headers_keeps_the_documented_limit_and_drops_hostile_values(shims, tmp_path):
+    etag_gh(shims, ETAG_PAGES, headers="X-RateLimit-Remaining: 5; touch /tmp/pwned\\r\\n")
+    q, _ = quota(shims, tmp_path, "github", "--cache-dir", str(tmp_path / "etags"))
+    assert (q["measured"], q["limit"], q["remaining"], q["reset"]) == (False, 5000, None, None)
+    assert not Path("/tmp/pwned").exists()
+
+
+def test_quota_survives_a_rate_limit_exit(shims, tmp_path):
+    make_shim(Path(shims["path"]), "gh", '''printf 'HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Limit: 5000\\r\\nX-Ratelimit-Remaining: 0\\r\\n\\r\\n{}'
+printf 'gh: API rate limit exceeded (HTTP 403)\\n' >&2; exit 1
+''')
+    q, r = quota(shims, tmp_path, "github", "--cache-dir", str(tmp_path / "etags"), check=False)
+    assert r.returncode == 9 and (q["limit"], q["remaining"]) == (5000, 0)
+
+
+def test_quota_gitlab_reads_every_page_header_and_keeps_the_bodies(shims, tmp_path):
+    # as glab 1.110 prints `api -i --paginate`: status line, headers, blank line, body — per page
+    page = lambda rem, body, nxt="": (f"HTTP/1.1 200 OK\r\nRatelimit-Limit: 2000\r\nRatelimit-Remaining: {rem}\r\n"
+                                      f"Ratelimit-Reset: 1767225600\r\n{nxt}\r\n" + json.dumps(body) + "\n")
+    note = {"id": 11, "author": {"username": "dev", "id": 7}, "created_at": "2026-01-01T00:00:01Z",
+            "body": HOSTILE + "\nHTTP/1.1 200 OK\nRatelimit-Remaining: 1"}
+    d = tmp_path / "gl-pages"
+    d.mkdir()
+    (d / "mrs").write_text(page(1990, [{"iid": 9, "web_url": "u9"}], 'Link: <x?page=2>; rel="next"\r\n')
+                           + page(1989, [{"iid": 10, "web_url": "u10"}]))
+    (d / "d9").write_text(page(1988, [{"id": "d1", "notes": [note]}]))
+    (d / "d10").write_text(page(1987, []))
+    make_shim(Path(shims["path"]), "glab", f'''printf '%s\\n' "glab $*" >> "{shims['log']}"
+case "$*" in
+  *" -i "*merge_requests\\?state=opened*) cat "{d}/mrs" ;;
+  *" -i "*merge_requests/9/discussions*) cat "{d}/d9" ;;
+  *" -i "*merge_requests/10/discussions*) cat "{d}/d10" ;;
+  *members/all/7*) printf '{{"access_level": 30}}' ;;
+  *) printf '[]' ;;
+esac
+''')
+    q, r = quota(shims, tmp_path, "gitlab")
+    assert [x["body"] for x in r] == [note["body"]], "a body is data, never a header line"
+    assert q == {"vendor": "gitlab", "window": 60, "measured": True, "limit": 2000, "remaining": 1987,
+                 "reset": "2026-01-01T00:00:00Z", "near_limit": None, "calls": 5}, \
+        "2 listing pages + 2 discussions + 1 membership; the last response's headers win"
+
+
+def test_quota_gitlab_without_headers_knows_no_limit(shims, tmp_path):
+    serve(shims, "glab", [("merge_requests?state=opened", [])])
+    q, _ = quota(shims, tmp_path, "gitlab")
+    assert (q["measured"], q["limit"], q["remaining"], q["calls"]) == (False, None, None, 1)
+
+
+def test_quota_bitbucket_reads_the_dumped_headers(shims, tmp_path):
+    make_shim(Path(shims["path"]), "curl", f'''printf '%s\\n' "curl $*" >> "{shims['log']}"
+prev=""; for a in "$@"; do [ "$prev" != -D ] || printf 'HTTP/2 200\\r\\nX-RateLimit-Limit: 1000\\r\\nX-RateLimit-NearLimit: true\\r\\n\\r\\n' > "$a"; prev="$a"; done
+printf '{{"values": [], "next": null}}'
+''')
+    q, _ = quota(shims, tmp_path, "bitbucket")
+    assert (q["measured"], q["limit"], q["remaining"], q["near_limit"], q["window"]) == (True, 1000, None, True, 3600)
+    serve(shims, "curl", [("pullrequests?state=OPEN", {"values": [], "next": None})])
+    q, _ = quota(shims, tmp_path, "bitbucket")
+    assert (q["measured"], q["limit"], q["near_limit"], q["calls"]) == (False, 1000, None, 1)
 
 
 # ----------------------------------------------------- triggers: findings ----

@@ -144,7 +144,8 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
   lỗi) và luôn có: **Fix now** trên dòng có finding mới, mở pull request,
   mở session trong terminal mà watcher đó đang chạy (tab mới của iTerm, Terminal, Ghostty hoặc WezTerm;
   terminal khác thì mở Terminal), copy command;
-- poll mỗi 15 giây, 30 giây, 1, 2 hoặc 5 phút, hoặc theo setting của từng repo — có hiệu lực sau vài giây;
+- poll mỗi 15 giây, 30 giây, 1, 2, 3, 5 hoặc 10 phút, hoặc theo setting của từng repo — có hiệu lực sau vài giây,
+  mỗi lựa chọn kèm số request ước tính mỗi giờ (xem Giới hạn rate);
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
 "Remove from list" trên một dòng sẽ ẩn pull request đó và đưa nó ra khỏi vai fix, pull request đã merge
@@ -173,6 +174,13 @@ mỗi pull request được cập nhật kể từ lần poll trước, đã g�
 không có gì mới trong 10 phút, watcher poll mỗi 10 phút (không bao giờ nhanh hơn setting; lựa chọn "Poll
 every" cho cả máy luôn được giữ). Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng thời gian poll
 (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
+
+Menu bar hiện, dưới phần header, quota còn lại thấp nhất trong các host đang watch, đọc từ header rate-limit
+của chính các request poll (không thêm request nào) — vd `GitHub API 4,812/5,000 left`, màu cam khi còn dưới
+30 %, đỏ khi dưới 10 %. Mỗi lựa chọn "Poll every" hiện số request mỗi giờ nó sẽ tốn, tính từ lần poll gần
+nhất của từng repo, kèm ⚠ khi vượt một nửa giới hạn mỗi giờ của host (giới hạn theo phút của GitLab được quy
+ra theo giờ). Bitbucket có thể chỉ báo là sắp chạm giới hạn; host không gửi header rate-limit thì không hiện
+gauge.
 
 ## Setting
 

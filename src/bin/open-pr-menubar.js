@@ -10,7 +10,8 @@
 //                                           the repo_dir/remote "Remove from list" passes to `hide` and
 //                                           "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
-//   heartbeat, watcher.json and stop belong to the wait serving both roles; a wait serving one
+//   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
+//   heartbeat, watcher.json, stop and quota.json belong to the wait serving both roles; a wait serving one
 //   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
@@ -109,6 +110,15 @@ var MOTH = [
     ['#FF8A50', [56,32, 64,27, 30,6, 21,16]],       ['#FF8A50', [107,16, 98,6, 64,27, 72,32]],
     ['#A32C06', [55,26, 73,26, 71,94, 64,110, 57,94]]
 ];
+// Rate limits, from each wait's quota.json (open-pr.sh triggers --quota-file, plus host and at):
+// {vendor, host, window, limit, remaining, reset, near_limit, calls, at}. The header shows the
+// tightest measured one; "Poll every" estimates requests per hour at each interval as
+// Σ calls of each wait's last poll × polls per hour, per host (a GitHub 304 costs nothing, so a
+// quiet GitHub repo costs ~0), and marks ⚠ past QUOTA.warn of that host's hourly limit
+// (limit × 3600 / window: GitLab counts per minute).
+var QUOTA = { warn: 0.5, low: 0.3, critical: 0.1 };
+var VENDOR_NAME = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' };
+var VENDOR_HOST = { github: 'github.com', gitlab: 'gitlab.com', bitbucket: 'bitbucket.org' };
 var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
 
 // The Stop button over its hand-drawn pill: darkens the pill while the pointer is on it.
@@ -213,7 +223,7 @@ function watcherOf(w, set) {
 }
 
 function scan() {
-    var out = { repos: 0, watchers: [], active: 0 }, byKey = {};
+    var out = { repos: 0, watchers: [], active: 0, quotas: [] }, byKey = {};
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch';
@@ -230,6 +240,8 @@ function scan() {
             at[set.sfx].start = Math.max(at[set.sfx].start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
             at[set.sfx].repos.push(name);
             at[set.sfx].dirs.push(dir);
+            var q = parse(readText(dir + '/quota' + set.sfx + '.json'));
+            if (q && typeof q === 'object' && VENDOR_NAME[q.vendor]) out.quotas.push(q);
         });
         // a row goes to the watcher serving its role, else (no wait serves it) the repo's first one
         var to = function (role) {
@@ -310,6 +322,46 @@ function scan() {
         return 0;
     });
     return out;
+}
+// One host per vendor + host name.
+function hostOf(q) { return q.vendor + '|' + (str(q.host) || VENDOR_HOST[q.vendor]); }
+function hostName(q) { var h = str(q.host); return h && h !== VENDOR_HOST[q.vendor] ? h : VENDOR_NAME[q.vendor]; }
+function num(v) { return typeof v === 'number' && isFinite(v) && v >= 0 ? v : null; }
+// Still the current window: its reset is ahead, or (no reset) it was read within one window.
+function current(q) {
+    var r = ms(q.reset), win = num(q.window) || 3600;
+    return r ? r > Date.now() : Date.now() - ms(q.at) < win * 1000;
+}
+// The tightest measured quota → { text, level: '' | 'low' | 'critical' }, or null.
+function gauge(quotas) {
+    var best = null;
+    quotas.forEach(function (q) {
+        if (!current(q)) return;
+        var l = num(q.limit), r = num(q.remaining);
+        var g = l && r !== null ? { ratio: r / l, text: hostName(q) + ' API ' + r.toLocaleString('en-US') + '/' + l.toLocaleString('en-US') + ' left' }
+              : q.near_limit === true ? { ratio: QUOTA.low - 0.01, text: hostName(q) + ' API near its limit' } : null;
+        if (g && (!best || g.ratio < best.ratio)) best = g;
+    });
+    if (!best) return null;
+    best.level = best.ratio < QUOTA.critical ? 'critical' : best.ratio < QUOTA.low ? 'low' : '';
+    return best;
+}
+// Requests per hour polling every `seconds` → ' ≈N/h', plus ' ⚠' past QUOTA.warn of the
+// host's hourly limit; the busiest host speaks. '' with no quota read yet.
+function estimate(quotas, seconds) {
+    var hosts = {};
+    quotas.forEach(function (q) {
+        var h = hosts[hostOf(q)] || (hosts[hostOf(q)] = { calls: 0, hourly: null });
+        h.calls += num(q.calls) || 0;
+        var l = num(q.limit), w = num(q.window);
+        if (l && w) h.hourly = Math.max(h.hourly || 0, l * 3600 / w);
+    });
+    var worst = null;
+    Object.keys(hosts).forEach(function (k) {
+        var h = hosts[k], perHour = Math.round(h.calls * 3600 / seconds), share = h.hourly ? perHour / h.hourly : 0;
+        if (!worst || share > worst.share || (share === worst.share && perHour > worst.perHour)) worst = { perHour: perHour, share: share };
+    });
+    return worst ? '  ≈' + worst.perHour.toLocaleString('en-US') + '/h' + (worst.share > QUOTA.warn ? ' ⚠' : '') : '';
 }
 function ms(t) { var n = new Date(str(t)).getTime(); return isNaN(n) ? 0 : n; }
 // findings counts {"🟠": 2} → "2 🟠 · 4 🔵", severity order
@@ -439,16 +491,22 @@ function label(text, font, color, x, y) {
     f.setFrame($.NSMakeRect(x, y, HEADER_W - x - 14, 17));
     return f;
 }
-function headerView(repos, watchers, until) {
-    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, HEADER_W, 48));
+function headerView(repos, watchers, until, quota) {
+    var up = quota ? 14 : 0;   // a third line for the quota gauge
+    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, HEADER_W, 48 + up));
     var iv = $.NSImageView.imageViewWithImage(icons.header);
-    iv.setFrame($.NSMakeRect(14, 10, 28, 28));
+    iv.setFrame($.NSMakeRect(14, 10 + up / 2, 28, 28));
     v.addSubview(iv);
-    v.addSubview(label('open-pr', $.NSFont.boldSystemFontOfSize(13), $.NSColor.labelColor, 52, 24));
+    v.addSubview(label('open-pr', $.NSFont.boldSystemFontOfSize(13), $.NSColor.labelColor, 52, 24 + up));
     var line = (repos ? 'Watching ' + repos + (repos === 1 ? ' repo' : ' repos') : 'Not watching') + ' · ' +
                (watchers > 1 ? watchers + ' watchers · ' : '') +
                (until ? 'toasts off until ' + hhmm(until) : 'toasts on');
-    v.addSubview(label(line, $.NSFont.systemFontOfSize(11), $.NSColor.secondaryLabelColor, 52, 7));
+    v.addSubview(label(line, $.NSFont.systemFontOfSize(11), $.NSColor.secondaryLabelColor, 52, 7 + up));
+    if (quota) {
+        var c = quota.level === 'critical' ? $.NSColor.systemRedColor
+              : quota.level === 'low' ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor;
+        v.addSubview(label(quota.text, $.NSFont.systemFontOfSize(11), c, 52, 6));
+    }
     return v;
 }
 
@@ -569,7 +627,7 @@ function build(s) {
     rowParts = {}; stopParts = {}; litRow = null;
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
-    head.setView(headerView(s.repos, s.watchers.length, until));
+    head.setView(headerView(s.repos, s.watchers.length, until, gauge(s.quotas)));
     m.addItem(head);
 
     // no section title: a menu indents the items under one
@@ -613,8 +671,11 @@ function build(s) {
     if (until) add(sub, 'Turn toasts back on', 'snooze:', undefined, 0);
     else add(sub, 'Toasts on').setState($.NSControlStateValueOn);
     var cur = pollSeconds(), ps = newMenu('Poll every');
-    [[15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [300, '5 minutes']].forEach(function (o) {
-        add(ps, o[1], 'poll:', undefined, o[0]).setState(cur === o[0] ? $.NSControlStateValueOn : $.NSControlStateValueOff);
+    [[15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [180, '3 minutes'],
+     [300, '5 minutes'], [600, '10 minutes']].forEach(function (o) {
+        var mi = add(ps, o[1] + estimate(s.quotas, o[0]), 'poll:', undefined, o[0]);
+        mi.setState(cur === o[0] ? $.NSControlStateValueOn : $.NSControlStateValueOff);
+        if (s.quotas.length) mi.setToolTip('API requests per hour at this interval, from the last poll of each repo; ⚠ = over half the host\'s hourly limit');
     });
     ps.addItem($.NSMenuItem.separatorItem);
     add(ps, 'Repo setting', 'poll:', undefined, 0).setState(cur ? $.NSControlStateValueOff : $.NSControlStateValueOn);
