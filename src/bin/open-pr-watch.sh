@@ -1068,8 +1068,16 @@ cmd_menubar() {
     set -- $dirs
     IFS=$old_ifs; set +f
     nohup osascript -l JavaScript "$SELF_DIR/open-pr-menubar.js" "$WD/snooze_until" "$pf" \
-        "$((3 * BACKOFF_CAP))" "$@" "$SELF_DIR/open-pr-watch.sh" > /dev/null 2>&1 < /dev/null &
-    printf '%s\n' "$!" > "$pf"
+        "$((3 * BACKOFF_CAP))" "$@" "$SELF_DIR/open-pr-watch.sh" > "$WD/menubar.log" 2>&1 < /dev/null &
+    pid=$!
+    printf '%s\n' "$pid" > "$pf"
+    # Inside a shell sandbox it cannot reach the window server and exits at once: say so, never
+    # `started` for an item that is not there.
+    sleep 2
+    if ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$pf" "$WD/menubar.dirs"
+        die 1 "open-pr-watch.sh menubar: the menu bar exited at start — run it with the shell sandbox off (log: $WD/menubar.log)"
+    fi
     printf 'started\n'
 }
 
@@ -1183,7 +1191,8 @@ Subcommands:
   menubar [--close]
       macOS: start the menu bar item (review and fix rows grouped by the watcher serving their role,
       recent toasts, snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
-      `started` | `running`; one running on other data dirs than `data-dir --all` now prints is
+      `started` | `running` (exit 1 when it exits at start, e.g. inside a shell sandbox; its
+      stderr is `menubar.log`); one running on other data dirs than `data-dir --all` now prints is
       restarted (`started`); it stays until closed. `--close` → `closed` | `not running`. Elsewhere
       `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]

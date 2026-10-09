@@ -1227,6 +1227,15 @@ def test_menubar_without_osascript_is_no_equivalent(w, tmp_path):
     assert r.stdout == "NO-EQUIVALENT\n"
 
 
+def test_a_menu_bar_that_exits_at_start_is_reported_not_started(w):
+    """Inside a shell sandbox osascript cannot reach the window server and exits at once."""
+    r = w.run("menubar", check=False)
+    assert r.returncode == 1 and r.stdout == "" and "sandbox off" in r.stderr
+    assert not (w.watch / "menubar.pid").exists()
+    assert w.run("menubar", env_extra={"FAKE_SLEEP": "30"}).stdout == "started\n", "a later start is not blocked"
+    os.kill(int((w.watch / "menubar.pid").read_text()), 9)
+
+
 def test_menubar_closes_on_request(w):
     env = {"FAKE_SLEEP": "30"}
     assert w.run("menubar", env_extra=env).stdout == "started\n"

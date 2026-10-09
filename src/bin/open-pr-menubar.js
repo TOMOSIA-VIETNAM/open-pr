@@ -428,13 +428,19 @@ function section(menu, title) {
     else add(menu, title);
 }
 
-// text, then its role tag: smaller, bold, in the role's colour
+// text, then its role tag: smaller, bold, in the role's colour. Built through mutableString and
+// attribute ranges: JXA does not bridge NSAttributedString's initWithString initializers.
+// Attribute keys are the string values of NSFontAttributeName, NSForegroundColorAttributeName, NSKernAttributeName.
 function tagged(text, role, font) {
-    var s = $.NSMutableAttributedString.alloc.initWithStringAttributes(text, $({ NSFont: font }));
-    var tag = ROLE_TAG[role];
-    if (tag) s.appendAttributedString($.NSAttributedString.alloc.initWithStringAttributes('  ' + tag[0], $({
-        NSFont: $.NSFont.systemFontOfSizeWeight(font.pointSize - 2, $.NSFontWeightBold), NSForegroundColor: rgb(tag[1]),
-        NSKern: 0.6 })));
+    var s = $.NSMutableAttributedString.alloc.init, tag = ROLE_TAG[role];
+    s.mutableString.appendString(text + (tag ? '  ' + tag[0] : ''));
+    s.addAttributeValueRange('NSFont', font, $.NSMakeRange(0, s.length));
+    if (tag) {
+        var r = $.NSMakeRange(text.length + 2, tag[0].length);
+        s.addAttributeValueRange('NSFont', $.NSFont.systemFontOfSizeWeight(font.pointSize - 2, $.NSFontWeightBold), r);
+        s.addAttributeValueRange('NSColor', rgb(tag[1]), r);
+        s.addAttributeValueRange('NSKern', $(0.6), r);
+    }
     return s;
 }
 function label(text, font, color, x, y) {
