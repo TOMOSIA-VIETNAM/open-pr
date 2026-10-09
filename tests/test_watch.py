@@ -1668,9 +1668,9 @@ def test_the_menu_bar_lists_each_role_watcher_with_the_rows_of_its_role(w):
         (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
             {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": ts, "tty": "", "session_id": ""}))
         (w.sd / f"heartbeat{sfx}").write_text("")
-    # scan() alone: the app's own run() renamed, its Cocoa target class (registering it outside an
+    # scan() alone: the app's own run() renamed, its Cocoa classes (registering one outside an
     # app run hangs osascript) left out
-    src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), count=1, flags=re.S | re.M)
+    src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), flags=re.S | re.M)
     js = src.replace("function run(argv) {", "function runApp(argv) {", 1) + (
         f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700;"
         " return JSON.stringify(scan().watchers.map(function (x) {"
