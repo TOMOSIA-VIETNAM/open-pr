@@ -81,7 +81,7 @@
       "sha": "5d2434838153",
       "files": [
         "commands/review.md",
-        "commands/watch-review.md"
+        "commands/watch.md"
       ],
       "sample": "critical read claude plugin root core guardrails md and core cli md first shared rules the op runtime",
       "reason": "The pointer to core/guardrails.md must exist verbatim in every command file — it is the delegation itself, not a rule. Extracting it would mean a file telling the agent to read the file it is already reading."
@@ -90,7 +90,7 @@
       "sha": "63db34ca31ee",
       "files": [
         "commands/fix.md",
-        "commands/watch-review.md"
+        "commands/watch.md"
       ],
       "sample": "no env var exists in the shell every bare dir file md a step read s lives under",
       "reason": "The bare-ref rule extends the <op> definition above and must sit beside it in EACH command file: it tells the agent that every bare dir/file.md path resolves under the plugin root that ONLY these files carry interpolated. One sentence per command file replaces ~10 interpolated absolute-path prefixes each."
@@ -99,7 +99,7 @@
       "sha": "0464530381ae",
       "files": [
         "commands/fix.md",
-        "commands/watch-review.md"
+        "commands/watch.md"
       ],
       "sample": "exists in the shell every bare dir file md a step read s lives under that same plugin",
       "reason": "The bare-ref rule extends the <op> definition above and must sit beside it in EACH command file: it tells the agent that every bare dir/file.md path resolves under the plugin root that ONLY these files carry interpolated. One sentence per command file replaces ~10 interpolated absolute-path prefixes each."
@@ -108,7 +108,7 @@
       "sha": "fb4d68113a18",
       "files": [
         "skills/open-pr-review/SKILL.md",
-        "skills/open-pr-watch-review/SKILL.md"
+        "skills/open-pr-watch/SKILL.md"
       ],
       "sample": "review md obey verbatim every step in order arguments handed to this skill are that file s usage",
       "reason": "Shim boilerplate. Each platform demands its own entry file, and all four say the same two things: read adapters/root.md, then obey src/commands/<cmd>.md verbatim. The rules themselves have exactly one owner under src/ — collapsing the four shims into one would cost every platform its per-command slash entry."

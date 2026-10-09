@@ -24,11 +24,14 @@ WATCH = REPO / "src" / "bin" / "open-pr-watch.sh"
 FAKE_OPEN_PR = r"""#!/bin/sh
 printf '%s\n' "$*" >> "$FAKE_HOME/open-pr.calls"
 case "$1" in
-    data-dir) if [ "${2:-}" = --all ]; then printf '%s\n' "$FAKE_HOME/data" "$FAKE_HOME/data2"
+    data-dir) if [ "${2:-}" = --all ]; then printf '%s\n' "$FAKE_HOME/data" "$FAKE_HOME/data2" ${FAKE_DATA3:+"$FAKE_DATA3"}
               else printf '%s\n' "$FAKE_HOME/data"; fi ;;
     repo-target) printf '%s\n' "$*" >> "$FAKE_HOME/repo-target.args"
                  printf 'vendor=github\nowner=o\nrepo=r\nhost=github.com\n' ;;
     triggers) printf '%s\n' "$*" >> "$FAKE_HOME/triggers.args"
+              # quota.json: what --quota-file gets, a rate-limited poll included
+              qf=$(printf '%s\n' "$@" | sed -n '/^--quota-file$/{n;p;}')
+              [ -z "$qf" ] || [ ! -f "$FAKE_HOME/quota.json" ] || cp "$FAKE_HOME/quota.json" "$qf"
               # triggers.rc: one outcome per call, consumed in order — 9 = rate limited, 1 = no
               # network, quiet = nothing
               if [ -s "$FAKE_HOME/triggers.rc" ]; then
@@ -42,6 +45,8 @@ case "$1" in
               fi
               mf=$(printf '%s\n' "$@" | sed -n '/^--mark-file$/{n;p;}')
               [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
+              ff=$(printf '%s\n' "$@" | sed -n '/^--findings-file$/{n;p;}')
+              [ -z "$ff" ] || cat "$FAKE_HOME/findings.jsonl" > "$ff" 2>/dev/null || : > "$ff"
               cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
     # open.txt: the open PR numbers; absent = the call fails (open.rc: its exit code, default 1)
     open-prs) [ -f "$FAKE_HOME/open.txt" ] || { printf 'open-prs down\n' >&2; exit "$(cat "$FAKE_HOME/open.rc" 2>/dev/null || echo 1)"; }
@@ -151,7 +156,7 @@ class Watch:
             make_exe(self.fakes / name, RECORDER)
         self.repo = tmp / "repo"
         self.repo.mkdir()
-        self.sd = self.home / "data" / "r" / "watch-review"
+        self.sd = self.home / "data" / "r" / "watch"
         self.watch = tmp / "xdg" / "open-pr" / "watch"
         self.env = dict(os.environ, FAKE_HOME=str(self.home), XDG_CONFIG_HOME=str(tmp / "xdg"),
                         PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}")
@@ -170,8 +175,8 @@ class Watch:
     def jsonl(self, *args, **kw):
         return [json.loads(line) for line in self.run(*args, **kw).stdout.splitlines() if line.strip()]
 
-    def settings(self, **watch_review):
-        (self.home / "settings.json").write_text(json.dumps({"watch_review": watch_review}))
+    def settings(self, **watch):
+        (self.home / "settings.json").write_text(json.dumps({"watch": watch}))
 
     def triggers(self, *rows):
         (self.home / "triggers.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
@@ -272,7 +277,7 @@ def test_watch_state_is_kept_out_of_the_memory_repo(w):
     w.run("paths", "--pr", "7")
     w.run("paths", "--pr", "8")
     gi = (w.sd.parent.parent / ".gitignore").read_text().splitlines()
-    assert gi.count("watch-review/") == 1
+    assert gi.count("watch/") == 1
 
 
 def test_every_data_dir_and_settings_call_names_the_watched_repo(w):
@@ -313,7 +318,7 @@ def test_wait_passes_the_repos_trigger_token(w, stored, account, want):
         (w.home / "account.txt").write_text(account + "\n")
     w.run("wait", "--once")
     call = last_triggers_call(w)
-    assert call.endswith(want) and "--mark-file" in call
+    assert f" {want} " in call + " " and "--mark-file" in call
     if stored == "@me":
         acc = [l for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("account")]
         assert acc == ["account --vendor github --owner o --repo r --host github.com"]
@@ -394,7 +399,7 @@ def test_wait_reports_a_session_state_change_once(w):
     w.claude_set(sp["id"], "done")
     w.status_file(5, state="posted", url="https://github.com/o/r/pull/5")
     ev = w.jsonl("wait", "--once")
-    assert ev == [{"event": "session", "repo": "o/r", "pr": 5, "state": "posted", "open": f"claude attach {sp['id']}"}]
+    assert ev == [{"event": "session", "repo": "o/r", "pr": 5, "role": "review", "state": "posted", "open": f"claude attach {sp['id']}"}]
     assert w.run("wait", "--once").stdout == ""
 
 
@@ -436,14 +441,16 @@ def test_a_quiet_repo_moves_the_cursor_to_the_newest_comment_fetched(w):
     assert w.run("wait", "--once").stdout == ""
 
 
-def _long_wait(w):
+def _long_wait(w, *roles):
+    """A `wait` left running; roles = its `--roles` value, when given."""
+    args = ("--roles", roles[0]) if roles else ()
     w.settings(poll_interval_seconds=30)
-    w.run("wait", "--once")                                   # cursor set: nothing to deliver
-    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
+    w.run("wait", "--once", *args)                            # cursor set: nothing to deliver
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait", *args], cwd=w.repo, env=w.env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     w.children.append(proc)
     for _ in range(50):                  # exec keeps the pid: the copy has taken over when it writes it
-        pf = w.sd / "wait.pid"
+        pf = w.sd / ("wait-fix.pid" if roles == ("fix",) else "wait-review.pid")
         if pf.exists() and pf.read_text().strip() == str(proc.pid):
             break
         time.sleep(0.1)
@@ -472,7 +479,7 @@ def test_a_second_wait_on_the_same_repo_is_refused(w):
     proc = _long_wait(w)
     try:
         r = w.run("wait", "--once", check=False)
-        assert r.returncode == 10 and "already watched" in r.stderr
+        assert r.returncode == 10 and f"already watched for review on this machine (wait pid {proc.pid})" in r.stderr
     finally:
         proc.kill(); proc.wait()
     assert w.run("wait", "--once", check=False).returncode == 0, "a dead holder frees the repo"
@@ -553,8 +560,8 @@ def test_a_directory_name_is_recorded_verbatim_as_data(w):
 
 def test_claude_spawn_records_the_session_and_its_open_command(w):
     sp = w.spawn(3, text="p")
-    assert sp == {"pr": 3, "id": sp["id"], "open": f"claude attach {sp['id']}"}
-    s = w.state()["sessions"]["3"]
+    assert sp == {"pr": 3, "role": "review", "id": sp["id"], "open": f"claude attach {sp['id']}"}
+    s = w.state()["sessions"]["3:review"]
     assert s["runner"] == "claude" and s["session_id"].startswith(sp["id"])
     assert s["name"] == "review o/r#3" and s["last_state"] == "working"
     assert w.claude_calls()[0] == ["--bg", "-n", "review o/r#3", "p"]
@@ -565,10 +572,10 @@ def test_spawn_on_a_claude_session_stops_waits_then_resumes_without_flags(w):
     w.claude_set(sp["id"], "done")
     w.status_file(4, state="draft")
     again = w.spawn(4, text="second look")
-    assert again == {"pr": 4, "id": sp["id"], "open": f"claude attach {sp['id']}", "resumed": True}
+    assert again == {"pr": 4, "role": "review", "id": sp["id"], "open": f"claude attach {sp['id']}", "resumed": True}
     calls = w.claude_calls()
     stop = calls.index(["stop", sp["id"]])
-    sid = w.state()["sessions"]["4"]["session_id"]
+    sid = w.state()["sessions"]["4:review"]["session_id"]
     assert ["agents", "--json"] in calls[stop + 1:], "never waited for the session to leave the active list"
     assert calls[-1] == ["--bg", "--resume", sid, "second look"]
     assert not (w.sd / "pr-4.status.json").exists(), "a stale status file survived the relaunch"
@@ -580,25 +587,25 @@ def test_a_resume_that_starts_a_copy_is_reported_and_followed(w):
     w.claude_set(sp["id"], "done")
     again = w.spawn(6, env_extra={"FAKE_CLAUDE_COPY": "1"})
     assert again["id"] != sp["id"] and "started a copy" in again["warning"]
-    assert w.state()["sessions"]["6"]["id"] == again["id"]
+    assert w.state()["sessions"]["6:review"]["id"] == again["id"]
 
 
 def test_a_re_review_waits_while_the_session_still_runs(w):
     w.spawn(8)
-    assert w.spawn(8, text="new") == {"pr": 8, "queued": True, "reason": "session still running"}
+    assert w.spawn(8, text="new") == {"pr": 8, "role": "review", "queued": True, "reason": "session still running"}
     assert "stop" not in [c[0] for c in w.claude_calls()]
 
 
 def test_full_slots_queue_and_next_pops_after_a_session_finishes(w):
     w.settings(max_concurrent=1)
     first = w.spawn(1)
-    assert w.spawn(2) == {"pr": 2, "queued": True, "reason": "all 1 slots busy"}
+    assert w.spawn(2) == {"pr": 2, "role": "review", "queued": True, "reason": "all 1 slots busy"}
     assert w.run("next").stdout == ""
     w.claude_set(first["id"], "done")
     w.status_file(1, state="posted")
     popped = w.jsonl("next")
     assert popped[0].pop("queued_at").endswith("Z")
-    assert popped == [{"pr": 2, "runner": "claude", "name": "review o/r#2",
+    assert popped == [{"pr": 2, "role": "review", "runner": "claude", "name": "review o/r#2",
                        "prompt_file": str(w.home / "p2.txt")}]
     assert w.state()["queue"] == []
     assert w.spawn(2)["id"]
@@ -614,7 +621,7 @@ def test_a_question_holds_its_slot(w):
 def test_forget_makes_the_next_spawn_fresh(w):
     sp = w.spawn(9)
     w.claude_set(sp["id"], "done")
-    assert w.jsonl("forget", "--pr", "9") == [{"pr": 9, "forgotten": True}]
+    assert w.jsonl("forget", "--pr", "9") == [{"pr": 9, "role": "review", "forgotten": True}]
     again = w.spawn(9)
     assert again["id"] != sp["id"] and "resumed" not in again
 
@@ -624,7 +631,7 @@ def test_spawn_cwd_runs_claude_there_and_a_resume_keeps_it(w):
     ws.mkdir()
     sp = w.spawn(10, extra=("--cwd", str(ws)))
     assert w.claude_calls(with_cwd=True)[0]["cwd"] == str(ws.resolve())
-    assert w.state()["sessions"]["10"]["cwd"] == str(ws.resolve())
+    assert w.state()["sessions"]["10:review"]["cwd"] == str(ws.resolve())
     w.claude_set(sp["id"], "done")
     w.spawn(10, text="again")
     calls = w.claude_calls(with_cwd=True)
@@ -640,7 +647,7 @@ def test_spawn_cwd_runs_a_headless_runner_there_and_a_resume_keeps_it(w):
     w.spawn(11, runner="codex", text="p", extra=("--cwd", str(ws)))
     rec = w.recorded("codex", 0)
     assert rec["argv"] == ["exec", "--json", "-C", str(ws.resolve()), "p"] and rec["cwd"] == str(ws.resolve())
-    w.wait_dead(w.state()["sessions"]["11"]["pid"])
+    w.wait_dead(w.state()["sessions"]["11:review"]["pid"])
     w.status_file(11, state="draft")
     assert w.spawn(11, runner="codex", text="q")["resumed"] is True
     assert w.recorded("codex", 1)["cwd"] == str(ws.resolve())
@@ -659,7 +666,7 @@ def test_fresh_opens_a_new_session_and_leaves_the_old_one_running(w):
     assert again["id"] != sp["id"] and "resumed" not in again and "queued" not in again
     assert "stop" not in [c[0] for c in w.claude_calls()]
     assert [c for c in w.claude_calls() if c[0] == "--bg"][-1] == ["--bg", "-n", "review o/r#12", "start over"]
-    assert w.state()["sessions"]["12"]["id"] == again["id"]
+    assert w.state()["sessions"]["12:review"]["id"] == again["id"]
     assert next(s for s in w.claude_db()["sessions"] if s["id"] == sp["id"])["state"] == "working"
 
 
@@ -716,13 +723,13 @@ def test_a_finished_session_idle_at_its_prompt_is_not_in_use(w):
 def test_headless_status_follows_the_pid_then_the_status_file(w):
     (w.home / "codex.out").write_text(json.dumps({"type": "thread.started", "thread_id": "th-1"}) + "\n")
     sp = w.spawn(13, runner="codex", env_extra={"FAKE_SLEEP": "30"})
-    pid = w.state()["sessions"]["13"]["pid"]
+    pid = w.state()["sessions"]["13:review"]["pid"]
     try:
         w.recorded("codex")
         row = w.jsonl("status")[0]
-        assert row == {"pr": 13, "runner": "codex", "id": "th-1", "state": "working",
+        assert row == {"pr": 13, "role": "review", "runner": "codex", "id": "th-1", "state": "working",
                        "open": "codex resume th-1"}
-        assert sp["id"] is None and w.state()["sessions"]["13"]["id"] == "th-1", \
+        assert sp["id"] is None and w.state()["sessions"]["13:review"]["id"] == "th-1", \
             "the id codex reports once running was not remembered"
     finally:
         os.kill(pid, 15)
@@ -770,11 +777,11 @@ def test_headless_resume_reuses_the_session_id(w, runner, cli, out, expect):
     if out:
         (w.home / f"{cli}.out").write_text(json.dumps(out) + "\n")
     w.spawn(22, runner=runner)
-    pid = w.state()["sessions"]["22"]["pid"]
+    pid = w.state()["sessions"]["22:review"]["pid"]
     w.wait_dead(pid)
     w.status_file(22, state="question", question="?")
     again = w.spawn(22, runner=runner, text=TRICKY)
-    sid = w.state()["sessions"]["22"]["id"]
+    sid = w.state()["sessions"]["22:review"]["id"]
     assert again["resumed"] is True and again["id"] == sid
     # cursor launched with two calls (create-chat, then the run); the others with one
     resume = w.recorded(cli, 2 if runner == "cursor" else 1)
@@ -789,6 +796,16 @@ def test_headless_resume_reuses_the_session_id(w, runner, cli, out, expect):
 def notify(w, event="posted", text="PR #3 posted", **kw):
     f = w.prompt(text, "note.txt")
     return w.jsonl("notify", "--event", event, "--text-file", f, **kw)[0]
+
+
+def test_a_quiet_notify_writes_the_feed_line_and_no_toast(w):
+    """An answered question's outcome: the menu bar must stop showing the question."""
+    f = w.prompt("#49: re-review requested", "note.txt")
+    out = w.jsonl("notify", "--event", "posted", "--text-file", f, "--pr", "49", "--role", "fix", "--quiet")
+    assert out == [{"event": "posted", "sent": False, "reason": "quiet"}]
+    assert not list(w.home.glob("osascript.*.json"))
+    line = json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])
+    assert (line["pr"], line["role"], line["event"], line["summary"]) == (49, "fix", "posted", "#49: re-review requested")
 
 
 def test_notify_skips_a_disabled_event(w):
@@ -850,12 +867,22 @@ def test_notify_focus_hands_the_toast_where_a_click_goes(w):
           "--pr", "3", "--url", url, "--focus", "session")
     rec = w.recorded("osascript")["argv"]
     assert rec[9] == url
-    assert rec[11:] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e"]
+    assert rec[11:17] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e"]
+    assert rec[17:] == ["", "", "", ""], "only a findings toast carries Fix now"
+
+
+# osascript argv[17:] = what the toast's "Fix now" runs: open-pr-watch.sh fix-now for that repo and PR.
+def test_a_findings_toast_offers_fix_now_for_its_repo_and_pr(w):
+    w.run("notify", "--event", "findings", "--text-file", w.prompt("#3: 2 🟠", "f.txt"), "--pr", "3",
+          "--role", "fix", "--remote", "origin")
+    rec = w.recorded("osascript")["argv"]
+    assert rec[17:] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
+    assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["role"] == "fix"
 
 
 def test_notify_focus_defaults_to_the_pr_and_rejects_an_unknown_one(w):
     assert notify(w)["sent"] is True
-    assert w.recorded("osascript")["argv"][11:] == ["pr", "", "", "", "", ""], "no --pr, no watcher.json"
+    assert w.recorded("osascript")["argv"][11:17] == ["pr", "", "", "", "", ""], "no --pr, no watcher.json"
     r = w.run("notify", "--event", "posted", "--text-file", w.prompt("x"), "--focus", "tab", check=False)
     assert r.returncode == 1 and "pr watcher session" in r.stderr
 
@@ -863,11 +890,11 @@ def test_notify_focus_defaults_to_the_pr_and_rejects_an_unknown_one(w):
 def test_notify_passes_no_open_command_or_tab_outside_their_shape(w):
     """They reach a .command file and osascript argv: anything else travels as an empty string."""
     w.put_state({"cursor": None, "seen": [], "queue": [],
-                 "sessions": {"3": {"runner": "claude", "open": "claude attach x; touch pwned"}}})
+                 "sessions": {"3:review": {"pr": 3, "role": "review", "runner": "claude", "open": "claude attach x; touch pwned"}}})
     (w.sd / "watcher.json").write_text(json.dumps(
         {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude"}))
     w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--pr", "3", "--focus", "session")
-    assert w.recorded("osascript")["argv"][11:] == ["session", "", "", "", "", ""]
+    assert w.recorded("osascript")["argv"][11:17] == ["session", "", "", "", "", ""]
 
 
 def _minimal_path(w, tmp_path, with_notify_send):
@@ -966,7 +993,7 @@ def finish(w, pr=5):
 
 def _age_result(w, pr, seconds):
     st = w.state()
-    st["sessions"][str(pr)]["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - seconds))
+    st["sessions"][f"{pr}:review"]["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - seconds))
     w.put_state(st)
 
 
@@ -982,7 +1009,7 @@ def test_an_idle_finished_session_is_stopped_but_nothing_else(w):
     w.run("wait", "--once")
     stops = [c for c in w.claude_calls() if c[:1] == ["stop"]]
     assert stops == [["stop", sp["id"]]], "only the watcher's own finished, idle session"
-    assert w.state()["sessions"]["5"]["parked"] is True
+    assert w.state()["sessions"]["5:review"]["parked"] is True
     w.run("wait", "--once")
     assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == stops, "stopped once"
     assert other["id"] != sp["id"]
@@ -998,11 +1025,11 @@ def test_a_session_the_user_talks_in_is_not_stopped(w):
 def test_a_finished_session_stays_silent_while_the_user_chats_in_it(w):
     """The user's own turns there must not toast "needs an answer" or "posted" again."""
     sp = finish(w)
-    assert w.state()["sessions"]["5"]["finished"] is True
+    assert w.state()["sessions"]["5:review"]["finished"] is True
     for live in ("working", "blocked", "done"):
         w.claude_set(sp["id"], live)
         assert w.run("wait", "--once").stdout == "", f"a finished session reported {live}"
-    assert w.jsonl("status") == [{"pr": 5, "runner": "claude", "id": sp["id"], "state": "posted",
+    assert w.jsonl("status") == [{"pr": 5, "role": "review", "runner": "claude", "id": sp["id"], "state": "posted",
                                   "open": f"claude attach {sp['id']}", "finished": True}]
 
 
@@ -1017,7 +1044,7 @@ def test_a_draft_the_user_publishes_in_a_finished_session_reports_posted(w):
     assert w.run("wait", "--once").stdout == ""
     w.status_file(5, state="posted")
     assert [e["state"] for e in w.jsonl("wait", "--once")] == ["posted"]
-    assert w.state()["sessions"]["5"]["last_state"] == "posted"
+    assert w.state()["sessions"]["5:review"]["last_state"] == "posted"
     assert w.run("wait", "--once").stdout == ""
 
 
@@ -1026,7 +1053,7 @@ def test_a_resumed_session_reports_again(w):
     w.claude_set(sp["id"], "done")
     again = w.spawn(5, text="second look")
     assert again["resumed"] is True
-    assert w.state()["sessions"]["5"]["finished"] is False
+    assert w.state()["sessions"]["5:review"]["finished"] is False
     assert w.run("wait", "--once").stdout == ""
     w.claude_set(sp["id"], "blocked")
     assert [e["state"] for e in w.jsonl("wait", "--once")] == ["question"]
@@ -1068,23 +1095,23 @@ def test_spawn_keeps_what_the_menu_bar_shows(w):
     url = "https://github.com/o/r/pull/3"
     sp = w.jsonl("spawn", "--runner", "claude", "--pr", "3", "--name", "review o/r#3",
                  "--prompt-file", w.prompt("p"), "--url", url)[0]
-    s = w.state()["sessions"]["3"]
+    s = w.state()["sessions"]["3:review"]
     assert (s["repo"], s["url"], s["open"], s["finished"]) == ("o/r", url, f"claude attach {sp['id']}", False)
 
 
 def test_last_state_at_follows_each_state_change(w):
     """The menu bar weighs it against the newest feed line to pick the row's state."""
     sp = w.spawn(5)
-    s = w.state()["sessions"]["5"]
+    s = w.state()["sessions"]["5:review"]
     assert s["last_state_at"] == s["started_at"], "spawn records when the state became working"
     st = w.state()
-    st["sessions"]["5"]["last_state_at"] = "2026-01-01T00:00:00Z"
+    st["sessions"]["5:review"]["last_state_at"] = "2026-01-01T00:00:00Z"
     w.put_state(st)
     w.run("wait", "--once")
-    assert w.state()["sessions"]["5"]["last_state_at"] == "2026-01-01T00:00:00Z", "unchanged state"
+    assert w.state()["sessions"]["5:review"]["last_state_at"] == "2026-01-01T00:00:00Z", "unchanged state"
     w.claude_set(sp["id"], "blocked")
     assert [e["state"] for e in w.jsonl("wait", "--once")] == ["question"]
-    at = w.state()["sessions"]["5"]["last_state_at"]
+    at = w.state()["sessions"]["5:review"]["last_state_at"]
     assert at > "2026-01-01T00:00:00Z" and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", at)
 
 
@@ -1195,7 +1222,7 @@ def test_notify_feeds_the_last_fifty_notifications_sent_or_snoozed(w):
     assert len(rows) == 50 and rows[0] == {"summary": "old 2"}
     at = rows[-2].pop("at")
     assert datetime.fromisoformat(at.replace("Z", "+00:00")).tzinfo is not None
-    assert rows[-2] == {"repo": "o/r", "pr": 3, "event": "posted", "summary": "PR #3 posted",
+    assert rows[-2] == {"repo": "o/r", "pr": 3, "role": "review", "event": "posted", "summary": "PR #3 posted",
                         "detail": "claude attach 1", "url": "https://h/o/r/pull/3"}
     assert (rows[-1]["event"], rows[-1]["pr"], rows[-1]["url"], rows[-1]["detail"]) == \
         ("review_started", None, None, ""), "a snoozed notification is still recent history"
@@ -1213,6 +1240,15 @@ def test_menubar_without_osascript_is_no_equivalent(w, tmp_path):
     assert r.stdout == "NO-EQUIVALENT\n"
 
 
+def test_a_menu_bar_that_exits_at_start_is_reported_not_started(w):
+    """Inside a shell sandbox osascript cannot reach the window server and exits at once."""
+    r = w.run("menubar", check=False)
+    assert r.returncode == 1 and r.stdout == "" and "sandbox off" in r.stderr
+    assert not (w.watch / "menubar.pid").exists()
+    assert w.run("menubar", env_extra={"FAKE_SLEEP": "30"}).stdout == "started\n", "a later start is not blocked"
+    os.kill(int((w.watch / "menubar.pid").read_text()), 9)
+
+
 def test_menubar_closes_on_request(w):
     env = {"FAKE_SLEEP": "30"}
     assert w.run("menubar", env_extra=env).stdout == "started\n"
@@ -1221,6 +1257,22 @@ def test_menubar_closes_on_request(w):
     w.wait_dead(pid)
     assert not (w.watch / "menubar.pid").exists()
     assert w.run("menubar", "--close").stdout == "not running\n"
+
+def test_a_data_dir_mapped_after_the_menubar_started_restarts_it(w):
+    """A watcher on a repo under a new `data_dirs` root writes where the running menu bar never looks."""
+    env = {"FAKE_SLEEP": "30"}
+    assert w.run("menubar", env_extra=env).stdout == "started\n"
+    old = int((w.watch / "menubar.pid").read_text())
+    try:
+        assert w.run("menubar", env_extra=env).stdout == "running\n"
+        assert w.run("menubar", env_extra={**env, "FAKE_DATA3": str(w.home / "data3")}).stdout == "started\n"
+        w.wait_dead(old)
+        assert w.recorded("osascript", 1)["argv"][-2] == str(w.home / "data3")
+    finally:
+        for f in (w.watch / "menubar.pid",):
+            try: os.kill(int(f.read_text()), 9)
+            except (OSError, ValueError): pass
+
 
 def test_menubar_runs_detached_once_per_machine(w):
     env = {"FAKE_SLEEP": "30"}
@@ -1271,7 +1323,7 @@ def test_hide_is_idempotent_and_a_new_request_brings_the_row_back(w):
     assert w.jsonl("hide", "--pr", "5") == [{"pr": 5, "hidden": True}]
     w.run("hide", "--pr", "9")
     assert w.state()["hidden"] == [5, 9]
-    assert w.jsonl("status")[0] == {"pr": 5, "runner": "claude", "id": sp["id"], "state": "working",
+    assert w.jsonl("status")[0] == {"pr": 5, "role": "review", "runner": "claude", "id": sp["id"], "state": "working",
                                     "open": f"claude attach {sp['id']}", "hidden": True}, "hidden, still tracked"
     w.spawn(5, text="again")
     assert w.state()["hidden"] == [9]
@@ -1305,8 +1357,8 @@ def test_a_merged_pr_is_hidden_and_its_idle_session_stopped(w):
     sp = finish(w, 5)                                   # finished just now: no idle wait applies
     st = w.state()
     st.pop("open_checked_at", None)                     # finish's own polls had no open list
-    st["queue"] = [{"pr": 5, "runner": "claude", "name": "review o/r#5", "prompt_file": "/p"},
-                   {"pr": 12, "runner": "claude", "name": "review o/r#12", "prompt_file": "/q"}]
+    st["queue"] = [{"key": "5:review", "pr": 5, "role": "review", "runner": "claude", "name": "review o/r#5", "prompt_file": "/p"},
+                   {"key": "12:review", "pr": 12, "role": "review", "runner": "claude", "name": "review o/r#12", "prompt_file": "/q"}]
     w.put_state(st)
     w.sd.joinpath("feed.jsonl").write_text(json.dumps({"at": "2026-01-01T00:00:00Z", "repo": "o/r", "pr": 8,
                                                        "event": "posted", "summary": "Posted"}) + "\n")
@@ -1315,7 +1367,7 @@ def test_a_merged_pr_is_hidden_and_its_idle_session_stopped(w):
     st = w.state()
     assert st["hidden"] == [5, 8], "a feed-only row goes too"
     assert [q["pr"] for q in st["queue"]] == [12], "a closed PR's queued request is dropped"
-    assert st["sessions"]["5"]["closed"] is True and st["sessions"]["5"]["parked"] is True
+    assert st["sessions"]["5:review"]["closed"] is True and st["sessions"]["5:review"]["parked"] is True
     assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == [["stop", sp["id"]]]
 
 
@@ -1323,7 +1375,7 @@ def test_a_closed_prs_working_session_is_stopped_only_once_idle(w):
     sp = tracked(w)
     (w.home / "open.txt").write_text("")
     w.run("wait", "--once")
-    assert w.state()["sessions"]["5"]["closed"] is True and w.state()["hidden"] == [5]
+    assert w.state()["sessions"]["5:review"]["closed"] is True and w.state()["hidden"] == [5]
     assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "a working review is never cut"
     w.claude_set(sp["id"], "done")
     w.status_file(5, state="posted")
@@ -1339,7 +1391,7 @@ def test_a_closed_prs_session_the_user_talks_in_is_not_stopped(w):
     w.put_state(st)
     (w.home / "open.txt").write_text("")
     w.run("wait", "--once")
-    assert w.state()["sessions"]["5"]["closed"] is True
+    assert w.state()["sessions"]["5:review"]["closed"] is True
     assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "in use"
     w.claude_set(sp["id"], "done")
     w.run("wait", "--once")
@@ -1368,3 +1420,321 @@ def test_an_open_check_rate_limit_backs_off_like_triggers(w):
     r = w.run("wait")
     assert "rate limited — next poll in 2s" in r.stderr
     assert [json.loads(l)["comment_id"] for l in r.stdout.splitlines()] == ["51"]
+
+
+# ------------------------------------------------------------ fix role ----
+
+def finding(pr=5, review="70", **kw):
+    return {"pr": pr, "url": f"https://github.com/o/r/pull/{pr}", "review_id": review, "comment_id": "10",
+            "thread_id": None, "kind": "line", "user": "rev", "created_at": "2026-01-01T00:00:10Z",
+            "counts": {"🟠": 2, "🔵": 4}, **kw}
+
+
+def fix_ready(w, *rows):
+    """Every role set's cursor at one time: a wait of any `--roles` delivers what follows it."""
+    c = "2026-01-01T00:00:00Z"
+    w.put_state({"cursor": c, "seen": [], "sessions": {}, "queue": [],
+                 "cursors": {"review": {"cursor": c, "seen": []}, "fix": {"cursor": c, "seen": []}}})
+    (w.home / "findings.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_wait_asks_for_findings_on_the_users_own_prs_or_only_the_listed_ones(w):
+    fix_ready(w)
+    (w.home / "account.txt").write_text("dev\n")
+    w.run("wait", "--once")
+    call = last_triggers_call(w)
+    assert "--findings-file " in call and call.endswith("--fix-author dev")
+    assert f"--cache-dir {w.sd / 'etags'}" in call, "GitHub polls are conditional on the kept ETags"
+    w.run("wait", "--once", "--fix-prs", "5,7")
+    call = last_triggers_call(w)
+    assert "--fix-author" not in call and call.endswith("--fix-prs 5,7")
+    w.run("wait", "--once", "--roles", "review")
+    assert "--findings-file" not in last_triggers_call(w)
+    assert w.run("wait", "--once", "--roles", "deploy", check=False).returncode == 4
+
+
+def test_a_new_review_with_findings_is_delivered_once_and_kept_for_the_menu_bar(w):
+    fix_ready(w, finding())
+    ev = w.jsonl("wait", "--once")
+    assert ev == [{"event": "findings", "repo": "o/r", "pr": 5, "review_id": "70", "counts": {"🟠": 2, "🔵": 4},
+                   "url": "https://github.com/o/r/pull/5", "comment_id": "10", "thread_id": None, "user": "rev"}]
+    assert w.run("wait", "--once").stdout == "", "a review is delivered once"
+    assert w.state()["findings"]["5"]["review_id"] == "70"
+    w.spawn(5, extra=("--role", "fix"))
+    assert "5" not in w.state().get("findings", {}), "a fix session takes the pending findings"
+    row = w.jsonl("status", "--pr", "5", "--role", "fix")[0]
+    assert row["findings"]["comment_id"] == "10" and row["findings"]["user"] == "rev", \
+        "what a re-review request replies to"
+
+
+def test_removing_a_pr_takes_it_out_of_the_fix_role(w):
+    fix_ready(w, finding(review="80"))
+    w.run("hide", "--pr", "5")
+    assert w.run("wait", "--once").stdout == ""
+    assert w.state()["fix_prs"] == {"5": "off"}
+
+
+def test_asking_for_a_review_of_ones_own_pr_enrolls_it_in_the_fix_role(w):
+    fix_ready(w)
+    (w.home / "account.txt").write_text("Dev\n")
+    w.triggers(dict(trig("41", "2026-01-01T00:00:05Z", pr=6), pr_author="dev", user="dev"),
+               dict(trig("42", "2026-01-01T00:00:06Z", pr=7), pr_author="other", user="dev"))
+    ev = w.jsonl("wait", "--once", "--fix-prs", "5")
+    assert [e["comment_id"] for e in ev] == ["41", "42"] and "pr_author" not in ev[0]
+    assert w.state()["fix_prs"] == {"6": "enrolled"}
+    w.run("wait", "--once", "--fix-prs", "5")
+    assert last_triggers_call(w).endswith("--fix-prs 5,6")
+
+
+def test_a_review_only_watcher_moves_its_cursor_without_trigger_events_for_fix(w):
+    fix_ready(w, finding())
+    w.triggers(trig("41", "2026-01-01T00:00:05Z"))
+    ev = w.jsonl("wait", "--once", "--roles", "fix")
+    assert [e["event"] for e in ev] == ["findings"], "the fix role alone takes no review request"
+    assert w.state()["cursors"]["fix"]["cursor"] == "2026-01-01T00:00:05Z"
+
+
+def test_fix_now_is_delivered_by_the_running_wait_with_the_pending_findings(w):
+    fix_ready(w, finding())
+    w.run("wait", "--once")
+    assert w.jsonl("fix-now", "--pr", "5") == [{"pr": 5, "fix_now": True}]
+    ev = w.jsonl("wait", "--once")
+    assert ev == [{"event": "fix_now", "repo": "o/r", "pr": 5, "url": "https://github.com/o/r/pull/5",
+                   "review_id": "70", "counts": {"🟠": 2, "🔵": 4}, "comment_id": "10", "thread_id": None,
+                   "user": "rev"}]
+    assert w.run("wait", "--once").stdout == "", "a click is delivered once"
+    assert w.run("fix-now", "--pr", "5;id", check=False).returncode == 4
+
+
+def test_a_fix_now_click_while_that_fix_session_runs_opens_nothing(w):
+    """A second click (or the toast's after the menu bar's) must not queue a second fix run."""
+    fix_ready(w, finding())
+    w.run("wait", "--once")
+    w.run("fix-now", "--pr", "5")
+    w.run("fix-now", "--pr", "5")
+    assert [e["event"] for e in w.jsonl("wait", "--once")] == ["fix_now"], "two clicks before delivery are one"
+    w.spawn(5, extra=("--role", "fix"))
+    w.run("wait", "--once")
+    w.run("fix-now", "--pr", "5")
+    assert w.run("wait", "--once").stdout == ""
+    assert not (w.sd / "fix_now" / "5").exists(), "the dropped click stays pending and wakes every poll"
+
+
+def test_a_fix_now_click_wakes_a_sleeping_wait(w):
+    fix_ready(w)
+    (w.watch).mkdir(parents=True, exist_ok=True)
+    p = _long_wait(w)
+    time.sleep(1)
+    w.run("fix-now", "--pr", "5")
+    out, _ = p.communicate(timeout=20)
+    assert json.loads(out.splitlines()[0])["event"] == "fix_now"
+
+
+def test_a_pr_holds_a_review_and_a_fix_session_side_by_side(w):
+    fix_ready(w)
+    rv = w.spawn(5)
+    fx = w.jsonl("spawn", "--runner", "claude", "--pr", "5", "--role", "fix", "--name", "fix o/r#5",
+                 "--prompt-file", w.prompt("/open-pr:fix u", "pf.txt"))[0]
+    assert fx["role"] == "fix" and fx["id"] != rv["id"] and "resumed" not in fx
+    assert sorted(w.state()["sessions"]) == ["5:fix", "5:review"]
+    paths = dict(l.split("=", 1) for l in w.run("paths", "--pr", "5", "--role", "fix").stdout.splitlines())
+    assert paths["status_file"] == str(w.sd / "pr-5-fix.status.json")
+    w.claude_set(fx["id"], "done")
+    (w.sd / "pr-5-fix.status.json").write_text(json.dumps({"state": "fixed", "counts": {"fixed": 2}}))
+    rows = {r["role"]: r["state"] for r in w.jsonl("status", "--pr", "5")}
+    assert rows == {"review": "working", "fix": "fixed"}
+    assert [e for e in w.jsonl("wait", "--once") if e["event"] == "session"] == \
+        [{"event": "session", "repo": "o/r", "pr": 5, "role": "fix", "state": "fixed", "open": f"claude attach {fx['id']}"}]
+    assert w.jsonl("forget", "--pr", "5", "--role", "fix") == [{"pr": 5, "role": "fix", "forgotten": True}]
+    assert list(w.state()["sessions"]) == ["5:review"]
+
+
+# ------------------------------------------- a review and a fix watcher ----
+# One machine runs `/open-pr:watch review` in one tab and `/open-pr:watch fix` in another: one
+# `wait` per repo and role.
+
+def test_a_review_wait_and_a_fix_wait_watch_one_repo_side_by_side(w):
+    rv = _long_wait(w, "review")
+    try:
+        assert w.run("wait", "--once", "--roles", "fix", check=False).returncode == 0
+        for roles in ("review", "review,fix"):
+            r = w.run("wait", "--once", "--roles", roles, check=False)
+            assert r.returncode == 10 and f"for review on this machine (wait pid {rv.pid})" in r.stderr, roles
+        fx = _long_wait(w, "fix")
+        r = w.run("wait", "--once", "--roles", "fix", check=False)
+        assert r.returncode == 10 and f"for fix on this machine (wait pid {fx.pid})" in r.stderr
+        assert rv.poll() is None and fx.poll() is None
+    finally:
+        for p in w.children:
+            p.kill(); p.wait()
+    (w.sd / "wait-fix.pid").write_text("999999\n")
+    assert w.run("wait", "--once", "--roles", "fix", check=False).returncode == 0, "a dead holder frees its role"
+
+
+def test_each_role_wait_keeps_its_own_cursor(w):
+    fix_ready(w)
+    w.triggers(trig("61", "2026-01-01T00:00:05Z"))
+    assert w.run("wait", "--once", "--roles", "fix").stdout == ""
+    ev = w.jsonl("wait", "--once", "--roles", "review")
+    assert [e["comment_id"] for e in ev] == ["61"], "the fix wait moving its cursor took the trigger"
+    st = w.state()
+    assert st["cursors"]["review"]["cursor"] == st["cursors"]["fix"]["cursor"] == "2026-01-01T00:00:05Z"
+    assert st["cursor"] == "2026-01-01T00:00:00Z", "the both-roles cursor is a third one"
+    del st["cursors"]["fix"]
+    w.put_state(st)
+    assert w.run("wait", "--once", "--roles", "fix").stdout == ""
+    assert w.state()["cursors"]["fix"]["cursor"] > "2026-01-01T00:00:05Z", "a new role set starts at now"
+
+
+def test_a_session_change_reaches_the_wait_of_its_role_only(w):
+    fix_ready(w)
+    rv = w.spawn(5)
+    fx = w.spawn(6, extra=("--role", "fix"))
+    w.claude_set(rv["id"], "done")
+    w.status_file(5, state="posted")
+    w.claude_set(fx["id"], "done")
+    (w.sd / "pr-6-fix.status.json").write_text(json.dumps({"state": "fixed"}))
+    ev = w.jsonl("wait", "--once", "--roles", "fix")
+    assert [(e["pr"], e["state"]) for e in ev] == [(6, "fixed")], "the fix wait took the review's change"
+    assert w.state()["sessions"]["5:review"]["last_state"] == "working"
+    ev = w.jsonl("wait", "--once", "--roles", "review")
+    assert [(e["pr"], e["state"]) for e in ev] == [(5, "posted")]
+    assert w.run("wait", "--once", "--roles", "fix").stdout == ""
+
+
+def test_a_queued_session_is_ready_for_and_popped_by_the_wait_of_its_role(w):
+    fix_ready(w)
+    w.settings(max_concurrent=1)
+    rv = w.spawn(1)
+    assert w.spawn(2, extra=("--role", "fix"))["queued"] is True, "both roles share the slots"
+    w.claude_set(rv["id"], "done")
+    w.status_file(1, state="posted")
+    ev = w.jsonl("wait", "--once", "--roles", "review")
+    assert [e["event"] for e in ev] == ["session"], "a fix session's turn told to the review wait"
+    assert w.run("next", "--roles", "review").stdout == ""
+    assert [e["event"] for e in w.jsonl("wait", "--once", "--roles", "fix")] == ["ready"]
+    assert w.jsonl("next", "--roles", "fix")[0]["role"] == "fix"
+
+
+def test_fix_now_reaches_only_a_wait_serving_fix(w):
+    fix_ready(w, finding())
+    w.run("wait", "--once", "--roles", "fix")
+    w.run("fix-now", "--pr", "5")
+    assert w.run("wait", "--once", "--roles", "review").stdout == ""
+    assert (w.sd / "fix_now" / "5").exists(), "the review wait consumed the click"
+    assert [e["event"] for e in w.jsonl("wait", "--once", "--roles", "fix")] == ["fix_now"]
+
+
+def test_each_watcher_keeps_its_own_record_heartbeat_and_stop_file(w):
+    w.env = watcher_env(w, TERM_PROGRAM="iTerm.app", ITERM_SESSION_ID="w0t0p1:AA")
+    w.run("wait", "--once", "--roles", "review")
+    w.env = watcher_env(w, TERM_PROGRAM="iTerm.app", ITERM_SESSION_ID="w0t0p2:BB")
+    w.run("wait", "--once", "--roles", "fix")
+    tab = lambda f: json.loads((w.sd / f).read_text())["term_session"]
+    assert (tab("watcher-review.json"), tab("watcher-fix.json")) == ("w0t0p1:AA", "w0t0p2:BB")
+    assert (w.sd / "heartbeat-review").exists() and (w.sd / "heartbeat-fix").exists()
+    assert not (w.sd / "watcher.json").exists()
+    # the toast's `watcher` focus goes to the tab of the event's role
+    w.run("notify", "--event", "error", "--text-file", w.prompt("x"), "--role", "fix", "--focus", "watcher")
+    assert w.recorded("osascript")["argv"][14] == "w0t0p2:BB"
+    w.run("wait", "--once")
+    assert sorted(f.name for f in w.sd.glob("watcher*.json")) == ["watcher.json"], \
+        "a wait serving both roles replaces the records of the waits it now stands for"
+    assert not (w.sd / "heartbeat-fix").exists()
+
+
+def test_stop_watcher_stops_only_the_wait_it_names(w):
+    rv = _long_wait(w, "review")
+    fx = _long_wait(w, "fix")
+    try:
+        (w.sd / "stop-fix").write_text("")
+        _, err = fx.communicate(timeout=20)
+        assert fx.returncode == 11 and "stopped from the menu bar" in err
+        time.sleep(1)
+        assert rv.poll() is None, "the review wait stopped with the fix one"
+        assert not (w.sd / "stop-fix").exists()
+    finally:
+        for p in w.children:
+            if p.poll() is None:
+                p.kill(); p.wait()
+
+
+MENUBAR = REPO / "src" / "bin" / "open-pr-menubar.js"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_bar_lists_each_role_watcher_with_the_rows_of_its_role(w):
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "5:review": {"pr": 5, "role": "review", "repo": "o/r", "last_state": "working"},
+        "6:fix": {"pr": 6, "role": "fix", "repo": "o/r", "last_state": "working"}}})
+    for sfx, ts in (("-review", "w0t0p1:AA"), ("-fix", "w0t0p2:BB")):
+        (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
+            {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": ts, "tty": "", "session_id": ""}))
+        (w.sd / f"heartbeat{sfx}").write_text("")
+    got = {x["sfx"]: (x["key"], x["rows"]) for x in _menubar_js(w,
+        "return JSON.stringify(scan().watchers.map(function (x) {"
+        " return { key: x.key, sfx: x.sfx, rows: x.rows.map(function (r) { return r.title; }) }; }));")}
+    assert got == {"-review": ("s:w0t0p1:AA-review", ["o/r #5"]), "-fix": ("s:w0t0p2:BB-fix", ["o/r #6"])}
+
+
+def _menubar_js(w, body):
+    """The menu bar's own functions run headless: its Cocoa classes (registering one outside an
+    app run hangs osascript) left out, its run() replaced by `body`."""
+    src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), flags=re.S | re.M)
+    js = src.replace("function run(argv) {", "function runApp(argv) {", 1) + (
+        f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700; {body} }}")
+    f = w.home / "menubar-headless.js"
+    f.write_text(js)
+    out = subprocess.run(["osascript", "-l", "JavaScript", str(f)], capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout)
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_bar_shows_the_tightest_quota_and_warns_before_a_fast_poll(w):
+    soon = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 1800))
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    w.sd.mkdir(parents=True, exist_ok=True)
+    (w.sd / "heartbeat").write_text("")
+    (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x"}))
+    (w.sd / "quota.json").write_text(json.dumps(
+        {"vendor": "github", "host": "github.com", "window": 3600, "measured": True, "limit": 5000,
+         "remaining": 1200, "reset": soon, "near_limit": None, "calls": 3, "at": now}))
+    got = _menubar_js(w, "var q = scan().quotas; return JSON.stringify("
+                         "[gauge(q), estimate(q, 15), estimate(q, 180), estimate([], 15)]);")
+    assert got[0] == {"ratio": 0.24, "text": "GitHub API 1,200/5,000 left", "level": "low"}
+    assert got[1:] == ["  ≈720/h", "  ≈60/h", ""], "720/h is under half of 5000/h"
+    (w.sd / "quota.json").write_text(json.dumps(
+        {"vendor": "gitlab", "host": "gitlab.com", "window": 60, "limit": 10, "remaining": 0,
+         "reset": None, "calls": 5, "at": now}))
+    got = _menubar_js(w, "var q = scan().quotas; return JSON.stringify([gauge(q).level, estimate(q, 15)]);")
+    assert got == ["critical", "  ≈1,200/h ⚠"], "a per-minute limit is converted to per hour (600/h)"
+
+
+def test_wait_keeps_the_hosts_quota_per_role_set_even_when_rate_limited(w):
+    fix_ready(w)
+    w.run("wait", "--once")
+    assert not (w.sd / "quota.json").exists(), "no quota read, nothing kept"
+    (w.home / "quota.json").write_text(json.dumps({"vendor": "github", "limit": 5000, "remaining": 7, "calls": 3}))
+    w.run("wait", "--once", "--roles", "fix")
+    q = json.loads((w.sd / "quota-fix.json").read_text())
+    assert (q["remaining"], q["host"]) == (7, "github.com") and q["at"].endswith("Z")
+    (w.home / "triggers.rc").write_text("9\n")
+    (w.home / "quota.json").write_text(json.dumps({"vendor": "github", "limit": 5000, "remaining": 0, "calls": 1}))
+    w.run("wait", "--once", check=False)
+    assert json.loads((w.sd / "quota.json").read_text())["remaining"] == 0
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_watcher_row_names_its_repos_and_says_when_it_last_polled(w):
+    w.sd.mkdir(parents=True, exist_ok=True)
+    for sfx, cwd in (("-review", "/x/r"), ("-fix", "/x/tms")):
+        (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
+            {"pid": 1, "cwd": cwd, "term": "iTerm.app", "term_session": "w0t0p" + sfx + ":A", "tty": "", "session_id": ""}))
+        (w.sd / f"heartbeat{sfx}").write_text("")
+    old = time.time() - 1500   # past 2 × the 600 s an idle repo may poll at
+    os.utime(w.sd / "heartbeat-fix", (old, old))
+    got = _menubar_js(w, "return JSON.stringify(scan().watchers.map(function (x) {"
+                         " return [x.sfx, x.repos.join(', '), watcherLine(x)]; }));")
+    assert got == [["-review", "r", [["Review · iTerm · polled just now", False]]],
+                   ["-fix", "r", [["Fix · iTerm · in tms · ", False], ["no poll for 25m — check the watcher tab", True]]]]

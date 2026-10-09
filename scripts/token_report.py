@@ -72,9 +72,10 @@ ROLES = {
     "upgrade-cmd": ["commands/upgrade.md"],
     "clean-cmd": ["commands/clean.md"],
     "feedback-cmd": ["commands/feedback.md"],
-    "watch-review-cmd": ["commands/watch-review.md"],
+    "watch-cmd": ["commands/watch.md"],
     "case-watch-session": ["cases/watch-session.md"],
     "case-watch-answer": ["cases/watch-answer.md"],
+    "case-watch-fix": ["cases/watch-fix.md"],
     "menubar-cmd": ["commands/menubar.md"],
     "case-post-error": ["cases/post-review.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
@@ -150,21 +151,34 @@ SCENARIOS = {
     "feedback": [
         "feedback-cmd", "guardrails",
     ],
-    # the watcher's own session: first run asks its settings and commits them
-    "watch-review/first-run": [
-        "watch-review-cmd", "guardrails", "cli", "repo-settings", "memory-commit",
+    # the watcher's own session: first run asks its settings and commits them; both roles by default
+    "watch/first-run": [
+        "watch-cmd", "guardrails", "cli", "repo-settings", "memory-commit", "case-watch-fix",
+    ],
+    # a known repo, `/open-pr:watch review`: the fix role's prompt stays unread
+    "watch/review-only": [
+        "watch-cmd", "guardrails", "cli",
+    ],
+    # a known repo, both roles (`/open-pr:watch fix` reads the same files)
+    "watch/both-roles": [
+        "watch-cmd", "guardrails", "cli", "case-watch-fix",
     ],
     "menubar": [
         "menubar-cmd",
     ],
     # a session the watcher opened to answer a question asked on a PR
-    "watch-review/answer-session": [
+    "watch/answer-session": [
         "case-watch-answer", "guardrails", "cli",
     ],
     # one review session the watcher opened for a PR
     "review/watch-session-github": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "case-watch-session", "criteria", "always-rule", "tpl-rails",
+    ],
+    # one fix session the watcher opened from "Fix now"
+    "fix/watch-session-github": [
+        "fix-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch", "gh-thread",
+        "marker-logic", "case-watch-session", "criteria", "always-rule", "tpl-rails",
     ],
     "review/known-repo-bitbucket-clean": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack",

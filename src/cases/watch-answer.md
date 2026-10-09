@@ -1,6 +1,6 @@
 # Answer a question asked on a PR
 
-Read when a `/open-pr:watch-review` prompt says so. `Read` `core/guardrails.md` and `core/cli.md` (same
+Read when a `/open-pr:watch` prompt says so. `Read` `core/guardrails.md` and `core/cli.md` (same
 directory as this file's parent) first; `<op>` ≡ `sh <that directory>/bin/open-pr.sh`. `ARGUMENTS`:
 `<url> --comment-id C --kind K [--thread-id T] --status-file F --hint-file H [--unattended]`.
 

@@ -33,7 +33,7 @@ directory; a repo under no root uses `data_dir`.
 ```
 
 The deepest root above a repo wins. Commands resolve it from where you run them (the repo or the
-workspace holding it), `/open-pr:watch-review` per watched repo; `/open-pr:upgrade` and
+workspace holding it), `/open-pr:watch` per watched repo; `/open-pr:upgrade` and
 `/open-pr:clean` walk every data directory.
 
 Within one workspace, where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):

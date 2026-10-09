@@ -35,6 +35,8 @@ Example with instructions: /open-pr:fix https://github.com/org/repo/pull/123 onl
 
 Free-form text outside the URL narrows this run's scope (Step 3 item 3).
 
+`--status-file` in `ARGUMENTS` ⇒ `Read` `cases/watch-session.md` before Context.
+
 **≥2 valid PR URLs** → `<op> target` EACH, then `Read`
 `cases/multi-pr-fix.md` — it classifies how they relate, confirms the list
 with the dev and sets the run order. FORBIDDEN: acting on the first URL alone, or folding 2 PRs into
