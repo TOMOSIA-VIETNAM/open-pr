@@ -25,7 +25,7 @@ ObjC.import('Cocoa');
 
 var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
 // A watcher row (a view item, so laid out by hand): height, and where its text starts.
-var ROW_H = 36, ROW_TEXT_X = 48;
+var ROW_H = 36, ROW_TEXT_X = 38;   // a watcher row lines up with the plain items; its PR rows indent under it
 // Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
 var SUBTITLE_PAD = 100;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
@@ -543,13 +543,13 @@ function build(s) {
             wi.setView(watcherRow(w.label, w.repos.join(', '), !!go, w.role));
             m.addItem(wi);
         }
-        if (!w.rows.length) add(m, 'Nothing yet').setIndentationLevel(w.key ? 1 : 0);
+        if (!w.rows.length) add(m, 'Nothing yet').setIndentationLevel(w.key ? 2 : 0);
         w.rows.forEach(function (x) {
             var spec = KIND[x.kind];
             var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
             subtitle(mi, x.text);
             if (spec) mi.setImage(symbol(spec));
-            if (w.key) mi.setIndentationLevel(1);
+            if (w.key) mi.setIndentationLevel(2);
             // Offered in every state: `open` also reopens a finished or stopped session.
             var sub = newMenu(x.title);
             if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
