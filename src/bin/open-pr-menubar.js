@@ -41,29 +41,28 @@ var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
 var item = null, target = null, icons = {}, rowParts = {}, stopParts = {}, litRow = null;
 
-var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgtm_chat as lgtm); tints match open-pr-toast.js
-    working:  ['circle.dotted', [0.35, 0.53, 0.95], 'Reviewing'],
-    fixing:   ['circle.dotted', [0.35, 0.53, 0.95], 'Fixing'],
-    findings: ['wrench.and.screwdriver', [0.93, 0.68, 0.16], 'New findings — Fix now'],
-    fix_requested: ['clock', [0.35, 0.53, 0.95], 'Fix requested — starting'],
-    fixed:    ['checkmark.circle', [0.12, 0.56, 0.3], 'Fixed'],
-    question: ['questionmark.bubble', [0.91, 0.27, 0.06], 'Needs your answer'],
-    draft:    ['doc.badge.clock', [0.93, 0.68, 0.16], 'Draft waiting'],
-    posted:   ['checkmark.bubble', [0.12, 0.56, 0.3], 'Posted'],
-    lgtm:     ['checkmark.seal', [0.12, 0.56, 0.3], 'LGTM'],
-    failed:   ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Failed'],
-    stopped:  ['exclamationmark.triangle', [0.86, 0.15, 0.15], 'Stopped'],
-    nothing:  ['hourglass', [0.91, 0.27, 0.06], 'Nothing new to review'],
-    answered: ['text.bubble', [0.12, 0.56, 0.3], 'Answered']
+var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as lgtm); the symbol alone tells the state, in the menu's own colour
+    working:  ['circle.dotted', 'Reviewing'],
+    fixing:   ['circle.dotted', 'Fixing'],
+    findings: ['wrench.and.screwdriver', 'New findings — Fix now'],
+    fix_requested: ['clock', 'Fix requested — starting'],
+    fixed:    ['checkmark.circle', 'Fixed'],
+    question: ['questionmark.bubble', 'Needs your answer'],
+    draft:    ['doc.badge.clock', 'Draft waiting'],
+    posted:   ['checkmark.bubble', 'Posted'],
+    lgtm:     ['checkmark.seal', 'LGTM'],
+    failed:   ['exclamationmark.triangle', 'Failed'],
+    stopped:  ['exclamationmark.triangle', 'Stopped'],
+    nothing:  ['hourglass', 'Nothing new to review'],
+    answered: ['text.bubble', 'Answered']
 };
 // A row shows whichever happened last: the session's state or the PR's latest feed line (a
 // disabled event writes no line, so that line can be older than the state). A line wins through
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
-// A watcher row's icon and role word, by the role it serves: review and fix groups tell apart at
-// a glance and every title starts at one x. Its rows belong to it and carry no role.
-var ROLE_LOOK = { review: ['eye', [0.04, 0.42, 0.9], 'Review'], fix: ['wrench.and.screwdriver', [0.8, 0.38, 0.02], 'Fix'],
-                  '': ['terminal', null, 'Review + fix'] };
+// A watcher row's terminal icon tint and role word, by the role it serves: review and fix groups
+// tell apart at a glance. Its rows belong to it and carry no role.
+var ROLE_LOOK = { review: [[0.04, 0.42, 0.9], 'Review'], fix: [[0.8, 0.38, 0.02], 'Fix'], '': [null, 'Review + fix'] };
 var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a project's watchers: both roles, review, fix
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
@@ -292,7 +291,7 @@ function scan() {
             var clicked = pendingFix[repoDir + '#' + r.pr];
             if (r.kind === 'findings' && clicked && Date.now() - clicked < FIX_PENDING) {
                 r.kind = 'fix_requested'; r.fix = ''; r.active = true;
-                r.text = KIND.fix_requested[2] + ' · ' + when(new Date(clicked));
+                r.text = KIND.fix_requested[1] + ' · ' + when(new Date(clicked));
             }
             w.rows.push(r);
         });
@@ -337,7 +336,7 @@ function finish(r) {
     // a feed line saying "fixed" or "posted" after the findings ends the Fix now offer
     if (kind !== 'findings') r.fix = '';
     else if (!r.fix && r.hide) r.fix = r.hide;
-    var label = KIND[kind] ? KIND[kind][2] : kind;
+    var label = KIND[kind] ? KIND[kind][1] : kind;
     if (kind === 'findings' && r.findings) label = r.findings + ' — Fix now';
     r.text = (f ? str(f.summary) : label) + (at ? ' · ' + when(new Date(at)) : '');
     return r;
@@ -382,16 +381,14 @@ function mothImage(pt, template) {
     img.setTemplate(template);
     return img;
 }
+// A template symbol: drawn in the menu's text colour, as the plain items' icons are.
 // Description '': JXA passes null as NSNull, which AppKit rejects; VoiceOver reads the item title.
 function symbol(spec) {
-    var key = spec[0] + spec[1].join();
-    if (icons[key]) return icons[key];
+    if (icons[spec[0]]) return icons[spec[0]];
     var img = $.NSImage.imageWithSystemSymbolNameAccessibilityDescription(spec[0], '');
     if (img.isNil()) return null;
-    // one solid colour: a hierarchical one draws the secondary layers too faint to read
-    var tinted = img.imageWithSymbolConfiguration($.NSImageSymbolConfiguration.configurationWithPaletteColors($([rgb(spec[1])])));
-    icons[key] = tinted.isNil() ? img : tinted;
-    return icons[key];
+    img.setTemplate(true);
+    return (icons[spec[0]] = img);
 }
 
 // ---------------------------------------------------------------- menu ----
@@ -462,8 +459,8 @@ function watcherRow(title, sub, canGo, role) {
     // selection colour, and its title with it.
     var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
     var bw = Math.ceil($('Stop').sizeWithAttributes($({ NSFont: stopFont })).width) + 20, bh = 20, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
-    var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[1] ? rgb(look[1]) : $.NSColor.labelColor;
-    sub = look[2] + ' · ' + sub;
+    var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[0] ? rgb(look[0]) : $.NSColor.labelColor;
+    sub = look[1] + ' · ' + sub;
     var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
     var w = Math.max(HEADER_W, ROW_TEXT_X + tw + 12 + bw + 14);
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
@@ -477,7 +474,7 @@ function watcherRow(title, sub, canGo, role) {
     bg.setAutoresizingMask($.NSViewWidthSizable);
     bg.setHidden(true);
     v.addSubview(bg);
-    var iv = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription(look[0], ''));
+    var iv = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
     iv.setContentTintColor(tint);
     iv.setFrame($.NSMakeRect(ROW_TEXT_X - 20, (ROW_H - 16) / 2, 16, 16));
     v.addSubview(iv);
