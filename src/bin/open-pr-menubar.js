@@ -60,8 +60,9 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
 // disabled event writes no line, so that line can be older than the state). A line wins through
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
-// The role tag after a row's title, coloured so review and fix rows tell apart at a glance.
-var ROLE_TAG = { review: ['REVIEW', [0.04, 0.48, 1]], fix: ['FIX', [1, 0.5, 0]] };
+// The role tag leading a watcher row, coloured so review and fix groups tell apart at a glance;
+// its rows belong to it and carry none.
+var ROLE_TAG = { review: ['REVIEW', [0.04, 0.42, 0.9]], fix: ['FIX', [0.8, 0.38, 0.02]] };
 var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a project's watchers: both roles, review, fix
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
@@ -428,21 +429,6 @@ function section(menu, title) {
     else add(menu, title);
 }
 
-// text, then its role tag: smaller, bold, in the role's colour. Built through mutableString and
-// attribute ranges: JXA does not bridge NSAttributedString's initWithString initializers.
-// Attribute keys are the string values of NSFontAttributeName, NSForegroundColorAttributeName, NSKernAttributeName.
-function tagged(text, role, font) {
-    var s = $.NSMutableAttributedString.alloc.init, tag = ROLE_TAG[role];
-    s.mutableString.appendString(text + (tag ? '  ' + tag[0] : ''));
-    s.addAttributeValueRange('NSFont', font, $.NSMakeRange(0, s.length));
-    if (tag) {
-        var r = $.NSMakeRange(text.length + 2, tag[0].length);
-        s.addAttributeValueRange('NSFont', $.NSFont.systemFontOfSizeWeight(font.pointSize - 2, $.NSFontWeightBold), r);
-        s.addAttributeValueRange('NSColor', rgb(tag[1]), r);
-        s.addAttributeValueRange('NSKern', $(0.6), r);
-    }
-    return s;
-}
 function label(text, font, color, x, y) {
     var f = $.NSTextField.labelWithString(text);
     f.setFont(font);
@@ -473,7 +459,10 @@ function watcherRow(title, sub, canGo, role) {
     stop.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
     stop.sizeToFit;
     var bw = stop.frame.size.width, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
-    var tw = Math.max(tagged(clip(title), role, $.NSFont.menuFontOfSize(0)).size.width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
+    // the tag column has the widest tag's width, so every title starts at one x
+    var tagFont = $.NSFont.systemFontOfSizeWeight(10, $.NSFontWeightBold), tag = ROLE_TAG[role];
+    var tagW = role ? Math.ceil($('REVIEW').sizeWithAttributes($({ NSFont: tagFont })).width) + 8 : 0;
+    var tw = tagW + Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
     var w = Math.max(HEADER_W, ROW_TEXT_X + tw + 12 + bw + 14);
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
     v.setAutoresizingMask($.NSViewWidthSizable);
@@ -492,9 +481,13 @@ function watcherRow(title, sub, canGo, role) {
     var right = w - ROW_TEXT_X - bw - 26;
     var t = label(clip(title), $.NSFont.menuFontOfSize(0), $.NSColor.labelColor, ROW_TEXT_X, ROW_H / 2);
     var st = label(clip(sub), $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor, ROW_TEXT_X, ROW_H / 2 - 15);
-    if (role) t.setAttributedStringValue(tagged(clip(title), role, $.NSFont.menuFontOfSize(0)));
+    if (tag) {
+        var tg = label(tag[0], tagFont, rgb(tag[1]), ROW_TEXT_X, ROW_H / 2 - 2);
+        tg.setFrameSize($.NSMakeSize(tagW, 14));
+        v.addSubview(tg);
+    }
     [t, st].forEach(function (f) {
-        f.setFrame($.NSMakeRect(ROW_TEXT_X, f.frame.origin.y, right, 17));
+        f.setFrame($.NSMakeRect(ROW_TEXT_X + tagW, f.frame.origin.y, right - tagW, 17));
         f.setAutoresizingMask($.NSViewWidthSizable);
         v.addSubview(f);
     });
@@ -562,7 +555,6 @@ function build(s) {
         w.rows.forEach(function (x) {
             var spec = KIND[x.kind];
             var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
-            mi.setAttributedTitle(tagged(clip(x.title), x.role, $.NSFont.menuFontOfSize(0)));
             subtitle(mi, x.text);
             if (spec) mi.setImage(symbol(spec));
             if (w.key) mi.setIndentationLevel(1);
