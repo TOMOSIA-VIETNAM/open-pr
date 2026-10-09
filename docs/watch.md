@@ -142,7 +142,7 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
   then fix rows, each labelled `· review` or `· fix` — the group's "Go to watcher
   tab" brings that terminal tab to the front (iTerm and Terminal select the exact tab after macOS asks
   once for Automation permission; otherwise the terminal app comes to the front; a watcher whose tab was
-  closed is reopened with `claude attach`), and its "Stop watcher" ends every repo it watches, leaving another role's watcher running; a row shows the latest
+  closed is reopened with `claude attach`), and its "Stop" ends every repo it watches, leaving another role's watcher running; a row shows the latest
   state in place (reviewing, posted with counts, LGTM, draft, needs an answer, new findings, fixing,
   fixed, failed) and always offers: **Fix now** on a row with new findings,
   open the pull request, open its session in the terminal that watcher runs in (a new tab of iTerm,

@@ -9,7 +9,7 @@
 //   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, and
 //                                           the repo_dir/remote "Remove from list" passes to `hide` and
 //                                           "Fix now" to `fix-now`
-//   <data>/<repo>/watch/stop         written by "Stop watcher"; the watcher's `wait` consumes it
+//   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   heartbeat, watcher.json and stop belong to the wait serving both roles; a wait serving one
 //   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
@@ -60,9 +60,10 @@ var KIND = {   // SF Symbol, sRGB tint, label — by a session's last_state (lgt
 // disabled event writes no line, so that line can be older than the state). A line wins through
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
-// The role tag leading a watcher row, coloured so review and fix groups tell apart at a glance;
-// its rows belong to it and carry none.
-var ROLE_TAG = { review: ['REVIEW', [0.04, 0.42, 0.9]], fix: ['FIX', [0.8, 0.38, 0.02]] };
+// A watcher row's icon and role word, by the role it serves: review and fix groups tell apart at
+// a glance and every title starts at one x. Its rows belong to it and carry no role.
+var ROLE_LOOK = { review: ['eye', [0.04, 0.42, 0.9], 'Review'], fix: ['wrench.and.screwdriver', [0.8, 0.38, 0.02], 'Fix'],
+                  '': ['terminal', null, 'Review + fix'] };
 var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a project's watchers: both roles, review, fix
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
@@ -378,7 +379,8 @@ function symbol(spec) {
     if (icons[key]) return icons[key];
     var img = $.NSImage.imageWithSystemSymbolNameAccessibilityDescription(spec[0], '');
     if (img.isNil()) return null;
-    var tinted = img.imageWithSymbolConfiguration($.NSImageSymbolConfiguration.configurationWithHierarchicalColor(rgb(spec[1])));
+    // one solid colour: a hierarchical one draws the secondary layers too faint to read
+    var tinted = img.imageWithSymbolConfiguration($.NSImageSymbolConfiguration.configurationWithPaletteColors($([rgb(spec[1])])));
     icons[key] = tinted.isNil() ? img : tinted;
     return icons[key];
 }
@@ -423,12 +425,6 @@ function subtitle(mi, text) {
         $({ NSFont: $.NSFont.menuFontOfSize(11), NSColor: $.NSColor.secondaryLabelColor })));
     mi.setAttributedTitle(s);
 }
-function section(menu, title) {
-    menu.addItem($.NSMenuItem.separatorItem);
-    if ($.NSMenuItem.respondsToSelector('sectionHeaderWithTitle:')) menu.addItem($.NSMenuItem.sectionHeaderWithTitle(title));
-    else add(menu, title);
-}
-
 function label(text, font, color, x, y) {
     var f = $.NSTextField.labelWithString(text);
     f.setFont(font);
@@ -453,16 +449,15 @@ function headerView(repos, watchers, until) {
 // A view item gets neither the item's action nor the menu's highlight: a transparent button over
 // the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
 function watcherRow(title, sub, canGo, role) {
-    var stop = $.NSButton.buttonWithTitleTargetAction('Stop watcher', target, 'stopRow:');
+    var stop = $.NSButton.buttonWithTitleTargetAction('Stop', target, 'stopRow:');
     stop.setBezelStyle($.NSBezelStyleInline);
     stop.setControlSize($.NSControlSizeSmall);
     stop.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
     stop.sizeToFit;
     var bw = stop.frame.size.width, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
-    // the tag column has the widest tag's width, so every title starts at one x
-    var tagFont = $.NSFont.systemFontOfSizeWeight(10, $.NSFontWeightBold), tag = ROLE_TAG[role];
-    var tagW = role ? Math.ceil($('REVIEW').sizeWithAttributes($({ NSFont: tagFont })).width) + 8 : 0;
-    var tw = tagW + Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
+    var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[1] ? rgb(look[1]) : $.NSColor.labelColor;
+    sub = look[2] + ' · ' + sub;
+    var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
     var w = Math.max(HEADER_W, ROW_TEXT_X + tw + 12 + bw + 14);
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
     v.setAutoresizingMask($.NSViewWidthSizable);
@@ -475,19 +470,15 @@ function watcherRow(title, sub, canGo, role) {
     bg.setAutoresizingMask($.NSViewWidthSizable);
     bg.setHidden(true);
     v.addSubview(bg);
-    var iv = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
+    var iv = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription(look[0], ''));
+    iv.setContentTintColor(tint);
     iv.setFrame($.NSMakeRect(ROW_TEXT_X - 23, (ROW_H - 16) / 2, 16, 16));
     v.addSubview(iv);
     var right = w - ROW_TEXT_X - bw - 26;
     var t = label(clip(title), $.NSFont.menuFontOfSize(0), $.NSColor.labelColor, ROW_TEXT_X, ROW_H / 2);
     var st = label(clip(sub), $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor, ROW_TEXT_X, ROW_H / 2 - 15);
-    if (tag) {
-        var tg = label(tag[0], tagFont, rgb(tag[1]), ROW_TEXT_X, ROW_H / 2 - 2);
-        tg.setFrameSize($.NSMakeSize(tagW, 14));
-        v.addSubview(tg);
-    }
     [t, st].forEach(function (f) {
-        f.setFrame($.NSMakeRect(ROW_TEXT_X + tagW, f.frame.origin.y, right - tagW, 17));
+        f.setFrame($.NSMakeRect(ROW_TEXT_X, f.frame.origin.y, right, 17));
         f.setAutoresizingMask($.NSViewWidthSizable);
         v.addSubview(f);
     });
@@ -504,7 +495,7 @@ function watcherRow(title, sub, canGo, role) {
     stop.setFrame($.NSMakeRect(w - bw - 14, (ROW_H - stop.frame.size.height) / 2, bw, stop.frame.size.height));
     stop.setAutoresizingMask($.NSViewMinXMargin);
     v.addSubview(stop);
-    rowParts[v.hash] = { bg: bg, icon: iv, title: t, sub: st, canGo: canGo };
+    rowParts[v.hash] = { bg: bg, icon: iv, tint: tint, title: t, sub: st, canGo: canGo };
     return v;
 }
 function highlightRow(mi) {
@@ -518,7 +509,7 @@ function paintRow(p, on) {
     p.bg.setHidden(!on);
     p.title.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.labelColor);
     p.sub.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.secondaryLabelColor);
-    p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.labelColor);
+    p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : p.tint);
 }
 function rowAction(sender, which) {
     var mi = sender.enclosingMenuItem;
@@ -539,7 +530,8 @@ function build(s) {
     head.setView(headerView(s.repos, s.watchers.length, until));
     m.addItem(head);
 
-    section(m, 'Pull requests');
+    // no section title: a menu indents the items under one
+    m.addItem($.NSMenuItem.separatorItem);
     if (!s.watchers.length) add(m, 'Nothing yet');
     s.watchers.forEach(function (w) {
         // A record from before watcher.json existed has no tab to show.

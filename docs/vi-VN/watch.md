@@ -139,7 +139,7 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
   tới dòng fix, mỗi dòng gắn nhãn `· review` hoặc `· fix` — mục "Go to watcher tab" của nhóm đưa
   tab terminal đó lên trước (iTerm và Terminal chọn đúng tab sau khi macOS hỏi xin quyền Automation một
   lần; nếu không thì ứng dụng terminal được đưa lên trước; watcher đã bị đóng tab được mở lại bằng
-  `claude attach`), còn "Stop watcher" của nhóm dừng theo dõi mọi repo của watcher đó, watcher của vai kia vẫn chạy; mỗi dòng hiện trạng thái mới nhất ngay tại
+  `claude attach`), còn "Stop" của nhóm dừng theo dõi mọi repo của watcher đó, watcher của vai kia vẫn chạy; mỗi dòng hiện trạng thái mới nhất ngay tại
   chỗ (đang review, đã post kèm số finding, LGTM, draft, cần trả lời, có finding mới, đang fix, đã fix,
   lỗi) và luôn có: **Fix now** trên dòng có finding mới, mở pull request,
   mở session trong terminal mà watcher đó đang chạy (tab mới của iTerm, Terminal, Ghostty hoặc WezTerm;

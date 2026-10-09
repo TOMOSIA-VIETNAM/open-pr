@@ -135,7 +135,7 @@ watcher が起動すると、メニューバーに蛾のアイコンと進行中
   後、各行に `· review` または `· fix` のラベル）— グループの "Go to watcher tab" で
   その terminal のタブが前面に出ます（iTerm と Terminal では、macOS が一度だけ Automation の権限を求めた
   あと、そのタブそのものを選択します。それ以外では terminal アプリが前面に出ます。タブが閉じられた watcher は
-  `claude attach` で開き直します）。グループの "Stop watcher" はその watcher が監視する全リポジトリを止めます（もう一方の役割の watcher は動き続けます）。各行はその場で最新の
+  `claude attach` で開き直します）。グループの "Stop" はその watcher が監視する全リポジトリを止めます（もう一方の役割の watcher は動き続けます）。各行はその場で最新の
   状態（レビュー中、指摘数付きの投稿済み、LGTM、ドラフト、回答待ち、新しい指摘、修正中、修正済み、失敗）を
   示し、常に、新しい指摘のある行では **Fix now**、pull request を開く、
   その watcher が動いている terminal でセッションを開く（iTerm・Terminal・Ghostty・WezTerm では新しいタブ、

@@ -116,7 +116,7 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
 - 每个 pull request 的每个角色一行，按 watcher 分组（`<folder> · <terminal>`，只服务一个角色的 watcher 另加 `· review` 或 `· fix`；每行归在其角色的 watcher 下），评审行在前、修复行在后，每行
   标注 `· review` 或 `· fix`—— 分组中的 "Go to watcher tab" 会把该 terminal
   标签页调到前台（iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后会选中确切的标签页；其他情况下把
-  terminal 应用调到前台；标签页已关闭的 watcher 会用 `claude attach` 重新打开），分组的 "Stop watcher" 会停止该
+  terminal 应用调到前台；标签页已关闭的 watcher 会用 `claude attach` 重新打开），分组的 "Stop" 会停止该
   watcher 监视的所有仓库（另一角色的 watcher 继续运行）；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、
   已修复、失败），并始终可以：在有新发现的行上 **Fix now**、打开 pull request、在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的新标签页；其他
   terminal 则打开 Terminal），或复制命令；

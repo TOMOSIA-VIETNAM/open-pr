@@ -879,7 +879,7 @@ cmd_wait() {
     FIX_LISTED=$(arg fix_prs); [ -z "$FIX_LISTED" ] || check_ident '^[0-9]+(,[0-9]+)*$' "$FIX_LISTED"
     load_repo
     WF="$SD/watcher$SFX.json"
-    # Written by the menu bar's "Stop watcher"; one left from an earlier run must not stop this one.
+    # Written by the menu bar's "Stop"; one left from an earlier run must not stop this one.
     rm -f "$SD/stop$SFX"
     # Two waits serving one role on one repo would split its events between them; a review and a
     # fix wait run side by side. Checked and claimed under the state lock.
@@ -1211,7 +1211,7 @@ Exit codes:
   9  `wait --once` hit a vendor rate limit
   10 another `wait` already watches this repo for one of these roles on this machine — the message
      names the role and its pid
-  11 `wait` found its `stop` in the repo's state dir (the menu bar's "Stop watcher"); it consumes the
+  11 `wait` found its `stop` in the repo's state dir (the menu bar's "Stop"); it consumes the
      file and prints no events. A `wait` start clears one left from before
      (`wait` also exits 1 once triggers has failed 3 polls in a row, naming the last error)
 EOF
