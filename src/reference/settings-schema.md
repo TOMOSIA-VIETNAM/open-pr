@@ -91,7 +91,7 @@ table, so that every token in a cell can be checked against the JSON above:
 
 ## What the menu bar writes
 
-The menu bar's Settings submenu changes these keys, and only these, through `<op> settings --set K
+The menu bar's settings panel changes these keys, and only these, through `<op> settings --set K
 --value V` (the sole writer outside a chat): `watch.max_concurrent`, `watch.poll_interval_seconds`
 (positive integers), `watch.trigger` (a `trigger` value as above), `watch.notify.<event>`,
 `review.auto_submit_review`, `review.post_lgtm`, `review.auto_resolve_fixed_findings`,

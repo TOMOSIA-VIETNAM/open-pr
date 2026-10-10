@@ -1822,26 +1822,63 @@ def test_a_settings_click_hands_open_pr_watch_only_a_listed_key_and_value(w):
     assert got[4:] == [None] * 7, "a value the menu does not offer, an unlisted key, or a bad repo reached argv"
 
 
+# The settings panel's controls, from the global `controls`: [key, state] — a pick's state is its
+# segment labels with the selected one in [brackets] and a disabled one in (parens), a checkbox's
+# its state (-1 mixed).
+PANEL_DUMP = """var dump = function () { return Object.keys(controls).map(function (h) { var c = controls[h], v = c.view;
+    if (!c.key) return null;
+    if (!c.values) return [c.key, Number(v.state)];
+    var a = []; for (var i = 0; i < v.segmentCount; i++) { var l = ObjC.unwrap(v.labelForSegment(i));
+        l = v.isEnabledForSegment(i) ? l : '(' + l + ')'; a.push(v.isSelectedForSegment(i) ? '[' + l + ']' : l); }
+    return [c.key, a.join(' ')]; }).filter(Boolean); };"""
+
+
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
-def test_the_settings_submenu_checks_each_current_value(w):
+def test_the_settings_panel_shows_each_current_value(w):
     _watched(w)
     (w.home / "settings.json").write_text(json.dumps({
         "review": {"doctored": False, "post_lgtm": True, "auto_submit_review": False, "doctor_schedule": "7 days"},
         "watch": {"max_concurrent": 5, "poll_interval_seconds": 180, "trigger": "@alice",
                   "notify": {e: e != "posted" for e in ("review_started", "question", "draft_ready", "posted",
                                                        "re_review", "findings", "error")}}}))
-    got = _menubar_js(w, """var x = scan().watchers[0].settings[0], m = settingsMenu(x, []);
-        function dump(menu) { var a = []; for (var i = 0; i < menu.numberOfItems; i++) { var mi = menu.itemAtIndex(i);
-            if (mi.isSeparatorItem) continue;
-            a.push([ObjC.unwrap(mi.title), Number(mi.state), mi.hasSubmenu ? dump(mi.submenu) : null]); } return a; }
-        return JSON.stringify(dump(m));""", script=True)
-    by = {t: (st, sub) for t, st, sub in got}
-    on = lambda sub: [t for t, st, _ in sub if st == 1]
-    assert on(by["Sessions at once: 5"][1]) == ["5"]
-    assert on(by["Poll every: 3 minutes"][1]) == ["3 minutes"]
-    assert on(by["Trigger: @alice"][1]) == ["@alice (set in a chat)"], "a typed login shows, unchanged"
-    assert by["Toasts: 6 of 7"][1][3][:2] == ["Posted", 0]
-    assert on(by["Doctor every: 7 days"][1]) == ["7 days (set in a chat)"]
-    assert by["Post LGTM when nothing is found"][0] == 1 and by["Post reviews without a draft"][0] == 0
-    assert by["Warn about failing CI"][0] == -1, "unset: decided per review by its CI checks"
-    assert got[0][0] == "Watch" and got[-1][0] == "Doctor: never run"
+    got = _menubar_js(w, PANEL_DUMP + """var x = scan().watchers[0].settings[0], p = settingsPanel(x, []);
+        return JSON.stringify(dump());""", script=True)
+    by = dict(got)
+    assert by["watch.max_concurrent"] == "1 2 3 [5] 8 10"
+    assert by["watch.poll_interval_seconds"] == "1m 2m [3m] 5m 10m"
+    assert by["watch.trigger"] == "/open-pr @me [(@alice)]", "a typed login shows, unchanged and disabled"
+    assert by["review.doctor_schedule"] == "1w 2w 1m 3m Never [(7 days)]"
+    assert (by["watch.notify.posted"], by["watch.notify.question"]) == (0, 1)
+    assert (by["review.post_lgtm"], by["review.auto_submit_review"]) == (1, 0)
+    assert by["review.review_ci_status"] == -1, "unset: decided per review by its CI checks"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_panel_control_writes_its_key_and_shows_the_value_read_back(w):
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({"review": {"post_lgtm": True}, "watch": {"max_concurrent": 5}}))
+    got = _menubar_js(w, PANEL_DUMP + """var x = scan().watchers[0].settings[0], p = settingsPanel(x, []);
+        var by = function (k) { return Object.keys(controls).map(function (h) { return controls[h]; })
+            .filter(function (c) { return c.key === k; })[0].view; };
+        var seg = by('watch.max_concurrent'); seg.setSelectedSegment(4); setSetting(seg);
+        setSetting(by('review.post_lgtm'));
+        return JSON.stringify(dump());""", script=True)
+    calls = [l for l in (w.home / "open-pr.calls").read_text().splitlines() if "--set" in l]
+    base = f"settings --repo r --repo-dir {w.repo.resolve()} --set"
+    assert calls == [f"{base} watch.max_concurrent --value 8", f"{base} review.post_lgtm --value false"]
+    assert dict(got)["watch.max_concurrent"] == "1 2 3 [5] 8 10", "the panel shows the file, which the fake left as it was"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_show_settings_file_reveals_only_a_settings_file_in_a_data_dir(w):
+    data = w.home / "data"
+    (data / "r").mkdir(parents=True, exist_ok=True)
+    (data / "r" / "settings.json").write_text("{}")
+    (data / "r" / "other.json").write_text("{}")
+    (data / "link").mkdir(exist_ok=True)
+    os.symlink(w.home / "settings.json", data / "link" / "settings.json")
+    (w.home / "settings.json").write_text("{}")
+    cases = [f"{data}/r/settings.json", f"{data}/r/other.json", f"{data}/nope/settings.json", f"{data}/link/settings.json",
+             f"{data}/r/../r/settings.json", f"{w.home}/settings.json", "data/r/settings.json", None]
+    got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(revealable));")
+    assert got == [f"{data}/r/settings.json"] + [""] * 7, "only <data>/<repo>/settings.json, a regular file"

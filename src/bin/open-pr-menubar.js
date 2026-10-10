@@ -11,8 +11,8 @@
 //                                           "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
-//   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE); the Settings
-//                                           submenu reads and writes it through `open-pr-watch.sh settings`
+//   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE); the settings
+//                                           panel reads and writes it through `open-pr-watch.sh settings`
 //   heartbeat, watcher.json, stop and quota.json belong to the wait serving both roles; a wait serving one
 //   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
@@ -42,7 +42,7 @@ var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['re
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
-var item = null, target = null, icons = {}, rowParts = {}, stopParts = {}, litRow = null;
+var item = null, target = null, icons = {}, rowParts = {}, stopParts = {}, litRow = null, menuOpen = false;
 
 // A watcher row says "no poll for …" once its newest heartbeat is older than STALE.factor × the
 // interval it polls at: this machine's "Poll every" choice, else the slowest of its repos' setting
@@ -125,23 +125,24 @@ var MOTH = [
 var QUOTA = { warn: 0.5, low: 0.3, critical: 0.1 };
 var VENDOR_NAME = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket' };
 var VENDOR_HOST = { github: 'github.com', gitlab: 'gitlab.com', bitbucket: 'bitbucket.org' };
-// A watched repo's Settings submenu, by group: [key, label, options]. options = [[value, label]…] for
-// a pick, EVENTS for one checkmark per watch.notify.<event>, none for one checkmark. Only these
-// keys and values reach `open-pr-watch.sh settings --set` (settingArgs); open-pr.sh checks them again.
+// A watched repo's settings panel, by group: [key, label, options]. options = [[value, segment label,
+// tooltip?]…] for a pick, EVENTS for one checkbox per watch.notify.<event>, none for one checkbox. Only
+// these keys and values reach `open-pr-watch.sh settings --set` (settingArgs); open-pr.sh checks them again.
 var EVENTS = [['review_started', 'Review started'], ['question', 'Question'], ['draft_ready', 'Draft ready'],
               ['posted', 'Posted'], ['re_review', 'Re-review'], ['findings', 'New findings'], ['error', 'Error']];
 var SETTINGS = [
     ['Watch', [
         ['watch.max_concurrent', 'Sessions at once', [[1, '1'], [2, '2'], [3, '3'], [5, '5'], [8, '8'], [10, '10']]],
-        ['watch.poll_interval_seconds', 'Poll every', [[60, '1 minute'], [120, '2 minutes'], [180, '3 minutes'], [300, '5 minutes'], [600, '10 minutes']]],
-        ['watch.trigger', 'Trigger', [['/open-pr', '/open-pr'], ['@me', '@me (a mention of you)']]],
+        ['watch.poll_interval_seconds', 'Poll every', [[60, '1m'], [120, '2m'], [180, '3m'], [300, '5m'], [600, '10m']]],
+        ['watch.trigger', 'Trigger', [['/open-pr', '/open-pr', 'A comment starting with /open-pr'], ['@me', '@me', 'A mention of you']]],
         ['watch.notify', 'Toasts', EVENTS]]],
     ['Review', [
         ['review.auto_submit_review', 'Post reviews without a draft'],
         ['review.post_lgtm', 'Post LGTM when nothing is found'],
         ['review.auto_resolve_fixed_findings', 'Resolve fixed findings'],
         ['review.review_ci_status', 'Warn about failing CI'],
-        ['review.doctor_schedule', 'Doctor every', [['1 weeks', '1 week'], ['2 weeks', '2 weeks'], ['1 months', '1 month'], ['3 months', '3 months'], ['never', 'Never']]]]]
+        ['review.doctor_schedule', 'Doctor every', [['1 weeks', '1w', '1 week'], ['2 weeks', '2w', '2 weeks'], ['1 months', '1m', '1 month'],
+                                                    ['3 months', '3m', '3 months'], ['never', 'Never']]]]]
 ];
 // key → the values a click may write, as argv strings
 var SETTING_VALUES = {};
@@ -173,13 +174,16 @@ ObjC.registerSubclass({
         'goRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'go'); } },
         'stopRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'stop'); } },
         'menu:willHighlightItem:': { types: ['void', ['id', 'id']], implementation: function (m, mi) { highlightRow(mi); } },
-        'menuDidClose:': { types: ['void', ['id']], implementation: function () { highlightRow(null); } },
+        'menuWillOpen:': { types: ['void', ['id']], implementation: function () { menuOpen = true; } },
+        'menuDidClose:': { types: ['void', ['id']], implementation: function () { menuOpen = false; highlightRow(null); } },
         'stopSession:': { types: ['void', ['id']], implementation: function (t) { stopSession(parse(unwrapString(t.userInfo))); } },
         'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
         'fixNow:': { types: ['void', ['id']], implementation: function (s) { fixNow(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
         'poll:': { types: ['void', ['id']], implementation: function (s) { poll(Number(s.tag)); } },
-        'setting:': { types: ['void', ['id']], implementation: function (s) { setSetting(parse(unwrapString(s.representedObject))); } },
+        // sender: a control in a settings panel (see controls)
+        'setting:': { types: ['void', ['id']], implementation: function (s) { setSetting(s); } },
+        'reveal:': { types: ['void', ['id']], implementation: function (s) { reveal(s); } },
         'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
     }
 });
@@ -288,7 +292,7 @@ function scan() {
         var repoDir = wj && typeof wj === 'object' ? str(wj.repo_dir) : '', remote = wj && typeof wj === 'object' ? str(wj.remote) : '';
         var conf = repoSettings(data + '/' + name, repoDir, remote);
         if (conf) live.forEach(function (set) {
-            at[set.sfx].settings.push({ name: name, conf: conf, doctor: doctorLine(conf), arg: { repo_dir: repoDir, remote: remote } });
+            at[set.sfx].settings.push({ name: name, repo: data + '/' + name, conf: conf, doctor: doctorLine(conf), arg: { repo_dir: repoDir, remote: remote } });
         });
         var rows = {};
         var st = parse(readText(dir + '/state.json'));
@@ -527,10 +531,11 @@ function blank() {
 }
 
 // ---------------------------------------------------------------- menu ----
-// A settings read waits on a task while the run loop turns, so the timer can fire inside it.
+// A settings read waits on a task while the run loop turns, so the timer can fire inside it. An open
+// menu is left as it is: a settings panel writes while it stays open, and updates its own controls.
 var refreshing = false;
 function refresh() {
-    if (refreshing) return;
+    if (refreshing || menuOpen) return;
     refreshing = true;
     try {
         var s = scan();
@@ -736,7 +741,7 @@ function rowAction(sender, which) {
 function build(s) {
     var m = newMenu('open-pr');
     m.setDelegate(target);
-    rowParts = {}; stopParts = {}; litRow = null;
+    rowParts = {}; stopParts = {}; litRow = null; controls = {};
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
     head.setView(headerView(s.repos, s.watchers.length, until, gauge(s.quotas)));
@@ -755,6 +760,13 @@ function build(s) {
             var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
             wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.session_id } })));
             wi.setView(watcherRow(wt, watcherLine(w), !!go, w.role));
+            // hovering the row opens its settings: one repo's panel, or one item per repo leading to its own
+            if (w.settings.length === 1) wi.setSubmenu(panelMenu(w.settings[0], s.quotas));
+            else if (w.settings.length) {
+                var sm = newMenu(wt);
+                w.settings.forEach(function (x) { var ri = add(sm, x.name); ri.setSubmenu(panelMenu(x, s.quotas)); ri.setEnabled(true); });
+                wi.setSubmenu(sm);
+            }
             m.addItem(wi);
         }
         // a blank image of an icon's size puts the text in the rows' text column
@@ -773,18 +785,6 @@ function build(s) {
             if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
             if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
         });
-        // one repo: Settings ▸ its settings; several: Settings ▸ <repo> ▸
-        if (w.settings.length) {
-            var si = add(m, 'Settings');
-            si.setImage(symbol(['gearshape']));
-            si.setEnabled(true);
-            if (w.settings.length === 1) si.setSubmenu(settingsMenu(w.settings[0], s.quotas));
-            else {
-                var sm = newMenu('Settings');
-                w.settings.forEach(function (x) { var ri = add(sm, x.name); ri.setSubmenu(settingsMenu(x, s.quotas)); ri.setEnabled(true); });
-                si.setSubmenu(sm);
-            }
-        }
     });
 
     m.addItem($.NSMenuItem.separatorItem);
@@ -817,51 +817,125 @@ function build(s) {
     return m;
 }
 
-function check(mi, on) { mi.setState(on ? $.NSControlStateValueOn : $.NSControlStateValueOff); return mi; }
 function span(sec) { return sec % 60 ? sec + ' seconds' : sec / 60 + (sec === 60 ? ' minute' : ' minutes'); }
-// x: { name, conf, doctor, arg }. Each item's value is what a click writes; the checked one is the
-// current value, and a current value the menu does not offer (set in a chat) shows checked, disabled.
-function settingsMenu(x, quotas) {
-    var m = newMenu(x.name), arg = function (key, value) { return JSON.stringify({ repo_dir: x.arg.repo_dir, remote: x.arg.remote, key: key, value: String(value) }); };
+// A settings panel's controls by hash: { p: its panel, key, view, values: what each segment writes }
+// for a pick, the same without values for a checkbox, { reveal: its settings.json } for its button.
+var controls = {};
+var PANEL = { pad: 16, label: 120, row: 30, check: 22 };   // points: side padding, label column, row steps
+// x: { name, repo, conf, arg }. One view item: a click on a control inside it leaves the menu open,
+// where a plain item's action closes it.
+function panelMenu(x, quotas) {
+    var m = newMenu(x.name), mi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, '');
+    mi.setView(settingsPanel(x, quotas));
+    m.addItem(mi);
+    return m;
+}
+function text(t, font, color) {
+    var f = $.NSTextField.labelWithString(t);
+    f.setFont(font);
+    f.setTextColor(color);
+    f.setLineBreakMode($.NSLineBreakByTruncatingTail);
+    return f;
+}
+function control(p, v, key, values) {
+    var c = controls[v.hash] = { p: p, key: key, view: v, values: values };
+    p.ctl.push(c);
+    return v;
+}
+function checkbox(p, key, title) { return control(p, $.NSButton.checkboxWithTitleTargetAction(title, target, 'setting:'), key); }
+// Laid out top-down as [view, x, top, width, height]; width undefined: its fitting width, 0: to the right
+// padding, -1: to the right padding, at least its fitting width;
+// frames are set once the size is known, as AppKit's y grows upward.
+function settingsPanel(x, quotas) {
+    var p = { x: x, quotas: quotas, ctl: [] }, at = [], top = 10, pad = PANEL.pad, col = pad + PANEL.label;
+    var put = function (v, l, wd, h, dy) { at.push([v, l, top + (dy || 0), wd, h]); return v; };
+    var second = $.NSColor.secondaryLabelColor, small = $.NSFont.systemFontOfSize(11);
     SETTINGS.forEach(function (g, i) {
-        if (i) m.addItem($.NSMenuItem.separatorItem);
-        add(m, g[0]);
+        put(text(g[0], $.NSFont.systemFontOfSizeWeight(11, $.NSFontWeightSemibold), second), pad, undefined, 14, i ? 6 : 0);
+        top += i ? 26 : 20;
         g[1].forEach(function (k) {
-            var cur = valueAt(x.conf, k[0]);
-            if (!k[2]) {
-                var mi = add(m, k[1], 'setting:', arg(k[0], cur !== true));
-                // review_ci_status unset: on when the PR has CI checks, decided per review
-                if (cur === undefined) { mi.setState($.NSControlStateValueMixed); mi.setToolTip('Not set: on when the pull request has CI checks'); }
-                else check(mi, cur === true);
+            if (!k[2]) { put(checkbox(p, k[0], k[1]), pad, undefined, 18); top += PANEL.check; return; }
+            put(text(k[1], $.NSFont.systemFontOfSize(13), $.NSColor.labelColor), pad, PANEL.label - 8, 17, 3);
+            if (k[2] === EVENTS) {   // two columns, row by row
+                var boxes = EVENTS.map(function (e) { var b = checkbox(p, k[0] + '.' + e[0], e[1]); b.sizeToFit; return b; });
+                var cw = Math.max.apply(null, boxes.map(function (b) { return b.frame.size.width; }));
+                boxes.forEach(function (b, j) { put(b, col + (j % 2) * (cw + 12), cw, 18, 2 + Math.floor(j / 2) * PANEL.check); });
+                top += Math.ceil(EVENTS.length / 2) * PANEL.check + 4;
                 return;
             }
-            var sub = newMenu(k[1]), shown = '';
-            if (k[2] === EVENTS) {
-                EVENTS.forEach(function (e) { check(add(sub, e[1], 'setting:', arg(k[0] + '.' + e[0], !(cur && cur[e[0]] === true))), cur && cur[e[0]] === true); });
-                shown = EVENTS.filter(function (e) { return cur && cur[e[0]] === true; }).length + ' of ' + EVENTS.length;
-            } else {
-                if (k[0] === 'watch.poll_interval_seconds' && pollSeconds()) {
-                    add(sub, 'This machine polls every ' + span(pollSeconds()) + ' (Poll every)');
-                    sub.addItem($.NSMenuItem.separatorItem);
-                }
-                k[2].forEach(function (o) {
-                    var extra = k[0] === 'watch.poll_interval_seconds' ? estimate(quotas, o[0]) : '';
-                    check(add(sub, o[1] + extra, 'setting:', arg(k[0], o[0])), cur === o[0]);
-                    if (cur === o[0]) shown = o[1];
-                });
-                if (!shown && cur !== undefined) {
-                    shown = k[0] === 'watch.poll_interval_seconds' && typeof cur === 'number' ? span(cur) : String(cur);
-                    check(add(sub, shown + ' (set in a chat)'), true);
-                }
-            }
-            var pi = add(m, k[1] + (shown ? ': ' + shown : ''));
-            pi.setSubmenu(sub);
-            pi.setEnabled(true);
+            var seg = $.NSSegmentedControl.segmentedControlWithLabelsTrackingModeTargetAction(
+                $(k[2].map(function (o) { return o[1]; })), $.NSSegmentSwitchTrackingSelectOne, target, 'setting:');
+            k[2].forEach(function (o, j) {
+                var tip = k[0] === 'watch.poll_interval_seconds' ? span(o[0]) + estimate(quotas, o[0]) : o[2];
+                if (tip) seg.setToolTipForSegment(tip, j);
+            });
+            put(control(p, seg, k[0], k[2].map(function (o) { return o[0]; })), col, undefined, 24);
+            top += PANEL.row;
+            if (k[0] === 'watch.poll_interval_seconds') { p.cost = put(text('', small, second), col, -1, 14, -4); top += 14; }
         });
     });
-    m.addItem($.NSMenuItem.separatorItem);
-    add(m, x.doctor).setImage(symbol(['stethoscope']));
-    return m;
+    var sep = $.NSBox.alloc.initWithFrame($.NSMakeRect(0, 0, 10, 1));
+    sep.setBoxType($.NSBoxSeparator);
+    put(sep, pad, 0, 1, 2);
+    top += 12;
+    var steth = $.NSImageView.imageViewWithImage(symbol(['stethoscope']));
+    steth.setContentTintColor(second);
+    put(steth, pad, 14, 14, 1);
+    p.doctor = put(text('', small, second), pad + 20, -1, 14, 1);
+    top += 22;
+    p.reveal = $.NSButton.buttonWithTitleTargetAction('Show settings file', target, 'reveal:');
+    p.reveal.setControlSize($.NSControlSizeSmall);
+    p.reveal.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
+    controls[p.reveal.hash] = { reveal: x.repo + '/settings.json' };
+    put(p.reveal, pad - 6, undefined, 22);   // a bezel's own inset: its border lines up with the text above
+    top += 30;
+    showPanel(p, x.conf);   // first, so a segment shown only for a value set in a chat is measured
+    var w = 0;
+    at.forEach(function (a) {
+        if (a[3] === undefined || a[3] < 0) { a[0].sizeToFit; w = Math.max(w, a[1] + a[0].frame.size.width + pad); }
+        if (a[3] === undefined) a[3] = a[0].frame.size.width;
+        else if (a[3] > 0) w = Math.max(w, a[1] + a[3] + pad);
+    });
+    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, top));
+    at.forEach(function (a) {
+        a[0].setFrame($.NSMakeRect(a[1], top - a[2] - a[4], a[3] > 0 ? a[3] : w - a[1] - pad, a[4]));
+        v.addSubview(a[0]);
+    });
+    return v;
+}
+// A value no control offers (set in a chat): an extra segment, selected and disabled.
+function shortValue(key, v) {
+    return key === 'watch.poll_interval_seconds' && typeof v === 'number' ? (v % 60 ? v + 's' : v / 60 + 'm') : String(v);
+}
+// Sets every control of panel p from conf, the repo's settings as `settings` printed them.
+function showPanel(p, conf) {
+    p.conf = conf;
+    p.ctl.forEach(function (c) {
+        var cur = valueAt(conf, c.key), v = c.view;
+        if (!c.values) {
+            // review_ci_status unset: on when the PR has CI checks, decided per review
+            v.setAllowsMixedState(cur === undefined);
+            v.setState(cur === undefined ? $.NSControlStateValueMixed : cur === true ? $.NSControlStateValueOn : $.NSControlStateValueOff);
+            v.setToolTip(cur === undefined ? 'Not set: on when the pull request has CI checks' : '');
+            return;
+        }
+        var i = c.values.indexOf(cur), n = c.values.length, extra = i < 0 && cur !== undefined && cur !== null;
+        v.setSegmentCount(n + (extra ? 1 : 0));
+        if (extra) {
+            v.setLabelForSegment(shortValue(c.key, cur), n);
+            v.setEnabledForSegment(false, n);
+            v.setToolTipForSegment('Set in a chat', n);
+        }
+        v.setSelectedSegment(extra ? n : i);
+        v.sizeToFit;
+    });
+    if (p.cost) {
+        var sec = pollSeconds(), e = typeof valueAt(conf, 'watch.poll_interval_seconds') === 'number' ? estimate(p.quotas, valueAt(conf, 'watch.poll_interval_seconds')).trim() : '';
+        p.cost.setStringValue(sec ? 'This machine polls every ' + span(sec) + ' (Poll every)' : e ? 'API cost ' + e : '');
+        p.cost.setTextColor(!sec && / ⚠$/.test(e) ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor);
+    }
+    p.doctor.setStringValue(doctorLine(conf));
+    p.reveal.setEnabled(!!revealable(p.x.repo + '/settings.json'));
 }
 
 // ------------------------------------------------------------- actions ----
@@ -990,13 +1064,30 @@ function settingArgs(o) {
     var a = repoArgs(o, 'settings'), ok = o && SETTING_VALUES[str(o.key)];
     return a && ok && ok.indexOf(str(o.value)) >= 0 ? a.concat(['--set', o.key, '--value', o.value]) : null;
 }
-// Waits for the write (the run loop turns meanwhile), then reads every repo's settings afresh.
-function setSetting(o) {
-    var args = settingArgs(o);
-    if (!args) return;
-    output('/bin/sh', args);
-    settingsCache = {};
-    refresh();
+// A panel control's click: writes its key (the run loop turns meanwhile), then sets the panel from
+// the file read afresh — a refused write puts the control back. The menu stays open.
+function setSetting(sender) {
+    var c = controls[sender.hash];
+    if (!c || !c.p) return;
+    var p = c.p, value = c.values ? c.values[sender.selectedSegment] : valueAt(p.conf, c.key) !== true;
+    var args = value === undefined ? null : settingArgs({ repo_dir: p.x.arg.repo_dir, remote: p.x.arg.remote, key: c.key, value: String(value) });
+    if (args) { output('/bin/sh', args); delete settingsCache[p.x.repo]; }
+    showPanel(p, repoSettings(p.x.repo, p.x.arg.repo_dir, p.x.arg.remote) || p.conf);
+}
+// <data>/<repo>/settings.json when p is exactly that, a regular file in one of this menu bar's data dirs; else ''.
+function revealable(p) {
+    p = str(p);
+    var m = /^(\/.+)\/[^\/]+\/settings\.json$/.exec(p);
+    if (!m || /\/\.\.?\//.test(p) || dataDirs.indexOf(m[1]) < 0) return '';
+    var at = $.NSFileManager.defaultManager.attributesOfItemAtPathError(p, null);   // a symlink is not followed
+    return !at.isNil() && ObjC.unwrap(at.objectForKey($.NSFileType)) === ObjC.unwrap($.NSFileTypeRegular) ? p : '';
+}
+// Closes the menu, then shows the file selected in Finder.
+function reveal(sender) {
+    var c = controls[sender.hash], path = revealable(c && c.reveal);
+    if (!path) return;
+    if (item && !item.menu.isNil()) item.menu.cancelTracking;
+    $.NSWorkspace.sharedWorkspace.activateFileViewerSelectingURLs($([$.NSURL.fileURLWithPath(path)]));
 }
 // The watcher's wait delivers it within seconds; the row turns to the fix session once it opens.
 function fixNow(o) {

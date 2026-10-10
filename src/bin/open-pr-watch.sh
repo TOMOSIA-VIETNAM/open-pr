@@ -1217,7 +1217,7 @@ Subcommands:
       the repo's settings as `open-pr.sh settings` prints them; `--set` first writes V at K through it
       (its key allowlist, its exit codes; the file untouched on a refusal). A running wait applies
       `poll_interval_seconds` and `max_concurrent` from its next poll; a running session keeps the values
-      it read. The menu bar's Settings submenu runs it
+      it read. The menu bar's settings panel runs it
   menubar [--close]
       macOS: start the menu bar item (review and fix rows grouped by the watcher serving their role,
       recent toasts, snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
