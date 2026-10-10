@@ -149,19 +149,21 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
   fixed, failed) and always offers: **Fix now** on a row with new findings,
   open the pull request, open its session in the terminal that watcher runs in (a new tab of iTerm,
   Terminal, Ghostty or WezTerm; any other terminal opens Terminal), copy the command;
-- under each watcher, **Settings** (with several repos, **Settings ▸ <repo>**): that repo's settings,
-  each showing its current value — sessions at once (1, 2, 3, 5, 8, 10), poll every (1, 2, 3, 5 or
-  10 minutes, each with its requests per hour), trigger (`/open-pr` or `@me`), one toast checkmark per
-  event, and the review options: post reviews without a draft, post LGTM when nothing is found, resolve
-  fixed findings, warn about failing CI, doctor every (1 week, 2 weeks, 1 month, 3 months, never). Its
-  last line says when the doctor last ran and when it runs next: `Doctor: Sep 20, 2026 · next in 11
-  days`, `· due now`, `· not scheduled`, or `Doctor: never run`;
+- hovering a watcher row opens that repo's settings panel (a watcher of several repos first lists
+  them, each opening its own): sessions at once (1, 2, 3, 5, 8, 10), poll every (1, 2, 3, 5 or 10
+  minutes, with the requests per hour the current one costs underneath), trigger (`/open-pr` or `@me`),
+  one toast checkbox per event, and the review options: post reviews without a draft, post LGTM when
+  nothing is found, resolve fixed findings, warn about failing CI, doctor every (1 week, 2 weeks,
+  1 month, 3 months, never). Under them, when the doctor last ran and when it runs next:
+  `Doctor: Sep 20, 2026 · next in 11 days`, `· due now`, `· not scheduled`, or `Doctor: never run`;
+  and **Show settings file**, which closes the menu and shows that repo's `settings.json` in Finder;
 - poll every 15 s, 30 s, 1, 2, 3, 5 or 10 minutes, or each repo's setting — applies within seconds, each
   with its estimated requests per hour (see Rate limits);
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
-A Settings click writes that one key into `settings.json` (see Settings below); a value set in a chat
-that the menu does not offer shows checked and greyed out.
+A click on a control writes that one key into `settings.json` (see Settings below) and the panel
+stays open, showing the value read back; a click outside closes it. A value set in a chat that the
+panel does not offer shows as an extra greyed-out choice, selected.
 
 A row's "Remove from list" hides the pull request and takes it out of the fix role, a merged or closed
 pull request leaves on its own within 10 minutes, and a new request on it brings the row back.
@@ -199,7 +201,7 @@ rate-limit headers shows no gauge.
 
 ## Settings
 
-Stored in `<data>/<repo>/settings.json` under `watch`. The menu bar's Settings submenu changes them
+Stored in `<data>/<repo>/settings.json` under `watch`. The menu bar's settings panel changes them
 (and the review options it lists); a change applies from the watcher's next poll and the next review
 session — one already running keeps the values it read. A typed trigger login (`@alice`), the numeric
 thresholds and everything the doctor detects stay chat changes.

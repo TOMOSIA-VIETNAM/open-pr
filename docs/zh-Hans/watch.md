@@ -120,17 +120,18 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
   watcher 监视的所有仓库（另一角色的 watcher 继续运行）；每行就地显示最新状态（评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、
   已修复、失败），并始终可以：在有新发现的行上 **Fix now**、打开 pull request、在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的新标签页；其他
   terminal 则打开 Terminal），或复制命令；
-- 每个 watcher 下的 **Settings**（多个仓库时为 **Settings ▸ <repo>**）：该仓库的设置，各项显示当前值
-  —— 同时会话数（1、2、3、5、8、10）、轮询间隔（1、2、3、5 或 10 分钟，各附每小时请求数）、触发词
-  （`/open-pr` 或 `@me`）、每个事件一个 toast 勾选项，以及评审选项：不经草稿直接发布、无发现时发布
+- 鼠标停在 watcher 行上即打开该仓库的设置面板（监视多个仓库的 watcher 先列出各仓库，每个打开自己的面板）：
+  同时会话数（1、2、3、5、8、10）、轮询间隔（1、2、3、5 或 10 分钟，下方显示当前值每小时的请求数）、触发词
+  （`/open-pr` 或 `@me`）、每个事件一个 toast 复选框，以及评审选项：不经草稿直接发布、无发现时发布
   LGTM、自动 resolve 已修复的发现、CI 失败时警告、doctor 间隔（1 周、2 周、1 个月、3 个月、从不）。
-  最后一行显示 doctor 上次和下次运行：`Doctor: Sep 20, 2026 · next in 11 days`、`· due now`、
-  `· not scheduled` 或 `Doctor: never run`；
+  其下显示 doctor 上次和下次运行：`Doctor: Sep 20, 2026 · next in 11 days`、`· due now`、
+  `· not scheduled` 或 `Doctor: never run`；**Show settings file** 关闭菜单并在 Finder 中选中该仓库的
+  `settings.json`；
 - 轮询间隔：15 秒、30 秒、1/2/3/5/10 分钟，或各仓库的设置 —— 几秒内生效，每个选项附每小时请求数估算（见速率限制）；
 - 暂停提醒：30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
 
-在 Settings 中点击只会把那一个键写入 `settings.json`（见下方设置）；在聊天中设置、菜单中没有的值
-会显示为已勾选并变灰。
+点击控件只会把那一个键写入 `settings.json`（见下方设置），面板保持打开并显示重新读取的值；点击外部才关闭。
+在聊天中设置、面板中没有的值会显示为一个额外的选项，已选中并变灰。
 
 某行的 "Remove from list" 会隐藏该 pull request 并把它移出 fix 角色；已合并或已关闭的 pull request 会在 10 分钟内自动离开列表；该 pull request
 上的新请求会让这一行重新出现。
@@ -164,7 +165,7 @@ Bitbucket 可能只告知接近上限；不发送限速响应头的主机不显�
 
 ## 设置
 
-保存在 `<data>/<repo>/settings.json` 的 `watch` 下。菜单栏的 Settings 子菜单可以修改它们（以及其中列出的
+保存在 `<data>/<repo>/settings.json` 的 `watch` 下。菜单栏的设置面板可以修改它们（以及其中列出的
 评审选项）；修改从 watcher 的下一次轮询和下一个评审会话起生效，已在运行的会话保留它读到的值。手动输入的
 触发登录名（`@alice`）、数值阈值以及 doctor 检测到的内容仍在聊天中修改。
 

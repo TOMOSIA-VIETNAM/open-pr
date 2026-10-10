@@ -144,19 +144,21 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
   lỗi) và luôn có: **Fix now** trên dòng có finding mới, mở pull request,
   mở session trong terminal mà watcher đó đang chạy (tab mới của iTerm, Terminal, Ghostty hoặc WezTerm;
   terminal khác thì mở Terminal), copy command;
-- dưới mỗi watcher, **Settings** (watcher có nhiều repo thì **Settings ▸ <repo>**): setting của repo
-  đó, mỗi mục hiện giá trị hiện tại — số session cùng lúc (1, 2, 3, 5, 8, 10), poll mỗi (1, 2, 3, 5 hoặc
-  10 phút, kèm số request mỗi giờ), trigger (`/open-pr` hoặc `@me`), mỗi event toast một dấu tích, và
-  các tuỳ chọn review: post review không qua draft, post LGTM khi không có finding, tự resolve finding
-  đã fix, cảnh báo CI lỗi, doctor mỗi (1 tuần, 2 tuần, 1 tháng, 3 tháng, không bao giờ). Dòng cuối cho
-  biết doctor chạy lần cuối khi nào và lần tới khi nào: `Doctor: Sep 20, 2026 · next in 11 days`,
-  `· due now`, `· not scheduled`, hoặc `Doctor: never run`;
+- rê chuột vào dòng watcher là mở panel setting của repo đó (watcher có nhiều repo thì liệt kê các repo
+  trước, mỗi repo mở panel riêng): số session cùng lúc (1, 2, 3, 5, 8, 10), poll mỗi (1, 2, 3, 5 hoặc
+  10 phút, bên dưới là số request mỗi giờ của lựa chọn hiện tại), trigger (`/open-pr` hoặc `@me`), mỗi
+  event toast một checkbox, và các tuỳ chọn review: post review không qua draft, post LGTM khi không có
+  finding, tự resolve finding đã fix, cảnh báo CI lỗi, doctor mỗi (1 tuần, 2 tuần, 1 tháng, 3 tháng,
+  không bao giờ). Bên dưới là lần doctor chạy cuối và lần tới: `Doctor: Sep 20, 2026 · next in 11 days`,
+  `· due now`, `· not scheduled`, hoặc `Doctor: never run`; và **Show settings file**, đóng menu rồi mở
+  Finder chọn sẵn `settings.json` của repo đó;
 - poll mỗi 15 giây, 30 giây, 1, 2, 3, 5 hoặc 10 phút, hoặc theo setting của từng repo — có hiệu lực sau vài giây,
   mỗi lựa chọn kèm số request ước tính mỗi giờ (xem Giới hạn rate);
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
-Một click trong Settings ghi đúng key đó vào `settings.json` (xem Setting bên dưới); giá trị đặt
-trong chat mà menu không có sẵn thì hiện đã tích và bị làm mờ.
+Click vào một control ghi đúng key đó vào `settings.json` (xem Setting bên dưới) và panel vẫn mở, hiện
+giá trị đọc lại từ file; click ra ngoài mới đóng. Giá trị đặt trong chat mà panel không có sẵn thì hiện
+thành một lựa chọn thêm, đang chọn và bị làm mờ.
 
 "Remove from list" trên một dòng sẽ ẩn pull request đó và đưa nó ra khỏi vai fix, pull request đã merge
 hoặc đã đóng tự rời danh sách trong vòng 10 phút, và một yêu cầu mới trên pull request đó sẽ đưa dòng trở lại.
@@ -194,7 +196,7 @@ gauge.
 
 ## Setting
 
-Lưu ở `<data>/<repo>/settings.json` dưới `watch`. Submenu Settings trên menu bar đổi được các field
+Lưu ở `<data>/<repo>/settings.json` dưới `watch`. Panel setting trên menu bar đổi được các field
 này (và các tuỳ chọn review nó liệt kê); thay đổi có hiệu lực từ lượt poll kế tiếp của watcher và
 session review kế tiếp — session đang chạy giữ giá trị nó đã đọc. Trigger là một login gõ tay
 (`@alice`), các ngưỡng số và mọi thứ doctor tự phát hiện vẫn đổi qua chat.
