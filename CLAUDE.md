@@ -30,7 +30,7 @@ src/templates/    per-stack criteria, copied into the reviewed repo
 src/reference/    schema + vendor contract — do not Read at run time
 src/seeds/        copied verbatim into the reviewed repo — never Read back
 llm-upgrades/     config migrations, fetched live, not packaged
-adapters/         ROOT + tool-name map; sole file that names a non-Claude platform
+adapters/         ROOT + tool-name map; the only agent-read file naming a non-Claude platform (open-pr-watch.sh, install*.sh, commands/*.toml name them too)
 skills/           one shim per command (Cursor · Codex · Gemini · Antigravity)
 commands/*.toml   Gemini CLI entry format
 install.sh        non-Claude install: clone → install-local.sh

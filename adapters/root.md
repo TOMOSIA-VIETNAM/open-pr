@@ -3,8 +3,8 @@
 Claude Code never reads this file: it sets `${CLAUDE_PLUGIN_ROOT}` itself. Every other platform reads
 this FIRST, resolves `ROOT`, then obeys the command file VERBATIM.
 
-This file is the ONLY place that knows a platform's name — besides `ROOT/bin/open-pr-watch.sh`, which
-launches each platform's CLI. FORBIDDEN here: any review/fix/upgrade/clean
+Of the files an agent reads, this one alone names a platform; elsewhere only `ROOT/bin/open-pr-watch.sh`
+(launches each platform's CLI), the installers and Gemini's `commands/*.toml` do. FORBIDDEN here: any review/fix/upgrade/clean
 step, severity level, finding marker, `gh`/`glab` invocation, config field. Those live under `ROOT`
 and have exactly 1 owner.
 
