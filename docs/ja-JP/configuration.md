@@ -48,7 +48,9 @@ cd ~/workspace
 | `/open-pr:review` | リポジトリを含むワークスペース、またはリポジトリ内 — `git remote` で自動判別 | PR 上のコメント + `<data>/<repo>/` の memory |
 | `/open-pr:fix` | そのリポジトリ内 / それを含むワークスペース — ただし **リポジトリが PR のブランチ上にあること** | リポジトリの実コード + PR への返信 |
 | `/open-pr:upgrade` | どこでも — データディレクトリ内の全リポジトリ、または指定したもの | `<data>/<repo>/settings.json` |
-| `/open-pr:clean` | どこでも | 何も書かない — `<data>/*/worktrees/*` だけを削除 |
+| `/open-pr:clean` | どこでも | 何も書かない — すべてのデータディレクトリで `<data>/*/worktrees/*` だけを削除 |
+| `/open-pr:watch` | リポジトリ群を含むワークスペース、またはその 1 つの中 — `git remote` で一覧にする | `<data>/<repo>/settings.json` の `watch` ノード（初回実行時、またはチャットで設定を変えたとき）、`<data>/<repo>/watch/` 以下の状態とセッションのプロンプト（データディレクトリの git には含めない）、依頼を引き受けた各 PR への "taking a look" の返信 |
+| `/open-pr:menubar` | どこでも（macOS） | 自分では何も書かない。設定パネルでのクリックは、そのキー 1 つを `<data>/<repo>/settings.json` に書く |
 | `/open-pr:feedback` | どこでも | ローカルには何も書かない — 本文を承認したあと、プラグイン自身の tracker に issue を 1 件 |
 
 ## Setting
@@ -73,6 +75,7 @@ cd ~/workspace
 | `review.big_file_threshold_kb` | diff がこのサイズを超えるファイルは最初の読み取りから除外 | `20` |
 | `fix.decline_needs_confirmation` | 指摘を見送る前に確認する | `true` |
 | `fix.auto_push` | コミット後に自動で push する | `false` |
+| `watch.*` | `/open-pr:watch` が使う設定: 同時セッション数、ポーリング間隔、トリガー、どのトーストを出すか — [watch の設定](./watch.md#setting) を参照 | 初回の watch で質問 |
 
 ---
 

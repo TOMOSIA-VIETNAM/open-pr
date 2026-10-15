@@ -48,7 +48,9 @@ cd ~/workspace
 | `/open-pr:review` | workspace chứa repo, hoặc trong repo — tự tìm theo `git remote` | comment trên PR + memory ở `<data>/<repo>/` |
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
 | `/open-pr:upgrade` | bất kỳ đâu — mọi repo trong thư mục dữ liệu, hoặc các repo bạn nêu tên | `<data>/<repo>/settings.json` |
-| `/open-pr:clean` | bất kỳ đâu | không ghi gì — chỉ xóa `<data>/*/worktrees/*` |
+| `/open-pr:clean` | bất kỳ đâu | không ghi gì — chỉ xóa `<data>/*/worktrees/*`, trong mọi thư mục dữ liệu |
+| `/open-pr:watch` | workspace chứa các repo, hoặc trong một repo — liệt kê chúng theo `git remote` | node `watch` của `<data>/<repo>/settings.json` (lần chạy đầu, hoặc một setting bạn đổi trong chat), state và prompt của session ở `<data>/<repo>/watch/` (nằm ngoài git của thư mục dữ liệu), và một reply "taking a look" trên mỗi PR mà nó nhận yêu cầu |
+| `/open-pr:menubar` | bất kỳ đâu (macOS) | tự nó không ghi gì; một click trong panel setting của nó ghi đúng key đó vào `<data>/<repo>/settings.json` |
 | `/open-pr:feedback` | bất kỳ đâu | không ghi gì ở máy — một issue trên tracker của plugin, sau khi bạn duyệt nội dung |
 
 ## Setting
@@ -73,6 +75,7 @@ Team rule viết văn xuôi bình thường vào `ALWAYS_RULE.md` (mặc định
 | `review.big_file_threshold_kb` | file diff to hơn ngưỡng này bị bỏ khỏi lần đọc đầu | `20` |
 | `fix.decline_needs_confirmation` | hỏi trước khi bỏ qua một finding | `true` |
 | `fix.auto_push` | tự push sau khi commit | `false` |
+| `watch.*` | những gì `/open-pr:watch` dùng: số session cùng lúc, chu kỳ poll, trigger, những toast nào — xem [Setting của watch](./watch.md#setting) | hỏi ở lần watch đầu tiên |
 
 ---
 

@@ -48,7 +48,9 @@ cd ~/workspace
 | `/open-pr:review` | 装着该仓库的 workspace，或仓库里面 —— 靠 `git remote` 找到它 | PR 上的评论 + `<data>/<repo>/` 下的 memory |
 | `/open-pr:fix` | 在该仓库里 / 装着它的 workspace 里 —— 但 **仓库必须处在 PR 的分支上** | 仓库里的真实代码 + PR 上的回复 |
 | `/open-pr:upgrade` | 任意位置 —— 数据目录里的所有仓库，或你点名的那些 | `<data>/<repo>/settings.json` |
-| `/open-pr:clean` | 任意位置 | 什么都不写 —— 只删除 `<data>/*/worktrees/*` |
+| `/open-pr:clean` | 任意位置 | 什么都不写 —— 只删除 `<data>/*/worktrees/*`，涵盖每个数据目录 |
+| `/open-pr:watch` | 装着这些仓库的 workspace，或其中一个仓库里面 —— 靠 `git remote` 列出它们 | `<data>/<repo>/settings.json` 的 `watch` 节点（首次运行，或你在聊天中修改某项设置时）、`<data>/<repo>/watch/` 下的状态与会话提示词（不纳入数据目录的 git），以及在它接手请求的每个 PR 上的一条 "taking a look" 回复 |
+| `/open-pr:menubar` | 任意位置（macOS） | 自身什么都不写；在它的设置面板中点击一次，会把那一个键写入 `<data>/<repo>/settings.json` |
 | `/open-pr:feedback` | 任意位置 | 本地什么都不写 —— 在你批准文本之后，往插件自己的 tracker 发一条 issue |
 
 ## 设置
@@ -73,6 +75,7 @@ cd ~/workspace
 | `review.big_file_threshold_kb` | diff 大于这个值的文件不纳入第一次读取 | `20` |
 | `fix.decline_needs_confirmation` | 拒绝一条 finding 之前先询问 | `true` |
 | `fix.auto_push` | commit 之后自动 push | `false` |
+| `watch.*` | `/open-pr:watch` 使用的设置：同时会话数、轮询间隔、触发方式、接收哪些 toast —— 见 [watch 设置](./watch.md#设置) | 首次 watch 时询问 |
 
 ---
 
