@@ -9,7 +9,7 @@
   <strong>AI コードレビューを、あなたの PR に直接。</strong><br>
   <strong>オープンソース。セルフホスト。</strong><br>
   <sub>対応: <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
-  <code>/open-pr:review</code> · <code>/open-pr:fix</code>
+  <code>/open-pr:review</code> · <code>/open-pr:fix</code> · <code>/open-pr:watch</code>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 AI コーディングで PR は速くなりました。でもレビューは速くなっていません。
 
-**`open-pr` はその最初のレビューラウンドを、ローカルではなく PR 上で実行します。** PR を開いた人なら誰でも、同じフィードバックを見られます。
+**`open-pr` はその最初のレビューラウンドを、ローカルではなく PR 上で実行します。** PR を開いた人なら誰でも、同じフィードバックを見られます。自分で実行することも、watcher を動かしておくこともできます。PR への `/open-pr` コメントでレビューを依頼でき、自分の PR にレビューが付くと "Fix now" が表示されます。
 
 <p align="center">
   <a href="./docs/ja-JP/demo.md"><img src="./docs/images/review-demo-ja.png" width="680" alt="Overview、suggested change を含む行コメント、fix push 後の返信"></a>
@@ -43,7 +43,8 @@ AI コーディングで PR は速くなりました。でもレビューは速�
 
 1 回の実行で、結びついた 3 つの要素が出ます: **overview**、**行コメント**（suggested change 付き）、そして `/open-pr:fix` が push したあとの **返信**。 — [デモを見る](./docs/ja-JP/demo.md)
 
-- **1 回の実行でちょうど 1 件のレビュー** — bot コメントの垂れ流しではありません
+- **1 回の依頼で 1 件のレビュー** — bot コメントの垂れ流しではありません。watcher が加えるのは依頼への "taking a look" の返信と、修正後にあなたが同意したときの再レビュー依頼だけ
+- **依頼に応じてレビュー** — `/open-pr:watch` は `/open-pr` コメントごとにあなたのマシンでレビューセッションを開き、自分の PR で "Fix now" をクリックすると修正セッションを開きます
 - **リポジトリを学ぶ** — README / CLAUDE.md / AGENTS.md / docs / wiki を読み、**チームのルールが汎用ルールに優先**
 - **チームが言ったことを記憶** — ある PR での指摘が、次の実行に引き継がれます
 - **`/open-pr:fix` は規律を守る** — ちょうど **1** コミット、force-push なし、スレッドごとに返信
@@ -96,8 +97,8 @@ AI コーディングの時代、PR の出る速さはレビューの速さを�
 
 > [!NOTE]
 > **レビューラウンド**（チームへの提案）:
-> 1. **Round 1** — 開発者が自分の PR で AI レビューを実行。レビューコメントがまだない → レビュアーは **差し戻し**、触れない。
-> 2. **Round 2** — レビュアーが再度実行（AI）。クリーン → **LGTM**。
+> 1. **Round 1** — 開発者が自分の PR で AI レビューを実行するか、`/open-pr` とコメントして watcher に実行させる。レビューコメントがまだない → レビュアーは **差し戻し**、触れない。
+> 2. **Round 2** — レビュアーが再度実行（AI）。手動でも `/open-pr` コメントでもよい。クリーン → **LGTM**。
 > 3. **Round 3** — レビュアーがドメイン部分をレビュー。
 
 > [!IMPORTANT]
@@ -121,11 +122,11 @@ AI コーディングの時代、PR の出る速さはレビューの速さを�
 
 ```mermaid
 flowchart LR
-  A[新しい PR] --> B["Round 1 · /open-pr:review"]
+  A[新しい PR] --> B["Round 1 · /open-pr:review<br/>または /open-pr コメント"]
   B --> C{remote にレビューがある?}
   C -- まだ --> D[レビュアーが差し戻し]
-  C -- ある --> E[開発者が修正 / /open-pr:fix]
-  E --> F["Round 2 · 再レビュー"]
+  C -- ある --> E["開発者が修正 / /open-pr:fix<br/>または Fix now"]
+  E --> F["Round 2 · 再レビュー<br/>または /open-pr の再レビューコメント"]
   F --> G{クリーン?}
   G -- はい --> H[LGTM]
   G -- まだ --> E
@@ -142,8 +143,8 @@ flowchart LR
 | `/open-pr:fix <PR_URL>` | finding を読む → 正誤を判断 → 修正 → **1** コミット → 返信。🔵 / 📝 は必ず先に確認 |
 | `/open-pr:upgrade` | ローカル設定を現在の schema へ上げる — 要約してから確認; 同意するまで何も書かない |
 | `/open-pr:clean` | `review` がチェックアウトした worktree を削除（先に確認）。memory / settings には触れない |
-| `/open-pr:watch [review\|fix]` | 1 つ以上のリポジトリを監視する。`/open-pr` で始まる PR コメントでその PR の **1** つのレビューセッションを手元で開き、自分の PR に新しいレビューが付くと指摘を "Fix now" 付きのトーストで知らせ、専用の worktree で **1** つの修正セッションを開く。セッションを開いて回答や承認ができる。[詳細](./docs/ja-JP/watch.md) |
-| `/open-pr:menubar` | macOS: 進行中のレビューと修正、"Fix now"、最近のトースト、スヌーズをメニューバーに表示。`/open-pr:menubar close` で消す |
+| `/open-pr:watch [review\|fix]` | `/open-pr` コメントで PR をレビューし、"Fix now" で自分の PR を修正する。PR ごとに 1 つのセッションをあなたのマシンで開く。[詳細](./docs/ja-JP/watch.md) |
+| `/open-pr:menubar [close]` | macOS: 進行中のレビューと修正、"Fix now"、設定、スヌーズをメニューバーに表示。`close` で消す。[詳細](./docs/ja-JP/watch.md#メニューバーmacos) |
 | `/open-pr:feedback` | **このプラグイン自体**の問題を issue tracker に報告。あなたのリポジトリを特定できる情報は取り除き、送信前に本文を確認してもらう |
 
 > [!WARNING]
