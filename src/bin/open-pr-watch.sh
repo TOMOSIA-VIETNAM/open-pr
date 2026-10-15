@@ -1040,7 +1040,7 @@ cmd_notify() {
             "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" "$FOCUS" "$open" \
             "$(watcher_field term "$TERM_RE")" "$(watcher_field term_session "$TERM_SESSION_RE")" \
             "$(watcher_field tty "$TTY_RE")" "$(watcher_field session_id "$SESSION_ID_RE")" \
-            "$fx" "${fx:+$D}" "${fx:+$(fit "$RM" '[A-Za-z0-9._-]{1,128}')}" "${fx:+$P}" \
+            "$(jq -r '.pid // "" | numbers' "$WF" 2>/dev/null || true)" "$fx" "${fx:+$D}" "${fx:+$(fit "$RM" '[A-Za-z0-9._-]{1,128}')}" "${fx:+$P}" \
             > "$WD/toast.log" 2>&1 &
         printf '%s\n' "$!" > "$sd/$slot/pid"
     elif command -v notify-send >/dev/null 2>&1; then

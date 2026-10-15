@@ -7,9 +7,9 @@
 //                                           runner `here`: fixed in the watcher's own session (its tab)
 //   <data>/<repo>/watch/feed.jsonl   notifications; a PR role's latest one, when newer than its
 //                                           session's state, is its row's text
-//   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, and
-//                                           the repo_dir/remote "Remove from list" passes to `hide` and
-//                                           "Fix now" to `fix-now`
+//   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pid of
+//                                           its wait (liveTab), and the repo_dir/remote "Remove from list"
+//                                           passes to `hide` and "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
 //   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE); the settings
@@ -90,7 +90,10 @@ var TERMS = {
 };
 // `on run argv`: the tab id or command arrives as an argument, never as source. Automation
 // permission is asked once; without it the app was already brought forward (goToTab).
-// FOCUS returns "found" so a closed tab can be told apart from a found one.
+// FOCUS returns "found" so a closed tab can be told apart from a found one. argv: the tab id and
+// the tty the watcher runs on (liveTab). w, t and s are positional references ("item 1 of every
+// window"): `select w` moves the window to the front, so it comes last or t and s resolve in
+// another window.
 var FOCUS = {
     'iTerm.app': [
         'on run argv',
@@ -98,8 +101,8 @@ var FOCUS = {
         'repeat with w in windows',
         'repeat with t in tabs of w',
         'repeat with s in sessions of t',
-        'if (unique id of s) is (item 1 of argv) then',
-        'select w', 'select t', 'select s', 'activate', 'return "found"',
+        'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',
+        'select t', 'select s', 'select w', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
     'Apple_Terminal': [
         'on run argv',
@@ -266,7 +269,7 @@ function watcherOf(w, set) {
     return { key: tab ? tab + set.sfx : '',
              cwdName: cwd ? basename(cwd) : '', termName: term ? (t ? t[0] : term) : '',
              role: set.sfx.replace('-', ''), start: 0, beat: Infinity, poll: 0,
-             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx,
+             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx, pids: [],
              repos: [], dirs: [], rows: [], settings: [] };
 }
 
@@ -288,6 +291,7 @@ function scan() {
             // when this wait started: the watcher record is written at each start
             at[set.sfx].start = Math.max(at[set.sfx].start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
             at[set.sfx].repos.push(name);
+            if (j && typeof j === 'object' && typeof j.pid === 'number') at[set.sfx].pids.push(j.pid);
             at[set.sfx].beat = Math.min(at[set.sfx].beat, ageSeconds(dir + '/heartbeat' + set.sfx));
             at[set.sfx].poll = Math.max(at[set.sfx].poll, repoPoll(data + '/' + name));
             at[set.sfx].dirs.push(dir);
@@ -831,7 +835,7 @@ function build(s) {
         if (i) m.addItem($.NSMenuItem.separatorItem);   // one block per watcher
         // A record from before watcher.json existed has no tab to show.
         var go = w.key && (TERMS[w.term] || SESSION_ID.test(w.session_id))
-            ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id } : null;
+            ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id, pids: w.pids } : null;
         if (w.key) {
             var wt = w.repos.join(', ');
             var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
@@ -1040,17 +1044,43 @@ function tabId(w) {
     if (w.term === 'Apple_Terminal' && w.tty) return w.tty.charAt(0) === '/' ? w.tty : '/dev/' + w.tty;
     return '';
 }
+// The tty of pid or of its nearest ancestor that has one, as ancestor_tty in open-pr-watch.sh
+// records it; '' once pid is gone. ps: the output of `ps -A -o pid=,ppid=,tty=`.
+function hostTty(ps, pid) {
+    var up = {};
+    String(ps || '').split('\n').forEach(function (l) {
+        var f = l.trim().split(/\s+/);
+        if (f.length === 3) up[f[0]] = f;
+    });
+    for (var p = String(pid), i = 0; up[p] && i < 15; p = up[p][1], i++) {
+        if (!/^(\?\??|-)$/.test(up[p][2])) return up[p][2];
+    }
+    return '';
+}
+// [tab id, its tty] while a watcher pid still runs on the tty of the tab recorded, else null: the
+// tab is closed, or it now runs something else — the user quit `claude` there (the session went
+// on in the background), or a background session inherited the tab of the `claude` that started it.
+function liveTab(w, ps) {
+    var id = tabId(w);
+    if (!TAB_ID.test(id)) return null;
+    for (var i = 0; i < w.pids.length; i++) {
+        var t = hostTty(ps, w.pids[i]), tty = '/dev/' + t;
+        if (t && TAB_ID.test(tty) && (w.term !== 'Apple_Terminal' || tty === id)) return [id, tty];
+    }
+    return null;
+}
 // A tab that is gone (the user quit `claude`, which keeps the watcher's session running in the
 // background) is reopened with `claude attach`; each watcher names its own session.
 function goToTab(w) {
     if (!w || typeof w !== 'object') return;
-    w = { term: str(w.term), term_session: str(w.term_session), tty: str(w.tty), session_id: str(w.session_id) };
+    w = { term: str(w.term), term_session: str(w.term_session), tty: str(w.tty), session_id: str(w.session_id),
+          pids: Array.isArray(w.pids) ? w.pids : [] };
     var t = TERMS[w.term];
     // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
     // LaunchServices: an accessory app's own activate request is ignored by macOS.
     if (t) spawn('/usr/bin/open', ['-b', t[1]]);
-    var id = tabId(w), src = FOCUS[w.term];
-    var found = src && TAB_ID.test(id) ? output('/usr/bin/osascript', script(src).concat([id])) : '';
+    var src = FOCUS[w.term], tab = src ? liveTab(w, output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty='])) : null;
+    var found = tab ? output('/usr/bin/osascript', script(src).concat(tab)) : '';
     // null: the lookup failed or is still waiting on a permission prompt — the tab may be there.
     if (found === '' && SESSION_ID.test(w.session_id)) openIn(w.term, 'claude attach ' + w.session_id.slice(0, 8), snoozeFile);
 }

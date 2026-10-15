@@ -892,7 +892,7 @@ def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
         except (OSError, ValueError):
             pass
 
-# osascript argv[11:] = the toast's focus, open command, term, term_session, tty, session_id.
+# osascript argv[11:] = the toast's focus, open command, term, term_session, tty, session_id, pid.
 def test_notify_focus_hands_the_toast_where_a_click_goes(w):
     sp = w.spawn(3)
     (w.sd / "watcher.json").write_text(json.dumps(
@@ -903,22 +903,22 @@ def test_notify_focus_hands_the_toast_where_a_click_goes(w):
           "--pr", "3", "--url", url, "--focus", "session")
     rec = w.recorded("osascript")["argv"]
     assert rec[9] == url
-    assert rec[11:17] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e"]
-    assert rec[17:] == ["", "", "", ""], "only a findings toast carries Fix now"
+    assert rec[11:18] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e", "1"]
+    assert rec[18:] == ["", "", "", ""], "only a findings toast carries Fix now"
 
 
-# osascript argv[17:] = what the toast's "Fix now" runs: open-pr-watch.sh fix-now for that repo and PR.
+# osascript argv[18:] = what the toast's "Fix now" runs: open-pr-watch.sh fix-now for that repo and PR.
 def test_a_findings_toast_offers_fix_now_for_its_repo_and_pr(w):
     w.run("notify", "--event", "findings", "--text-file", w.prompt("#3: 2 🟠", "f.txt"), "--pr", "3",
           "--role", "fix", "--remote", "origin")
     rec = w.recorded("osascript")["argv"]
-    assert rec[17:] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
+    assert rec[18:] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
     assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["role"] == "fix"
 
 
 def test_notify_focus_defaults_to_the_pr_and_rejects_an_unknown_one(w):
     assert notify(w)["sent"] is True
-    assert w.recorded("osascript")["argv"][11:17] == ["pr", "", "", "", "", ""], "no --pr, no watcher.json"
+    assert w.recorded("osascript")["argv"][11:18] == ["pr", "", "", "", "", "", ""], "no --pr, no watcher.json"
     r = w.run("notify", "--event", "posted", "--text-file", w.prompt("x"), "--focus", "tab", check=False)
     assert r.returncode == 1 and "pr watcher session" in r.stderr
 
@@ -928,9 +928,9 @@ def test_notify_passes_no_open_command_or_tab_outside_their_shape(w):
     w.put_state({"cursor": None, "seen": [], "queue": [],
                  "sessions": {"3:review": {"pr": 3, "role": "review", "runner": "claude", "open": "claude attach x; touch pwned"}}})
     (w.sd / "watcher.json").write_text(json.dumps(
-        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude"}))
+        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude", "pid": "1; id"}))
     w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--pr", "3", "--focus", "session")
-    assert w.recorded("osascript")["argv"][11:17] == ["session", "", "", "", "", ""]
+    assert w.recorded("osascript")["argv"][11:18] == ["session", "", "", "", "", "", ""]
 
 
 def _minimal_path(w, tmp_path, with_notify_send):
@@ -1803,6 +1803,39 @@ def _menubar_js(w, body, script=False):
                          timeout=30, env=w.env)
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
+
+
+# `ps -A -o pid=,ppid=,tty=`: a watcher's wait (400) under `claude` in a tab (ttys007), and one in a
+# background session (520) under a daemon's own pty (ttys002) that inherited the tab's ITERM_SESSION_ID.
+PS = "1 0 ??\n200 1 ttys007\n300 200 ??\n400 300 ??\n500 200 ??\n510 500 ttys002\n520 510 ??\n"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_click_focuses_the_watchers_tab_only_while_its_wait_still_runs_there(w):
+    """liveTab: what FOCUS must match — the tab id and the tty the wait runs on — or null (claude attach)."""
+    it = lambda pids: {"term": "iTerm.app", "term_session": "w0t1p2:AB-12", "tty": "ttys007", "pids": pids}
+    ap = lambda tty, pids: {"term": "Apple_Terminal", "term_session": "", "tty": tty, "pids": pids}
+    cases = [it([400]), it([520]), it([999]), it([]), ap("ttys007", [400]), ap("ttys002", [400]),
+             ap("ttys007", [999, 400])]
+    got = _menubar_js(w, f"return JSON.stringify([{json.dumps(cases)}.map(function (c) {{ return liveTab(c, {json.dumps(PS)}); }}),"
+                         f" liveTab({json.dumps(it([400]))}, null)]);")
+    assert got == [[["AB-12", "/dev/ttys007"],
+                    ["AB-12", "/dev/ttys002"],   # iTerm answers with tab AB-12's own tty: not ttys002 ⇒ not found
+                    None, None,
+                    ["/dev/ttys007", "/dev/ttys007"],
+                    None,                         # ttys002 was reused by another tab: the wait runs on ttys007
+                    ["/dev/ttys007", "/dev/ttys007"]],
+                   None]
+
+
+def test_the_toast_and_the_menu_bar_find_a_watchers_tab_the_same_way():
+    toast = (REPO / "src" / "bin" / "open-pr-toast.js").read_text()
+    body = lambda src, name: re.search(rf"^function {name}\(.*?^\}}$", src, re.S | re.M).group(0)
+    for name in ("tabId", "hostTty", "liveTab"):
+        assert body(toast, name) == body(MENUBAR.read_text(), name), name
+    for src in (toast, MENUBAR.read_text()):
+        assert "'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',\n" \
+               "        'select t', 'select s', 'select w', 'activate', 'return \"found\"'," in src
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")

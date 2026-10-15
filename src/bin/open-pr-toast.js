@@ -5,16 +5,16 @@
 //   and, on a findings toast, Fix now (run fix-now)
 // argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
 // `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, the
-// watcher record fields term, term_session, tty, session_id, then — a findings toast only — the
+// watcher record fields term, term_session, tty, session_id, pid, then — a findings toast only — the
 // absolute open-pr-watch.sh, the repo dir, its remote and the PR number "Fix now" passes to
 // `open-pr-watch.sh fix-now`.
 // focus: pr → open url · watcher → the watcher's terminal tab, or `claude attach` of its session
 // when that tab is gone · session → the open command in the watcher's terminal app (no valid
 // command ⇒ watcher). A watcher in a terminal not in TERMS and with no session ⇒ url. The focus
-// code mirrors open-pr-menubar.js (goToTab, openIn).
+// code mirrors open-pr-menubar.js (goToTab, tabId, hostTty, liveTab, openIn, FOCUS).
 // Every string arrives as argv; nothing here is spliced into source: the open command reaches a
-// .command file or osascript argv only after matching OPEN_CMD, a tab id reaches osascript as argv
-// only after matching TAB_ID, a session id becomes `claude attach` only after matching SESSION_ID,
+// .command file or osascript argv only after matching OPEN_CMD, a tab id and tty reach osascript as
+// argv only after matching TAB_ID, the pid is only compared with ps output, a session id becomes `claude attach` only after matching SESSION_ID,
 // the fix-now values reach /bin/sh argv only after their own checks (fixArgs).
 ObjC.import('Cocoa');
 
@@ -27,11 +27,14 @@ var TERMS = {   // by TERM_PROGRAM: bundle id
     'ghostty': 'com.mitchellh.ghostty', 'WezTerm': 'com.github.wez.wezterm', 'WarpTerminal': 'dev.warp.Warp-Stable'
 };
 // `on run argv`: the tab id or command is an argument, never source. FOCUS returns "found" so a
-// closed tab can be told apart from a found one.
+// closed tab can be told apart from a found one. argv: the tab id and the tty the watcher runs on
+// (liveTab). w, t and s are positional references ("item 1 of every window"): `select w` moves the
+// window to the front, so it comes last or t and s resolve in another window.
 var FOCUS = {
     'iTerm.app': ['on run argv', 'tell application id "com.googlecode.iterm2"',
         'repeat with w in windows', 'repeat with t in tabs of w', 'repeat with s in sessions of t',
-        'if (unique id of s) is (item 1 of argv) then', 'select w', 'select t', 'select s', 'activate', 'return "found"',
+        'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',
+        'select t', 'select s', 'select w', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
     'Apple_Terminal': ['on run argv', 'tell application id "com.apple.Terminal"',
         'repeat with w in windows', 'repeat with t in tabs of w', 'if (tty of t) is (item 1 of argv) then',
@@ -277,11 +280,12 @@ function polygon(pts, k) {   // SVG y grows downward, AppKit's upward
 
 function clickTarget(argv) {
     return { focus: argv[8] || 'pr', url: argv[6] || '', open: argv[9] || '', snoozeFile: argv[7] || '',
-             term: argv[10] || '', term_session: argv[11] || '', tty: argv[12] || '', session_id: argv[13] || '' };
+             term: argv[10] || '', term_session: argv[11] || '', tty: argv[12] || '', session_id: argv[13] || '',
+             pids: argv[14] ? [argv[14]] : [] };
 }
 // `open-pr-watch.sh fix-now` argv, or null when any value is outside its shape.
 function fixArgs(argv) {
-    var sh = argv[14] || '', dir = argv[15] || '', remote = argv[16] || '', pr = argv[17] || '';
+    var sh = argv[15] || '', dir = argv[16] || '', remote = argv[17] || '', pr = argv[18] || '';
     var fm = $.NSFileManager.defaultManager, isDir = Ref();
     if (!/^\/.*\/open-pr-watch\.sh$/.test(sh) || !fm.fileExistsAtPath(sh)) return null;
     if (dir.charAt(0) !== '/' || !fm.fileExistsAtPathIsDirectory(dir, isDir) || !isDir[0]) return null;
@@ -313,6 +317,36 @@ function openIn(term, cmd, snooze) {
     return $.NSWorkspace.sharedWorkspace.openFileWithApplication(path, 'Terminal');
 }
 function script(lines) { var a = []; lines.forEach(function (l) { a.push('-e', l); }); return a; }
+function tabId(w) {
+    if (w.term === 'iTerm.app') return w.term_session.split(':').pop();
+    if (w.term === 'Apple_Terminal' && w.tty) return w.tty.charAt(0) === '/' ? w.tty : '/dev/' + w.tty;
+    return '';
+}
+// The tty of pid or of its nearest ancestor that has one, as ancestor_tty in open-pr-watch.sh
+// records it; '' once pid is gone. ps: the output of `ps -A -o pid=,ppid=,tty=`.
+function hostTty(ps, pid) {
+    var up = {};
+    String(ps || '').split('\n').forEach(function (l) {
+        var f = l.trim().split(/\s+/);
+        if (f.length === 3) up[f[0]] = f;
+    });
+    for (var p = String(pid), i = 0; up[p] && i < 15; p = up[p][1], i++) {
+        if (!/^(\?\??|-)$/.test(up[p][2])) return up[p][2];
+    }
+    return '';
+}
+// [tab id, its tty] while a watcher pid still runs on the tty of the tab recorded, else null: the
+// tab is closed, or it now runs something else — the user quit `claude` there (the session went
+// on in the background), or a background session inherited the tab of the `claude` that started it.
+function liveTab(w, ps) {
+    var id = tabId(w);
+    if (!TAB_ID.test(id)) return null;
+    for (var i = 0; i < w.pids.length; i++) {
+        var t = hostTty(ps, w.pids[i]), tty = '/dev/' + t;
+        if (t && TAB_ID.test(tty) && (w.term !== 'Apple_Terminal' || tty === id)) return [id, tty];
+    }
+    return null;
+}
 // A tab that is gone (the user quit `claude`, which keeps the watcher's session running in the
 // background) is reopened with `claude attach`.
 function goToTab(o) {
@@ -321,9 +355,8 @@ function goToTab(o) {
     // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
     // LaunchServices: an accessory app's own activate request is ignored by macOS.
     if (t) spawn('/usr/bin/open', ['-b', t]);
-    var id = o.term === 'iTerm.app' ? o.term_session.split(':').pop()
-           : o.term === 'Apple_Terminal' && o.tty ? (o.tty.charAt(0) === '/' ? o.tty : '/dev/' + o.tty) : '';
-    var found = FOCUS[o.term] && TAB_ID.test(id) ? output('/usr/bin/osascript', script(FOCUS[o.term]).concat([id])) : '';
+    var src = FOCUS[o.term], tab = src ? liveTab(o, output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty='])) : null;
+    var found = tab ? output('/usr/bin/osascript', script(src).concat(tab)) : '';
     // null: the lookup failed (no permission) — the tab may be there.
     if (found === '' && sid) openIn(o.term, 'claude attach ' + sid.slice(0, 8), o.snoozeFile);
     return true;
