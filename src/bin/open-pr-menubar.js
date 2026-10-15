@@ -29,6 +29,8 @@ ObjC.import('Cocoa');
 var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
 // A watcher row (a view item, so laid out by hand): height, and where its text starts.
 var ROW_H = 36, ROW_TEXT_X = 35;   // icon and text in line with the plain items and PR rows
+// Its pills (Stop, the settings gear): height, the gear's width, the space between them.
+var PILL = { h: 20, gear: 30, gap: 6 };
 // Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
 var SUBTITLE_PAD = 100;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
@@ -42,7 +44,9 @@ var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['re
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
-var item = null, target = null, icons = {}, rowParts = {}, stopParts = {}, litRow = null, menuOpen = false;
+var item = null, target = null, icons = {}, rowParts = {}, pillParts = {}, litRow = null, menuOpen = false;
+// The watcher row whose settings show inline under it: { row: its rowParts, items: the panel items }
+var openPanel = null;
 
 // A watcher row says "no poll for …" once its newest heartbeat is older than STALE.factor × the
 // interval it polls at: this machine's "Poll every" choice, else the slowest of its repos' setting
@@ -154,13 +158,14 @@ SETTINGS.forEach(function (g) { g[1].forEach(function (k) {
 var settingsCache = {}, SETTINGS_RETRY = 60000;   // ms before a failed read is tried again
 var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
 
-// The Stop button over its hand-drawn pill: darkens the pill while the pointer is on it.
+// A button over a watcher row's hand-drawn pill (Stop, the settings gear): darkens the pill while
+// the pointer is on it.
 ObjC.registerSubclass({
-    name: 'OPRStopButton',
+    name: 'OPRPillButton',
     superclass: 'NSButton',
     methods: {
-        'mouseEntered:': { types: ['void', ['id']], implementation: function () { hoverStop(this, true); } },
-        'mouseExited:': { types: ['void', ['id']], implementation: function () { hoverStop(this, false); } }
+        'mouseEntered:': { types: ['void', ['id']], implementation: function () { hoverPill(this, true); } },
+        'mouseExited:': { types: ['void', ['id']], implementation: function () { hoverPill(this, false); } }
     }
 });
 ObjC.registerSubclass({
@@ -173,9 +178,10 @@ ObjC.registerSubclass({
         // sender: a control inside a watcherRow view; its item carries { go, stop }
         'goRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'go'); } },
         'stopRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'stop'); } },
+        'settingsRow:': { types: ['void', ['id']], implementation: function (s) { toggleSettings(s); } },
         'menu:willHighlightItem:': { types: ['void', ['id', 'id']], implementation: function (m, mi) { highlightRow(mi); } },
         'menuWillOpen:': { types: ['void', ['id']], implementation: function () { menuOpen = true; } },
-        'menuDidClose:': { types: ['void', ['id']], implementation: function () { menuOpen = false; highlightRow(null); } },
+        'menuDidClose:': { types: ['void', ['id']], implementation: function () { menuOpen = false; highlightRow(null); closeSettings(); } },
         'stopSession:': { types: ['void', ['id']], implementation: function (t) { stopSession(parse(unwrapString(t.userInfo))); } },
         'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
         'fixNow:': { types: ['void', ['id']], implementation: function (s) { fixNow(parse(unwrapString(s.representedObject))); } },
@@ -606,15 +612,15 @@ function headerView(repos, watchers, until, quota) {
 
 // A view item gets neither the item's action nor the menu's highlight: a transparent button over
 // the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
-function watcherRow(title, parts, canGo, role) {
-    // Drawn by hand (a pill + its word) under a transparent button: a bezel goes dark on the
-    // selection colour, and its title with it.
+// settings: the watcher's repos as scan() lists them, shown inline under the row by its gear.
+function watcherRow(title, parts, canGo, role, settings, quotas) {
     var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
-    var bw = Math.ceil($('Stop').sizeWithAttributes($({ NSFont: stopFont })).width) + 20, bh = 20, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
+    var bw = Math.ceil($('Stop').sizeWithAttributes($({ NSFont: stopFont })).width) + 20, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
+    var gw = settings.length ? PILL.gear + PILL.gap : 0, pills = bw + gw;   // the gear sits just left of Stop
     var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[0] ? rgb(look[0]) : $.NSColor.labelColor;
     var sub = parts.map(function (x) { return x[0]; }).join('');
     var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
-    var w = Math.max(HEADER_W, ROW_TEXT_X + Math.ceil(tw) + 20 + bw + 14);   // 8 pt of it: the field's own inset
+    var w = Math.max(HEADER_W, ROW_TEXT_X + Math.ceil(tw) + 20 + pills + 14);   // 8 pt of it: the field's own inset
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
     v.setAutoresizingMask($.NSViewWidthSizable);
     var bg = $.NSVisualEffectView.alloc.initWithFrame($.NSMakeRect(5, 0, w - 10, ROW_H));
@@ -630,7 +636,7 @@ function watcherRow(title, parts, canGo, role) {
     iv.setContentTintColor(tint);
     iv.setFrame($.NSMakeRect(ROW_TEXT_X - 20, (ROW_H - 16) / 2, 16, 16));
     v.addSubview(iv);
-    var right = w - ROW_TEXT_X - bw - 26;
+    var right = w - ROW_TEXT_X - pills - 26;
     var t = label(clip(title), $.NSFont.menuFontOfSize(0), $.NSColor.labelColor, ROW_TEXT_X, ROW_H / 2);
     var st = label(clip(sub), $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor, ROW_TEXT_X, ROW_H / 2 - 15);
     [t, st].forEach(function (f) {
@@ -638,45 +644,30 @@ function watcherRow(title, parts, canGo, role) {
         f.setAutoresizingMask($.NSViewWidthSizable);
         v.addSubview(f);
     });
-    if (canGo) {
+    if (canGo) {   // ends 4 pt short of the first pill, so the pills' hit areas stay their own
         var hit = $.NSButton.buttonWithTitleTargetAction('', target, 'goRow:');
         hit.setTransparent(true);
-        hit.setFrame($.NSMakeRect(0, 0, w - bw - 18, ROW_H));
+        hit.setFrame($.NSMakeRect(0, 0, w - pills - 18, ROW_H));
         hit.setAutoresizingMask($.NSViewWidthSizable);
         hit.setToolTip('Go to watcher tab');
         v.addSubview(hit);
     } else {
         t.setTextColor($.NSColor.disabledControlTextColor);
     }
-    var pill = $.NSBox.alloc.initWithFrame($.NSMakeRect(w - bw - 14, (ROW_H - bh) / 2, bw, bh));
-    pill.setBoxType($.NSBoxCustom);
-    pill.setTitlePosition($.NSNoTitle);
-    pill.setBorderWidth(0);
-    pill.setCornerRadius(bh / 2);
-    pill.setAutoresizingMask($.NSViewMinXMargin);
-    v.addSubview(pill);
+    var p = { bg: bg, icon: iv, tint: tint, title: t, sub: st, subText: sub, subAttr: null, canGo: canGo, settings: settings, quotas: quotas };
     var word = $.NSTextField.labelWithString('Stop');
     word.setFont(stopFont);
     var ww = Math.ceil(word.intrinsicContentSize.width) + 4;   // room for the last glyph's overhang
-    word.setFrame($.NSMakeRect(w - bw - 14 + (bw - ww) / 2, (ROW_H - 16) / 2, ww, 16));
-    word.setAutoresizingMask($.NSViewMinXMargin);
-    v.addSubview(word);
-    var stop = $.OPRStopButton.alloc.initWithFrame(pill.frame);
-    stop.setTitle('');
-    stop.setTarget(target);
-    stop.setAction('stopRow:');
-    stop.setTransparent(true);
-    // InVisibleRect: the area follows the button; ActiveAlways: a menu window is never key
-    stop.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect,
-        $.NSTrackingMouseEnteredAndExited | $.NSTrackingActiveAlways | $.NSTrackingInVisibleRect, stop, null));
-    stop.setAutoresizingMask($.NSViewMinXMargin);
-    stop.setToolTip('Stop watcher');
-    v.addSubview(stop);
+    p.stop = pill(v, p, w - bw - 14, bw, word, ww, 16, 'stopRow:', 'Stop watcher');
+    if (gw) {
+        var gear = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('gearshape', 'Settings'));
+        gear.image.setTemplate(true);
+        p.gear = pill(v, p, w - pills - 14, PILL.gear, gear, 14, 14, 'settingsRow:', 'Settings');
+    }
     // a warning part in orange: an attributed string, built up piece by piece (JXA does not bridge
     // NSAttributedString's initWithString… initializers)
-    var subAttr = null;
     if (parts.some(function (x) { return x[1]; })) {
-        subAttr = $.NSMutableAttributedString.alloc.init;
+        var subAttr = p.subAttr = $.NSMutableAttributedString.alloc.init;
         // an attributed value brings its own line breaking: wrapped, a cut line falls out of sight
         var ps = $.NSMutableParagraphStyle.alloc.init;
         ps.setLineBreakMode($.NSLineBreakByTruncatingTail);
@@ -692,11 +683,37 @@ function watcherRow(title, parts, canGo, role) {
         });
         st.setAttributedStringValue(subAttr);
     }
-    rowParts[v.hash] = { bg: bg, icon: iv, tint: tint, title: t, sub: st, subText: sub, subAttr: subAttr, pill: pill, word: word, canGo: canGo };
-    rowParts[v.hash].stopHash = stop.hash;
-    stopParts[stop.hash] = rowParts[v.hash];
-    paintStop(rowParts[v.hash], false);
+    rowParts[v.hash] = p;
     return v;
+}
+// A pill at x (bw wide) holding `content` (cw × ch, centred by frame: the alignment constant is
+// wrong on Apple silicon) under a transparent OPRPillButton. Drawn by hand: a bezel goes dark on
+// the selection colour, and its title with it.
+function pill(v, row, x, bw, content, cw, ch, action, tip) {
+    var bh = PILL.h, box = $.NSBox.alloc.initWithFrame($.NSMakeRect(x, (ROW_H - bh) / 2, bw, bh));
+    box.setBoxType($.NSBoxCustom);
+    box.setTitlePosition($.NSNoTitle);
+    box.setBorderWidth(0);
+    box.setCornerRadius(bh / 2);
+    box.setAutoresizingMask($.NSViewMinXMargin);
+    v.addSubview(box);
+    content.setFrame($.NSMakeRect(x + (bw - cw) / 2, (ROW_H - ch) / 2, cw, ch));
+    content.setAutoresizingMask($.NSViewMinXMargin);
+    v.addSubview(content);
+    var b = $.OPRPillButton.alloc.initWithFrame(box.frame);
+    b.setTitle('');
+    b.setTarget(target);
+    b.setAction(action);
+    b.setTransparent(true);
+    // InVisibleRect: the area follows the button; ActiveAlways: a menu window is never key
+    b.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect,
+        $.NSTrackingMouseEnteredAndExited | $.NSTrackingActiveAlways | $.NSTrackingInVisibleRect, b, null));
+    b.setAutoresizingMask($.NSViewMinXMargin);
+    b.setToolTip(tip);
+    v.addSubview(b);
+    var q = pillParts[b.hash] = { box: box, content: content, button: b, row: row };
+    paintPill(q, false);
+    return q;
 }
 function highlightRow(mi) {
     if (litRow) paintRow(litRow, false);
@@ -713,20 +730,25 @@ function paintRow(p, on) {
         p.sub.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.secondaryLabelColor);
     } else p.sub.setAttributedStringValue(p.subAttr);
     p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : p.tint);
-    paintStop(p, on);
+    [p.stop, p.gear].forEach(function (q) { if (q) paintPill(q, on); });
 }
-// on: its row is highlighted. A pointer on the pill darkens it, as a pressed-looking button does.
-function paintStop(p, on) {
-    p.lit = on;
-    p.pill.setFillColor(p.hover ? $.NSColor.colorWithWhiteAlpha(0, on ? 0.28 : 0.22)
-                                : on ? $.NSColor.colorWithWhiteAlpha(1, 0.28) : $.NSColor.colorWithWhiteAlpha(0.5, 0.18));
-    p.word.setTextColor(on ? $.NSColor.whiteColor : $.NSColor.labelColor);
+// on: its row is highlighted. A pointer on the pill darkens it, as a pressed-looking button does;
+// a pressed pill (the gear while its panel is open) takes the accent colour.
+function paintPill(q, on) {
+    q.lit = on;
+    q.box.setFillColor(q.pressed ? (on ? $.NSColor.colorWithWhiteAlpha(1, q.hover ? 0.55 : 0.42)
+                                       : $.NSColor.controlAccentColor.colorWithAlphaComponent(q.hover ? 0.8 : 1))
+                     : q.hover ? $.NSColor.colorWithWhiteAlpha(0, on ? 0.28 : 0.22)
+                     : on ? $.NSColor.colorWithWhiteAlpha(1, 0.28) : $.NSColor.colorWithWhiteAlpha(0.5, 0.18));
+    var c = on || q.pressed ? $.NSColor.whiteColor : $.NSColor.labelColor;
+    if (q.content.respondsToSelector('setTextColor:')) q.content.setTextColor(c);
+    else q.content.setContentTintColor(c);
 }
-function hoverStop(button, on) {
-    var p = stopParts[button.hash];
-    if (!p) return;
-    p.hover = on;
-    paintStop(p, !!p.lit);
+function hoverPill(button, on) {
+    var q = pillParts[button.hash];
+    if (!q) return;
+    q.hover = on;
+    paintPill(q, !!q.lit);
 }
 function rowAction(sender, which) {
     var mi = sender.enclosingMenuItem;
@@ -737,11 +759,38 @@ function rowAction(sender, which) {
     if (which === 'go') goToTab(o.go);
     else stopWatcher(o.stop);
 }
+// The gear: shows the row's settings inline under it, one panel per repo (captioned by the repo
+// when there are several), or hides them; one row's panel open at a time. The menu stays open.
+function toggleSettings(sender) {
+    var q = pillParts[sender.hash], mi = sender.enclosingMenuItem;
+    if (!q || mi.isNil() || mi.menu.isNil()) return;
+    var was = openPanel && openPanel.row === q.row;
+    closeSettings();
+    if (was) return;
+    var menu = mi.menu, at = Number(menu.indexOfItem(mi)), many = q.row.settings.length > 1;
+    openPanel = { row: q.row, items: q.row.settings.map(function (x, i) {
+        // re-read: the menu is not rebuilt while open, so x.conf may be older than the file
+        var y = { name: x.name, repo: x.repo, arg: x.arg, conf: repoSettings(x.repo, x.arg.repo_dir, x.arg.remote) || x.conf };
+        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, '');
+        pi.setView(settingsPanel(y, q.row.quotas, many ? x.name : ''));
+        menu.insertItemAtIndex(pi, at + 1 + i);
+        return pi;
+    }) };
+    q.pressed = true;
+    paintPill(q, !!q.lit);
+}
+function closeSettings() {
+    if (!openPanel) return;
+    openPanel.items.forEach(function (pi) { if (!pi.menu.isNil()) pi.menu.removeItem(pi); });
+    var g = openPanel.row.gear;
+    openPanel = null;
+    if (g) { g.pressed = false; paintPill(g, !!g.lit); }
+}
 
 function build(s) {
     var m = newMenu('open-pr');
     m.setDelegate(target);
-    rowParts = {}; stopParts = {}; litRow = null; controls = {};
+    rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {};
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
     head.setView(headerView(s.repos, s.watchers.length, until, gauge(s.quotas)));
@@ -759,14 +808,7 @@ function build(s) {
             var wt = w.repos.join(', ');
             var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
             wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.session_id } })));
-            wi.setView(watcherRow(wt, watcherLine(w), !!go, w.role));
-            // hovering the row opens its settings: one repo's panel, or one item per repo leading to its own
-            if (w.settings.length === 1) wi.setSubmenu(panelMenu(w.settings[0], s.quotas));
-            else if (w.settings.length) {
-                var sm = newMenu(wt);
-                w.settings.forEach(function (x) { var ri = add(sm, x.name); ri.setSubmenu(panelMenu(x, s.quotas)); ri.setEnabled(true); });
-                wi.setSubmenu(sm);
-            }
+            wi.setView(watcherRow(wt, watcherLine(w), !!go, w.role, w.settings, s.quotas));
             m.addItem(wi);
         }
         // a blank image of an icon's size puts the text in the rows' text column
@@ -822,14 +864,6 @@ function span(sec) { return sec % 60 ? sec + ' seconds' : sec / 60 + (sec === 60
 // for a pick, the same without values for a checkbox, { reveal: its settings.json } for its button.
 var controls = {};
 var PANEL = { pad: 16, label: 120, row: 30, check: 22 };   // points: side padding, label column, row steps
-// x: { name, repo, conf, arg }. One view item: a click on a control inside it leaves the menu open,
-// where a plain item's action closes it.
-function panelMenu(x, quotas) {
-    var m = newMenu(x.name), mi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, '');
-    mi.setView(settingsPanel(x, quotas));
-    m.addItem(mi);
-    return m;
-}
 function text(t, font, color) {
     var f = $.NSTextField.labelWithString(t);
     f.setFont(font);
@@ -843,13 +877,17 @@ function control(p, v, key, values) {
     return v;
 }
 function checkbox(p, key, title) { return control(p, $.NSButton.checkboxWithTitleTargetAction(title, target, 'setting:'), key); }
+// x: { name, repo, conf, arg }; caption: a title line on top (the repo, when a watcher has several).
+// The view of one menu item: a click on a control inside it leaves the menu open, where a plain
+// item's action closes it.
 // Laid out top-down as [view, x, top, width, height]; width undefined: its fitting width, 0: to the right
 // padding, -1: to the right padding, at least its fitting width;
 // frames are set once the size is known, as AppKit's y grows upward.
-function settingsPanel(x, quotas) {
+function settingsPanel(x, quotas, caption) {
     var p = { x: x, quotas: quotas, ctl: [] }, at = [], top = 10, pad = PANEL.pad, col = pad + PANEL.label;
     var put = function (v, l, wd, h, dy) { at.push([v, l, top + (dy || 0), wd, h]); return v; };
     var second = $.NSColor.secondaryLabelColor, small = $.NSFont.systemFontOfSize(11);
+    if (caption) { put(text(caption, $.NSFont.boldSystemFontOfSize(13), $.NSColor.labelColor), pad, -1, 17); top += 24; }
     SETTINGS.forEach(function (g, i) {
         put(text(g[0], $.NSFont.systemFontOfSizeWeight(11, $.NSFontWeightSemibold), second), pad, undefined, 14, i ? 6 : 0);
         top += i ? 26 : 20;

@@ -1870,6 +1870,29 @@ def test_a_panel_control_writes_its_key_and_shows_the_value_read_back(w):
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_gear_shows_a_watchers_settings_inline_under_its_row_and_hides_them(w):
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
+    # run() is left out: a plain NSButton stands in for the pill button class, which only an app run
+    # can register, and the header icon run() draws is drawn here
+    got = _menubar_js(w, PANEL_DUMP + """$.OPRPillButton = $.NSButton; target = $.NSObject.alloc.init; icons.header = mothImage(28, false);
+        var m = build(scan()), titles = function () { var a = [];
+            for (var i = 0; i < m.numberOfItems; i++) a.push(ObjC.unwrap(m.itemAtIndex(i).title)); return a; };
+        var row = m.itemArray.js.filter(function (mi) { return !mi.view.isNil() && rowParts[mi.view.hash]; })[0];
+        var gear = rowParts[row.view.hash].gear, before = titles();
+        toggleSettings(gear.button);
+        var open = titles(), pressed = !!gear.pressed, shown = dump();
+        toggleSettings(gear.button);
+        return JSON.stringify({ submenu: !row.submenu.isNil(), before: before, open: open, after: titles(),
+            pressed: pressed, released: !gear.pressed, shown: shown });""", script=True)
+    at = got["before"].index("r")
+    assert not got["submenu"], "hovering the row opens nothing"
+    assert got["open"] == got["before"][:at + 1] + ["r"] + got["before"][at + 1:], "the panel sits right under its row"
+    assert dict(got["shown"])["watch.max_concurrent"] == "1 2 3 [5] 8 10"
+    assert got["after"] == got["before"] and got["pressed"] and got["released"]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
 def test_show_settings_file_reveals_only_a_settings_file_in_a_data_dir(w):
     data = w.home / "data"
     (data / "r").mkdir(parents=True, exist_ok=True)
