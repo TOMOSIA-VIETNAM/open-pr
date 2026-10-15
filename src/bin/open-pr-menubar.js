@@ -475,6 +475,11 @@ function finish(r) {
     } else kind = f ? EVENT_KIND[str(f.event)] || '' : '';
     // A posted review with no findings: its summary starts with LGTM.
     if (kind === 'posted' && f && /^LGTM\b/i.test(str(f.summary))) kind = 'lgtm';
+    // A "done" line cannot outrank a session still running: its state says what is happening.
+    if (f && r.session && r.active && r.state !== 'question' && (kind === 'posted' || kind === 'lgtm')) {
+        f = null;
+        kind = r.state === 'lgtm_chat' ? 'lgtm' : r.state;
+    }
     // Counted and listed first like an active session: it waits on the user.
     if (f && kind === 'question') r.active = true;
     var at = Math.max(r.stateAt, fat);

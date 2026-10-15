@@ -1715,6 +1715,21 @@ def test_the_menu_bar_lists_each_role_watcher_with_the_rows_of_its_role(w):
     assert got == {"-review": ("s:w0t0p1:AA-review", ["o/r #5"]), "-fix": ("s:w0t0p2:BB-fix", ["o/r #6"])}
 
 
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_done_line_never_outranks_a_session_still_working(w):
+    """An answered question, the session reviewing on: the row says reviewing, not posted."""
+    old = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 120))
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "143:review": {"pr": 143, "role": "review", "repo": "o/r", "last_state": "working", "last_state_at": old}}})
+    (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p1:AA"}))
+    (w.sd / "heartbeat").write_text("")
+    (w.sd / "feed.jsonl").write_text(json.dumps({"at": now, "repo": "o/r", "pr": 143, "role": "review",
+                                                 "event": "posted", "summary": "answered, reviewing on"}) + "\n")
+    got = _menubar_js(w, "return JSON.stringify(scan().watchers[0].rows.map(function (r) { return r.kind; }));")
+    assert got == ["working"]
+
+
 def _menubar_js(w, body, script=False):
     """The menu bar's own functions run headless: its Cocoa classes (registering one outside an
     app run hangs osascript) left out, its run() replaced by `body`. script: it runs the sandbox's
