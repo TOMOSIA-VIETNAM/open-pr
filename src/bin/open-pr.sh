@@ -1446,8 +1446,8 @@ Subcommands:
   settings --repo <repo> [--repo-dir D] [--set K --value V]
       `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`,
       `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
-      was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: a
-      one-key write (menu bar, watch chat) (reference/settings-schema.md), exit 4 on a key or value it refuses
+      was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: writes
+      that one key first (menu bar, watch chat; keys in reference/settings-schema.md), exit 4 on a refused key or value
   stacks [--repo-dir D] <path>…
       `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
       ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`
