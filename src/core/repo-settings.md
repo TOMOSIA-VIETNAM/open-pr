@@ -8,7 +8,7 @@ needs it.
 ## Node ownership (invariant)
 
 `review.md` ⇄ `.review`; `fix.md` ⇄ `.fix`; `watch.md` ⇄ `.watch`; all ⇄ `.shared`.
-None ever writes another's node.
+None ever `Edit`s another's node; `<op> settings --set` writes the keys it accepts in any node.
 `.shared.git_remote_type` is written ONLY by `setup/bootstrap.md` or a confirmed mismatch
 (`core/pr-target.md` §2). `schema_version` is written ONLY by a fresh bootstrap or
 `/open-pr:upgrade` — FORBIDDEN: either command reading or checking it.

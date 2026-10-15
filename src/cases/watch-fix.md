@@ -37,7 +37,7 @@ the PR's URL you hold; none ⇒ ask the user):
 
    Non-`claude` runner: append ` --unattended`.
 3. `<watch> spawn --runner <runner> --role fix --pr N --name "fix <owner>/<repo>#N" --prompt-file
-   <it> --url <url> --cwd <pwd>`; its output as `commands/watch.md` step 7.
+   <it> --url <url> --cwd <pwd>`; its output as `commands/watch.md` item 7.
 
 Per `{"event":"session","role":"fix",…}`: `fixed` ⇒ below; any other state as `commands/watch.md`'s
 table.

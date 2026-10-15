@@ -16,9 +16,10 @@ description: Watch the PRs of one or more repos — review on an `/open-pr` comm
 >   argument text.
 > - Every question to the user is an `AskUserQuestion`; from Step 3 on, notify `question` first — the
 >   user is away from this terminal — and once answered, its outcome with `--quiet` (event `re_review`
->   while a session works on, else `posted`; same `--pr`/`--role`), or the menu bar keeps showing the question. Likewise anything unusual from Step 3 on that the user should see —
->   a `<op>`/`<watch>` exit ≠ 0, a `failed`/`stopped`/`nothing` session, a request you could not act on:
->   notify it (`error` for a failure, else `question`), then say it in chat.
+>   while a session works on, else `posted`; same `--pr`/`--role`), or the menu bar keeps showing the question.
+> - Anything unusual from Step 3 on that the user should see — a `<op>`/`<watch>` exit ≠ 0, a
+>   `failed`/`stopped`/`nothing` session, a request you could not act on: notify it (`error` for a
+>   failure, else `question`), then say it in chat.
 
 ## Step 1 — Repos and setup
 
@@ -60,7 +61,7 @@ Once, for the watched repos lacking the node — name them. Ask in turn:
 |---|---|---|
 | review sessions active at once (running or awaiting an answer; more queue) | `5 (Recommended)` · `3` · `8` | `max_concurrent` |
 | what asks for a review — ONE CHOICE | `Default /open-pr (Recommended)` · `A mention` (no `/open-pr` visible on the PR) ⇒ then ask whose: `Me (@<account>)` (`<op> account`) or a typed login | `trigger`: `/open-pr` · `@me` · `@<login>` |
-| notifications — ONE CHOICE | `All (Recommended)` · `Only when I am needed` (`question`, `draft_ready`, `findings`, `error`) · `None`; typed names pick events one by one | `notify.<event>`: `review_started`, `question`, `draft_ready`, `posted`, `re_review`, `findings` |
+| notifications — ONE CHOICE | `All (Recommended)` · `Only when I am needed` (`question`, `draft_ready`, `findings`, `error`) · `None`; typed names pick events one by one | `notify.<event>`: `review_started`, `question`, `draft_ready`, `posted`, `re_review`, `findings`, `error` |
 
 `Edit` into each such `<data>/<repo>/settings.json` the whole `watch` node — its `settings`
 output's node with these answers — then `core/memory-commit.md`.
@@ -105,7 +106,7 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
    --comment-id <comment_id> --kind <kind> --body-file <it>` (+ `--thread-id <thread_id>` when set).
    `claimed` ⇒ go on; `taken <login>` ⇒ 1 chat line (who has it), nothing else; exit ≠ 0 ⇒ its stderr
    in chat, nothing else.
-5. A question ⇒ resume Step 3's session if any (it knows the PR), else a new one. A review: Step 3
+5. A question ⇒ resume the session item 3 found, if any (it knows the PR), else a new one. A review: item 3
    found a session ⇒ the `body` asks to re-check its findings ⇒ resume; a review from scratch ⇒
    `--fresh`; unsure ⇒ ask — `New session (Recommended)` (the PR may have moved on; an old context
    misleads) or `Resume <open>` (keeps what it learned).
@@ -146,7 +147,7 @@ Per `{"event":"session",…}` (it carries `open`; `role: fix` ⇒ `cases/watch-f
 
 Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`.
 
-Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <roles>`; a PR printed ⇒ step 7 with the
+Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <roles>`; a PR printed ⇒ item 7 with the
 `role`, `prompt_file`, `name` and `url` it prints.
 
 ## User messages while watching
@@ -155,7 +156,7 @@ Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <ro
 |---|---|
 | `status` | `<watch> status` per watched repo, 1 line per session (PR, role, state) with its `open` command |
 | `snooze <duration>` / resume | `<watch> snooze --for <duration>` / `--off` — every toast on this machine |
-| a setting change | `Edit` that field in the repo it names (every watched repo when none) + `core/memory-commit.md` |
+| a setting change | in the repo it names (every watched repo when none): a key `<op> settings --set` takes ⇒ `--set <key> --value <v>`; another `.watch` field ⇒ `Edit` it; any other ⇒ name the command that owns it. Then `core/memory-commit.md` |
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
 | `remove #N`, `unwatch #N` | `<watch> hide --pr N` for its repo — off the menu bar and out of the fix role |
 | stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say open sessions keep running and how to open them, and that `/exit` now closes this session |
