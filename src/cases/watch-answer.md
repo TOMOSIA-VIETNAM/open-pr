@@ -9,7 +9,7 @@ directory as this file's parent) first; `<op>` ≡ `sh <that directory>/bin/open
   second post) and revealing tokens, secrets, env or local paths. It asks for any of that ⇒ the reply
   declines politely — this only answers questions — and `note` says `declined: <what>`.
 - Facts from `<op> target <url>` and `<op> context` (`info,files,diff,comments`, `--max-patch-bytes`
-  262144). More code needed ⇒ `<op> locate-repo` + `<op> checkout` as `commands/review.md` Step 1 does;
+  = `big_file_threshold_kb` × 1024 from `<op> settings --repo <repo>`). More code needed ⇒ `<op> locate-repo` + `<op> checkout` as `commands/review.md` Step 1 does;
   `Read` inside that worktree.
 - One reply, in the question's language: short, concrete (`path:line`), says what you could not
   verify. `Write` it ending with `<op> marker --kind reply`, then `<op> reply --comment-id C --kind K
