@@ -100,6 +100,14 @@ request bạn nêu tên. Một pull request cũng được thêm vào khi chính
    yêu cầu, lời nhận review và re-review ở cùng một chỗ; comment hội thoại trên GitHub không có thread,
    nên ở đó nó là một comment mới.
 
+Pull request có nhánh trùng với nhánh đang checkout nơi watcher chạy — session bạn đang build — được fix
+**ngay trong session đó**, tại chỗ: khi có finding mới (hoặc **Fix now**) watcher hỏi "Fix #12 here now?"
+(tại đây, ở nền, hoặc để sau); nếu cây làm việc còn thay đổi chưa commit, nó hỏi trước: commit phần đó,
+fix trong worktree riêng ở nền, hay huỷ — để commit fix không lẫn việc đang làm dở. Dòng của nó trên menu
+bar ghi "Fixing here" và "Open session" đưa tab của watcher lên trước. Khi khởi động, watcher nói PR nào
+được fix tại đây, PR nào ở nền; nói `fix #12 in the background` hoặc `fix #12 here` để đổi. Mọi pull
+request khác vẫn được fix trong session nền riêng như trên, và câu hỏi re-review đến theo cả hai cách.
+
 Không có gì được fix nếu bạn chưa click. `remove #12` (hoặc "Remove from list" trên dòng đó) đưa pull
 request ra khỏi cả hai vai.
 
@@ -173,6 +181,7 @@ Trên Windows và Linux, hãy nhắn watcher trong chat (`status`, `snooze 1h`).
 |---|---|
 | `status` | mỗi session một dòng (pull request, vai, trạng thái), kèm command mở |
 | `fix #12` | mở session fix, giống **Fix now** |
+| `fix #12 here` / `fix #12 in the background` | từ giờ fix #12 ngay trong session của watcher / trong session nền riêng |
 | `remove #12` / `unwatch #12` | đưa pull request ra khỏi menu bar và khỏi vai fix |
 | `snooze 2h` / `resume toasts` | không hiện toast trên máy này cho đến lúc đó — cùng một công tắc với nút "1h" trên toast và snooze trên menu bar; hàng đợi vẫn chạy |
 | một thay đổi setting | lưu vào `settings.json` |

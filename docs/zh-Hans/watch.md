@@ -83,6 +83,13 @@ fix 角色监视你创建的 pull request（作者 = watcher 运行所用的账�
    回复（`/open-pr re-review`，仓库使用提及时则提及评审者）—— 它从不自行请求。该请求发在最初评审请求的
    讨论串里，请求、认领回复与再次评审因此集中在一处；GitHub 的对话评论没有讨论串，那里会是一条新评论。
 
+分支与 watcher 运行处当前检出的分支相同的 pull request（也就是你正在开发的那个会话）会**在该会话中**就地修复：
+有新发现（或点 **Fix now**）时，watcher 会问 "Fix #12 here now?"（在这里、在后台，或稍后）；工作区有未提交的改动时，
+它先问你是提交这些改动、在单独的 worktree 中后台修复，还是取消，因此修复提交不会混入未完成的工作。它在菜单栏的行显示
+"Fixing here"，"Open session" 会把 watcher 的标签页调到前面。watcher 启动时会说明哪些 pull request 在这里修复、哪些在
+后台修复；说 `fix #12 in the background` 或 `fix #12 here` 即可切换。其他 pull request 仍像上面那样在各自的后台会话中
+修复，两种方式之后都会询问是否请求重新评审。
+
 没有你的点击，什么都不会被修复。`remove #12`（或该行的 "Remove from list"）会把 pull request 移出两个角色。
 
 ## 打开会话
@@ -145,6 +152,7 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
 |---|---|
 | `status` | 每个会话一行（pull request、角色、状态），含打开命令 |
 | `fix #12` | 打开修复会话，与 **Fix now** 相同 |
+| `fix #12 here` / `fix #12 in the background` | 此后在 watcher 的会话中 / 在它自己的后台会话中修复 #12 |
 | `remove #12` / `unwatch #12` | 把 pull request 移出菜单栏和 fix 角色 |
 | `snooze 2h` / `resume toasts` | 在此之前本机不显示 toast —— 与 toast 的 "1h" 和菜单栏的暂停提醒是同一个开关；队列照常运行 |
 | 某项设置的修改 | 保存到 `settings.json` |

@@ -102,6 +102,16 @@ only those you named. A pull request also joins when you ask for a review of it 
    goes in the thread of the original review request, so request, claim and re-review stay together;
    a GitHub conversation comment has no thread, so there it is a new comment.
 
+A pull request whose branch is the one checked out where the watcher runs — the session you are
+building in — is fixed **in that session** instead, in place: on new findings (or **Fix now**) the
+watcher asks "Fix #12 here now?" (here, in the background, or later); with uncommitted work in the tree
+it first asks whether to commit that work, fix in a separate worktree in the background, or cancel, so
+the fix commit never carries unfinished work. Its menu bar row says "Fixing here" and "Open session"
+brings the watcher's tab forward. When the watcher starts it says which pull requests it fixes here and
+which in the background; say `fix #12 in the background` or `fix #12 here` to switch one. Every other
+pull request is still fixed in its own background session, as above, and the re-review question
+follows either way.
+
 Nothing is fixed without your click. `remove #12` (or the row's "Remove from list") takes a pull
 request out of both roles.
 
@@ -178,6 +188,7 @@ On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
 |---|---|
 | `status` | one line per session (pull request, role, state) with its open command |
 | `fix #12` | opens the fix session, as **Fix now** does |
+| `fix #12 here` / `fix #12 in the background` | from now on fixes #12 in the watcher's session / in its own background session |
 | `remove #12` / `unwatch #12` | takes the pull request off the menu bar and out of the fix role |
 | `snooze 2h` / `resume toasts` | no toasts on this machine until then — the same switch as the toast's "1h" and the menu bar's snooze; the queue keeps running |
 | a setting change | saved to `settings.json` |
