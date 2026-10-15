@@ -5,6 +5,7 @@
 //                                           finished, working or question; `findings` = a fix row offering
 //                                           "Fix now" until a fix session opens; PRs in `hidden` get no row;
 //                                           runner `here`: fixed in the watcher's own session (its tab)
+//                                           `titles`: each PR's title, its row's title after #N
 //   <data>/<repo>/watch/feed.jsonl   notifications; a PR role's latest one, when newer than its
 //                                           session's state, is its row's text
 //   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pid of
@@ -27,13 +28,18 @@
 // SETTINGS key and one of its values — never spliced into source.
 ObjC.import('Cocoa');
 
-var REFRESH = 3, ROWS = 10, CLIP = 70, HEADER_W = 300;
-// A watcher row (a view item, so laid out by hand): height, and where its text starts.
-var ROW_H = 36, ROW_TEXT_X = 35;   // icon and text in line with the plain items and PR rows
-// Its pills (Stop, the settings gear): height, the gear's width, the space between them.
-var PILL = { h: 20, gear: 30, gap: 6 };
+// CLIP: characters of a menu title before "…"; SUB_W: points of a PR row's subtitle (past about 300
+// a native subtitle keeps the height of a second line, though it draws one).
+var REFRESH = 3, ROWS = 10, CLIP = 70, SUB_W = 280, HEADER_W = 340;
+// Rows laid out by hand (view items): a repo row (height, where its name starts) and a watcher row
+// (height, where its text starts: one indentation step in, its icon left of it).
+var REPO = { h: 26, x: 14 }, ROW = { h: 24, text: 47 };
+// A PR row's indentation level: its icon sits under its watcher row's text.
+var PR_INDENT = 3;
+// The pills (Stop, the settings gear): height, the gear's width.
+var PILL = { h: 20, gear: 30 };
 // Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
-var SUBTITLE_PAD = 100;
+var SUBTITLE_PAD = 140;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 // iTerm's unique id (the part of ITERM_SESSION_ID after ':') or a Terminal tab's tty.
@@ -74,10 +80,10 @@ var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as l
 // disabled event writes no line, so that line can be older than the state). A line wins through
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
-// A watcher row's terminal icon tint and role word, by the role it serves: review and fix groups
-// tell apart at a glance. Its rows belong to it and carry no role.
+// A watcher row's terminal icon tint and role word, by the role it serves: review and fix watchers
+// tell apart at a glance. Its PR rows belong to it and carry no role.
 var ROLE_LOOK = { review: [[0.04, 0.42, 0.9], 'Review'], fix: [[0.8, 0.38, 0.02], 'Fix'], '': [null, 'Review + fix'] };
-var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a project's watchers: both roles, review, fix
+var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a repo's watchers: both roles, review, fix
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
 // by TERM_PROGRAM: menu name, bundle id, app a session opens in (see openIn)
@@ -261,40 +267,48 @@ function isDir(p) {
     return !at.isNil() && ObjC.unwrap(at.objectForKey($.NSFileType)) === ObjC.unwrap($.NSFileTypeDirectory);
 }
 function basename(p) { return p.replace(/\/+$/, '').split('/').pop() || p; }
-// One per watcher tab and role set: the waits of one watcher (one per repo) share its tab.
+// A watcher's wait on one repo: one per watcher tab and role set in each repo group (a watcher with
+// several repos has one in each group). key: its tab and role set, the same in every group.
 function watcherOf(w, set) {
     w = w && typeof w === 'object' ? w : {};
     var term = str(w.term), ts = str(w.term_session), tty = str(w.tty), cwd = str(w.cwd), sid = str(w.session_id);
     var t = TERMS[term], tab = ts ? 's:' + ts : tty ? 't:' + tty : typeof w.pid === 'number' ? 'p:' + w.pid : '';
     return { key: tab ? tab + set.sfx : '',
              cwdName: cwd ? basename(cwd) : '', termName: term ? (t ? t[0] : term) : '',
-             role: set.sfx.replace('-', ''), start: 0, beat: Infinity, poll: 0,
+             role: set.sfx.replace('-', ''), start: 0, beat: Infinity, poll: 0, only: true,
              term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx, pids: [],
-             repos: [], dirs: [], rows: [], settings: [] };
+             dirs: [], rows: [] };
 }
 
+// → { repos: [{ name, folders, settings, watchers }] by name, quotas, polls, active }: one group per
+// watched repo (its data dirs merged), its watchers by role, each with its PR rows.
 function scan() {
-    var out = { repos: 0, watchers: [], active: 0, quotas: [], polls: [] }, byKey = {};
+    var out = { repos: [], active: 0, quotas: [], polls: [] }, groups = {}, repoCount = {};
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch';
         var live = SETS.filter(function (set) { return ageSeconds(dir + '/heartbeat' + set.sfx) <= fresh; });
         if (!live.length) return;
-        out.repos++;
+        var g = groups[name];
+        if (!g) { g = groups[name] = { name: name, folders: [], settings: [], watchers: [], byKey: {} }; out.repos.push(g); }
         out.polls.push(repoPoll(data + '/' + name));
         var wj = null, at = {};
         live.forEach(function (set) {
             var j = parse(readText(dir + '/watcher' + set.sfx + '.json')), wr = watcherOf(j, set);
             wj = wj || j;
-            if (!byKey[wr.key]) { byKey[wr.key] = wr; out.watchers.push(wr); }
-            at[set.sfx] = byKey[wr.key];
+            if (!g.byKey[wr.key]) {
+                g.byKey[wr.key] = wr; g.watchers.push(wr);
+                repoCount[wr.key] = (repoCount[wr.key] || 0) + 1;
+                // a workspace watcher: the folder it runs in is not this repo
+                if (wr.cwdName && wr.cwdName !== name && g.folders.indexOf(wr.cwdName) < 0) g.folders.push(wr.cwdName);
+            }
+            var e = at[set.sfx] = g.byKey[wr.key];
             // when this wait started: the watcher record is written at each start
-            at[set.sfx].start = Math.max(at[set.sfx].start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
-            at[set.sfx].repos.push(name);
-            if (j && typeof j === 'object' && typeof j.pid === 'number') at[set.sfx].pids.push(j.pid);
-            at[set.sfx].beat = Math.min(at[set.sfx].beat, ageSeconds(dir + '/heartbeat' + set.sfx));
-            at[set.sfx].poll = Math.max(at[set.sfx].poll, repoPoll(data + '/' + name));
-            at[set.sfx].dirs.push(dir);
+            e.start = Math.max(e.start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
+            if (j && typeof j === 'object' && typeof j.pid === 'number') e.pids.push(j.pid);
+            e.beat = Math.min(e.beat, ageSeconds(dir + '/heartbeat' + set.sfx));
+            e.poll = Math.max(e.poll, repoPoll(data + '/' + name));
+            e.dirs.push(dir);
             var q = parse(readText(dir + '/quota' + set.sfx + '.json'));
             if (q && typeof q === 'object' && VENDOR_NAME[q.vendor]) out.quotas.push(q);
         });
@@ -306,12 +320,11 @@ function scan() {
         // what "Remove from list" hands `hide` for this repo
         var repoDir = wj && typeof wj === 'object' ? str(wj.repo_dir) : '', remote = wj && typeof wj === 'object' ? str(wj.remote) : '';
         var conf = repoSettings(data + '/' + name, repoDir, remote);
-        if (conf) live.forEach(function (set) {
-            at[set.sfx].settings.push({ name: name, repo: data + '/' + name, conf: conf, doctor: doctorLine(conf), arg: { repo_dir: repoDir, remote: remote } });
-        });
+        if (conf) g.settings.push({ name: name, repo: data + '/' + name, conf: conf, doctor: doctorLine(conf), arg: { repo_dir: repoDir, remote: remote } });
         var rows = {};
         var st = parse(readText(dir + '/state.json'));
         var ss = st && typeof st.sessions === 'object' && st.sessions ? st.sessions : {};
+        var titles = st && typeof st.titles === 'object' && st.titles ? st.titles : {};
         var hidden = {};
         (st && Array.isArray(st.hidden) ? st.hidden : []).forEach(function (n) { if (typeof n === 'number') hidden[n] = true; });
         var gone = function (pr) {
@@ -319,15 +332,17 @@ function scan() {
             return hidden[pr] || (at && Date.now() - at < HIDE_PENDING);
         };
         var prArg = function (pr) { return JSON.stringify({ repo_dir: repoDir, remote: remote, pr: Number(pr) }); };
-        var row = function (repo, pr, role) {
-            var k = repo + '#' + pr + ':' + role;
-            return rows[k] || (rows[k] = { title: repo + (pr ? ' #' + pr : ''), pr: pr, role: role, session: false, state: '',
+        // a line about the whole repo (a failed start, a poll error) has no PR
+        var row = function (pr, role) {
+            var k = pr + ':' + role;
+            return rows[k] || (rows[k] = { title: pr ? '#' + pr + (str(titles[pr]) ? ' ' + oneLine(titles[pr]) : '') : 'Repository',
+                pr: pr, role: role, session: false, state: '',
                 active: false, url: '', open: '', hide: pr ? prArg(pr) : '', fix: '', stateAt: 0 });
         };
         Object.keys(ss).forEach(function (key) {
             var s = ss[key], m = /^([0-9]+):(review|fix)$/.exec(key);
             if (!m || !s || typeof s !== 'object' || gone(m[1])) return;
-            var r = row(str(s.repo) || name, m[1], m[2]), state = str(s.last_state);
+            var r = row(m[1], m[2]), state = str(s.last_state);
             r.session = true;
             r.here = s.runner === 'here';
             r.state = m[2] === 'fix' && state === 'working' ? (r.here ? 'fixing_here' : 'fixing') : state;
@@ -339,7 +354,7 @@ function scan() {
         Object.keys(fd).forEach(function (pr) {
             var f = fd[pr];
             if (!/^[0-9]+$/.test(pr) || !f || typeof f !== 'object' || gone(pr)) return;
-            var r = row(str(f.repo) || name, pr, 'fix'), at = ms(f.at);
+            var r = row(pr, 'fix'), at = ms(f.at);
             if (at < r.stateAt) return;
             r.session = true; r.state = 'findings'; r.stateAt = at; r.active = true;
             r.findings = counts(f.counts); r.fix = prArg(pr);
@@ -348,41 +363,51 @@ function scan() {
         readText(dir + '/feed.jsonl').split('\n').forEach(function (line) {
             var f = parse(line);
             if (!f || typeof f !== 'object' || !str(f.summary)) return;
-            var repo = str(f.repo) || name, pr = typeof f.pr === 'number' ? String(f.pr) : '';
+            var pr = typeof f.pr === 'number' ? String(f.pr) : '';
             if (pr && gone(pr)) return;
-            var r = row(repo, pr, f.role === 'fix' ? 'fix' : 'review');
+            var r = row(pr, f.role === 'fix' ? 'fix' : 'review');
             if (!r.feed || str(f.at) >= str(r.feed.at)) r.feed = f;
             if (!r.url) r.url = str(f.url);
         });
         Object.keys(rows).forEach(function (k) {
             var r = rows[k], w = to(r.role);
-            // a repo-wide line (a failed start, a poll error) from before this watcher started is over
+            // a repo-wide line from before this watcher started is over
             if (!r.hide && !r.session && r.feed && ms(r.feed.at) < w.start) return;
             finish(r);
             // clicked: no second Fix now until the fix session shows (or the click is stale)
             var clicked = pendingFix[repoDir + '#' + r.pr];
             if (r.kind === 'findings' && clicked && Date.now() - clicked < FIX_PENDING) {
                 r.kind = 'fix_requested'; r.fix = ''; r.active = true;
-                r.text = KIND.fix_requested[1] + ' · ' + when(new Date(clicked));
+                r.time = ' · ' + when(new Date(clicked));
+                r.text = KIND.fix_requested[1] + r.time;
             }
             w.rows.push(r);
         });
     }); });
-    out.watchers.forEach(function (w) {
-        // review rows, then fix rows; each part: waiting on the user first, then the latest
-        w.rows.sort(function (a, b) { return ((a.role === 'fix') - (b.role === 'fix')) || (b.active - a.active) || (b.at - a.at); });
-        w.rows = w.rows.slice(0, ROWS);
-        w.rows.forEach(function (r) { if (r.active) out.active++; });
-    });
-    // by project, so a project's review and fix watchers sit together; then role, then tab
-    var key = function (w) { return [w.repos.slice().sort().join(',').toLowerCase(), ROLE_RANK[w.sfx], (w.cwdName + ' ' + w.termName).toLowerCase()]; };
-    out.watchers.sort(function (a, b) {
-        var x = key(a), y = key(b);
-        for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
-        return 0;
+    var low = function (t) { return t.toLowerCase(); };
+    out.repos.sort(function (a, b) { return low(a.name) < low(b.name) ? -1 : low(a.name) > low(b.name) ? 1 : 0; });
+    out.repos.forEach(function (g) {
+        delete g.byKey;
+        g.watchers.forEach(function (w) {
+            // Stop ends the watcher's session only when this is its one repo
+            w.only = repoCount[w.key] === 1;
+            // waiting on the user first, then the latest
+            w.rows.sort(function (a, b) { return (b.active - a.active) || (b.at - a.at); });
+            w.rows = w.rows.slice(0, ROWS);
+            w.rows.forEach(function (r) { if (r.active) out.active++; });
+        });
+        // both roles, review, fix; then by tab
+        var key = function (w) { return [ROLE_RANK[w.sfx], low(w.cwdName + ' ' + w.termName)]; };
+        g.watchers.sort(function (a, b) {
+            var x = key(a), y = key(b);
+            for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+            return 0;
+        });
     });
     return out;
 }
+// Text from a file shown as a menu title: one line.
+function oneLine(t) { return str(t).replace(/\s+/g, ' ').trim(); }
 // One host per vendor + host name.
 function hostOf(q) { return q.vendor + '|' + (str(q.host) || VENDOR_HOST[q.vendor]); }
 function hostName(q) { var h = str(q.host); return h && h !== VENDOR_HOST[q.vendor] ? h : VENDOR_NAME[q.vendor]; }
@@ -398,7 +423,7 @@ function gauge(quotas) {
     quotas.forEach(function (q) {
         if (!current(q)) return;
         var l = num(q.limit), r = num(q.remaining);
-        var g = l && r !== null ? { ratio: r / l, text: hostName(q) + ' API ' + r.toLocaleString('en-US') + '/' + l.toLocaleString('en-US') + ' left' }
+        var g = l && r !== null ? { ratio: r / l, text: hostName(q) + ' API ' + r.toLocaleString('en-US') + '/' + l.toLocaleString('en-US') }
               : q.near_limit === true ? { ratio: QUOTA.low - 0.01, text: hostName(q) + ' API near its limit' } : null;
         if (g && (!best || g.ratio < best.ratio)) best = g;
     });
@@ -452,15 +477,14 @@ function repoPoll(repoDir) {
     return typeof v === 'number' && v >= 1 ? v : STALE.poll;
 }
 function age(sec) { return sec < 3600 ? Math.floor(sec / 60) + 'm' : Math.floor(sec / 3600) + 'h'; }
-// A watcher row's subtitle as [text, warn] parts: role, terminal, the folder it runs in when that
-// is not its one repo, then when it last polled.
+// A watcher row's line as [text, kind] parts, kind '' | 'role' | 'warn': role, terminal, then when it
+// last polled.
 function watcherLine(w) {
-    var head = (ROLE_LOOK[w.role] || ROLE_LOOK[''])[1] + (w.termName ? ' · ' + w.termName : '') +
-               (w.cwdName && !(w.repos.length === 1 && w.repos[0] === w.cwdName) ? ' · in ' + w.cwdName : '');
-    if (!isFinite(w.beat)) return [[head, false]];
+    var parts = [[(ROLE_LOOK[w.role] || ROLE_LOOK[''])[1], 'role']], head = w.termName ? ' · ' + w.termName : '';
+    if (!isFinite(w.beat)) return head ? parts.concat([[head, '']]) : parts;
     var every = Math.max(w.poll, STALE.idle);
-    if (w.beat > STALE.factor * every) return [[head + ' · ', false], ['no poll for ' + age(w.beat) + ' — check the watcher tab', true]];
-    return [[head + ' · polled ' + (w.beat < 60 ? 'just now' : age(w.beat) + ' ago'), false]];
+    if (w.beat > STALE.factor * every) return parts.concat([[head + ' · ', ''], ['no poll for ' + age(w.beat) + ' — check the watcher tab', 'warn']]);
+    return parts.concat([[head + ' · polled ' + (w.beat < 60 ? 'just now' : age(w.beat) + ' ago'), '']]);
 }
 function ms(t) { var n = new Date(str(t)).getTime(); return isNaN(n) ? 0 : n; }
 // findings counts {"🟠": 2} → "2 🟠 · 4 🔵", severity order
@@ -494,7 +518,8 @@ function finish(r) {
     else if (!r.fix && r.hide) r.fix = r.hide;
     var label = KIND[kind] ? KIND[kind][1] : kind;
     if (kind === 'findings' && r.findings) label = r.findings + ' — Fix now';
-    r.text = (f ? str(f.summary) : label) + (at ? ' · ' + when(new Date(at)) : '');
+    r.time = at ? ' · ' + when(new Date(at)) : '';
+    r.text = (f ? str(f.summary) : label) + r.time;
     return r;
 }
 
@@ -565,7 +590,7 @@ function refresh() {
     } finally { refreshing = false; }
 }
 
-function clip(t) { return t.length > CLIP ? t.slice(0, CLIP - 1) + '…' : t; }
+function clip(t, n) { n = n || CLIP; return t.length > n ? t.slice(0, n - 1) + '…' : t; }
 // Auto-enabling greys out a submenu parent that has no action.
 function newMenu(title) {
     var m = $.NSMenu.alloc.initWithTitle(title);
@@ -583,20 +608,43 @@ function add(menu, title, action, value, tag) {
     menu.addItem(mi);
     return mi;
 }
-// Native subtitle from macOS 14.4; before that, the same two lines as an attributed title.
-// The menu does not widen for a native subtitle, which then runs under the submenu arrow.
-function subtitle(mi, text) {
+// Native subtitle from macOS 14.4; before that, the same two lines as an attributed title. One line,
+// cut with "…" at SUB_W before its tail (the time), which stays whole: the menu widens to fit it (a
+// native subtitle does not widen it, and runs under the submenu arrow).
+function subtitle(mi, text, tail) {
+    var font = $.NSFont.menuFontOfSize(12), width = function (t) { return $(t).sizeWithAttributes($({ NSFont: font })).width; };
+    tail = tail && text.slice(-tail.length) === tail ? tail : '';
+    var head = oneLine(text.slice(0, text.length - tail.length));
+    text = head + tail;
+    if (width(text) > SUB_W) {   // the longest head that fits with its "…" and the tail
+        var lo = 0, hi = head.length;
+        while (lo < hi) { var mid = Math.ceil((lo + hi) / 2); if (width(head.slice(0, mid) + '…' + tail) <= SUB_W) lo = mid; else hi = mid - 1; }
+        text = head.slice(0, lo).replace(/\s+$/, '') + '…' + tail;
+    }
     if (mi.respondsToSelector('setSubtitle:')) {
-        var menu = mi.menu, w = $(clip(text)).sizeWithAttributes($({ NSFont: $.NSFont.menuFontOfSize(11) })).width;
+        var menu = mi.menu, w = width(text);
         if (!menu.isNil() && w + SUBTITLE_PAD > menu.minimumWidth) menu.setMinimumWidth(w + SUBTITLE_PAD);
-        mi.setSubtitle(clip(text));
+        mi.setSubtitle(text);
         return;
     }
-    var s = $.NSMutableAttributedString.alloc.initWithStringAttributes(ObjC.unwrap(mi.title) + '\n',
-        $({ NSFont: $.NSFont.menuFontOfSize(0) }));
-    s.appendAttributedString($.NSAttributedString.alloc.initWithStringAttributes(clip(text),
-        $({ NSFont: $.NSFont.menuFontOfSize(11), NSColor: $.NSColor.secondaryLabelColor })));
-    mi.setAttributedTitle(s);
+    mi.setAttributedTitle(attributed([[ObjC.unwrap(mi.title) + '\n', $.NSFont.menuFontOfSize(0), $.NSColor.labelColor],
+                                      [text, $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor]], false));
+}
+// parts [[text, font, colour]…] → one attributed string, built piece by piece (JXA does not bridge
+// NSAttributedString's initWithString… initializers). cut: one line, its tail cut with "…" (an
+// attributed value brings its own line breaking, and a wrapped line falls out of sight).
+function attributed(parts, cut) {
+    var s = $.NSMutableAttributedString.alloc.init, at = 0, ps = null;
+    if (cut) { ps = $.NSMutableParagraphStyle.alloc.init; ps.setLineBreakMode($.NSLineBreakByTruncatingTail); }
+    parts.forEach(function (x) {
+        s.mutableString.appendString(x[0]);
+        var r = $.NSMakeRange(at, x[0].length);
+        s.addAttributeValueRange('NSFont', x[1], r);
+        s.addAttributeValueRange('NSColor', x[2], r);
+        if (ps) s.addAttributeValueRange('NSParagraphStyle', ps, r);
+        at += x[0].length;
+    });
+    return s;
 }
 function label(text, font, color, x, y) {
     var f = $.NSTextField.labelWithString(text);
@@ -606,54 +654,90 @@ function label(text, font, color, x, y) {
     f.setFrame($.NSMakeRect(x, y, HEADER_W - x - 14, 17));
     return f;
 }
-// The repos' poll settings → "polls every 3m", or "polls every 1–5m" when they differ; '' for none.
+function textWidth(t, font) { return Math.ceil($(t).sizeWithAttributes($({ NSFont: font })).width) + 4; }
+// The repos' poll settings → "every 3m", or "every 1–5m" when they differ; '' for none.
 function pollSpan(polls) {
     if (!polls.length) return '';
     var lo = Math.min.apply(null, polls), hi = Math.max.apply(null, polls);
     var f = function (v) { return v % 60 ? v + 's' : v / 60 + 'm'; };
-    return 'polls every ' + (lo === hi ? f(hi) : (lo % 60 || hi % 60 ? f(lo) : lo / 60) + '–' + f(hi));
+    return 'every ' + (lo === hi ? f(hi) : (lo % 60 || hi % 60 ? f(lo) : lo / 60) + '–' + f(hi));
 }
-// polls: pollSpan's text, on the third line after the quota gauge (or alone).
-function headerView(repos, watchers, until, quota, polls) {
-    var up = quota || polls ? 14 : 0;   // a third line: the quota gauge, then the poll interval
-    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, HEADER_W, 48 + up));
+// One line: the moth, "open-pr", and on the right a bell-slash while toasts are snoozed, the quota
+// gauge and the poll interval; those go on a second line when they do not fit beside the name.
+function headerView(until, quota, polls) {
+    var small = $.NSFont.systemFontOfSize(11), second = $.NSColor.secondaryLabelColor, bold = $.NSFont.boldSystemFontOfSize(13);
+    var parts = [];   // [view, width, tooltip]
+    if (until) {
+        var bell = $.NSImageView.imageViewWithImage(symbol(['bell.slash']));
+        bell.setContentTintColor(second);
+        parts.push([bell, 14, 'Toasts off until ' + when(until)]);
+        var u = 'until ' + hhmm(until) + (quota || polls ? ' ·' : '');
+        parts.push([label(u, small, second, 0, 0), textWidth(u, small), 'Toasts off until ' + when(until)]);
+    }
+    if (quota) {
+        var qt = quota.text + (polls ? ' ·' : '');
+        parts.push([label(qt, small, quota.level === 'critical' ? $.NSColor.systemRedColor
+                          : quota.level === 'low' ? $.NSColor.systemOrangeColor : second, 0, 0), textWidth(qt, small),
+                    'API requests left in the host\'s current rate-limit window']);
+    }
+    if (polls) parts.push([label(polls, small, second, 0, 0), textWidth(polls, small), 'How often the watched repos poll (an idle repo slows to every ' + STALE.idle / 60 + 'm)']);
+    var rw = parts.reduce(function (n, x) { return n + x[1] + 2; }, 0);
+    var nx = 40, nw = textWidth('open-pr', bold);
+    var one = nx + nw + 16 + rw + 14 <= HEADER_W, h = one ? 30 : 46, w = Math.max(HEADER_W, nx + rw + 14);
+    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, h));
+    v.setAutoresizingMask($.NSViewWidthSizable);
     var iv = $.NSImageView.imageViewWithImage(icons.header);
-    iv.setFrame($.NSMakeRect(14, 10 + up / 2, 28, 28));
+    iv.setFrame($.NSMakeRect(14, h - 25, 20, 20));
     v.addSubview(iv);
-    v.addSubview(label('open-pr', $.NSFont.boldSystemFontOfSize(13), $.NSColor.labelColor, 52, 24 + up));
-    var line = (repos ? 'Watching ' + repos + (repos === 1 ? ' repo' : ' repos') : 'Not watching') + ' · ' +
-               (watchers > 1 ? watchers + ' watchers · ' : '') +
-               (until ? 'toasts off until ' + hhmm(until) : 'toasts on');
-    v.addSubview(label(line, $.NSFont.systemFontOfSize(11), $.NSColor.secondaryLabelColor, 52, 7 + up));
-    // laid side by side at their own width; the view widens when they need more than HEADER_W
-    var x = 52, small = $.NSFont.systemFontOfSize(11);
-    var part = function (t, color) {
-        var w = Math.ceil($(t).sizeWithAttributes($({ NSFont: small })).width) + 4, f = label(t, small, color, x, 6);
-        f.setFrame($.NSMakeRect(x, 6, w, 17));
-        v.addSubview(f);
-        x += w;
-    };
-    if (quota) part(quota.text + (polls ? ' ·' : ''), quota.level === 'critical' ? $.NSColor.systemRedColor
-                    : quota.level === 'low' ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor);
-    if (polls) part(polls, $.NSColor.secondaryLabelColor);
-    if (x + 14 > HEADER_W) v.setFrameSize($.NSMakeSize(x + 14, 48 + up));
+    var name = label('open-pr', bold, $.NSColor.labelColor, nx, h - 23);
+    name.setFrame($.NSMakeRect(nx, h - 23, nw, 17));
+    v.addSubview(name);
+    // right-aligned on the first line, else left-aligned under the name
+    var x = one ? w - 14 - rw : nx, y = one ? h - 22 : 6;
+    parts.forEach(function (p) {
+        var ph = p[1] === 14 ? 14 : 15;
+        p[0].setFrame($.NSMakeRect(x, y + (p[1] === 14 ? 1 : 0), p[1], ph));
+        if (one) p[0].setAutoresizingMask($.NSViewMinXMargin);
+        p[0].setToolTip(p[2]);
+        v.addSubview(p[0]);
+        x += p[1] + 2;
+    });
     return v;
 }
 
-// A view item gets neither the item's action nor the menu's highlight: a transparent button over
-// the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
-// settings: the watcher's repos as scan() lists them, shown inline under the row by its gear.
-function watcherRow(title, parts, canGo, role, settings, quotas) {
-    var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
-    var bw = Math.ceil($('Stop').sizeWithAttributes($({ NSFont: stopFont })).width) + 20, attrs = function (pt) { return $({ NSFont: $.NSFont.menuFontOfSize(pt) }); };
-    var gw = settings.length ? PILL.gear + PILL.gap : 0, pills = bw + gw;   // the gear sits just left of Stop
-    var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[0] ? rgb(look[0]) : $.NSColor.labelColor;
-    var sub = parts.map(function (x) { return x[0]; }).join('');
-    var tw = Math.max($(clip(title)).sizeWithAttributes(attrs(0)).width, $(clip(sub)).sizeWithAttributes(attrs(11)).width);
-    var w = Math.max(HEADER_W, ROW_TEXT_X + Math.ceil(tw) + 20 + pills + 14);   // 8 pt of it: the field's own inset
-    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW_H));
+// A repo group's first row: the repo's name, and the gear that shows its settings inline under it
+// (settings: as scan() lists them). folders: the workspace folders its watchers run in (tooltip).
+function repoRow(name, folders, settings, quotas) {
+    var font = $.NSFont.systemFontOfSizeWeight($.NSFont.systemFontSize, $.NSFontWeightSemibold);
+    var gw = settings.length ? PILL.gear : 0, w = Math.max(HEADER_W, REPO.x + textWidth(name, font) + 20 + gw + 14);
+    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, REPO.h));
     v.setAutoresizingMask($.NSViewWidthSizable);
-    var bg = $.NSVisualEffectView.alloc.initWithFrame($.NSMakeRect(5, 0, w - 10, ROW_H));
+    var t = label(name, font, $.NSColor.labelColor, REPO.x, (REPO.h - 17) / 2);
+    t.setFrame($.NSMakeRect(REPO.x, (REPO.h - 17) / 2, w - REPO.x - gw - 26, 17));
+    t.setAutoresizingMask($.NSViewWidthSizable);
+    if (folders.length) t.setToolTip('Watched from ' + folders.join(', '));
+    v.addSubview(t);
+    var p = { canGo: false, settings: settings, quotas: quotas };
+    if (gw) {
+        var gear = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('gearshape', 'Settings'));
+        gear.image.setTemplate(true);
+        p.gear = pill(v, p, w - gw - 14, gw, gear, 14, 14, 'settingsRow:', 'Settings of ' + name, REPO.h);
+    }
+    rowParts[v.hash] = p;
+    return v;
+}
+// A watcher row (a view item gets neither the item's action nor the menu's highlight): a transparent
+// button over the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
+// parts: watcherLine's.
+function watcherRow(parts, canGo, role) {
+    var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
+    var bw = textWidth('Stop', stopFont) + 16, font = $.NSFont.menuFontOfSize(0);
+    var look = ROLE_LOOK[role] || ROLE_LOOK[''], tint = look[0] ? rgb(look[0]) : $.NSColor.labelColor;
+    var plain = parts.map(function (x) { return x[0]; }).join('');
+    var w = Math.max(HEADER_W, ROW.text + textWidth(plain, font) + 20 + bw + 14);
+    var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, w, ROW.h));
+    v.setAutoresizingMask($.NSViewWidthSizable);
+    var bg = $.NSVisualEffectView.alloc.initWithFrame($.NSMakeRect(5, 0, w - 10, ROW.h));
     bg.setMaterial($.NSVisualEffectMaterialSelection);
     bg.setState($.NSVisualEffectStateActive);
     bg.setEmphasized(true);
@@ -664,70 +748,47 @@ function watcherRow(title, parts, canGo, role, settings, quotas) {
     v.addSubview(bg);
     var iv = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('terminal', ''));
     iv.setContentTintColor(tint);
-    iv.setFrame($.NSMakeRect(ROW_TEXT_X - 20, (ROW_H - 16) / 2, 16, 16));
+    iv.setFrame($.NSMakeRect(ROW.text - 21, (ROW.h - 16) / 2, 16, 16));
     v.addSubview(iv);
-    var right = w - ROW_TEXT_X - pills - 26;
-    var t = label(clip(title), $.NSFont.menuFontOfSize(0), $.NSColor.labelColor, ROW_TEXT_X, ROW_H / 2);
-    var st = label(clip(sub), $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor, ROW_TEXT_X, ROW_H / 2 - 15);
-    [t, st].forEach(function (f) {
-        f.setFrame($.NSMakeRect(ROW_TEXT_X, f.frame.origin.y, right, 17));
-        f.setAutoresizingMask($.NSViewWidthSizable);
-        v.addSubview(f);
-    });
-    if (canGo) {   // ends 4 pt short of the first pill, so the pills' hit areas stay their own
+    var line = label(plain, font, $.NSColor.labelColor, ROW.text, (ROW.h - 17) / 2);
+    line.setFrame($.NSMakeRect(ROW.text, (ROW.h - 17) / 2, w - ROW.text - bw - 26, 17));
+    line.setAutoresizingMask($.NSViewWidthSizable);
+    var lineAttr = attributed(parts.map(function (x) {
+        return [x[0], x[1] === 'role' ? font : $.NSFont.menuFontOfSize(12),
+                x[1] === 'warn' ? $.NSColor.systemOrangeColor : x[1] === 'role' ? $.NSColor.labelColor : $.NSColor.secondaryLabelColor];
+    }), true);
+    line.setAttributedStringValue(lineAttr);
+    v.addSubview(line);
+    if (canGo) {   // ends 4 pt short of the pill, so its hit area stays its own
         var hit = $.NSButton.buttonWithTitleTargetAction('', target, 'goRow:');
         hit.setTransparent(true);
-        hit.setFrame($.NSMakeRect(0, 0, w - pills - 18, ROW_H));
+        hit.setFrame($.NSMakeRect(0, 0, w - bw - 18, ROW.h));
         hit.setAutoresizingMask($.NSViewWidthSizable);
         hit.setToolTip('Go to watcher tab');
         v.addSubview(hit);
     } else {
-        t.setTextColor($.NSColor.disabledControlTextColor);
+        line.setAlphaValue(0.5);
     }
-    var p = { bg: bg, icon: iv, tint: tint, title: t, sub: st, subText: sub, subAttr: null, canGo: canGo, settings: settings, quotas: quotas };
+    var p = { bg: bg, icon: iv, tint: tint, line: line, plain: plain, lineAttr: lineAttr, canGo: canGo };
     var word = $.NSTextField.labelWithString('Stop');
     word.setFont(stopFont);
     var ww = Math.ceil(word.intrinsicContentSize.width) + 4;   // room for the last glyph's overhang
-    p.stop = pill(v, p, w - bw - 14, bw, word, ww, 16, 'stopRow:', 'Stop watcher');
-    if (gw) {
-        var gear = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('gearshape', 'Settings'));
-        gear.image.setTemplate(true);
-        p.gear = pill(v, p, w - pills - 14, PILL.gear, gear, 14, 14, 'settingsRow:', 'Settings');
-    }
-    // a warning part in orange: an attributed string, built up piece by piece (JXA does not bridge
-    // NSAttributedString's initWithString… initializers)
-    if (parts.some(function (x) { return x[1]; })) {
-        var subAttr = p.subAttr = $.NSMutableAttributedString.alloc.init;
-        // an attributed value brings its own line breaking: wrapped, a cut line falls out of sight
-        var ps = $.NSMutableParagraphStyle.alloc.init;
-        ps.setLineBreakMode($.NSLineBreakByTruncatingTail);
-        var at = 0;
-        parts.forEach(function (x) {
-            var text = x[0];   // a long line is cut by the field (truncating tail)
-            subAttr.mutableString.appendString(text);
-            var r = $.NSMakeRange(at, text.length);
-            subAttr.addAttributeValueRange('NSFont', $.NSFont.menuFontOfSize(11), r);
-            subAttr.addAttributeValueRange('NSColor', x[1] ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor, r);
-            subAttr.addAttributeValueRange('NSParagraphStyle', ps, r);
-            at += text.length;
-        });
-        st.setAttributedStringValue(subAttr);
-    }
+    p.stop = pill(v, p, w - bw - 14, bw, word, ww, 16, 'stopRow:', 'Stop watcher', ROW.h);
     rowParts[v.hash] = p;
     return v;
 }
-// A pill at x (bw wide) holding `content` (cw × ch, centred by frame: the alignment constant is
-// wrong on Apple silicon) under a transparent OPRPillButton. Drawn by hand: a bezel goes dark on
-// the selection colour, and its title with it.
-function pill(v, row, x, bw, content, cw, ch, action, tip) {
-    var bh = PILL.h, box = $.NSBox.alloc.initWithFrame($.NSMakeRect(x, (ROW_H - bh) / 2, bw, bh));
+// A pill at x (bw wide) in a row rh high, holding `content` (cw × ch, centred by frame: the alignment
+// constant is wrong on Apple silicon) under a transparent OPRPillButton. Drawn by hand: a bezel goes
+// dark on the selection colour, and its title with it.
+function pill(v, row, x, bw, content, cw, ch, action, tip, rh) {
+    var bh = PILL.h, box = $.NSBox.alloc.initWithFrame($.NSMakeRect(x, (rh - bh) / 2, bw, bh));
     box.setBoxType($.NSBoxCustom);
     box.setTitlePosition($.NSNoTitle);
     box.setBorderWidth(0);
     box.setCornerRadius(bh / 2);
     box.setAutoresizingMask($.NSViewMinXMargin);
     v.addSubview(box);
-    content.setFrame($.NSMakeRect(x + (bw - cw) / 2, (ROW_H - ch) / 2, cw, ch));
+    content.setFrame($.NSMakeRect(x + (bw - cw) / 2, (rh - ch) / 2, cw, ch));
     content.setAutoresizingMask($.NSViewMinXMargin);
     v.addSubview(content);
     var b = $.OPRPillButton.alloc.initWithFrame(box.frame);
@@ -754,13 +815,10 @@ function highlightRow(mi) {
 }
 function paintRow(p, on) {
     p.bg.setHidden(!on);
-    p.title.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.labelColor);
-    if (on || !p.subAttr) {
-        if (p.subAttr) p.sub.setStringValue(p.subText);
-        p.sub.setTextColor(on ? $.NSColor.selectedMenuItemTextColor : $.NSColor.secondaryLabelColor);
-    } else p.sub.setAttributedStringValue(p.subAttr);
+    if (on) { p.line.setStringValue(p.plain); p.line.setTextColor($.NSColor.selectedMenuItemTextColor); }
+    else p.line.setAttributedStringValue(p.lineAttr);
     p.icon.setContentTintColor(on ? $.NSColor.selectedMenuItemTextColor : p.tint);
-    [p.stop, p.gear].forEach(function (q) { if (q) paintPill(q, on); });
+    paintPill(p.stop, on);
 }
 // on: its row is highlighted. A pointer on the pill darkens it, as a pressed-looking button does;
 // a pressed pill (the gear while its panel is open) takes the accent colour.
@@ -789,8 +847,9 @@ function rowAction(sender, which) {
     if (which === 'go') goToTab(o.go);
     else stopWatcher(o.stop);
 }
-// The gear: shows the row's settings inline under it, one panel per repo (captioned by the repo
-// when there are several), or hides them; one row's panel open at a time. The menu stays open.
+// The gear: shows the repo's settings inline under its row (one panel per data dir that holds the
+// repo, captioned by its path when there are several), or hides them; one repo's panel open at a
+// time. The menu stays open.
 function toggleSettings(sender) {
     var q = pillParts[sender.hash], mi = sender.enclosingMenuItem;
     if (!q || mi.isNil() || mi.menu.isNil()) return;
@@ -801,7 +860,7 @@ function toggleSettings(sender) {
     openPanel = { row: q.row, items: q.row.settings.map(function (x, i) {
         // re-read: the menu is not rebuilt while open, so x.conf may be older than the file
         var y = { name: x.name, repo: x.repo, arg: x.arg, conf: repoSettings(x.repo, x.arg.repo_dir, x.arg.remote) || x.conf };
-        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, ''), p = settingsPanel(y, q.row.quotas, many ? x.name : '');
+        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, ''), p = settingsPanel(y, q.row.quotas, many ? x.repo : '');
         pi.setView(p.view);
         menu.insertItemAtIndex(pi, at + 1 + i);
         return { item: pi, panel: p };
@@ -825,41 +884,17 @@ function build(s) {
     rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {}; shown = s;
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
-    head.setView(headerView(s.repos, s.watchers.length, until, gauge(s.quotas), pollSpan(s.polls)));
+    head.setView(headerView(until, gauge(s.quotas), pollSpan(s.polls)));
     m.addItem(head);
 
-    // no section title: a menu indents the items under one
     m.addItem($.NSMenuItem.separatorItem);
-    if (!s.watchers.length) add(m, 'Nothing yet');
-    s.watchers.forEach(function (w, i) {
-        if (i) m.addItem($.NSMenuItem.separatorItem);   // one block per watcher
-        // A record from before watcher.json existed has no tab to show.
-        var go = w.key && (TERMS[w.term] || SESSION_ID.test(w.session_id))
-            ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id, pids: w.pids } : null;
-        if (w.key) {
-            var wt = w.repos.join(', ');
-            var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
-            wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.session_id } })));
-            wi.setView(watcherRow(wt, watcherLine(w), !!go, w.role, w.settings, s.quotas));
-            m.addItem(wi);
-        }
-        // a blank image of an icon's size puts the text in the rows' text column
-        if (!w.rows.length) add(m, 'No pull requests yet').setImage(blank());
-        w.rows.forEach(function (x) {
-            var spec = KIND[x.kind];
-            var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
-            subtitle(mi, x.text);
-            if (spec) mi.setImage(symbol(spec));
-            // Offered in every state: `open` also reopens a finished or stopped session.
-            var sub = newMenu(x.title);
-            if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
-            if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
-            if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, term: w.term }));
-            if (x.here && go) add(sub, 'Open session in ' + w.app, 'goTab:', JSON.stringify(go));
-            if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
-            if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
-            if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
-        });
+    if (!s.repos.length) add(m, 'Not watching any repository');
+    s.repos.forEach(function (g, i) {
+        if (i) m.addItem($.NSMenuItem.separatorItem);   // one group per repo
+        var gi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(g.name, null, '');
+        gi.setView(repoRow(g.name, g.folders, g.settings, s.quotas));
+        m.addItem(gi);
+        g.watchers.forEach(function (w) { watcherItems(m, w); });
     });
 
     m.addItem($.NSMenuItem.separatorItem);
@@ -877,6 +912,41 @@ function build(s) {
     sn.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription(until ? 'bell.slash' : 'bell', ''));
     add(m, 'Quit menu bar', 'quit:').setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('power', ''));
     return m;
+}
+// A watcher's row, then its PR rows one indentation step in (their icons under its text).
+function watcherItems(m, w) {
+    // A record from before watcher.json existed has no tab to show.
+    var go = w.key && (TERMS[w.term] || SESSION_ID.test(w.session_id))
+        ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id, pids: w.pids } : null;
+    if (w.key) {
+        var parts = watcherLine(w), wt = parts.map(function (x) { return x[0]; }).join('');
+        var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
+        wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.only ? w.session_id : '' } })));
+        wi.setView(watcherRow(parts, !!go, w.role));
+        m.addItem(wi);
+    }
+    // a blank image of an icon's size puts the text in the rows' text column
+    if (!w.rows.length) {
+        var none = add(m, 'No pull requests yet');
+        none.setImage(blank());
+        none.setIndentationLevel(PR_INDENT);
+    }
+    w.rows.forEach(function (x) {
+        var spec = KIND[x.kind];
+        var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
+        mi.setIndentationLevel(PR_INDENT);
+        subtitle(mi, x.text, x.time);
+        mi.setImage(spec ? symbol(spec) : blank());
+        // Offered in every state: `open` also reopens a finished or stopped session.
+        var sub = newMenu(x.title);
+        if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
+        if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
+        if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, term: w.term }));
+        if (x.here && go) add(sub, 'Open session in ' + w.app, 'goTab:', JSON.stringify(go));
+        if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
+        if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
+        if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
+    });
 }
 
 function span(sec) { return sec % 60 ? sec + ' seconds' : sec / 60 + (sec === 60 ? ' minute' : ' minutes'); }
@@ -1181,11 +1251,11 @@ function applyAll(sender) {
         showPanel(p, repoSettings(p.x.repo, p.x.arg.repo_dir, p.x.arg.remote) || p.conf);
     });
 }
-// The `settings --set watch.poll_interval_seconds` argv for each repo of scan s, once each; a value
+// The `settings --set watch.poll_interval_seconds` argv for each repo group's settings of scan s, once each; a value
 // the Poll control does not offer, or a repo settingArgs refuses, yields none.
 function applyArgs(s, value) {
     var seen = {}, out = [];
-    s.watchers.forEach(function (w) { w.settings.forEach(function (x) {
+    s.repos.forEach(function (g) { g.settings.forEach(function (x) {
         if (seen[x.repo]) return;
         seen[x.repo] = true;
         var a = settingArgs({ repo_dir: x.arg.repo_dir, remote: x.arg.remote, key: 'watch.poll_interval_seconds', value: String(value) });

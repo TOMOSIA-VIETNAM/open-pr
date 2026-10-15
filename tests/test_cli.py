@@ -811,7 +811,7 @@ def triggers(shims, vendor, *extra, check=True):
 
 
 GH_ROUTES = [
-    ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
+    ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5", "title": "Add retry"}]),
     ("issues/comments", [
         {"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
          "created_at": "2026-01-01T00:00:03Z", "body": HOSTILE},
@@ -849,7 +849,7 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
         "mid-body mentions, marked comments, non-open PRs, /open-prx and /open-pr:… never trigger; " \
         "the watcher's own account may ask (one person can be developer and reviewer)"
     assert rows[0]["authorized"] == "no", "a read-only user has no write access"
-    assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "pr_author": None, "comment_id": "90", "kind": "line",
+    assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "title": "Add retry", "pr_author": None, "comment_id": "90", "kind": "line",
                        "thread_id": None, "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk",
                        "authorized": "yes"}
     assert rows[2]["kind"] == "top" and rows[2]["authorized"] == "yes"
@@ -1063,7 +1063,7 @@ def test_triggers_bitbucket_lists_only_the_prs_updated_since(shims):
     """One comments call per open PR each poll would eat the hourly quota on a busy repo."""
     serve(shims, "curl", [("pullrequests?state=OPEN", {"values": [], "next": None})])
     triggers(shims, "bitbucket", "--since", "2026-01-01T09:00:02+09:00")
-    assert "pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href" \
+    assert "pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href,values.title" \
            ",values.author.nickname,values.source.branch.name,values.updated_on&q=updated_on%20%3E%202026-01-01T00%3A00%3A02%2B00%3A00" in shims["log"].read_text()
     shims["log"].write_text("")
     triggers(shims, "bitbucket")
@@ -1250,7 +1250,7 @@ def test_findings_github_groups_one_review_with_its_line_and_file_findings(shims
         "in_reply_to_id": reply_to}
     serve(shims, "gh", [
         ("pulls?state=open", [
-            {"number": 5, "html_url": "https://github.com/o/r/pull/5", "user": {"login": "Dev"}, "head": {"ref": "feat/x"},
+            {"number": 5, "html_url": "https://github.com/o/r/pull/5", "title": "Add retry", "user": {"login": "Dev"}, "head": {"ref": "feat/x"},
              "updated_at": "2026-01-01T00:01:00Z"},
             {"number": 6, "html_url": "https://github.com/o/r/pull/6", "user": {"login": "other"}, "updated_at": "2026-01-01T00:01:00Z"},
             {"number": 7, "html_url": "https://github.com/o/r/pull/7", "user": {"login": "dev"}, "updated_at": "2025-12-01T00:00:00Z"}]),
@@ -1269,7 +1269,7 @@ def test_findings_github_groups_one_review_with_its_line_and_file_findings(shims
     out = tmp_path / "findings"
     triggers(shims, "github", "--since", "2026-01-01T00:00:00Z", "--findings-file", str(out), "--fix-author", "dev")
     rows = [json.loads(l) for l in out.read_text().splitlines()]
-    assert rows == [{"pr": 5, "url": "https://github.com/o/r/pull/5", "head_branch": "feat/x", "review_id": "70", "comment_id": "10",
+    assert rows == [{"pr": 5, "url": "https://github.com/o/r/pull/5", "title": "Add retry", "head_branch": "feat/x", "review_id": "70", "comment_id": "10",
                      "thread_id": None, "kind": "line", "user": "rev", "created_at": "2026-01-01T00:00:10Z",
                      "counts": {"🔴": 1, "🟠": 1, "🔵": 1}}], \
         "a replied finding, a finding before --since and another author's PR do not count; the " \

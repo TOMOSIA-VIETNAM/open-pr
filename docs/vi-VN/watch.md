@@ -157,20 +157,24 @@ Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số sessio
 mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
 `/open-pr:menubar` đưa nó trở lại.
 
-Header của nó cho biết số repo đang watch, bao lâu poll một lần (`polls every 3m`, hoặc
-`polls every 1–5m` khi setting các repo khác nhau), toast đang bật hay tắt, và quota còn lại của host
-(xem Giới hạn rate). Bên dưới là mỗi watcher một nhóm:
+Header của nó gọn trong một dòng: `open-pr`, rồi biểu tượng chuông gạch kèm `until 23:30` khi toast đang
+tạm tắt, quota còn lại của host (xem Giới hạn rate) và bao lâu các repo poll một lần (`every 3m`, hoặc
+`every 1–5m` khi setting các repo khác nhau); các phần này xuống dòng dưới tên khi không đủ chỗ. Bên dưới
+là mỗi repo đang watch một nhóm, xếp theo tên — repo được watch từ nhiều thư mục hay nhiều máy vẫn chỉ
+là một nhóm:
 
-- **Dòng watcher** — tiêu đề là các repo nó watch; bên dưới là vai nó phục vụ, terminal, thư mục nó chạy
-  khi đó không phải repo duy nhất của nó, và lần poll gần nhất (`no poll for …` màu cam khi đã lỡ hai
-  lượt poll).
-  - **Go to watcher tab** đưa tab terminal đó lên trước. iTerm và Terminal chọn đúng tab sau khi macOS
-    hỏi xin quyền Automation một lần; terminal khác thì cả ứng dụng được đưa lên trước. Watcher đã bị
-    đóng tab được mở lại bằng `claude attach`.
-  - **Stop** dừng theo dõi mọi repo của watcher đó; watcher của vai kia vẫn chạy.
-  - **Nút bánh răng** cạnh Stop mở panel setting ngay dưới dòng đó (xem bên dưới).
-- **Dòng pull request** — mỗi pull request và vai một dòng, dòng review trước rồi tới dòng fix, mỗi dòng
-  gắn nhãn `· review` hoặc `· fix`; ghi "No pull requests yet" khi chưa có dòng nào.
+- **Dòng repo** — tên repo; tooltip ghi thư mục workspace mà watcher chạy trong đó khi thư mục đó không
+  phải chính repo. **Nút bánh răng** bên phải mở panel setting của repo đó ngay dưới dòng (xem bên dưới).
+- **Dòng watcher** — mỗi watcher của repo một dòng: `Review`, `Fix`, hoặc `Review + fix` với watcher
+  phục vụ cả hai vai, kèm terminal và lần poll gần nhất (`no poll for …` màu cam khi đã lỡ hai lượt
+  poll). Biểu tượng terminal màu xanh cho review, cam cho fix.
+  - Bấm vào dòng sẽ đưa tab terminal của watcher đó lên trước. iTerm và Terminal chọn đúng tab sau khi
+    macOS hỏi xin quyền Automation một lần; terminal khác thì cả ứng dụng được đưa lên trước. Watcher đã
+    bị đóng tab được mở lại bằng `claude attach`.
+  - **Stop** dừng watcher đó trên repo này; các repo khác của nó và watcher của vai kia vẫn chạy.
+- **Dòng pull request** — dưới mỗi dòng watcher, thụt vào một bậc: `#12 <tiêu đề>` (chỉ có số cho đến
+  khi một lượt poll đọc được tiêu đề), và một dòng bên dưới ghi trạng thái kèm thời điểm, cắt bằng "…"
+  khi quá dài; ghi "No pull requests yet" khi chưa có dòng nào.
   - Trạng thái, cập nhật ngay tại chỗ: đang review, đã post kèm số finding, LGTM, draft, cần trả lời, có
     finding mới, đang fix, đang fix tại đây, đã fix, lỗi.
   - **Fix now** trên dòng có finding mới.
@@ -178,8 +182,7 @@ Header của nó cho biết số repo đang watch, bao lâu poll một lần (`p
     Terminal, Ghostty hoặc WezTerm; terminal khác thì mở Terminal); copy command mở session.
   - **Remove from list** ẩn pull request đó và đưa nó ra khỏi vai fix. Pull request đã merge hoặc đã
     đóng tự rời danh sách trong vòng 10 phút; một yêu cầu mới trên pull request đó đưa dòng trở lại.
-- **Panel setting** — mỗi lúc một watcher; watcher có nhiều repo thì mỗi repo một panel, có tên repo ở
-  đầu. Bấm bánh răng hoặc click ra ngoài thì đóng.
+- **Panel setting** — mỗi lúc một repo. Bấm lại bánh răng hoặc click ra ngoài thì đóng.
   - Số session cùng lúc (1, 2, 3, 5, 8, 10); poll mỗi 1, 2, 3, 5 hoặc 10 phút, kèm số request mỗi giờ
     của khoảng hiện tại, và **Apply to all**, đặt khoảng đó cho mọi repo menu bar đang hiện; trigger
     (`/open-pr` hoặc `@me`); mỗi event toast một checkbox.
@@ -225,7 +228,7 @@ giờ nhanh hơn setting). Khi host báo bị giới hạn rate, watcher tăng g
 đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
 
 Header của menu bar hiện quota còn lại thấp nhất trong các host đang watch, đọc từ header rate-limit của
-chính các request poll (không thêm request nào) — vd `GitHub API 4,812/5,000 left`, màu cam khi còn dưới
+chính các request poll (không thêm request nào) — vd `GitHub API 4,812/5,000`, màu cam khi còn dưới
 30 %, đỏ khi dưới 10 %. Panel setting hiện dưới control poll số request mỗi giờ mà khoảng hiện tại tốn,
 tính từ lần poll gần nhất của từng repo (tooltip của mỗi lựa chọn hiện số của nó), kèm ⚠ khi vượt một
 nửa giới hạn mỗi giờ của host (giới hạn theo phút của GitLab được quy ra theo giờ). Bitbucket có thể chỉ

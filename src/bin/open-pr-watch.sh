@@ -155,6 +155,7 @@ setting_int() {
 #   findings  { "<pr>": {review_id,counts,url,head_branch,comment_id,thread_id,user,repo,at} } the newest findings
 #             event per PR, until a fix session opens for it (the menu bar offers "Fix now")
 #   seen_reviews  "<pr>:<review id>" already delivered (the newest 200)
+#   titles    { "<pr>": "<PR title>" } from the triggers and findings a poll read; the menu bar's row titles
 # etags/ (GitHub ETag cache, open-pr.sh triggers), fix_now/<pr> (a "Fix now" click, see fix-now).
 # One wait per repo and role: wait-<role>.pid. Per role set a wait serves (file suffix SFX: none
 # for both roles, else -review | -fix): heartbeat, watcher.json, stop, quota.json (the host's
@@ -712,6 +713,7 @@ check_open() {
             | .queue = [.queue[]? | select(.pr as $p | $gone | index($p) | not)]
             | ($gone | map(tostring)) as $g
             | .findings = ((.findings // {}) | with_entries(select(.key as $k | $g | index([$k]) | not)))
+            | .titles = ((.titles // {}) | with_entries(select(.key as $k | $g | index([$k]) | not)))
             | .fix_prs = ((.fix_prs // {}) | with_entries(select(.key as $k | $g | index([$k]) | not)))
             | .sessions |= with_entries(if (.key | split(":")[0]) as $k | $g | index([$k]) then .value.closed = true else . end)'
     else
@@ -827,12 +829,16 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     # everything since start, every poll.
     mark=$(cat "$TMPD/mark" 2>/dev/null || true)
     jq -R -s 'split("\n") | map(select(. != ""))' "$TMPD/enroll" > "$TMPD/enroll.json"
+    jq -s '[.[] | select(type == "object" and (.title | type) == "string") | {key: (.pr | tostring), value: .title}]
+        | from_entries' "$TMPD/new" "$TMPD/findings" > "$TMPD/titles"
     if [ ! -s "$TMPD/new.ev" ] && [ ! -s "$TMPD/sess" ] && [ ! -s "$TMPD/ready" ] && [ ! -s "$TMPD/fnd" ] \
         && [ ! -s "$TMPD/fixev" ]; then
         remember_ids "$TMPD/status"
         jq -r '._k' "$TMPD/new" | sort | tail -n 1 > "$TMPD/newest"
         state_update --arg m "$mark" --arg n "$(cat "$TMPD/newest")" --slurpfile en "$TMPD/enroll.json" --argjson p "$CP" \
-            '([$m, $n] | map(select(. != "")) | max) as $c
+            --slurpfile ti "$TMPD/titles" \
+            '.titles = ((.titles // {}) + $ti[0])
+             | ([$m, $n] | map(select(. != "")) | max) as $c
              | (if $c != null and $c > getpath($p + ["cursor"]) then setpath($p + ["cursor"]; $c) | setpath($p + ["seen"]; []) else . end)
              | reduce $en[0][] as $p (.; .fix_prs[$p] = "enrolled")'
         park_idle "$TMPD/status"
@@ -840,8 +846,9 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     fi
     jq -c --slurpfile new "$TMPD/new" --slurpfile status "$TMPD/own" --slurpfile fnd "$TMPD/fnd" \
         --slurpfile en "$TMPD/enroll.json" --arg m "$mark" --arg terminal "$TERMINAL" --arg at "$(now_iso)" \
-        --arg repo "$OWNER/$REPO" --argjson p "$CP" '
-        getpath($p + ["cursor"]) as $cur
+        --arg repo "$OWNER/$REPO" --argjson p "$CP" --slurpfile ti "$TMPD/titles" '
+        .titles = ((.titles // {}) + $ti[0])
+        | getpath($p + ["cursor"]) as $cur
         | ([$cur, $m] + [$new[]._k] | map(select(. != "")) | max) as $c
         | setpath($p + ["seen"]; if $c == $cur then (getpath($p + ["seen"]) // []) else [] end
                    + [$new[] | select(._k == $c) | .comment_id | tostring] | unique)
@@ -857,7 +864,7 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
                                     | .open = (.open // $s.open)
                                     | if any($done[]; . == $s.state) then .finished = true | .finished_at = (.finished_at // $at) else . end)
           else . end)' "$TMPD/state.in" > "$STATE.tmp" || die 1 "open-pr-watch.sh: state update failed"
-    { jq -c '{event: "trigger"} + del(._k, .pr_author)' "$TMPD/new.ev"; cat "$TMPD/fnd" "$TMPD/fixev" "$TMPD/sess" "$TMPD/ready"; } \
+    { jq -c '{event: "trigger"} + del(._k, .pr_author, .title)' "$TMPD/new.ev"; cat "$TMPD/fnd" "$TMPD/fixev" "$TMPD/sess" "$TMPD/ready"; } \
         | jq -c --arg r "$OWNER/$REPO" '{event, repo: $r} + del(.event)' > "$TMPD/events"
     cat "$TMPD/events"
     mv "$STATE.tmp" "$STATE"

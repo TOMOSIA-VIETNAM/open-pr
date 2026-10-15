@@ -159,20 +159,24 @@ A watcher puts the moth in the menu bar when it starts, with the number of sessi
 is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
 Quit item), and `/open-pr:menubar` brings it back.
 
-Its header says how many repos are watched, how often they are polled (`polls every 3m`, or
-`polls every 1–5m` when their settings differ), whether toasts are on, and the host quota left (see
-Rate limits). Below it, one group per watcher:
+Its header is one line: `open-pr`, then a bell-slash with `until 23:30` while toasts are snoozed, the
+host quota left (see Rate limits) and how often the repos poll (`every 3m`, or `every 1–5m` when their
+settings differ); these move under the name when they do not fit beside it. Below it, one group per
+watched repo, sorted by name — a repo watched from several folders or machines is still one group:
 
-- **Watcher row** — titled with the repos it watches; under them the role it serves, its terminal, the
-  folder it runs in when that is not its one repo, and when it last polled (`no poll for …` in orange
-  once it missed two polls).
-  - **Go to watcher tab** brings that terminal tab to the front. iTerm and Terminal select the exact
-    tab after macOS asks once for Automation permission; other terminals come to the front as an app.
-    A watcher whose tab was closed is reopened with `claude attach`.
-  - **Stop** ends every repo that watcher watches; a watcher of the other role keeps running.
-  - **The gear** beside Stop opens the settings panel under that row (below).
-- **Pull request rows** — one per pull request and role, review rows first, then fix rows, each
-  labelled `· review` or `· fix`; "No pull requests yet" when there are none.
+- **Repo row** — the repo's name; its tooltip names the workspace folder a watcher runs in when that is
+  not the repo itself. **The gear** on the right opens that repo's settings panel under the row (below).
+- **Watcher rows** — one per watcher of the repo: `Review`, `Fix`, or `Review + fix` for a watcher of
+  both roles, with its terminal and when it last polled (`no poll for …` in orange once it missed two
+  polls). The terminal icon is blue for review, orange for fix.
+  - A click brings that watcher's terminal tab to the front. iTerm and Terminal select the exact tab
+    after macOS asks once for Automation permission; other terminals come to the front as an app. A
+    watcher whose tab was closed is reopened with `claude attach`.
+  - **Stop** stops that watcher on this repo; its other repos and a watcher of the other role keep
+    running.
+- **Pull request rows** — under each watcher row, one step in: `#12 <title>` (the number alone until a
+  poll has read the title), and one line under it with the state and its time, cut with "…" when long;
+  "No pull requests yet" when there are none.
   - The state, updated in place: reviewing, posted with counts, LGTM, draft, needs an answer, new
     findings, fixing, fixing here, fixed, failed.
   - **Fix now** on a row with new findings.
@@ -180,8 +184,7 @@ Rate limits). Below it, one group per watcher:
     Terminal, Ghostty or WezTerm; any other terminal opens Terminal); copy the open command.
   - **Remove from list** hides the pull request and takes it out of the fix role. A merged or closed
     pull request leaves on its own within 10 minutes; a new request on it brings the row back.
-- **Settings panel** — one watcher's at a time; a watcher of several repos shows one panel per repo,
-  headed by its name. The gear or a click outside closes it.
+- **Settings panel** — one repo's at a time. The gear again or a click outside closes it.
   - Sessions at once (1, 2, 3, 5, 8, 10); poll every 1, 2, 3, 5 or 10 minutes, with the requests per
     hour the current interval costs, and **Apply to all**, which sets that interval on every repo the
     menu bar shows; trigger (`/open-pr` or `@me`); one toast checkbox per event.
@@ -227,7 +230,7 @@ than the setting). When the host reports a rate limit, the watcher doubles its i
 minutes) and returns to `poll_interval_seconds` after the next successful poll.
 
 The menu bar header shows the tightest quota left on the hosts watched, read from the rate-limit
-headers of the poll's own requests (no extra request) — e.g. `GitHub API 4,812/5,000 left`, orange
+headers of the poll's own requests (no extra request) — e.g. `GitHub API 4,812/5,000`, orange
 under 30 % left, red under 10 %. The settings panel shows under its poll control the requests per hour
 the current interval costs, from each repo's last poll (each choice's tooltip shows its own), and ⚠
 when that passes half the host's hourly limit (GitLab's per-minute limit counted per hour). Bitbucket

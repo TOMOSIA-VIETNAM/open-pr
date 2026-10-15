@@ -1426,6 +1426,7 @@ def test_a_merged_pr_is_hidden_and_its_idle_session_stopped(w):
     st.pop("open_checked_at", None)                     # finish's own polls had no open list
     st["queue"] = [{"key": "5:review", "pr": 5, "role": "review", "runner": "claude", "name": "review o/r#5", "prompt_file": "/p"},
                    {"key": "12:review", "pr": 12, "role": "review", "runner": "claude", "name": "review o/r#12", "prompt_file": "/q"}]
+    st["titles"] = {"5": "Gone", "12": "Still open"}
     w.put_state(st)
     w.sd.joinpath("feed.jsonl").write_text(json.dumps({"at": "2026-01-01T00:00:00Z", "repo": "o/r", "pr": 8,
                                                        "event": "posted", "summary": "Posted"}) + "\n")
@@ -1434,6 +1435,7 @@ def test_a_merged_pr_is_hidden_and_its_idle_session_stopped(w):
     st = w.state()
     assert st["hidden"] == [5, 8], "a feed-only row goes too"
     assert [q["pr"] for q in st["queue"]] == [12], "a closed PR's queued request is dropped"
+    assert st["titles"] == {"12": "Still open"}
     assert st["sessions"]["5:review"]["closed"] is True and st["sessions"]["5:review"]["parked"] is True
     assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == [["stop", sp["id"]]]
 
@@ -1533,6 +1535,14 @@ def test_a_new_review_with_findings_is_delivered_once_and_kept_for_the_menu_bar(
     row = w.jsonl("status", "--pr", "5", "--role", "fix")[0]
     assert row["findings"]["comment_id"] == "10" and row["findings"]["user"] == "rev", \
         "what a re-review request replies to"
+
+
+def test_wait_keeps_each_prs_title_for_the_menu_bar_and_hands_the_watcher_none(w):
+    fix_ready(w, finding(title="Add retry"))
+    w.triggers(dict(trig("c1", "2026-01-01T00:00:05Z", pr=7), title="Fix login"))
+    ev = w.jsonl("wait", "--once")
+    assert sorted(e["event"] for e in ev) == ["findings", "trigger"] and not [e for e in ev if "title" in e]
+    assert w.state()["titles"] == {"5": "Add retry", "7": "Fix login"}
 
 
 def test_a_fix_run_in_the_watchers_own_session_is_tracked_until_its_status_file_says_how_it_ended(w):
@@ -1761,17 +1771,31 @@ MENUBAR = REPO / "src" / "bin" / "open-pr-menubar.js"
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
 def test_the_menu_bar_lists_each_role_watcher_with_the_rows_of_its_role(w):
-    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+    w.put_state({"cursor": None, "seen": [], "queue": [], "titles": {"5": "Add retry\nto sync"}, "sessions": {
         "5:review": {"pr": 5, "role": "review", "repo": "o/r", "last_state": "working"},
         "6:fix": {"pr": 6, "role": "fix", "repo": "o/r", "last_state": "working"}}})
     for sfx, ts in (("-review", "w0t0p1:AA"), ("-fix", "w0t0p2:BB")):
         (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
             {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": ts, "tty": "", "session_id": ""}))
         (w.sd / f"heartbeat{sfx}").write_text("")
-    got = {x["sfx"]: (x["key"], x["rows"]) for x in _menubar_js(w,
-        "return JSON.stringify(scan().watchers.map(function (x) {"
-        " return { key: x.key, sfx: x.sfx, rows: x.rows.map(function (r) { return r.title; }) }; }));")}
-    assert got == {"-review": ("s:w0t0p1:AA-review", ["o/r #5"]), "-fix": ("s:w0t0p2:BB-fix", ["o/r #6"])}
+    got = _menubar_js(w, "return JSON.stringify(scan().repos.map(function (g) { return [g.name, g.watchers.map(function (x) {"
+                         " return [x.key, x.rows.map(function (r) { return r.title; })]; })]; }));")
+    assert got == [["r", [["s:w0t0p1:AA-review", ["#5 Add retry to sync"]], ["s:w0t0p2:BB-fix", ["#6"]]]]], \
+        "one group for the repo; review, then fix; a PR's title from state, else its number"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_bar_groups_by_repo_and_a_watcher_of_several_repos_sits_in_each(w):
+    tab = {"pid": 1, "cwd": "/x/tms", "term": "iTerm.app", "term_session": "w0t0p1:AA", "tty": "", "session_id": ""}
+    for repo in ("zeta", "Alpha"):
+        d = w.home / "data" / repo / "watch"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "watcher.json").write_text(json.dumps(tab))
+        (d / "heartbeat").write_text("")
+    got = _menubar_js(w, "return JSON.stringify(scan().repos.map(function (g) {"
+                         " return [g.name, g.folders, g.watchers.map(function (x) { return [x.key, x.only, x.dirs.length]; })]; }));")
+    assert got == [["Alpha", ["tms"], [["s:w0t0p1:AA", False, 1]]], ["zeta", ["tms"], [["s:w0t0p1:AA", False, 1]]]], \
+        "sorted by name; Stop there leaves the watcher's session running for its other repo"
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
@@ -1785,7 +1809,7 @@ def test_a_done_line_never_outranks_a_session_still_working(w):
     (w.sd / "heartbeat").write_text("")
     (w.sd / "feed.jsonl").write_text(json.dumps({"at": now, "repo": "o/r", "pr": 143, "role": "review",
                                                  "event": "posted", "summary": "answered, reviewing on"}) + "\n")
-    got = _menubar_js(w, "return JSON.stringify(scan().watchers[0].rows.map(function (r) { return r.kind; }));")
+    got = _menubar_js(w, "return JSON.stringify(scan().repos[0].watchers[0].rows.map(function (r) { return r.kind; }));")
     assert got == ["working"]
 
 
@@ -1850,7 +1874,7 @@ def test_the_menu_bar_shows_the_tightest_quota_and_warns_before_a_fast_poll(w):
          "remaining": 1200, "reset": soon, "near_limit": None, "calls": 3, "at": now}))
     got = _menubar_js(w, "var q = scan().quotas; return JSON.stringify("
                          "[gauge(q), estimate(q, 15), estimate(q, 180), estimate([], 15)]);")
-    assert got[0] == {"ratio": 0.24, "text": "GitHub API 1,200/5,000 left", "level": "low"}
+    assert got[0] == {"ratio": 0.24, "text": "GitHub API 1,200/5,000", "level": "low"}
     assert got[1:] == ["  ≈720/h", "  ≈60/h", ""], "720/h is under half of 5000/h"
     (w.sd / "quota.json").write_text(json.dumps(
         {"vendor": "gitlab", "host": "gitlab.com", "window": 60, "limit": 10, "remaining": 0,
@@ -1874,7 +1898,7 @@ def test_wait_keeps_the_hosts_quota_per_role_set_even_when_rate_limited(w):
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
-def test_a_watcher_row_names_its_repos_and_says_when_it_last_polled(w):
+def test_a_watcher_row_names_its_role_and_says_when_it_last_polled(w):
     w.sd.mkdir(parents=True, exist_ok=True)
     for sfx, cwd in (("-review", "/x/r"), ("-fix", "/x/tms")):
         (w.sd / f"watcher{sfx}.json").write_text(json.dumps(
@@ -1882,10 +1906,11 @@ def test_a_watcher_row_names_its_repos_and_says_when_it_last_polled(w):
         (w.sd / f"heartbeat{sfx}").write_text("")
     old = time.time() - 1500   # past 2 × the 600 s an idle repo may poll at
     os.utime(w.sd / "heartbeat-fix", (old, old))
-    got = _menubar_js(w, "return JSON.stringify(scan().watchers.map(function (x) {"
-                         " return [x.sfx, x.repos.join(', '), watcherLine(x)]; }));")
-    assert got == [["-review", "r", [["Review · iTerm · polled just now", False]]],
-                   ["-fix", "r", [["Fix · iTerm · in tms · ", False], ["no poll for 25m — check the watcher tab", True]]]]
+    got = _menubar_js(w, "var g = scan().repos[0]; return JSON.stringify([g.folders, g.watchers.map(function (x) {"
+                         " return [x.sfx, watcherLine(x)]; })]);")
+    assert got == [["tms"], [["-review", [["Review", "role"], [" · iTerm · polled just now", ""]]],
+                             ["-fix", [["Fix", "role"], [" · iTerm · ", ""], ["no poll for 25m — check the watcher tab", "warn"]]]]], \
+        "a workspace folder goes to the repo's tooltip, not the row"
 
 
 def _watched(w, repo_dir=True):
@@ -1910,8 +1935,8 @@ def test_the_menu_bar_reads_each_repos_settings_and_says_when_its_doctor_runs(w,
     at = None if next_in is None else time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + next_in))
     (w.home / "settings.json").write_text(json.dumps(
         {"review": review, "watch": {"max_concurrent": 2}, "doctor_next_at": at}))
-    got = _menubar_js(w, "return JSON.stringify(scan().watchers.map(function (x) {"
-                         " return x.settings.map(function (r) { return [r.name, r.doctor, r.conf.watch.max_concurrent]; }); }));",
+    got = _menubar_js(w, "return JSON.stringify(scan().repos.map(function (g) {"
+                         " return g.settings.map(function (r) { return [r.name, r.doctor, r.conf.watch.max_concurrent]; }); }));",
                       script=True)
     assert got == [[["r", want, 2]]]
     calls = (w.home / "open-pr.calls").read_text().splitlines()
@@ -1922,7 +1947,7 @@ def test_the_menu_bar_reads_each_repos_settings_and_says_when_its_doctor_runs(w,
 def test_the_menu_bar_offers_no_settings_for_a_repo_it_cannot_name(w):
     _watched(w, repo_dir=False)
     (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {}}))
-    assert _menubar_js(w, "return JSON.stringify(scan().watchers[0].settings);", script=True) == []
+    assert _menubar_js(w, "return JSON.stringify(scan().repos[0].settings);", script=True) == []
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
@@ -1961,7 +1986,7 @@ def test_the_settings_panel_shows_each_current_value(w):
         "watch": {"max_concurrent": 5, "poll_interval_seconds": 180, "trigger": "@alice",
                   "notify": {e: e != "posted" for e in ("review_started", "question", "draft_ready", "posted",
                                                        "re_review", "findings", "error")}}}))
-    got = _menubar_js(w, PANEL_DUMP + """var x = scan().watchers[0].settings[0], p = settingsPanel(x, []);
+    got = _menubar_js(w, PANEL_DUMP + """var x = scan().repos[0].settings[0], p = settingsPanel(x, []);
         return JSON.stringify(dump());""", script=True)
     by = dict(got)
     assert by["watch.max_concurrent"] == "1 2 3 [5] 8 10"
@@ -1977,7 +2002,7 @@ def test_the_settings_panel_shows_each_current_value(w):
 def test_a_panel_control_writes_its_key_and_shows_the_value_read_back(w):
     _watched(w)
     (w.home / "settings.json").write_text(json.dumps({"review": {"post_lgtm": True}, "watch": {"max_concurrent": 5}}))
-    got = _menubar_js(w, PANEL_DUMP + """var x = scan().watchers[0].settings[0], p = settingsPanel(x, []);
+    got = _menubar_js(w, PANEL_DUMP + """var x = scan().repos[0].settings[0], p = settingsPanel(x, []);
         var by = function (k) { return Object.keys(controls).map(function (h) { return controls[h]; })
             .filter(function (c) { return c.key === k; })[0].view; };
         var seg = by('watch.max_concurrent'); seg.setSelectedSegment(4); setSetting(seg);
@@ -1990,7 +2015,7 @@ def test_a_panel_control_writes_its_key_and_shows_the_value_read_back(w):
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
-def test_the_gear_shows_a_watchers_settings_inline_under_its_row_and_hides_them(w):
+def test_the_gear_shows_a_repos_settings_inline_under_its_row_and_hides_them(w):
     _watched(w)
     (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
     # run() is left out: a plain NSButton stands in for the pill button class, which only an app run
@@ -2018,13 +2043,13 @@ def test_the_header_says_how_often_the_watched_repos_poll(w):
     (w.home / "data" / "r" / "settings.json").write_text(json.dumps({"watch": {"poll_interval_seconds": 300}}))
     got = _menubar_js(w, "return JSON.stringify([scan().polls, pollSpan([]), pollSpan([180]), pollSpan([60, 300, 180]),"
                          " pollSpan([30, 300])]);")
-    assert got == [[300], "", "polls every 3m", "polls every 1–5m", "polls every 30s–5m"]
+    assert got == [[300], "", "every 3m", "every 1–5m", "every 30s–5m"]
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
 def test_apply_to_all_writes_the_offered_interval_once_to_each_repo_it_can_name(w):
     ok = {"repo_dir": str(w.repo), "remote": "origin"}
-    s = {"watchers": [{"settings": [{"repo": "a", "arg": ok}, {"repo": "b", "arg": dict(ok, remote="")}]},
+    s = {"repos": [{"settings": [{"repo": "a", "arg": ok}, {"repo": "b", "arg": dict(ok, remote="")}]},
                       {"settings": [{"repo": "a", "arg": ok}, {"repo": "c", "arg": dict(ok, repo_dir="/no/such/dir")}]}]}
     got = _menubar_js(w, f"var s = {json.dumps(s)}; return JSON.stringify([applyArgs(s, 120), applyArgs(s, 45)]);", script=True)
     tail = ["settings", "--repo-dir", str(w.repo)]
@@ -2037,7 +2062,7 @@ def test_apply_to_all_writes_the_offered_interval_once_to_each_repo_it_can_name(
 def test_apply_to_all_in_a_panel_writes_its_interval_and_shows_it_read_back(w):
     _watched(w)
     (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"poll_interval_seconds": 300}}))
-    got = _menubar_js(w, PANEL_DUMP + """shown = scan(); var p = settingsPanel(shown.watchers[0].settings[0], []);
+    got = _menubar_js(w, PANEL_DUMP + """shown = scan(); var p = settingsPanel(shown.repos[0].settings[0], []);
         var b = Object.keys(controls).map(function (h) { return controls[h]; }).filter(function (c) { return c.applyAll; })[0];
         applyAll({ hash: Object.keys(controls).filter(function (h) { return controls[h] === b; })[0] });
         return JSON.stringify([dump(), ObjC.unwrap(p.cost.stringValue)]);""", script=True)
@@ -2054,8 +2079,8 @@ def test_a_fix_run_here_shows_as_fixing_here_and_opens_the_watchers_tab(w):
     (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p1:AA"}))
     (w.sd / "heartbeat").write_text("")
     got = _menubar_js(w, """$.OPRPillButton = $.NSButton; target = $.NSObject.alloc.init; icons.header = mothImage(28, false);
-        var s = scan(), r = s.watchers[0].rows[0], m = build(s);
-        var mi = m.itemArray.js.filter(function (x) { return ObjC.unwrap(x.title) === 'o/r #5'; })[0], sub = [];
+        var s = scan(), r = s.repos[0].watchers[0].rows[0], m = build(s);
+        var mi = m.itemArray.js.filter(function (x) { return ObjC.unwrap(x.title) === '#5'; })[0], sub = [];
         for (var i = 0; i < mi.submenu.numberOfItems; i++) { var it = mi.submenu.itemAtIndex(i);
             sub.push([ObjC.unwrap(it.title), ObjC.unwrap(it.action), unwrapString(it.representedObject)]); }
         return JSON.stringify([r.kind, r.text.split(' · ')[0], sub]);""")

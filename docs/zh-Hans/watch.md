@@ -134,25 +134,26 @@ non-interactive 会话使用你为该平台配置的权限设置；watcher 不�
 watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整台机器只有一个，涵盖所有 watcher；它一直保留到
 `/open-pr:menubar close`（或菜单中的 Quit），`/open-pr:menubar` 可让它重新出现。
 
-标题显示监视的仓库数、轮询间隔（`polls every 3m`；各仓库设置不同时为 `polls every 1–5m`）、toast 是否开启，
-以及主机剩余的配额（见速率限制）。其下每个 watcher 一组：
+标题只占一行：`open-pr`，暂停提醒期间显示带斜线的铃铛和 `until 23:30`，然后是主机剩余的配额（见速率限制）和
+各仓库的轮询间隔（`every 3m`；各仓库设置不同时为 `every 1–5m`）；名称旁放不下时这些内容移到名称下方一行。
+其下每个被监视的仓库一组，按名称排序——从多个文件夹或多台机器监视的仓库仍是一组：
 
-- **watcher 行** —— 标题为它监视的仓库；下方是它服务的角色、终端、与其唯一仓库名不同时的运行文件夹，以及最近
-  一次轮询（错过两次轮询后显示橙色的 `no poll for …`）。
-  - **Go to watcher tab** 把该 terminal 标签页调到前台。iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后
+- **仓库行** —— 仓库名；watcher 运行在非该仓库本身的工作区文件夹时，文件夹名显示在悬停提示中。右侧的**齿轮按钮**
+  在该行下方展开这个仓库的设置面板（见下）。
+- **watcher 行** —— 该仓库的每个 watcher 一行：`Review`、`Fix`，同时服务两个角色的 watcher 为 `Review + fix`，
+  附终端和最近一次轮询（错过两次轮询后显示橙色的 `no poll for …`）。终端图标评审为蓝色、修复为橙色。
+  - 点击该行把该 watcher 的 terminal 标签页调到前台。iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后
     会选中确切的标签页；其他 terminal 则把应用调到前台。标签页已关闭的 watcher 会用 `claude attach` 重新打开。
-  - **Stop** 停止该 watcher 监视的所有仓库；另一角色的 watcher 继续运行。
-  - Stop 旁的**齿轮按钮**在该行下方展开设置面板（见下）。
-- **pull request 行** —— 每个 pull request 的每个角色一行，评审行在前、修复行在后，每行标注 `· review` 或
-  `· fix`；没有行时显示 "No pull requests yet"。
+  - **Stop** 停止该 watcher 在此仓库上的监视；它的其他仓库和另一角色的 watcher 继续运行。
+- **pull request 行** —— 在每个 watcher 行下方缩进一级：`#12 <标题>`（轮询读到标题之前只显示编号），下方一行
+  是状态及时间，过长时以 "…" 截断；没有行时显示 "No pull requests yet"。
   - 就地更新的状态：评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、在此修复中、已修复、失败。
   - 有新发现的行上显示 **Fix now**。
   - 打开 pull request；在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的
     新标签页；其他 terminal 则打开 Terminal）；复制打开命令。
   - **Remove from list** 会隐藏该 pull request 并把它移出 fix 角色。已合并或已关闭的 pull request 会在 10 分钟内
     自动离开列表；该 pull request 上的新请求会让这一行重新出现。
-- **设置面板** —— 同一时间只展开一个 watcher 的；监视多个仓库的 watcher 每个仓库一个面板，以仓库名为标题。
-  点击齿轮或外部即关闭。
+- **设置面板** —— 同一时间只展开一个仓库的。再次点击齿轮或点击外部即关闭。
   - 同时会话数（1、2、3、5、8、10）；轮询间隔 1、2、3、5 或 10 分钟，附当前间隔每小时的请求数，以及
     **Apply to all**，把该间隔设到菜单栏显示的所有仓库；触发词（`/open-pr` 或 `@me`）；每个事件一个 toast 复选框。
   - 评审选项：不经草稿直接发布、无发现时发布 LGTM、自动 resolve 已修复的发现、CI 失败时警告、doctor 间隔
@@ -191,7 +192,7 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
 watcher 会把轮询间隔加倍（最多 15 分钟），并在下一次轮询成功后恢复为 `poll_interval_seconds`。
 
 菜单栏标题显示所监视主机中剩余最少的配额，读取自轮询自身请求的限速响应头（不额外发请求）——例如
-`GitHub API 4,812/5,000 left`，剩余不足 30 % 时为橙色，不足 10 % 时为红色。设置面板的轮询控件下方显示
+`GitHub API 4,812/5,000`，剩余不足 30 % 时为橙色，不足 10 % 时为红色。设置面板的轮询控件下方显示
 按各仓库最近一次轮询估算的当前间隔每小时请求数（每个选项的提示显示它自己的），超过主机每小时上限的一半时加 ⚠
 （GitLab 的每分钟上限换算为每小时）。Bitbucket 可能只告知接近上限；不发送限速响应头的主机不显示该指示。
 
