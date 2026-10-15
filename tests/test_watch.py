@@ -670,6 +670,42 @@ def test_fresh_opens_a_new_session_and_leaves_the_old_one_running(w):
     assert next(s for s in w.claude_db()["sessions"] if s["id"] == sp["id"])["state"] == "working"
 
 
+
+def _age_replaced(w, seconds):
+    st = w.state()
+    for r in st["replaced"]:
+        r["at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - seconds))
+    w.put_state(st)
+
+
+def test_a_session_a_fresh_one_replaced_is_stopped_once_idle(w):
+    """state.json no longer names it as the PR's session; without `replaced` nothing would ever stop it."""
+    sp = finish(w, 12)
+    again = w.spawn(12, text="start over", extra=("--fresh",))
+    assert w.state()["replaced"] == [{"id": sp["id"], "role": "review", "at": w.state()["replaced"][0]["at"]}]
+    w.claude_set(sp["id"], "done")
+    w.run("wait", "--once")
+    assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "stopped before the idle period"
+    _age_replaced(w, 3600)
+    w.claude_set(sp["id"], "working")          # the user talks in it
+    w.run("wait", "--once")
+    assert not any(c[:1] == ["stop"] for c in w.claude_calls()), "stopped while in use"
+    w.claude_set(sp["id"], "done")
+    w.run("wait", "--once")
+    assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == [["stop", sp["id"]]], "only the replaced one"
+    assert w.state()["replaced"] == []
+    assert w.state()["sessions"]["12:review"]["id"] == again["id"]
+
+
+def test_a_forgotten_session_is_stopped_once_idle(w):
+    sp = finish(w, 7)
+    w.run("forget", "--pr", "7")
+    assert [r["id"] for r in w.state()["replaced"]] == [sp["id"]]
+    _age_replaced(w, 3600)
+    w.run("wait", "--once")
+    assert [c for c in w.claude_calls() if c[:1] == ["stop"]] == [["stop", sp["id"]]]
+
+
 # -------------------------------------------------------------- status ----
 
 @pytest.mark.parametrize("claude_state,status_body,want", [

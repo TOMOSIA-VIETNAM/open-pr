@@ -145,6 +145,8 @@ setting_int() {
 #             finished = `wait` delivered its result (a TERMINAL state): the session is the
 #             user's now, reports nothing more and holds no slot until spawn resumes it
 #             closed = the PR was merged or closed (see check_open)
+#   replaced  [ {id,role,at} ] claude sessions a --fresh spawn or `forget` took off a PR at `at`;
+#             park_idle stops each once idle (see IDLE_PARK)
 #   hidden    PR numbers the menu bar leaves out (`hide`, or merged/closed); spawn takes N out
 #   open_checked_at  last check_open
 #   queue     [ {key,pr,role,runner,name,prompt_file,queued_at[,cwd][,url][,fresh]} ] waiting for a slot
@@ -472,7 +474,22 @@ park_idle() {   # $1 status JSONL; only sessions of the roles this wait serves
         (cd "$D" && claude stop "$id") > /dev/null 2>&1 || true
         state_update --arg key "$key" '.sessions[$key].parked = true'
     done
+    # replaced sessions: no slot, no result to wait for — only whether the user still talks there
+    state_json | jq -r --argjson idle "$IDLE_PARK" --arg roles "$ROLES" '(.replaced // [])[]
+        | select(.role as $r | $roles | split(",") | index([$r]))
+        | select((now - (.at | fromdateiso8601)) >= $idle) | .id' | while read -r id; do
+        check_ident '^[0-9a-f]+$' "$id"
+        [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
+        case "$(claude_state "$id")" in working|blocked) continue ;; esac
+        (cd "$D" && claude stop "$id") > /dev/null 2>&1 || true
+        state_update --arg id "$id" '.replaced = [.replaced[] | select(.id != $id)]'
+    done
 }
+# jq: a claude session leaving .sessions[$key] for another (or none) joins .replaced, so park_idle
+# still stops it — only state.json's sessions are ever stopped.
+JQ_RETIRE='def retire($key; $id; $at): (.sessions[$key] // {}) as $o
+    | if $o.runner == "claude" and $o.id != null and $o.parked != true and $o.id != $id
+      then .replaced = ((.replaced // []) + [{id: $o.id, role: $o.role, at: $at}]) else . end;'
 # jq: session keys a queued request must still wait for — $s = status rows, $q = queue, $now epoch.
 JQ_BUSY='def busy($s; $q; $now):
     [$s[] | . as $r
@@ -567,8 +584,9 @@ record_session() {
     state_update --arg key "$KEY" --argjson pr "$N" --arg role "$ROLE" --arg runner "$RUNNER" --arg id "$RID" --arg sid "$SID" \
         --arg name "$NAME" --arg pid "$PID" --arg at "$(now_iso)" --arg repo "$OWNER/$REPO" \
         --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" --arg cwd "$W" \
-        'def nul: if . == "" then null else . end;
-         .sessions[$key] = {pr: $pr, role: $role, runner: $runner, id: ($id | nul), session_id: ($sid | nul),
+        "$JQ_RETIRE"'def nul: if . == "" then null else . end;
+         retire($key; $id | nul; $at)
+         | .sessions[$key] = {pr: $pr, role: $role, runner: $runner, id: ($id | nul), session_id: ($sid | nul),
                             name: $name, repo: $repo, url: (($url | nul) // .sessions[$key].url), open: ($open | nul),
                             cwd: $cwd, pid: ($pid | nul | if . then tonumber else . end), started_at: $at,
                             last_state: "working", last_state_at: $at, finished: false}
@@ -612,7 +630,7 @@ cmd_forget() {
     parse_args "$@"
     N=$(pr_arg); ROLE=$(role_arg)
     load_repo; lock
-    state_update --arg key "$N:$ROLE" 'del(.sessions[$key])'
+    state_update --arg key "$N:$ROLE" --arg at "$(now_iso)" "$JQ_RETIRE"'retire($key; null; $at) | del(.sessions[$key])'
     rm -f "$(status_file "$N:$ROLE")"
     jq -n -c --argjson pr "$N" --arg role "$ROLE" '{pr: $pr, role: $role, forgotten: true}'
 }
