@@ -301,9 +301,11 @@ cmd_list_repos() {
     D=$(arg dir); [ -n "$D" ] || D=.
     [ -d "$D" ] || die 5 "open-pr.sh list-repos: no such directory: $D"
     D=$(cd "$D" && pwd)
-    find "$D" -maxdepth 4 -name .git 2>/dev/null \
-        | grep -Ev '/(node_modules|notebooks/review|worktrees)/' | sort \
+    # Skipped below D only: D itself may sit in a worktrees/ directory (a git worktree, whose .git
+    # is a file — found too).
+    find "$D" -maxdepth 4 -name .git 2>/dev/null | sort \
         | while IFS= read -r g; do
+            case "/${g#"$D"/}" in */node_modules/*|*/notebooks/review/*|*/worktrees/*) continue ;; esac
             d=${g%/.git}
             last=$(git -C "$d" log -1 --format=%cI 2>/dev/null || true)
             for r in $(git -C "$d" remote 2>/dev/null); do

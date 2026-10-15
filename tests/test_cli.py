@@ -749,6 +749,20 @@ def test_list_repos_prints_every_hosted_remote_below_the_directory(tmp_path):
     ]), "a local-path remote names no host and is skipped"
     assert all(len(r) == 7 for r in rows)
 
+def test_list_repos_finds_a_git_worktree_it_runs_in_and_skips_those_below(tmp_path):
+    """A watcher started inside .claude/worktrees/<x> (a git worktree: .git is a file) lists it."""
+    main = tmp_path / "main"
+    subprocess.run(["git", "init", "-q", str(main)], check=True)
+    subprocess.run(["git", "-C", str(main), "remote", "add", "origin", "https://github.com/o/a.git"], check=True)
+    subprocess.run(["git", "-C", str(main), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                    "--allow-empty", "-m", "x"], check=True)
+    wt = main / ".claude" / "worktrees" / "feat"
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(wt)], check=True)
+    rows = [l.split("\t")[0] for l in run("list-repos", "--dir", str(wt), check=True).stdout.splitlines()]
+    assert rows == [str(wt.resolve())]
+    rows = [l.split("\t")[0] for l in run("list-repos", "--dir", str(main), check=True).stdout.splitlines()]
+    assert rows == [str(main.resolve())], "a worktree below the scanned directory is not a repo to watch"
+
 # ------------------------------------------------------------ triggers ----
 
 HOSTILE = "/open-pr focus on $(touch /tmp/pwned) and `id` \"quoted\" 'single'\nsecond line"
