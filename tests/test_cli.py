@@ -1806,6 +1806,34 @@ def test_settings_set_renames_into_place_under_the_watchers_state_lock(data_dir)
     assert not lock.exists(), "the lock outlives the write"
 
 
+EVENTS = ("review_started", "question", "draft_ready", "posted", "re_review", "findings", "error")
+
+
+def test_settings_set_writers_reclaiming_one_dead_lock_never_hold_it_together(data_dir):
+    """Every waiter sees the same dead holder; were two to hold the lock at once, one write is lost."""
+    f = _demo_settings(data_dir, {"watch": {}})
+    lock = f.parent / "watch" / ".lock"
+    lock.mkdir(parents=True)
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    (lock / "pid").write_text(f"{dead.pid}\n")
+    procs = [subprocess.Popen([str(CLI), "settings", "--repo", "demo", "--set", f"watch.notify.{e}", "--value", "false"],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True) for e in EVENTS]
+    assert all(p.wait(timeout=60) == 0 for p in procs)
+    assert json.loads(f.read_text())["watch"]["notify"] == {e: False for e in EVENTS}
+    assert not list(lock.parent.glob(".lock*")), "a reclaimed lock left a renamed copy behind"
+
+
+def test_settings_set_reclaims_a_lock_that_never_got_its_pid(data_dir):
+    """A holder killed between its mkdir and its pid write leaves an empty lock: taken over after 5 s."""
+    f = _demo_settings(data_dir, {"review": {"post_lgtm": True}})
+    (f.parent / "watch" / ".lock").mkdir(parents=True)
+    start = time.time()
+    assert run("settings", "--repo", "demo", "--set", "review.post_lgtm", "--value", "false").returncode == 0
+    assert 4 <= time.time() - start < 20
+    assert json.loads(f.read_text())["review"]["post_lgtm"] is False
+
+
 @pytest.mark.parametrize("review, next_at, due", [
     ({"doctored": True, "doctored_at": "2026-01-01T09:00:00+09:00", "doctor_schedule": "2 weeks"},
      "2026-01-15T00:00:00Z", True),

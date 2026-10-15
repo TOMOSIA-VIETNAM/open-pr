@@ -1325,6 +1325,29 @@ def open_prs_calls(w):
     return [l for l in f.read_text().splitlines() if l.startswith("open-prs")] if f.exists() else []
 
 
+def test_waiters_reclaiming_one_dead_state_lock_never_hold_it_together(w):
+    """Every waiter sees the same dead holder; were two to hold the lock at once, one write is lost."""
+    w.put_state({"cursor": None, "seen": [], "sessions": {}, "queue": []})
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    (w.sd / ".lock").mkdir()
+    (w.sd / ".lock" / "pid").write_text(f"{dead.pid}\n")
+    procs = [subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "hide", "--pr", str(n)], cwd=w.repo, env=w.env,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True) for n in range(1, 9)]
+    codes = [(p.wait(timeout=60), p.stderr.read()) for p in procs]
+    assert all(c == 0 for c, _ in codes), codes
+    assert w.state()["hidden"] == list(range(1, 9))
+    assert not list(w.sd.glob(".lock*")), "a reclaimed lock left a renamed copy behind"
+
+
+def test_a_state_lock_that_never_got_its_pid_is_reclaimed(w):
+    w.put_state({"cursor": None, "seen": [], "sessions": {}, "queue": []})
+    (w.sd / ".lock").mkdir()
+    start = time.time()
+    w.run("hide", "--pr", "3")
+    assert 4 <= time.time() - start < 20 and w.state()["hidden"] == [3]
+
+
 def test_hide_is_idempotent_and_a_new_request_brings_the_row_back(w):
     sp = w.spawn(5)
     assert w.jsonl("hide", "--pr", "5") == [{"pr": 5, "hidden": True}]

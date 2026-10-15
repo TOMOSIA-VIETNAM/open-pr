@@ -159,12 +159,18 @@ setting_int() {
 # rate limit as that wait's last poll read it: open-pr.sh triggers --quota-file, plus host and at).
 LOCKED=""
 lock() {   # $1 lock dir, default the repo's state lock
-    lk="${1:-$SD/.lock}"; i=0; nopid=0
+    lk="${1:-$SD/.lock}"; i=0; nopid=0; stuck=0
     while ! mkdir "$lk" 2>/dev/null; do
         holder=$(cat "$lk/pid" 2>/dev/null || true)
-        if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then rm -rf "$lk"; continue; fi
-        # a holder killed between its mkdir and its pid write leaves no pid: reclaimed after 5 s
-        if [ -z "$holder" ]; then nopid=$((nopid + 1)); [ "$nopid" -lt 25 ] || { rm -rf "$lk"; nopid=0; continue; }; fi
+        # open-pr.sh's dir_lock protocol (its comment says why), in 0.2 s naps: 25 = 5 s
+        if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || { [ -z "$holder" ] && [ "$nopid" -ge 25 ]; }; then
+            if mkdir "$lk.reclaim" 2>/dev/null; then
+                [ "$(cat "$lk/pid" 2>/dev/null || true)" != "$holder" ] || rm -rf "$lk"
+                rmdir "$lk.reclaim"; nopid=0; stuck=0; continue
+            fi
+            stuck=$((stuck + 1)); [ "$stuck" -lt 25 ] || { rm -rf "$lk.reclaim"; stuck=0; }
+        fi
+        [ -n "$holder" ] || nopid=$((nopid + 1))
         i=$((i + 1))
         [ "$i" -lt 600 ] || die 1 "open-pr-watch.sh: lock $lk held for over 2 minutes by pid ${holder:-?}"
         nap
