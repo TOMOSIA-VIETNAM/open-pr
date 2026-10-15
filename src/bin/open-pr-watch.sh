@@ -139,6 +139,7 @@ setting_int() {
 #   seen      comment ids at exactly that created_at (ties the cursor cannot order)
 #   sessions  { "<pr>:<role>": {pr,role,runner,id,session_id,name,repo,url,open,cwd,pid,started_at,
 #                        last_state,last_state_at,finished[,closed]} }   role = review | fix
+#             runner `here` = a fix the watcher runs in its own session (see `here`): no id, no open
 #             last_state_at = when last_state last changed (the menu bar weighs it against the feed)
 #             cwd = where it was opened; a resume runs there again
 #             finished = `wait` delivered its result (a TERMINAL state): the session is the
@@ -149,7 +150,7 @@ setting_int() {
 #   queue     [ {key,pr,role,runner,name,prompt_file,queued_at[,cwd][,url][,fresh]} ] waiting for a slot
 #   fix_prs   { "<pr>": "enrolled" | "off" } — enrolled: the user asked for a review of their own PR;
 #             off: `hide` took it out of the fix role (wins over authorship until a spawn for it)
-#   findings  { "<pr>": {review_id,counts,url,comment_id,thread_id,user,repo,at} } the newest findings
+#   findings  { "<pr>": {review_id,counts,url,head_branch,comment_id,thread_id,user,repo,at} } the newest findings
 #             event per PR, until a fix session opens for it (the menu bar offers "Fix now")
 #   seen_reviews  "<pr>:<review id>" already delivered (the newest 200)
 # etags/ (GitHub ETag cache, open-pr.sh triggers), fix_now/<pr> (a "Fix now" click, see fix-now).
@@ -373,6 +374,10 @@ EOF
             cs=$(claude_state "$id")
             case "$cs" in working|blocked) inuse=$cs ;; esac
         elif pid_alive "$pid"; then inuse=working; fi
+    elif [ "$runner" = here ]; then
+        # working until the watcher writes its outcome
+        st=working
+        [ ! -s "$(status_file "$key")" ] || { st=$(from_status_file "$key"); note=$(status_note "$key"); }
     elif [ "$runner" = claude ]; then
         [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
         entry=$(printf '%s' "$CLAUDE_AGENTS" | jq -c --arg id "$id" '[.[]? | select(.id == $id)][0] // empty')
@@ -495,22 +500,24 @@ cmd_spawn() {
     load_repo
     case "$RUNNER" in claude) need claude ;; codex) need codex ;; gemini) need gemini ;; cursor) need agent ;; antigravity) need agy ;; esac
     lock
-    state_update --argjson pr "$N" --arg role "$ROLE" '.hidden = [(.hidden // [])[] | select(. != $pr)]
-        | if $role == "fix" then del(.fix_prs[$pr | tostring] | select(. == "off")) else . end'
+    unhide
     max=$(setting_int max_concurrent 5)
     status_all > "$TMPD/status"
     remember_ids "$TMPD/status"
     # --fresh waits for a running review: both would write the same status file.
-    if [ -n "$FRESH" ] && [ "$(jq -r --arg key "$KEY" 'select(.key == $key) | .state' "$TMPD/status")" = working ]; then
+    if [ -n "$FRESH" ] && [ "$(key_state)" = working ]; then
         enqueue "session still running"; return 0
     fi
     have=""; [ -n "$FRESH" ] || have=$(session_field "$KEY" runner)
+    if [ "$(session_field "$KEY" runner)" = here ]; then   # nothing to resume: a background fix opens a new session
+        [ "$(key_state)" != working ] || die 1 "open-pr-watch.sh: PR $N is being fixed in the watcher's own session"
+        have=""
+    fi
     if [ -n "$have" ] && [ "$have" != "$RUNNER" ]; then
         die 1 "open-pr-watch.sh: PR $N already has a $have $ROLE session; forget it first to open one under $RUNNER"
     fi
     if [ -n "$have" ]; then
-        cur=$(jq -r --arg key "$KEY" 'select(.key == $key) | .state' "$TMPD/status")
-        [ "$cur" != working ] || { enqueue "session still running"; return 0; }
+        [ "$(key_state)" != working ] || { enqueue "session still running"; return 0; }
         busy=$(state_json | jq -r --slurpfile s "$TMPD/status" --arg key "$KEY" "$JQ_BUSY"' busy($s; .queue; now) | index([$key]) != null')
         [ "$busy" != true ] || { enqueue "session in use"; return 0; }
     fi
@@ -535,6 +542,22 @@ cmd_spawn() {
         if [ "$RUNNER" = claude ]; then claude_launch "$NAME" "$PROMPT"
         else headless_launch "$RUNNER" "$KEY" "$PROMPT"; fi
     fi
+    record_session
+    jq -n -c --argjson pr "$N" --arg role "$ROLE" --arg id "$RID" --arg open "$(open_cmd "$RUNNER" "$RID")" \
+        --argjson resumed "$resumed" --arg warn "$WARNING" \
+        '{pr: $pr, role: $role, id: (if $id == "" then null else $id end), open: (if $open == "" then null else $open end)}
+         + (if $resumed then {resumed: true} else {} end)
+         + (if $warn == "" then {} else {warning: $warn} end)'
+}
+# KEY's state in $TMPD/status (status_all's output).
+key_state() { jq -r --arg key "$KEY" 'select(.key == $key) | .state' "$TMPD/status"; }
+# Spawn takes N off the hidden list, and a fix back into the fix role.
+unhide() {
+    state_update --argjson pr "$N" --arg role "$ROLE" '.hidden = [(.hidden // [])[] | select(. != $pr)]
+        | if $role == "fix" then del(.fix_prs[$pr | tostring] | select(. == "off")) else . end'
+}
+# The session map entry for KEY, from RUNNER RID SID NAME PID URL W; a fix takes over the PR's findings.
+record_session() {
     state_update --arg key "$KEY" --argjson pr "$N" --arg role "$ROLE" --arg runner "$RUNNER" --arg id "$RID" --arg sid "$SID" \
         --arg name "$NAME" --arg pid "$PID" --arg at "$(now_iso)" --arg repo "$OWNER/$REPO" \
         --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" --arg cwd "$W" \
@@ -546,11 +569,20 @@ cmd_spawn() {
                            + (if $role == "fix" then {findings: (.findings[$pr | tostring] // .sessions[$key].findings)} else {} end)
          | del(.findings[if $role == "fix" then ($pr | tostring) else "" end])
          | .queue = [.queue[] | select(.key != $key)]'
-    jq -n -c --argjson pr "$N" --arg role "$ROLE" --arg id "$RID" --arg open "$(open_cmd "$RUNNER" "$RID")" \
-        --argjson resumed "$resumed" --arg warn "$WARNING" \
-        '{pr: $pr, role: $role, id: (if $id == "" then null else $id end), open: (if $open == "" then null else $open end)}
-         + (if $resumed then {resumed: true} else {} end)
-         + (if $warn == "" then {} else {warning: $warn} end)'
+}
+# PR N's fix runs in the watcher's own session: tracked as runner `here` so status, `wait` and the
+# menu bar follow it; its outcome is the status file the watcher writes.
+cmd_here() {
+    parse_args "$@"
+    N=$(pr_arg); ROLE=fix; KEY="$N:fix"; URL=$(arg url)
+    RUNNER=here; RID=""; SID=""; PID=""; NAME="fix here"
+    load_repo; lock
+    status_all > "$TMPD/status"
+    [ "$(key_state)" != working ] || die 1 "open-pr-watch.sh: PR $N already has a fix running"
+    unhide
+    rm -f "$(status_file "$KEY")"
+    record_session
+    jq -n -c --argjson pr "$N" '{pr: $pr, role: "fix", runner: "here"}'
 }
 
 # ---------------------------------------------------------- next/forget ----
@@ -731,11 +763,11 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     jq -c -s --slurpfile st "$TMPD/state.in" '($st[0].seen_reviews // []) as $seen | ($st[0].fix_prs // {}) as $fp
         | .[] | "\(.pr):\(.review_id)" as $k
         | select(($fp[.pr | tostring] // "") != "off" and ($seen | index([$k]) | not))
-        | {event: "findings", pr, review_id, counts, url, comment_id, thread_id, user}' "$TMPD/findings" > "$TMPD/fnd"
+        | {event: "findings", pr, review_id, counts, url, head_branch, comment_id, thread_id, user}' "$TMPD/findings" > "$TMPD/fnd"
     : > "$TMPD/fixnow"
     ! has_role fix || ls "$SD/fix_now" 2>/dev/null | grep -Ex '[0-9]+' > "$TMPD/fixnow" || :
     jq -c -R --slurpfile st "$TMPD/state.in" 'tonumber as $pr | ($st[0].findings // {})[$pr | tostring] as $f
-        | {event: "fix_now", pr: $pr} + (if $f then {url: $f.url, review_id: $f.review_id, counts: $f.counts,
+        | {event: "fix_now", pr: $pr} + (if $f then {url: $f.url, head_branch: $f.head_branch, review_id: $f.review_id, counts: $f.counts,
                                                        comment_id: $f.comment_id, thread_id: $f.thread_id, user: $f.user}
                                           else {} end)' "$TMPD/fixnow" > "$TMPD/fixev"
     # Session events, their reduce, `ready` and parking concern this wait's roles only: another
@@ -1126,12 +1158,12 @@ Subcommands:
       review: `{"event":"trigger","repo",<trigger fields>}` per new comment starting with the trigger
       (`watch.trigger`, default `/open-pr`; `@me` = a mention of this machine's own account,
       exit 1 when that account cannot be read).
-      fix: `{"event":"findings","repo","pr","review_id","counts","url","comment_id","thread_id",
-      "user"}` once per review the plugin posted on a fix-role PR — the user's own open PRs
+      fix: `{"event":"findings","repo","pr","review_id","counts","url","head_branch","comment_id",
+      "thread_id","user"}` (`head_branch` = the PR's source branch, null when unknown) once per review the plugin posted on a fix-role PR — the user's own open PRs
       (author = this machine's account), or only those `--fix-prs` names — plus each PR whose
       author asked for its review (a trigger by that author): it joins the fix role. `hide` takes a
       PR out.
-      `{"event":"fix_now","repo","pr"[,"url","review_id","counts","comment_id","thread_id","user"]}`
+      `{"event":"fix_now","repo","pr"[,"url","head_branch","review_id","counts","comment_id","thread_id","user"]}`
       per `fix-now` since (with the PR's latest findings), within 5 s while waiting.
       `{"event":"session","repo","pr","role","state","open"}` per session of its roles whose state changed.
       Once a session's result (draft|posted|lgtm_chat|nothing|answered|fixed|failed|stopped) is
@@ -1157,7 +1189,14 @@ Subcommands:
       session still running ⇒ `{"pr","role","queued":true,"reason"}`. The session runs in W (default
       the repo dir), recorded so a resume runs there again. `--fresh`: open a new session even when
       there is one; the old one is left untouched and untracked. U (the PR URL) is kept for the menu
-      bar. Takes N off the hidden list; a fix session takes over the PR's pending findings
+      bar. Takes N off the hidden list; a fix session takes over the PR's pending findings. A fix after one
+      run `here` opens a new session; exit 1 while that one is still `working`
+  here --pr N [--url U]
+      PR N's fix runs in the watcher's own session: recorded as fix session with runner `here` (no id,
+      `open` null; the menu bar's "Open session" goes to the watcher's tab), its status file cleared,
+      its pending findings taken over → `{"pr","role":"fix","runner":"here"}`. Its state is `working`
+      until its status file (`paths --pr N --role fix`) holds a result, written by the watcher. Exit 1
+      while a fix of PR N is `working`
   status [--pr N] [--role R]
       per session `{"pr","role","runner","id","state","open"[,"findings"]}` (a fix session: the
       findings it was opened for, as `findings` events carry them), state one of working|question|draft|
@@ -1245,6 +1284,7 @@ case "$sub" in
         fi
         cmd_wait "$@" ;;
     spawn)   cmd_spawn "$@" ;;
+    here)    cmd_here "$@" ;;
     status)  cmd_status "$@" ;;
     next)    cmd_next "$@" ;;
     forget)  cmd_forget "$@" ;;

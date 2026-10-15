@@ -41,8 +41,9 @@ trigger is a body whose first word is the `--token` (default `/open-pr`): `/open
 `/open-prx` are not `/open-pr`; an `@login` token ignores case. It drops, on every vendor, any comment
 carrying a finding or reply marker, or a claim marker in either form — the plugin's own posts. The
 logged-in account's plain comments count: one person may be both developer and reviewer.
-`--findings-file` rows, same on every vendor: `{"pr","url","review_id","comment_id","thread_id","kind",
-"user","created_at","counts"}` — one per review the plugin posted after `--since` on a PR whose author
+`--findings-file` rows, same on every vendor: `{"pr","url","head_branch","review_id","comment_id","thread_id","kind",
+"user","created_at","counts"}` — `head_branch` = the PR's source branch from the open-PR listing already
+fetched (GitHub `head.ref`, GitLab `source_branch`, Bitbucket `source.branch.name`; null when absent); one per review the plugin posted after `--since` on a PR whose author
 is `--fix-author` (any case) or listed in `--fix-prs`; `counts` = findings per severity emoji (the
 first emoji-led, non-heading line before each finding marker), a LINE finding already carrying a
 reply-marked reply left out; `comment_id`/`thread_id` = its first finding, what `reply` takes. `checkout` holds a `mkdir` lock

@@ -885,7 +885,7 @@ gl_get() {
     [ "$rc" = 0 ] || return "$rc"
     tr -d '\r' < "$TMPD/gl.resp" | awk '/^HTTP\/[0-9.]+ [0-9]+/ { h = 1; next } h && /^$/ { h = 0; next } !h'
 }
-# Open PRs -> $TMPD/tr.prs ({pr, url, author, updated_at} lines); their comments -> stdout as
+# Open PRs -> $TMPD/tr.prs ({pr, url, author, head_branch, updated_at} lines); their comments -> stdout as
 # {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid, in_reply_to, review_id}.
 # $SINCE_Z only narrows the fetch: vendors filter on update time (a superset), and a new comment
 # updates its PR.
@@ -893,7 +893,7 @@ trg_fetch() {
     case "$V" in
         github)
             gh_get "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
-            jq -c '.[] | {pr: .number, url: .html_url, author: .user.login, updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
+            jq -c '.[] | {pr: .number, url: .html_url, author: .user.login, head_branch: (.head.ref // null), updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             q="per_page=100"; [ -z "$SINCE_Z" ] || q="$q&since=$SINCE_Z"
             auth='(if .author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR" then "yes" else "no" end)'
             gh_get "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
@@ -903,7 +903,7 @@ trg_fetch() {
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
             gl_get "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
-            jq -c '.[] | {pr: .iid, url: .web_url, author: .author.username, updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
+            jq -c '.[] | {pr: .iid, url: .web_url, author: .author.username, head_branch: (.source_branch // null), updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r iid; do
                 check_ident '^[0-9]+$' "$iid"
                 # discussions, not notes: each note needs its discussion id to be replied to
@@ -913,8 +913,8 @@ trg_fetch() {
         bitbucket)
             # BBQL: `updated_on > <instant>`, URL-encoded; the offset form, not Z
             q=""; [ -z "$SINCE_Z" ] || q="&q=updated_on%20%3E%20$(printf '%s' "${SINCE_Z%Z}" | sed 's/:/%3A/g')%2B00%3A00"
-            rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href,values.author.nickname,values.updated_on$q" \
-                '.values[] | {pr: .id, url: .links.html.href, author: .author.nickname, updated_at: .updated_on} | @json' > "$TMPD/tr.prs"
+            rl bb_paged "$BB_API/pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href,values.author.nickname,values.source.branch.name,values.updated_on$q" \
+                '.values[] | {pr: .id, url: .links.html.href, author: .author.nickname, head_branch: (.source.branch.name // null), updated_at: .updated_on} | @json' > "$TMPD/tr.prs"
             jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r id; do
                 check_ident '^[0-9]+$' "$id"
                 rl bb_paged "$BB_API/pullrequests/$id/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.created_on,values.inline,values.deleted,values.parent.id" \
@@ -923,7 +923,7 @@ trg_fetch() {
     esac
 }
 # --findings-file: one row per review this plugin posted after --since on a fix-role PR (author
-# --fix-author, or listed in --fix-prs): {pr, url, review_id, comment_id, thread_id, kind, user,
+# --fix-author, or listed in --fix-prs): {pr, url, head_branch, review_id, comment_id, thread_id, kind, user,
 # created_at, counts}; counts = unreplied findings per severity emoji. GitHub keeps FILE findings
 # in a review body: `pulls/N/reviews`, only for those PRs updated since.
 JQ_FINDINGS='def sev_of: [splits("\n") | sub("^[\\s>*_-]+"; "") | select(startswith("#") | not)
@@ -948,7 +948,7 @@ trg_findings() {
     fi
     cat "$TMPD/tr.all" "$TMPD/fx.reviews" | jq -c -s --slurpfile prs "$TMPD/fx.prs" --arg since "$SINCE" \
         "$JQ_EPOCH$JQ_FINDINGS"'
-        ($prs | map({key: (.pr | tostring), value: .url}) | from_entries) as $fix
+        ($prs | map({key: (.pr | tostring), value: .}) | from_entries) as $fix
         | ($since | if . == "" then null else epoch end) as $after
         | . as $all
         # a review left as a draft and published later: its line comments keep their creation time
@@ -962,11 +962,11 @@ trg_findings() {
                     or ([$all[] | select(.comment_id != $f.comment_id and (.body | test("bot-reply(\\s*-->|\\]:\\s*#)"))
                                          and ((.in_reply_to != null and .in_reply_to == $f.comment_id)
                                               or ($f.thread_id != null and .thread_id == $f.thread_id)))] | length) == 0)
-           | . + {counts: (.body | counts), url: $fix[.pr | tostring]}]
+           | . + {counts: (.body | counts), url: $fix[.pr | tostring].url, head_branch: $fix[.pr | tostring].head_branch}]
         # GitLab and Bitbucket have no review object: the findings of a PR fetched together are one review
         | group_by([.pr, (.review_id // "")])
         | map(sort_by(.comment_id | tonumber) | .[0] as $h
-              | {pr: $h.pr, url: $h.url, review_id: ($h.review_id // ("c" + $h.comment_id)),
+              | {pr: $h.pr, url: $h.url, head_branch: $h.head_branch, review_id: ($h.review_id // ("c" + $h.comment_id)),
                  comment_id: $h.comment_id, thread_id: $h.thread_id, kind: $h.kind, user: $h.user,
                  created_at: (map(.created_at) | max),
                  counts: ([.[].counts | to_entries[]] | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries)}

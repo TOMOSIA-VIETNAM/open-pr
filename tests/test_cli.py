@@ -1015,7 +1015,7 @@ def test_triggers_bitbucket_lists_only_the_prs_updated_since(shims):
     serve(shims, "curl", [("pullrequests?state=OPEN", {"values": [], "next": None})])
     triggers(shims, "bitbucket", "--since", "2026-01-01T09:00:02+09:00")
     assert "pullrequests?state=OPEN&pagelen=50&fields=next,values.id,values.links.html.href" \
-           ",values.author.nickname,values.updated_on&q=updated_on%20%3E%202026-01-01T00%3A00%3A02%2B00%3A00" in shims["log"].read_text()
+           ",values.author.nickname,values.source.branch.name,values.updated_on&q=updated_on%20%3E%202026-01-01T00%3A00%3A02%2B00%3A00" in shims["log"].read_text()
     shims["log"].write_text("")
     triggers(shims, "bitbucket")
     assert "q=updated_on" not in shims["log"].read_text()
@@ -1199,7 +1199,8 @@ def test_findings_github_groups_one_review_with_its_line_and_file_findings(shims
         "in_reply_to_id": reply_to}
     serve(shims, "gh", [
         ("pulls?state=open", [
-            {"number": 5, "html_url": "https://github.com/o/r/pull/5", "user": {"login": "Dev"}, "updated_at": "2026-01-01T00:01:00Z"},
+            {"number": 5, "html_url": "https://github.com/o/r/pull/5", "user": {"login": "Dev"}, "head": {"ref": "feat/x"},
+             "updated_at": "2026-01-01T00:01:00Z"},
             {"number": 6, "html_url": "https://github.com/o/r/pull/6", "user": {"login": "other"}, "updated_at": "2026-01-01T00:01:00Z"},
             {"number": 7, "html_url": "https://github.com/o/r/pull/7", "user": {"login": "dev"}, "updated_at": "2025-12-01T00:00:00Z"}]),
         ("pulls/comments", [
@@ -1217,7 +1218,7 @@ def test_findings_github_groups_one_review_with_its_line_and_file_findings(shims
     out = tmp_path / "findings"
     triggers(shims, "github", "--since", "2026-01-01T00:00:00Z", "--findings-file", str(out), "--fix-author", "dev")
     rows = [json.loads(l) for l in out.read_text().splitlines()]
-    assert rows == [{"pr": 5, "url": "https://github.com/o/r/pull/5", "review_id": "70", "comment_id": "10",
+    assert rows == [{"pr": 5, "url": "https://github.com/o/r/pull/5", "head_branch": "feat/x", "review_id": "70", "comment_id": "10",
                      "thread_id": None, "kind": "line", "user": "rev", "created_at": "2026-01-01T00:00:10Z",
                      "counts": {"🔴": 1, "🟠": 1, "🔵": 1}}], \
         "a replied finding, a finding before --since and another author's PR do not count; the " \
@@ -1258,7 +1259,8 @@ def test_findings_gitlab_reads_them_from_the_discussions_already_fetched(shims, 
                                       "author": {"username": "rev", "id": 3}, "created_at": f"2026-01-01T00:00:{i:02d}Z", "body": body}
     serve(shims, "glab", [
         ("merge_requests?state=opened", [{"iid": 9, "web_url": "https://gitlab.com/o/r/-/merge_requests/9",
-                                          "author": {"username": "dev"}, "updated_at": "2026-01-01T00:01:00Z"}]),
+                                          "author": {"username": "dev"}, "source_branch": "feat/g",
+                                          "updated_at": "2026-01-01T00:01:00Z"}]),
         ("merge_requests/9/discussions", [
             {"id": "d1", "notes": [note(11, "🟠 a\n\n" + MF, {"new_line": 3})]},
             {"id": "d2", "notes": [note(12, "🔵 b\n\n" + MF, {"new_line": 4}), note(13, "done\n\n" + MR)]},
@@ -1268,8 +1270,8 @@ def test_findings_gitlab_reads_them_from_the_discussions_already_fetched(shims, 
     out = tmp_path / "findings"
     triggers(shims, "gitlab", "--findings-file", str(out), "--fix-author", "dev")
     rows = [json.loads(l) for l in out.read_text().splitlines()]
-    assert [(r["review_id"], r["thread_id"], r["counts"]) for r in rows] == \
-        [("c11", "d1", {"🟠": 1, "🔴": 1, "🔵": 1})], "one review per PR; the replied discussion drops out"
+    assert [(r["review_id"], r["thread_id"], r["head_branch"], r["counts"]) for r in rows] == \
+        [("c11", "d1", "feat/g", {"🟠": 1, "🔴": 1, "🔵": 1})], "one review per PR; the replied discussion drops out"
     assert "reviews" not in shims["log"].read_text(), "no request beyond the poll's own"
 
 
@@ -1277,6 +1279,7 @@ def test_findings_bitbucket_takes_replies_by_parent(shims, tmp_path):
     bmf, bmr = "[bot-finding]: #", "[bot-reply]: #"
     serve(shims, "curl", [
         ("pullrequests?state=OPEN", {"values": [{"id": 7, "links": {"html": {"href": "u7"}}, "author": {"nickname": "dev"},
+                                                 "source": {"branch": {"name": "feat/b"}},
                                                  "updated_on": "2026-01-01T00:01:00+00:00"}], "next": None}),
         ("pullrequests/7/comments", {"values": [
             {"id": 21, "content": {"raw": "🔴 a\n\n" + bmf}, "user": {"nickname": "rev"}, "inline": {"path": "a", "to": 1},
@@ -1289,8 +1292,8 @@ def test_findings_bitbucket_takes_replies_by_parent(shims, tmp_path):
     ])
     out = tmp_path / "findings"
     triggers(shims, "bitbucket", "--findings-file", str(out), "--fix-author", "dev")
-    assert [(json.loads(l)["comment_id"], json.loads(l)["counts"]) for l in out.read_text().splitlines()] == \
-        [("21", {"🔴": 1})]
+    assert [(json.loads(l)["comment_id"], json.loads(l)["head_branch"], json.loads(l)["counts"])
+            for l in out.read_text().splitlines()] == [("21", "feat/b", {"🔴": 1})]
 
 
 # ------------------------------------------------------------ open-prs ----

@@ -253,7 +253,7 @@ def trig(cid, at, pr=1, body="/open-pr look at auth"):
 def test_help_prints_every_subcommand(w):
     r = w.run("--help")
     assert r.stdout.startswith("usage: open-pr-watch.sh")
-    for sub in ("wait", "spawn", "status", "next", "forget", "hide", "paths", "notify", "trust", "snooze", "menubar"):
+    for sub in ("wait", "spawn", "here", "status", "next", "forget", "hide", "paths", "notify", "trust", "snooze", "menubar"):
         assert f"\n  {sub}" in r.stdout
 
 
@@ -1433,7 +1433,7 @@ def test_an_open_check_rate_limit_backs_off_like_triggers(w):
 # ------------------------------------------------------------ fix role ----
 
 def finding(pr=5, review="70", **kw):
-    return {"pr": pr, "url": f"https://github.com/o/r/pull/{pr}", "review_id": review, "comment_id": "10",
+    return {"pr": pr, "url": f"https://github.com/o/r/pull/{pr}", "head_branch": "feat/x", "review_id": review, "comment_id": "10",
             "thread_id": None, "kind": "line", "user": "rev", "created_at": "2026-01-01T00:00:10Z",
             "counts": {"🟠": 2, "🔵": 4}, **kw}
 
@@ -1465,7 +1465,8 @@ def test_a_new_review_with_findings_is_delivered_once_and_kept_for_the_menu_bar(
     fix_ready(w, finding())
     ev = w.jsonl("wait", "--once")
     assert ev == [{"event": "findings", "repo": "o/r", "pr": 5, "review_id": "70", "counts": {"🟠": 2, "🔵": 4},
-                   "url": "https://github.com/o/r/pull/5", "comment_id": "10", "thread_id": None, "user": "rev"}]
+                   "url": "https://github.com/o/r/pull/5", "head_branch": "feat/x", "comment_id": "10",
+                   "thread_id": None, "user": "rev"}]
     assert w.run("wait", "--once").stdout == "", "a review is delivered once"
     assert w.state()["findings"]["5"]["review_id"] == "70"
     w.spawn(5, extra=("--role", "fix"))
@@ -1473,6 +1474,35 @@ def test_a_new_review_with_findings_is_delivered_once_and_kept_for_the_menu_bar(
     row = w.jsonl("status", "--pr", "5", "--role", "fix")[0]
     assert row["findings"]["comment_id"] == "10" and row["findings"]["user"] == "rev", \
         "what a re-review request replies to"
+
+
+def test_a_fix_run_in_the_watchers_own_session_is_tracked_until_its_status_file_says_how_it_ended(w):
+    fix_ready(w, finding())
+    w.run("wait", "--once")
+    assert w.jsonl("here", "--pr", "5", "--url", "https://github.com/o/r/pull/5") == [{"pr": 5, "role": "fix", "runner": "here"}]
+    assert "5" not in w.state().get("findings", {}), "it takes the pending findings, as a fix session does"
+    row = w.jsonl("status", "--pr", "5", "--role", "fix")[0]
+    assert (row["runner"], row["id"], row["state"], row["open"], row["findings"]["comment_id"]) == ("here", None, "working", None, "10")
+    assert w.run("wait", "--once").stdout == "", "working is no change"
+    w.run("fix-now", "--pr", "5")
+    assert w.run("wait", "--once").stdout == "", "a Fix now click while it runs opens nothing"
+    assert w.run("here", "--pr", "5", check=False).returncode == 1, "one fix of a PR at a time"
+    r = w.run("spawn", "--runner", "claude", "--role", "fix", "--pr", "5", "--name", "fix o/r#5",
+              "--prompt-file", w.prompt("fix it", "p5.txt"), check=False)
+    assert r.returncode == 1 and "watcher's own session" in r.stderr, "no background fix over one running here"
+    (w.sd / "pr-5-fix.status.json").write_text(json.dumps({"state": "fixed", "counts": {"fixed": 2, "declined": 0}}))
+    assert w.jsonl("wait", "--once") == [{"event": "session", "repo": "o/r", "pr": 5, "role": "fix", "state": "fixed", "open": None}]
+    assert w.state()["sessions"]["5:fix"]["finished"] is True
+    assert w.run("here", "--pr", "x", check=False).returncode == 4
+
+
+def test_a_background_fix_after_one_run_here_opens_a_new_session(w):
+    w.run("here", "--pr", "5")
+    (w.sd / "pr-5-fix.status.json").write_text(json.dumps({"state": "fixed"}))
+    out = w.spawn(5, extra=("--role", "fix"))
+    assert "resumed" not in out and out["open"].startswith("claude attach ")
+    assert w.state()["sessions"]["5:fix"]["runner"] == "claude"
+    assert not (w.sd / "pr-5-fix.status.json").exists(), "the new session writes its own"
 
 
 def test_removing_a_pr_takes_it_out_of_the_fix_role(w):
@@ -1508,7 +1538,7 @@ def test_fix_now_is_delivered_by_the_running_wait_with_the_pending_findings(w):
     assert w.jsonl("fix-now", "--pr", "5") == [{"pr": 5, "fix_now": True}]
     ev = w.jsonl("wait", "--once")
     assert ev == [{"event": "fix_now", "repo": "o/r", "pr": 5, "url": "https://github.com/o/r/pull/5",
-                   "review_id": "70", "counts": {"🟠": 2, "🔵": 4}, "comment_id": "10", "thread_id": None,
+                   "head_branch": "feat/x", "review_id": "70", "counts": {"🟠": 2, "🔵": 4}, "comment_id": "10", "thread_id": None,
                    "user": "rev"}]
     assert w.run("wait", "--once").stdout == "", "a click is delivered once"
     assert w.run("fix-now", "--pr", "5;id", check=False).returncode == 4
@@ -1907,6 +1937,25 @@ def test_apply_to_all_in_a_panel_writes_its_interval_and_shows_it_read_back(w):
     calls = [l for l in (w.home / "open-pr.calls").read_text().splitlines() if "--set" in l]
     assert calls == [f"settings --repo r --repo-dir {w.repo.resolve()} --set watch.poll_interval_seconds --value 300"]
     assert dict(got[0])["watch.poll_interval_seconds"] == "1m 2m 3m [5m] 10m"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_fix_run_here_shows_as_fixing_here_and_opens_the_watchers_tab(w):
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "5:fix": {"pr": 5, "role": "fix", "runner": "here", "id": None, "open": None, "repo": "o/r",
+                  "last_state": "working", "last_state_at": "2026-01-01T00:00:00Z"}}})
+    (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p1:AA"}))
+    (w.sd / "heartbeat").write_text("")
+    got = _menubar_js(w, """$.OPRPillButton = $.NSButton; target = $.NSObject.alloc.init; icons.header = mothImage(28, false);
+        var s = scan(), r = s.watchers[0].rows[0], m = build(s);
+        var mi = m.itemArray.js.filter(function (x) { return ObjC.unwrap(x.title) === 'o/r #5'; })[0], sub = [];
+        for (var i = 0; i < mi.submenu.numberOfItems; i++) { var it = mi.submenu.itemAtIndex(i);
+            sub.push([ObjC.unwrap(it.title), ObjC.unwrap(it.action), unwrapString(it.representedObject)]); }
+        return JSON.stringify([r.kind, r.text.split(' · ')[0], sub]);""")
+    assert got[0:2] == ["fixing_here", "Fixing here"]
+    go = [x for x in got[2] if x[0] == "Open session in iTerm"]
+    assert go and go[0][1] == "goTab:" and json.loads(go[0][2])["term_session"] == "w0t0p1:AA"
+    assert not [x for x in got[2] if x[0].startswith("Copy command")], "no session command to copy"
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")

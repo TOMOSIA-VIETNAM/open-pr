@@ -3,7 +3,8 @@
 //   <data>/<repo>/watch/heartbeat    a watcher counts as watching the repo while this is fresh
 //   <data>/<repo>/watch/state.json   sessions, one row per PR and role (review | fix); active = not
 //                                           finished, working or question; `findings` = a fix row offering
-//                                           "Fix now" until a fix session opens; PRs in `hidden` get no row
+//                                           "Fix now" until a fix session opens; PRs in `hidden` get no row;
+//                                           runner `here`: fixed in the watcher's own session (its tab)
 //   <data>/<repo>/watch/feed.jsonl   notifications; a PR role's latest one, when newer than its
 //                                           session's state, is its row's text
 //   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, and
@@ -56,6 +57,7 @@ var STALE = { factor: 2, poll: 180, idle: 600 };
 var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as lgtm); the symbol alone tells the state, in the menu's own colour
     working:  ['circle.dotted', 'Reviewing'],
     fixing:   ['circle.dotted', 'Fixing'],
+    fixing_here: ['circle.dotted', 'Fixing here'],
     findings: ['wrench.and.screwdriver', 'New findings — Fix now'],
     fix_requested: ['clock', 'Fix requested — starting'],
     fixed:    ['checkmark.circle', 'Fixed'],
@@ -178,6 +180,7 @@ ObjC.registerSubclass({
         'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(parse(unwrapString(s.representedObject))); } },
         // sender: a control inside a watcherRow view; its item carries { go, stop }
         'goRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'go'); } },
+        'goTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
         'stopRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'stop'); } },
         'settingsRow:': { types: ['void', ['id']], implementation: function (s) { toggleSettings(s); } },
         'menu:willHighlightItem:': { types: ['void', ['id', 'id']], implementation: function (m, mi) { highlightRow(mi); } },
@@ -322,7 +325,8 @@ function scan() {
             if (!m || !s || typeof s !== 'object' || gone(m[1])) return;
             var r = row(str(s.repo) || name, m[1], m[2]), state = str(s.last_state);
             r.session = true;
-            r.state = m[2] === 'fix' && state === 'working' ? 'fixing' : state;
+            r.here = s.runner === 'here';
+            r.state = m[2] === 'fix' && state === 'working' ? (r.here ? 'fixing_here' : 'fixing') : state;
             r.active = s.finished !== true && (state === 'working' || state === 'question');
             r.url = str(s.url); r.open = str(s.open);
             r.stateAt = ms(s.last_state_at) || Math.max(ms(s.started_at), ms(s.finished_at));
@@ -821,9 +825,9 @@ function build(s) {
     s.watchers.forEach(function (w, i) {
         if (i) m.addItem($.NSMenuItem.separatorItem);   // one block per watcher
         // A record from before watcher.json existed has no tab to show.
+        var go = w.key && (TERMS[w.term] || SESSION_ID.test(w.session_id))
+            ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id } : null;
         if (w.key) {
-            var go = TERMS[w.term] || SESSION_ID.test(w.session_id)
-                ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id } : null;
             var wt = w.repos.join(', ');
             var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
             wi.setRepresentedObject($(JSON.stringify({ go: go, stop: { dirs: w.dirs, sfx: w.sfx, session_id: w.session_id } })));
@@ -842,6 +846,7 @@ function build(s) {
             if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
             if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
             if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, term: w.term }));
+            if (x.here && go) add(sub, 'Open session in ' + w.app, 'goTab:', JSON.stringify(go));
             if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
             if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
             if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
