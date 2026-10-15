@@ -2,7 +2,7 @@
 
 import re
 
-from _common import SRC, VENDORS, text, all_text, cli_text
+from _common import NEVER_LOADED, SRC, VENDORS, text, all_text, cli_text
 import cli_doc  # on sys.path via _common
 
 
@@ -10,7 +10,8 @@ def test_cli_contract_names_only_real_subcommands():
     """`open-pr.sh --help` is the runtime contract: every subcommand it names must exist in the
     script's dispatch, and every dispatched subcommand must be in it — an undocumented one is
     dead weight, a documented ghost sends the agent into exit 1."""
-    subcommands = cli_doc.sections(cli_doc.help_text())["Subcommands"]
+    sec = cli_doc.sections(cli_doc.help_text())
+    subcommands = sec["Subcommands"] + sec["Watch subcommands"] + sec["Internal subcommands"]
     documented = {l.split()[0] for l in subcommands if not l.startswith("      ")}
     dispatched = set(re.findall(r"^    ([a-z-]+)\)\s+cmd_", cli_text(), re.M))
     assert documented == dispatched, (
@@ -24,6 +25,27 @@ def test_cli_md_mirrors_the_help():
     doc = text(SRC / "core" / "cli.md")
     assert cli_doc.current(doc).group(0) == cli_doc.render(), \
         "cli.md drifted from `open-pr.sh --help` — run scripts/cli_doc.py --write"
+
+
+def test_watch_only_subcommands_stay_out_of_cli_md():
+    """Every review and fix run loads cli.md; a subcommand only the watch session calls is paid
+    for there on every run. Those render into commands/watch.md, the one command that calls them,
+    and the watcher script's own subcommands render nowhere."""
+    sec = cli_doc.sections(cli_doc.help_text())
+    doc = text(SRC / "commands" / "watch.md")
+    assert cli_doc.current(doc, cli_doc.WATCH_BEGIN, cli_doc.WATCH_END).group(0) \
+        == cli_doc.render_watch(), "watch.md drifted from `open-pr.sh --help` — run scripts/cli_doc.py --write"
+    core = text(SRC / "core" / "cli.md")
+    prompts = "\n".join(t for f, t in all_text().items() if f not in NEVER_LOADED)
+    for line in sec["Watch subcommands"] + sec["Internal subcommands"]:
+        if line.startswith("      "):
+            continue
+        name = line.split()[0]
+        assert f"| `{name}" not in core, f"{name}: watch-only, yet in core/cli.md"
+    for line in sec["Internal subcommands"]:
+        if not line.startswith("      "):
+            assert f"<op> {line.split()[0]}" not in prompts, \
+                f"{line.split()[0]}: a prompt calls it, so it belongs under Watch subcommands"
 
 
 def test_every_vendor_branches_in_every_api_subcommand():

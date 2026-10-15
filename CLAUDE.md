@@ -87,7 +87,7 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | refresh ceilings (none hand-tightened) | `token_report.py --base <ref> --update-budgets` |
 | harder dup hunt | `dup_scan.py --window 10 --all --min-waste 20` |
 | vendor flags offline | `vendor_lint.py` |
-| a subcommand, option or exit code changed | edit `usage()` in `src/bin/open-pr.sh` (`--help` is the source), then `cli_doc.py --write` regenerates `core/cli.md`'s block |
+| a subcommand, option or exit code changed | edit `usage()` in `src/bin/open-pr.sh` (`--help` is the source), then `cli_doc.py --write` regenerates `core/cli.md`'s block and `commands/watch.md`'s (`Watch subcommands:`); `Internal subcommands:` render nowhere |
 | vendor commands live | `vendor_lint.py --url <fixture PR URL>` |
 | the CI suite on a branch with no open PR | `gh workflow run ci.yml --ref <branch>` |
 

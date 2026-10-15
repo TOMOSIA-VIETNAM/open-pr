@@ -4,7 +4,7 @@ description: Watch the PRs of one or more repos — review on an `/open-pr` comm
 ---
 
 > **CRITICAL:** `Read` `"${CLAUDE_PLUGIN_ROOT}"/core/guardrails.md` and `core/cli.md` FIRST — shared
-> rules + the `<op>` runtime, not repeated here. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
+> rules + the `<op>` runtime, not repeated here; `<op>`'s watch-only subcommands close this file. `<op>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh`,
 > `<watch>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr-watch.sh`, exactly as spelled — no env var
 > exists in the shell. Every bare `dir/file.md` a Step `Read`s lives under that same plugin directory.
 > On top of those:
@@ -160,3 +160,13 @@ Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <ro
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
 | `remove #N`, `unwatch #N` | `<watch> hide --pr N` for its repo — off the menu bar and out of the fix role |
 | stop watching a repo, or `stop` | stop that repo's background `wait` (every one on `stop`); say open sessions keep running and how to open them, and that `/exit` now closes this session |
+
+## `<op>` watch subcommands
+
+<!-- open-pr.sh --help Watch subcommands, via scripts/cli_doc.py -->
+| subcommand | does |
+|---|---|
+| `list-repos [--dir D]` | every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote, vendor, owner, repo, host, last commit ISO-8601; no common option |
+| `claim --comment-id C --kind line\|top --body-file F [--thread-id T]` | cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim, else `taken <login>` |
+| `last-claim` | `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing |
+<!-- /open-pr.sh --help Watch subcommands -->

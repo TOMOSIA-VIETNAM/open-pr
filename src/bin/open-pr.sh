@@ -1364,9 +1364,9 @@ usage: open-pr.sh <subcommand> [--option value ...]
 
 Common options:
   `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
-  `target`/`locate-repo`/`repo-target`/`list-repos`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
-  `--owner O --repo R --pr N` on every networked one (`triggers`, `open-prs`, `account`: no `--pr`); `--host H`
-  where self-hostable.
+  `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
+  `--owner O --repo R --pr N` on every networked one (`account`: no `--pr`); `--host H` where
+  self-hostable.
 
 Subcommands:
   target <url>
@@ -1377,19 +1377,6 @@ Subcommands:
       `--max-patch-bytes` required with `diff` — omission happens inside the call, never post-hoc
   locate-repo --owner O --repo R --host H
       `<repo_dir>` whose git remote matches
-  repo-target --repo-dir D [--remote R]
-      D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines
-  list-repos [--dir D]
-      every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote,
-      vendor, owner, repo, host, last commit ISO-8601
-  triggers [--since T] [--mark-file F] [--token K] [--cache-dir C] [--quota-file Q]
-           [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
-      open-pr-watch.sh's poll: comments on open PRs opening with K (default `/open-pr`), JSONL;
-      F2 gets the reviews this plugin posted on A's PRs or the listed ones; GitHub GETs are
-      conditional on the ETags kept in C; Q gets the host's rate limit; contract in
-      reference/vendor-interface.md
-  open-prs
-      every open PR/MR number, 1 per line
   checkout --head-sha S --base B (--repo-dir D | --worktree W --submodule-path P)
       main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree
       against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per
@@ -1415,12 +1402,6 @@ Subcommands:
       STOPS the flow; the plugin never works around credentials
   react --comment-id C --emoji E [--kind line|top]
       `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket
-  claim --comment-id C --kind line|top --body-file F [--thread-id T]
-      cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else
-      top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim,
-      else `taken <login>`
-  last-claim
-      `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing
   account
       login name, or `UNKNOWN` (marker-only detection)
   commit-url --sha S
@@ -1439,12 +1420,34 @@ Subcommands:
   settings --repo <repo> [--repo-dir D] [--set K --value V]
       `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`,
       `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
-      was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: the
-      menu bar's one-key write (reference/settings-schema.md), exit 4 on a key or value it refuses
+      was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: a
+      one-key write (menu bar, watch chat) (reference/settings-schema.md), exit 4 on a key or value it refuses
   stacks [--repo-dir D] <path>…
       `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
       ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`
       onto the base stack
+
+Watch subcommands (the /open-pr:watch session's own; rendered into commands/watch.md):
+  list-repos [--dir D]
+      every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote,
+      vendor, owner, repo, host, last commit ISO-8601; no common option
+  claim --comment-id C --kind line|top --body-file F [--thread-id T]
+      cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else
+      top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim,
+      else `taken <login>`
+  last-claim
+      `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing
+
+Internal subcommands (open-pr-watch.sh's own; no prompt calls them):
+  repo-target --repo-dir D [--remote R]
+      D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines; no common option
+  triggers [--since T] [--mark-file F] [--token K] [--cache-dir C] [--quota-file Q] [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
+      the poll, no `--pr`: comments on open PRs opening with K (default `/open-pr`), JSONL; F2 gets
+      the reviews this plugin posted on A's PRs or the listed ones; GitHub GETs are conditional on the
+      ETags kept in C; Q gets the host's rate limit; exit 9 on the vendor rate limit; contract in
+      reference/vendor-interface.md
+  open-prs
+      every open PR/MR number, 1 per line; no `--pr`; exit 9 on the vendor rate limit
 
 Exit codes:
   0  ok
@@ -1455,7 +1458,7 @@ Exit codes:
   5  repo dir unresolvable
   6  missing credentials
   7  `<data>` not set for that location
-  9  vendor rate limit (`triggers`, `open-prs`)
+  9  vendor rate limit (the watcher's poll)
 EOF
 }
 
