@@ -144,8 +144,9 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
   lỗi) và luôn có: **Fix now** trên dòng có finding mới, mở pull request,
   mở session trong terminal mà watcher đó đang chạy (tab mới của iTerm, Terminal, Ghostty hoặc WezTerm;
   terminal khác thì mở Terminal), copy command;
-- rê chuột vào dòng watcher là mở panel setting của repo đó (watcher có nhiều repo thì liệt kê các repo
-  trước, mỗi repo mở panel riêng): số session cùng lúc (1, 2, 3, 5, 8, 10), poll mỗi (1, 2, 3, 5 hoặc
+- nút bánh răng cạnh "Stop" của watcher mở setting ngay bên dưới dòng watcher đó trong menu, click lần
+  nữa thì đóng (mỗi lúc một watcher; watcher có nhiều repo thì mỗi repo một panel, có tên repo ở đầu):
+  số session cùng lúc (1, 2, 3, 5, 8, 10), poll mỗi (1, 2, 3, 5 hoặc
   10 phút, bên dưới là số request mỗi giờ của lựa chọn hiện tại), trigger (`/open-pr` hoặc `@me`), mỗi
   event toast một checkbox, và các tuỳ chọn review: post review không qua draft, post LGTM khi không có
   finding, tự resolve finding đã fix, cảnh báo CI lỗi, doctor mỗi (1 tuần, 2 tuần, 1 tháng, 3 tháng,
@@ -157,7 +158,7 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
 Click vào một control ghi đúng key đó vào `settings.json` (xem Setting bên dưới) và panel vẫn mở, hiện
-giá trị đọc lại từ file; click ra ngoài mới đóng. Giá trị đặt trong chat mà panel không có sẵn thì hiện
+giá trị đọc lại từ file; bấm bánh răng hoặc click ra ngoài mới đóng. Giá trị đặt trong chat mà panel không có sẵn thì hiện
 thành một lựa chọn thêm, đang chọn và bị làm mờ.
 
 "Remove from list" trên một dòng sẽ ẩn pull request đó và đưa nó ra khỏi vai fix, pull request đã merge

@@ -149,8 +149,9 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
   fixed, failed) and always offers: **Fix now** on a row with new findings,
   open the pull request, open its session in the terminal that watcher runs in (a new tab of iTerm,
   Terminal, Ghostty or WezTerm; any other terminal opens Terminal), copy the command;
-- hovering a watcher row opens that repo's settings panel (a watcher of several repos first lists
-  them, each opening its own): sessions at once (1, 2, 3, 5, 8, 10), poll every (1, 2, 3, 5 or 10
+- the gear beside a watcher's "Stop" opens its settings inline, right under that watcher row, and
+  closes them on the next click (one watcher's at a time; a watcher of several repos shows one panel
+  per repo, each headed by its name): sessions at once (1, 2, 3, 5, 8, 10), poll every (1, 2, 3, 5 or 10
   minutes, with the requests per hour the current one costs underneath), trigger (`/open-pr` or `@me`),
   one toast checkbox per event, and the review options: post reviews without a draft, post LGTM when
   nothing is found, resolve fixed findings, warn about failing CI, doctor every (1 week, 2 weeks,
@@ -162,7 +163,7 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
 A click on a control writes that one key into `settings.json` (see Settings below) and the panel
-stays open, showing the value read back; a click outside closes it. A value set in a chat that the
+stays open, showing the value read back; the gear or a click outside closes it. A value set in a chat that the
 panel does not offer shows as an extra greyed-out choice, selected.
 
 A row's "Remove from list" hides the pull request and takes it out of the fix role, a merged or closed
