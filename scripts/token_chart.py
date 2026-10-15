@@ -173,14 +173,18 @@ def legend_rows(points):
     return rows
 
 
-def stylesheet():
+def stylesheet(points):
     """Every colour the chart paints, as classes: `guide` strokes the gridlines and ticks,
-    `label` fills the text, `line-<key>` / `dot-<key>` paint one command's polyline and dots.
-    The dark block restates each one for a reader whose system asks for a dark scheme; a page
-    embedding the image as `<img>` keeps the light block by declaring `color-scheme: light`."""
+    `label` fills the text, `line-<key>` / `dot-<key>` paint one command's polyline and dots —
+    only for a command with a point, so a new command leaves the chart as it is until the
+    release that measures it. The dark block restates each one for a reader whose system asks
+    for a dark scheme; a page embedding the image as `<img>` keeps the light block by declaring
+    `color-scheme: light`."""
+    drawn = [l for l in LINES if any(p.get(l["key"]) is not None for p in points)]
+
     def rules(grey, pick):
         out = [f".guide{{stroke:{grey}}}", f".label{{fill:{grey}}}"]
-        for line in LINES:
+        for line in drawn:
             out += [f'.line-{line["key"]}{{stroke:{pick(line)}}}',
                     f'.dot-{line["key"]}{{fill:{pick(line)}}}']
         return "".join(out)
@@ -215,7 +219,7 @@ def render(data):
 
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {height}" width="{W}" height="{height}"'
          f' font-family="system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif"'
-         f' role="img" aria-label="Context cost per release, one line per command">', stylesheet()]
+         f' role="img" aria-label="Context cost per release, one line per command">', stylesheet(points)]
 
     # gridlines + y labels
     for gv in range(0, ymax + 1, 2000):
