@@ -119,22 +119,6 @@ settings() {
     [ -n "$SETTINGS" ] || SETTINGS=$(opr settings --repo "$REPO" --repo-dir "$D") || exit $?
     printf '%s' "$SETTINGS"
 }
-# The machine's poll choice (menu bar, chat) wins over the repo setting; never below POLL_MIN.
-POLL_MIN=15
-poll_interval() {   # $1 = the repo setting
-    v=$(grep -Ex '[0-9]+' "$WD/poll_seconds" 2>/dev/null | head -n 1 || true)
-    if [ -n "$v" ]; then [ "$v" -ge "$POLL_MIN" ] || v=$POLL_MIN; else v=$1; fi
-    printf '%s' "$v"
-}
-cmd_poll() {
-    parse_args "$@"
-    watch_dir
-    if [ -n "$(arg off)" ]; then rm -f "$WD/poll_seconds"; printf '{"poll_seconds":null}\n'; return 0; fi
-    n=$(req seconds); check_ident '^[0-9]+$' "$n"
-    [ "$n" -ge "$POLL_MIN" ] || n=$POLL_MIN
-    printf '%s\n' "$n" > "$WD/poll_seconds.tmp" && mv "$WD/poll_seconds.tmp" "$WD/poll_seconds"
-    printf '{"poll_seconds":%s}\n' "$n"
-}
 # The menu bar's read and write of the repo's settings: open-pr.sh owns both, this only names the repo.
 cmd_settings() {
     parse_args "$@"
@@ -877,13 +861,13 @@ stop_requested() {
     rm -f "$SD/stop$SFX"
     die 11 "open-pr-watch.sh: stopped from the menu bar"
 }
-# A repo with nothing active and no event for IDLE_AFTER s polls every IDLE_POLL s — unless the
-# setting is slower, or this machine chose an interval (`poll`), which always holds.
+# A repo with nothing active and no event for IDLE_AFTER s polls every IDLE_POLL s, unless the
+# setting is slower.
 IDLE_AFTER=600
 IDLE_POLL=600
 next_interval() {   # $1 = the repo setting
-    v=$(poll_interval "$1")
-    if [ ! -s "$WD/poll_seconds" ] && [ "${ACTIVE:-0}" = 0 ] && [ $(($(date +%s) - STARTED)) -ge "$IDLE_AFTER" ] \
+    v=$1
+    if [ "${ACTIVE:-0}" = 0 ] && [ $(($(date +%s) - STARTED)) -ge "$IDLE_AFTER" ] \
         && [ "$v" -lt "$IDLE_POLL" ]; then v=$IDLE_POLL; fi
     printf '%s' "$v"
 }
@@ -915,7 +899,6 @@ cmd_wait() {
     done
     unlock
     write_watcher
-    watch_dir
     STARTED=$(date +%s)
     base=$(setting_int poll_interval_seconds 180)
     interval=$(next_interval "$base"); delay=$interval
@@ -934,13 +917,12 @@ cmd_wait() {
         else
             interval=$(next_interval "$base"); delay=$interval
         fi
-        # Slept in slices so a faster poll chosen meanwhile, or a "Fix now" click, applies within seconds.
+        # Slept in slices so a "Fix now" click or a stop applies within seconds.
         waited=0; slice=5; [ "$delay" -ge "$slice" ] || slice=$delay
         while [ "$waited" -lt "$delay" ]; do
             sleep "$slice"; waited=$((waited + slice))
             stop_requested
             ! fix_now_pending || break
-            [ -n "$LIMITED" ] || [ "$waited" -lt "$(next_interval "$base")" ] || break
         done
     done
 }
@@ -1158,8 +1140,7 @@ Subcommands:
       `{"event":"ready","repo","pr","role"}` = a queued session of its roles has its turn (run `next`
       with the same `--roles`). The first run of a role set starts its cursor at now (no replay). Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
-      Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower or
-      `poll` set this machine's interval. Each poll writes `quota.json`: the host's rate limit as
+      Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower. Each poll writes `quota.json`: the host's rate limit as
       `triggers --quota-file` read it, plus `host` and `at`. A vendor rate limit doubles the wait (up to 900 s, one
       stderr line each time) until a poll succeeds. At most every 600 s, a tracked PR no longer
       open (merged or closed) is hidden and its sessions marked closed, then stopped once not in use;
@@ -1210,9 +1191,6 @@ Subcommands:
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
-  poll --seconds N | --off
-      this machine's poll interval, every repo, min 15 s, over `poll_interval_seconds`; a running
-      wait applies it within 5 s. `--off` returns to the setting → `{"poll_seconds"}`. Menu bar too
   settings [--set K --value V]
       the repo's settings as `open-pr.sh settings` prints them; `--set` first writes V at K through it
       (its key allowlist, its exit codes; the file untouched on a refusal). A running wait applies
@@ -1276,7 +1254,6 @@ case "$sub" in
     notify)  cmd_notify "$@" ;;
     trust)   cmd_trust "$@" ;;
     snooze)  cmd_snooze "$@" ;;
-    poll)    cmd_poll "$@" ;;
     settings) cmd_settings "$@" ;;
     menubar) cmd_menubar "$@" ;;
     *) die 1 "open-pr-watch.sh: unknown subcommand: $sub (see --help)" ;;

@@ -1162,30 +1162,13 @@ def test_the_backoff_stops_at_fifteen_minutes(w):
 
 
 
-def test_poll_sets_this_machines_interval_with_a_floor(w):
-    assert w.jsonl("poll", "--seconds", "30")[0] == {"poll_seconds": 30}
-    assert (w.watch / "poll_seconds").read_text() == "30\n"
-    assert w.jsonl("poll", "--seconds", "5")[0] == {"poll_seconds": 15}, "never below 15 s"
-    assert w.jsonl("poll", "--off")[0] == {"poll_seconds": None}
-    assert not (w.watch / "poll_seconds").exists()
+def test_the_repo_setting_is_the_only_poll_interval(w):
+    """No machine-wide override: the settings panel's "Apply to all" writes each repo's setting."""
+    r = w.run("poll", "--seconds", "30", check=False)
+    assert r.returncode == 1 and "unknown subcommand" in r.stderr
+    for f in (WATCH, MENUBAR):
+        assert "poll_seconds" not in f.read_text(), f
 
-
-def test_a_running_wait_picks_up_a_faster_poll_within_seconds(w):
-    """Chosen in the menu bar mid-wait: no waiting out the old interval."""
-    w.settings(poll_interval_seconds=300)
-    w.run("wait", "--once")                                    # cursor set
-    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    w.children.append(proc)
-    try:
-        time.sleep(2)
-        w.run("poll", "--seconds", "15")
-        w.triggers(trig("61", "2099-01-01T00:00:00Z"))
-        out, _ = proc.communicate(timeout=40)              # 15 s, not 300 s
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-    assert [json.loads(l)["comment_id"] for l in out.splitlines() if l.strip()] == ["61"]
 
 def test_a_running_wait_re_reads_the_repos_settings_at_each_poll(w):
     """A change made in the menu bar mid-wait (interval, slots) applies from the next poll."""
@@ -1890,6 +1873,40 @@ def test_the_gear_shows_a_watchers_settings_inline_under_its_row_and_hides_them(
     assert got["open"] == got["before"][:at + 1] + ["r"] + got["before"][at + 1:], "the panel sits right under its row"
     assert dict(got["shown"])["watch.max_concurrent"] == "1 2 3 [5] 8 10"
     assert got["after"] == got["before"] and got["pressed"] and got["released"]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_header_says_how_often_the_watched_repos_poll(w):
+    _watched(w)
+    (w.home / "data" / "r" / "settings.json").write_text(json.dumps({"watch": {"poll_interval_seconds": 300}}))
+    got = _menubar_js(w, "return JSON.stringify([scan().polls, pollSpan([]), pollSpan([180]), pollSpan([60, 300, 180]),"
+                         " pollSpan([30, 300])]);")
+    assert got == [[300], "", "polls every 3m", "polls every 1–5m", "polls every 30s–5m"]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_apply_to_all_writes_the_offered_interval_once_to_each_repo_it_can_name(w):
+    ok = {"repo_dir": str(w.repo), "remote": "origin"}
+    s = {"watchers": [{"settings": [{"repo": "a", "arg": ok}, {"repo": "b", "arg": dict(ok, remote="")}]},
+                      {"settings": [{"repo": "a", "arg": ok}, {"repo": "c", "arg": dict(ok, repo_dir="/no/such/dir")}]}]}
+    got = _menubar_js(w, f"var s = {json.dumps(s)}; return JSON.stringify([applyArgs(s, 120), applyArgs(s, 45)]);", script=True)
+    tail = ["settings", "--repo-dir", str(w.repo)]
+    assert got[0] == [[str(w.bin / "open-pr-watch.sh")] + tail + ["--remote", "origin", "--set", "watch.poll_interval_seconds", "--value", "120"],
+                      [str(w.bin / "open-pr-watch.sh")] + tail + ["--set", "watch.poll_interval_seconds", "--value", "120"]]
+    assert got[1] == [], "a value the Poll control does not offer reaches no repo"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_apply_to_all_in_a_panel_writes_its_interval_and_shows_it_read_back(w):
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"poll_interval_seconds": 300}}))
+    got = _menubar_js(w, PANEL_DUMP + """shown = scan(); var p = settingsPanel(shown.watchers[0].settings[0], []);
+        var b = Object.keys(controls).map(function (h) { return controls[h]; }).filter(function (c) { return c.applyAll; })[0];
+        applyAll({ hash: Object.keys(controls).filter(function (h) { return controls[h] === b; })[0] });
+        return JSON.stringify([dump(), ObjC.unwrap(p.cost.stringValue)]);""", script=True)
+    calls = [l for l in (w.home / "open-pr.calls").read_text().splitlines() if "--set" in l]
+    assert calls == [f"settings --repo r --repo-dir {w.repo.resolve()} --set watch.poll_interval_seconds --value 300"]
+    assert dict(got[0])["watch.poll_interval_seconds"] == "1m 2m 3m [5m] 10m"
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")

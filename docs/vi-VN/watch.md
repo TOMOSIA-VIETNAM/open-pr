@@ -133,7 +133,9 @@ Claude Code treo ở bước khởi động. Session non-interactive dùng setti
 
 Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số session đang chạy. Cả máy chỉ có một, bao quát
 mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
-`/open-pr:menubar` đưa nó trở lại. Menu của nó liệt kê:
+`/open-pr:menubar` đưa nó trở lại. Header của nó cho biết số repo đang watch, bao lâu poll một lần
+(`polls every 3m`, hoặc `polls every 1–5m` khi setting các repo khác nhau) và toast đang bật hay tắt. Menu
+của nó liệt kê:
 
 - mỗi pull request và vai một dòng, nhóm theo watcher (tiêu đề là các repo nó watch; bên dưới là vai nó phục vụ, terminal, thư mục nó chạy khi khác tên repo duy nhất của nó, và lần poll gần nhất — `no poll for …` màu cam khi đã lỡ hai lượt poll; mỗi dòng nằm dưới watcher của vai nó); watcher chưa có dòng nào ghi "No pull requests yet"; dòng review trước rồi
   tới dòng fix, mỗi dòng gắn nhãn `· review` hoặc `· fix` — mục "Go to watcher tab" của nhóm đưa
@@ -147,14 +149,13 @@ mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (
 - nút bánh răng cạnh "Stop" của watcher mở setting ngay bên dưới dòng watcher đó trong menu, click lần
   nữa thì đóng (mỗi lúc một watcher; watcher có nhiều repo thì mỗi repo một panel, có tên repo ở đầu):
   số session cùng lúc (1, 2, 3, 5, 8, 10), poll mỗi (1, 2, 3, 5 hoặc
-  10 phút, bên dưới là số request mỗi giờ của lựa chọn hiện tại), trigger (`/open-pr` hoặc `@me`), mỗi
+  10 phút, bên dưới là số request mỗi giờ của lựa chọn hiện tại, cùng nút **Apply to all** đặt khoảng đó
+  cho mọi repo menu bar đang hiện), trigger (`/open-pr` hoặc `@me`), mỗi
   event toast một checkbox, và các tuỳ chọn review: post review không qua draft, post LGTM khi không có
   finding, tự resolve finding đã fix, cảnh báo CI lỗi, doctor mỗi (1 tuần, 2 tuần, 1 tháng, 3 tháng,
   không bao giờ). Bên dưới là lần doctor chạy cuối và lần tới: `Doctor: Sep 20, 2026 · next in 11 days`,
   `· due now`, `· not scheduled`, hoặc `Doctor: never run`; và **Show settings file**, đóng menu rồi mở
   Finder chọn sẵn `settings.json` của repo đó;
-- poll mỗi 15 giây, 30 giây, 1, 2, 3, 5 hoặc 10 phút, hoặc theo setting của từng repo — có hiệu lực sau vài giây,
-  mỗi lựa chọn kèm số request ước tính mỗi giờ (xem Giới hạn rate);
 - snooze: 30 phút, 1 giờ, đến 9:00 sáng mai, hoặc bật lại toast.
 
 Click vào một control ghi đúng key đó vào `settings.json` (xem Setting bên dưới) và panel vẫn mở, hiện
@@ -184,14 +185,13 @@ Một lượt poll phục vụ cả hai vai. Trên GitHub nó tốn ba request c
 host trả `304 Not Modified`, không bị tính vào giới hạn; vai fix thêm một call cho mỗi pull request của bạn
 được cập nhật kể từ lần poll trước. Trên GitLab và Bitbucket, một lượt poll tốn một call, cộng thêm một cho
 mỗi pull request được cập nhật kể từ lần poll trước, đã gồm cả finding. Khi không có session nào active và
-không có gì mới trong 10 phút, watcher poll mỗi 10 phút (không bao giờ nhanh hơn setting; lựa chọn "Poll
-every" cho cả máy luôn được giữ). Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng thời gian poll
+không có gì mới trong 10 phút, watcher poll mỗi 10 phút (không bao giờ nhanh hơn setting). Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng thời gian poll
 (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
 
 Menu bar hiện, dưới phần header, quota còn lại thấp nhất trong các host đang watch, đọc từ header rate-limit
 của chính các request poll (không thêm request nào) — vd `GitHub API 4,812/5,000 left`, màu cam khi còn dưới
-30 %, đỏ khi dưới 10 %. Mỗi lựa chọn "Poll every" hiện số request mỗi giờ nó sẽ tốn, tính từ lần poll gần
-nhất của từng repo, kèm ⚠ khi vượt một nửa giới hạn mỗi giờ của host (giới hạn theo phút của GitLab được quy
+30 %, đỏ khi dưới 10 %. Panel settings hiện dưới nút Poll số request mỗi giờ khoảng hiện tại sẽ tốn (tooltip
+của mỗi lựa chọn hiện số của nó), tính từ lần poll gần nhất của từng repo, kèm ⚠ khi vượt một nửa giới hạn mỗi giờ của host (giới hạn theo phút của GitLab được quy
 ra theo giờ). Bitbucket có thể chỉ báo là sắp chạm giới hạn; host không gửi header rate-limit thì không hiện
 gauge.
 

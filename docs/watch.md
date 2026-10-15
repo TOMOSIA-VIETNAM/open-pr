@@ -135,7 +135,9 @@ configured for that platform; the watcher grants none.
 
 A watcher puts the moth in the menu bar when it starts, with the number of sessions in progress. There
 is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
-Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
+Quit item), and `/open-pr:menubar` brings it back. Its header says how many repos are watched, how
+often they are polled (`polls every 3m`, or `polls every 1–5m` when their settings differ) and whether
+toasts are on. Its menu lists:
 
 - one row per pull request and role, grouped by watcher (titled with the repos it watches; under them
   the role it serves, its terminal, the folder it runs in when that is not its one repo, and when it
@@ -152,14 +154,13 @@ Quit item), and `/open-pr:menubar` brings it back. Its menu lists:
 - the gear beside a watcher's "Stop" opens its settings inline, right under that watcher row, and
   closes them on the next click (one watcher's at a time; a watcher of several repos shows one panel
   per repo, each headed by its name): sessions at once (1, 2, 3, 5, 8, 10), poll every (1, 2, 3, 5 or 10
-  minutes, with the requests per hour the current one costs underneath), trigger (`/open-pr` or `@me`),
+  minutes, with the requests per hour the current one costs underneath, and **Apply to all**, which
+  sets that interval on every repo the menu bar shows), trigger (`/open-pr` or `@me`),
   one toast checkbox per event, and the review options: post reviews without a draft, post LGTM when
   nothing is found, resolve fixed findings, warn about failing CI, doctor every (1 week, 2 weeks,
   1 month, 3 months, never). Under them, when the doctor last ran and when it runs next:
   `Doctor: Sep 20, 2026 · next in 11 days`, `· due now`, `· not scheduled`, or `Doctor: never run`;
   and **Show settings file**, which closes the menu and shows that repo's `settings.json` in Finder;
-- poll every 15 s, 30 s, 1, 2, 3, 5 or 10 minutes, or each repo's setting — applies within seconds, each
-  with its estimated requests per hour (see Rate limits);
 - snooze: 30 minutes, 1 hour, until 9:00 tomorrow, or turn toasts back on.
 
 A click on a control writes that one key into `settings.json` (see Settings below) and the panel
@@ -189,14 +190,13 @@ One poll serves both roles. On GitHub it costs three conditional requests: while
 host answers `304 Not Modified`, which does not count against the limit; the fix role adds one call per
 own pull request updated since the last poll. On GitLab and Bitbucket a poll costs one call plus one per
 pull request updated since the last poll, findings included. With no session active and nothing new for
-10 minutes, the watcher polls every 10 minutes (never faster than the setting; a machine-wide "Poll
-every" choice always holds). When the host reports a rate limit, the watcher doubles its interval (up to
+10 minutes, the watcher polls every 10 minutes (never faster than the setting). When the host reports a rate limit, the watcher doubles its interval (up to
 15 minutes) and returns to `poll_interval_seconds` after the next successful poll.
 
 The menu bar shows, under its header, the tightest quota left on the hosts watched, read from the
 rate-limit headers of the poll's own requests (no extra request) — e.g. `GitHub API 4,812/5,000 left`,
-orange under 30 % left, red under 10 %. Each "Poll every" choice shows the requests per hour it would
-cost, from each repo's last poll, and ⚠ when that passes half the host's hourly limit (GitLab's
+orange under 30 % left, red under 10 %. The settings panel shows under its Poll control the requests
+per hour the current interval costs (each choice's tooltip, its own), from each repo's last poll, and ⚠ when that passes half the host's hourly limit (GitLab's
 per-minute limit counted per hour). Bitbucket may only say it is near its limit; a host that sends no
 rate-limit headers shows no gauge.
 

@@ -154,7 +154,6 @@ Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <ro
 |---|---|
 | `status` | `<watch> status` per watched repo, 1 line per session (PR, role, state) with its `open` command |
 | `snooze <duration>` / resume | `<watch> snooze --for <duration>` / `--off` — every toast on this machine |
-| poll every N seconds / back to the setting | `<watch> poll --seconds N` / `--off` (this machine, min 15, applies within seconds) |
 | a setting change | `Edit` that field in the repo it names (every watched repo when none) + `core/memory-commit.md` |
 | a fresh session for a PR | `<watch> forget --pr N` for its repo; the next trigger opens a new one |
 | `remove #N`, `unwatch #N` | `<watch> hide --pr N` for its repo — off the menu bar and out of the fix role |

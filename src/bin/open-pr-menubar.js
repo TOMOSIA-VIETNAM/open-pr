@@ -45,12 +45,13 @@ var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['re
 var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
 var item = null, target = null, icons = {}, rowParts = {}, pillParts = {}, litRow = null, menuOpen = false;
-// The watcher row whose settings show inline under it: { row: its rowParts, items: the panel items }
-var openPanel = null;
+// The watcher row whose settings show inline under it: { row: its rowParts, items: the panel items,
+// panels: settingsPanel's objects }; shown = the scan the open menu was built from.
+var openPanel = null, shown = null;
 
 // A watcher row says "no poll for …" once its newest heartbeat is older than STALE.factor × the
-// interval it polls at: this machine's "Poll every" choice, else the slowest of its repos' setting
-// (default STALE.poll) and STALE.idle — an idle repo slows to that (IDLE_POLL in open-pr-watch.sh).
+// interval it polls at: the slowest of its repos' setting (default STALE.poll) and STALE.idle — an
+// idle repo slows to that (IDLE_POLL in open-pr-watch.sh).
 var STALE = { factor: 2, poll: 180, idle: 600 };
 var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as lgtm); the symbol alone tells the state, in the menu's own colour
     working:  ['circle.dotted', 'Reviewing'],
@@ -122,7 +123,7 @@ var MOTH = [
 ];
 // Rate limits, from each wait's quota.json (open-pr.sh triggers --quota-file, plus host and at):
 // {vendor, host, window, limit, remaining, reset, near_limit, calls, at}. The header shows the
-// tightest measured one; "Poll every" estimates requests per hour at each interval as
+// tightest measured one; the settings panel's Poll control estimates requests per hour at each interval as
 // Σ calls of each wait's last poll × polls per hour, per host (a GitHub 304 costs nothing, so a
 // quiet GitHub repo costs ~0), and marks ⚠ past QUOTA.warn of that host's hourly limit
 // (limit × 3600 / window: GitLab counts per minute).
@@ -186,7 +187,7 @@ ObjC.registerSubclass({
         'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
         'fixNow:': { types: ['void', ['id']], implementation: function (s) { fixNow(parse(unwrapString(s.representedObject))); } },
         'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
-        'poll:': { types: ['void', ['id']], implementation: function (s) { poll(Number(s.tag)); } },
+        'applyAll:': { types: ['void', ['id']], implementation: function (s) { applyAll(s); } },
         // sender: a control in a settings panel (see controls)
         'setting:': { types: ['void', ['id']], implementation: function (s) { setSetting(s); } },
         'reveal:': { types: ['void', ['id']], implementation: function (s) { reveal(s); } },
@@ -267,13 +268,14 @@ function watcherOf(w, set) {
 }
 
 function scan() {
-    var out = { repos: 0, watchers: [], active: 0, quotas: [] }, byKey = {};
+    var out = { repos: 0, watchers: [], active: 0, quotas: [], polls: [] }, byKey = {};
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch';
         var live = SETS.filter(function (set) { return ageSeconds(dir + '/heartbeat' + set.sfx) <= fresh; });
         if (!live.length) return;
         out.repos++;
+        out.polls.push(repoPoll(data + '/' + name));
         var wj = null, at = {};
         live.forEach(function (set) {
             var j = parse(readText(dir + '/watcher' + set.sfx + '.json')), wr = watcherOf(j, set);
@@ -448,7 +450,7 @@ function watcherLine(w) {
     var head = (ROLE_LOOK[w.role] || ROLE_LOOK[''])[1] + (w.termName ? ' · ' + w.termName : '') +
                (w.cwdName && !(w.repos.length === 1 && w.repos[0] === w.cwdName) ? ' · in ' + w.cwdName : '');
     if (!isFinite(w.beat)) return [[head, false]];
-    var every = pollSeconds() || Math.max(w.poll, STALE.idle);
+    var every = Math.max(w.poll, STALE.idle);
     if (w.beat > STALE.factor * every) return [[head + ' · ', false], ['no poll for ' + age(w.beat) + ' — check the watcher tab', true]];
     return [[head + ' · polled ' + (w.beat < 60 ? 'just now' : age(w.beat) + ' ago'), false]];
 }
@@ -591,8 +593,16 @@ function label(text, font, color, x, y) {
     f.setFrame($.NSMakeRect(x, y, HEADER_W - x - 14, 17));
     return f;
 }
-function headerView(repos, watchers, until, quota) {
-    var up = quota ? 14 : 0;   // a third line for the quota gauge
+// The repos' poll settings → "polls every 3m", or "polls every 1–5m" when they differ; '' for none.
+function pollSpan(polls) {
+    if (!polls.length) return '';
+    var lo = Math.min.apply(null, polls), hi = Math.max.apply(null, polls);
+    var f = function (v) { return v % 60 ? v + 's' : v / 60 + 'm'; };
+    return 'polls every ' + (lo === hi ? f(hi) : (lo % 60 || hi % 60 ? f(lo) : lo / 60) + '–' + f(hi));
+}
+// polls: pollSpan's text, on the third line after the quota gauge (or alone).
+function headerView(repos, watchers, until, quota, polls) {
+    var up = quota || polls ? 14 : 0;   // a third line: the quota gauge, then the poll interval
     var v = $.NSView.alloc.initWithFrame($.NSMakeRect(0, 0, HEADER_W, 48 + up));
     var iv = $.NSImageView.imageViewWithImage(icons.header);
     iv.setFrame($.NSMakeRect(14, 10 + up / 2, 28, 28));
@@ -602,11 +612,18 @@ function headerView(repos, watchers, until, quota) {
                (watchers > 1 ? watchers + ' watchers · ' : '') +
                (until ? 'toasts off until ' + hhmm(until) : 'toasts on');
     v.addSubview(label(line, $.NSFont.systemFontOfSize(11), $.NSColor.secondaryLabelColor, 52, 7 + up));
-    if (quota) {
-        var c = quota.level === 'critical' ? $.NSColor.systemRedColor
-              : quota.level === 'low' ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor;
-        v.addSubview(label(quota.text, $.NSFont.systemFontOfSize(11), c, 52, 6));
-    }
+    // laid side by side at their own width; the view widens when they need more than HEADER_W
+    var x = 52, small = $.NSFont.systemFontOfSize(11);
+    var part = function (t, color) {
+        var w = Math.ceil($(t).sizeWithAttributes($({ NSFont: small })).width) + 4, f = label(t, small, color, x, 6);
+        f.setFrame($.NSMakeRect(x, 6, w, 17));
+        v.addSubview(f);
+        x += w;
+    };
+    if (quota) part(quota.text + (polls ? ' ·' : ''), quota.level === 'critical' ? $.NSColor.systemRedColor
+                    : quota.level === 'low' ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor);
+    if (polls) part(polls, $.NSColor.secondaryLabelColor);
+    if (x + 14 > HEADER_W) v.setFrameSize($.NSMakeSize(x + 14, 48 + up));
     return v;
 }
 
@@ -771,11 +788,13 @@ function toggleSettings(sender) {
     openPanel = { row: q.row, items: q.row.settings.map(function (x, i) {
         // re-read: the menu is not rebuilt while open, so x.conf may be older than the file
         var y = { name: x.name, repo: x.repo, arg: x.arg, conf: repoSettings(x.repo, x.arg.repo_dir, x.arg.remote) || x.conf };
-        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, '');
-        pi.setView(settingsPanel(y, q.row.quotas, many ? x.name : ''));
+        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, ''), p = settingsPanel(y, q.row.quotas, many ? x.name : '');
+        pi.setView(p.view);
         menu.insertItemAtIndex(pi, at + 1 + i);
-        return pi;
+        return { item: pi, panel: p };
     }) };
+    openPanel.panels = openPanel.items.map(function (o) { return o.panel; });
+    openPanel.items = openPanel.items.map(function (o) { return o.item; });
     q.pressed = true;
     paintPill(q, !!q.lit);
 }
@@ -790,10 +809,10 @@ function closeSettings() {
 function build(s) {
     var m = newMenu('open-pr');
     m.setDelegate(target);
-    rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {};
+    rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {}; shown = s;
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
-    head.setView(headerView(s.repos, s.watchers.length, until, gauge(s.quotas)));
+    head.setView(headerView(s.repos, s.watchers.length, until, gauge(s.quotas), pollSpan(s.polls)));
     m.addItem(head);
 
     // no section title: a menu indents the items under one
@@ -838,19 +857,6 @@ function build(s) {
     sub.addItem($.NSMenuItem.separatorItem);
     if (until) add(sub, 'Turn toasts back on', 'snooze:', undefined, 0);
     else add(sub, 'Toasts on').setState($.NSControlStateValueOn);
-    var cur = pollSeconds(), ps = newMenu('Poll every');
-    [[15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [120, '2 minutes'], [180, '3 minutes'],
-     [300, '5 minutes'], [600, '10 minutes']].forEach(function (o) {
-        var mi = add(ps, o[1] + estimate(s.quotas, o[0]), 'poll:', undefined, o[0]);
-        mi.setState(cur === o[0] ? $.NSControlStateValueOn : $.NSControlStateValueOff);
-        if (s.quotas.length) mi.setToolTip('API requests per hour at this interval, from the last poll of each repo; ⚠ = over half the host\'s hourly limit');
-    });
-    ps.addItem($.NSMenuItem.separatorItem);
-    add(ps, 'Repo setting', 'poll:', undefined, 0).setState(cur ? $.NSControlStateValueOff : $.NSControlStateValueOn);
-    var pi = add(m, 'Poll every');
-    pi.setSubmenu(ps);
-    pi.setEnabled(true);
-    pi.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('arrow.clockwise', ''));
     var sn = add(m, 'Snooze toasts');
     sn.setSubmenu(sub);
     sn.setEnabled(true);
@@ -908,6 +914,15 @@ function settingsPanel(x, quotas, caption) {
                 if (tip) seg.setToolTipForSegment(tip, j);
             });
             put(control(p, seg, k[0], k[2].map(function (o) { return o[0]; })), col, undefined, 24);
+            if (k[0] === 'watch.poll_interval_seconds') {   // placed right of the control once it is sized
+                var b = $.NSButton.buttonWithTitleTargetAction('Apply to all', target, 'applyAll:');
+                b.setControlSize($.NSControlSizeSmall);
+                b.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
+                b.setToolTip('Poll every repo this menu shows at this interval');
+                controls[b.hash] = { p: p, applyAll: true };
+                put(b, col, undefined, 22, 1);
+                p.apply = { seg: seg, at: at[at.length - 1] };
+            }
             top += PANEL.row;
             if (k[0] === 'watch.poll_interval_seconds') { p.cost = put(text('', small, second), col, -1, 14, -4); top += 14; }
         });
@@ -928,6 +943,7 @@ function settingsPanel(x, quotas, caption) {
     put(p.reveal, pad - 6, undefined, 22);   // a bezel's own inset: its border lines up with the text above
     top += 30;
     showPanel(p, x.conf);   // first, so a segment shown only for a value set in a chat is measured
+    if (p.apply) p.apply.at[1] = col + p.apply.seg.frame.size.width + 8;
     var w = 0;
     at.forEach(function (a) {
         if (a[3] === undefined || a[3] < 0) { a[0].sizeToFit; w = Math.max(w, a[1] + a[0].frame.size.width + pad); }
@@ -939,7 +955,8 @@ function settingsPanel(x, quotas, caption) {
         a[0].setFrame($.NSMakeRect(a[1], top - a[2] - a[4], a[3] > 0 ? a[3] : w - a[1] - pad, a[4]));
         v.addSubview(a[0]);
     });
-    return v;
+    p.view = v;
+    return p;
 }
 // A value no control offers (set in a chat): an extra segment, selected and disabled.
 function shortValue(key, v) {
@@ -968,9 +985,10 @@ function showPanel(p, conf) {
         v.sizeToFit;
     });
     if (p.cost) {
-        var sec = pollSeconds(), e = typeof valueAt(conf, 'watch.poll_interval_seconds') === 'number' ? estimate(p.quotas, valueAt(conf, 'watch.poll_interval_seconds')).trim() : '';
-        p.cost.setStringValue(sec ? 'This machine polls every ' + span(sec) + ' (Poll every)' : e ? 'API cost ' + e : '');
-        p.cost.setTextColor(!sec && / ⚠$/.test(e) ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor);
+        var e = typeof valueAt(conf, 'watch.poll_interval_seconds') === 'number' ? estimate(p.quotas, valueAt(conf, 'watch.poll_interval_seconds')).trim() : '';
+        p.cost.setStringValue(e ? 'API cost ' + e : '');
+        p.cost.setToolTip('API requests per hour at this interval, from the last poll of each repo; ⚠ = over half the host\'s hourly limit');
+        p.cost.setTextColor(/ ⚠$/.test(e) ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor);
     }
     p.doctor.setStringValue(doctorLine(conf));
     p.reveal.setEnabled(!!revealable(p.x.repo + '/settings.json'));
@@ -1112,6 +1130,29 @@ function setSetting(sender) {
     if (args) { output('/bin/sh', args); delete settingsCache[p.x.repo]; }
     showPanel(p, repoSettings(p.x.repo, p.x.arg.repo_dir, p.x.arg.remote) || p.conf);
 }
+// "Apply to all": the poll interval of the panel the click came from, written to every repo the open
+// menu shows, then each open panel set from its file read afresh. The menu stays open.
+function applyAll(sender) {
+    var c = controls[sender.hash];
+    if (!c || !c.p || !shown) return;
+    applyArgs(shown, valueAt(c.p.conf, 'watch.poll_interval_seconds')).forEach(function (a) { output('/bin/sh', a); });
+    settingsCache = {};
+    (openPanel ? openPanel.panels : [c.p]).forEach(function (p) {
+        showPanel(p, repoSettings(p.x.repo, p.x.arg.repo_dir, p.x.arg.remote) || p.conf);
+    });
+}
+// The `settings --set watch.poll_interval_seconds` argv for each repo of scan s, once each; a value
+// the Poll control does not offer, or a repo settingArgs refuses, yields none.
+function applyArgs(s, value) {
+    var seen = {}, out = [];
+    s.watchers.forEach(function (w) { w.settings.forEach(function (x) {
+        if (seen[x.repo]) return;
+        seen[x.repo] = true;
+        var a = settingArgs({ repo_dir: x.arg.repo_dir, remote: x.arg.remote, key: 'watch.poll_interval_seconds', value: String(value) });
+        if (a) out.push(a);
+    }); });
+    return out;
+}
 // <data>/<repo>/settings.json when p is exactly that, a regular file in one of this menu bar's data dirs; else ''.
 function revealable(p) {
     p = str(p);
@@ -1155,16 +1196,6 @@ function snooze(minutes) {
         var iso = d.toISOString().replace(/\.\d+Z$/, 'Z');
         $(iso + '\n').writeToFileAtomicallyEncodingError(snoozeFile, true, $.NSUTF8StringEncoding, null);
     }
-    refresh();
-}
-// Same file and floor as `open-pr-watch.sh poll`; 0 = back to each repo's setting.
-function pollFile() { return snoozeFile ? snoozeFile.replace(/\/[^\/]*$/, '') + '/poll_seconds' : ''; }
-function pollSeconds() { var n = parseInt(readText(pollFile()), 10); return n >= 15 ? n : 0; }
-function poll(seconds) {
-    var f = pollFile();
-    if (!f) return;
-    if (seconds === 0) $.NSFileManager.defaultManager.removeItemAtPathError(f, null);
-    else $(Math.max(15, seconds) + '\n').writeToFileAtomicallyEncodingError(f, true, $.NSUTF8StringEncoding, null);
     refresh();
 }
 function leave() {
