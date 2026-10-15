@@ -58,7 +58,7 @@ Only comments from people with write access trigger a review:
 
 | host | who triggers |
 |---|---|
-| GitHub | owner, member or collaborator |
+| GitHub | admin, maintain or write role on the repository |
 | GitLab | Developer or above |
 | Bitbucket | anyone who can comment — a non-admin cannot read other users' permissions, so restrict who can comment if that matters |
 
@@ -200,7 +200,8 @@ On Windows and Linux, ask the watcher in chat instead (`status`, `snooze 1h`).
 One poll serves both roles. On GitHub it costs three conditional requests: while nothing changed the
 host answers `304 Not Modified`, which does not count against the limit; the fix role adds one call per
 own pull request updated since the last poll. On GitLab and Bitbucket a poll costs one call plus one per
-pull request updated since the last poll, findings included. With no session active and nothing new for
+pull request updated since the last poll, findings included. On GitHub and GitLab, a new trigger adds one
+permission lookup per distinct author (on GitHub conditional too). With no session active and nothing new for
 10 minutes, the watcher polls every 10 minutes (never faster than the setting). When the host reports a rate limit, the watcher doubles its interval (up to
 15 minutes) and returns to `poll_interval_seconds` after the next successful poll.
 

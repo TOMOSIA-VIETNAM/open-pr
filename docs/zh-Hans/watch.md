@@ -47,7 +47,7 @@ watcher：评审 watcher 和修复 watcher（一个标签页运行 `/open-pr:wat
 
 | 托管平台 | 谁能触发 |
 |---|---|
-| GitHub | owner、member 或 collaborator |
+| GitHub | 在仓库上拥有 admin、maintain 或 write 角色 |
 | GitLab | Developer 及以上 |
 | Bitbucket | 任何能评论的人 —— 非管理员无法读取其他用户的权限，如果这很重要，请限制谁可以评论 |
 
@@ -163,7 +163,8 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
 
 一次轮询同时服务两个角色。在 GitHub 上是三次条件请求：没有任何变化时主机返回 `304 Not Modified`，不计入
 限额；fix 角色会为自上次轮询以来有更新的你自己的每个 pull request 多调用一次。在 GitLab 和 Bitbucket 上是一次，
-外加自上次轮询以来每个有更新的 pull request 一次，发现的问题也包含在内。没有活跃会话且 10 分钟内没有新内容时，
+外加自上次轮询以来每个有更新的 pull request 一次，发现的问题也包含在内。在 GitHub 和 GitLab 上，
+新的触发评论会为每位不同的作者多一次权限查询（GitHub 上同样是条件请求）。没有活跃会话且 10 分钟内没有新内容时，
 watcher 每 10 分钟轮询一次（绝不比设置更快）。当托管平台报告限速时，watcher 会把轮询间隔加倍（最多 15 分钟），并在下一次轮询成功后
 恢复为 `poll_interval_seconds`。
 

@@ -814,30 +814,31 @@ GH_ROUTES = [
     ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
     ("issues/comments", [
         {"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:03Z", "body": HOSTILE, "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:03Z", "body": HOSTILE},
         {"id": 2, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:04Z", "body": "please /open-pr later", "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:04Z", "body": "please /open-pr later"},
         {"id": 3, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "bot"},
-         "created_at": "2026-01-01T00:00:05Z", "body": "/open-pr from myself", "author_association": "OWNER"},
+         "created_at": "2026-01-01T00:00:05Z", "body": "/open-pr from myself"},
         {"id": 4, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "alt"},
-         "created_at": "2026-01-01T00:00:06Z", "body": "/open-pr quoted <!-- bot-finding -->",
-         "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:06Z", "body": "/open-pr quoted <!-- bot-finding -->"},
         {"id": 5, "issue_url": "https://api.github.com/repos/o/r/issues/8", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:07Z", "body": "/open-pr on a closed PR or an issue",
-         "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:07Z", "body": "/open-pr on a closed PR or an issue"},
         {"id": 6, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "stranger"},
-         "created_at": "2026-01-01T00:00:01Z", "body": "  /open-pr", "author_association": "NONE"},
+         "created_at": "2026-01-01T00:00:01Z", "body": "  /open-pr"},
         {"id": 7, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:08Z", "body": "/open-prx not the trigger", "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:08Z", "body": "/open-prx not the trigger"},
         {"id": 8, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
-         "created_at": "2026-01-01T00:00:09Z", "body": "/open-pr:review is the plugin command, run it locally",
-         "author_association": "MEMBER"},
+         "created_at": "2026-01-01T00:00:09Z", "body": "/open-pr:review is the plugin command, run it locally"},
     ]),
     ("pulls/comments", [
         {"id": 90, "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "user": {"login": "col"},
-         "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk", "author_association": "COLLABORATOR"},
+         "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk"},
     ]),
     ("api user", "bot\n"),
+    ("collaborators/dev/permission", {"permission": "write", "role_name": "write"}),
+    ("collaborators/bot/permission", {"permission": "admin", "role_name": "admin"}),
+    ("collaborators/col/permission", {"permission": "write", "role_name": "maintain"}),
+    ("collaborators/stranger/permission", {"permission": "read", "role_name": "read"}),
 ]
 
 
@@ -847,7 +848,7 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
     assert [r["comment_id"] for r in rows] == ["6", "90", "1", "3"], \
         "mid-body mentions, marked comments, non-open PRs, /open-prx and /open-pr:… never trigger; " \
         "the watcher's own account may ask (one person can be developer and reviewer)"
-    assert rows[0]["authorized"] == "no", "author_association NONE has no write access"
+    assert rows[0]["authorized"] == "no", "a read-only user has no write access"
     assert rows[1] == {"pr": 5, "url": "https://github.com/o/r/pull/5", "pr_author": None, "comment_id": "90", "kind": "line",
                        "thread_id": None, "user": "col", "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr this hunk",
                        "authorized": "yes"}
@@ -855,6 +856,40 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
     assert rows[2]["body"] == HOSTILE, "an attacker-controlled body must come out byte-for-byte"
     assert not Path("/tmp/pwned").exists()
     assert "pwned" not in shims["log"].read_text(), "a comment body reached an argv"
+
+
+def test_triggers_github_checks_write_access_once_per_author_of_a_trigger(shims):
+    """author_association says OWNER/MEMBER/COLLABORATOR for any org member and read-only
+    collaborators; only the repository permission says who can write."""
+    comment = lambda i, login, body: {"id": i, "issue_url": "https://api.github.com/repos/o/r/issues/5",
+                                      "user": {"login": login}, "created_at": f"2026-01-01T00:00:0{i}Z", "body": body}
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
+        ("issues/comments", [comment(1, "dev", "/open-pr"), comment(2, "dev", "/open-pr again"),
+                             comment(3, "triager", "/open-pr"), comment(4, "gone", "/open-pr"),
+                             comment(5, "lurker", "no trigger here"), comment(6, "ci[bot]", "/open-pr")]),
+        ("collaborators/dev/permission", {"permission": "write", "role_name": "write"}),
+        ("collaborators/triager/permission", {"permission": "read", "role_name": "triage"}),
+        ("collaborators/gone/permission", (1, "gh: Not Found (HTTP 404)")),
+    ])
+    rows = triggers(shims, "github")
+    assert {r["comment_id"]: r["authorized"] for r in rows} == \
+        {"1": "yes", "2": "yes", "3": "no", "4": "no", "6": "no"}
+    calls = shims["log"].read_text()
+    assert calls.count("collaborators/dev/permission") == 1, "one lookup per distinct author"
+    assert "lurker" not in calls, "only an author of a trigger is looked up"
+    assert "ci[bot]" not in calls, "a login outside GitHub's shape never reaches argv"
+
+
+def test_triggers_github_stops_when_the_permission_cannot_be_read(shims):
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "u"}]),
+        ("issues/comments", [{"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5",
+                              "user": {"login": "dev"}, "created_at": "2026-01-01T00:00:01Z", "body": "/open-pr"}]),
+        ("collaborators/dev/permission", (1, "gh: HTTP 502")),
+    ])
+    r = triggers(shims, "github", check=False)
+    assert r.returncode == 1 and r.stdout == "", "a failed lookup must not be judged either way"
 
 
 def test_triggers_mark_file_holds_the_newest_comment_fetched(shims, tmp_path):
@@ -951,7 +986,7 @@ def test_triggers_bitbucket_marks_authorization_unknown(shims):
 def test_triggers_token_picks_the_trigger_and_a_mention_ignores_case(shims):
     at = lambda i, body: {"id": i, "issue_url": "https://api.github.com/repos/o/r/issues/5",
                           "user": {"login": "dev"}, "created_at": f"2026-01-01T00:00:0{i}Z",
-                          "body": body, "author_association": "MEMBER"}
+                          "body": body}
     serve(shims, "gh", [
         ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
         ("issues/comments", [at(1, "@reviewer please look"), at(2, "@REVIEWER"), at(3, "@reviewer2 no"),
@@ -1067,8 +1102,9 @@ ETAG_PAGES = [
     ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5", "user": {"login": "dev"},
                            "updated_at": "2026-01-01T00:00:09Z"}]),
     ("issues/comments", [{"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
-                          "created_at": "2026-01-01T00:00:03Z", "body": "/open-pr", "author_association": "MEMBER"}]),
+                          "created_at": "2026-01-01T00:00:03Z", "body": "/open-pr"}]),
     ("pulls/comments", []),
+    ("collaborators/dev/permission", {"permission": "write", "role_name": "write"}),
 ]
 
 
@@ -1082,7 +1118,8 @@ def test_triggers_github_sends_the_kept_etag_and_a_304_serves_the_cached_body(sh
     again = triggers(shims, "github", "--cache-dir", str(cache))
     assert again == first and [r["comment_id"] for r in again] == ["1"]
     assert again[0]["pr_author"] == "dev"
-    assert shims["log"].read_text().count('If-None-Match: W/"e1"') == 3, "every poll GET is conditional"
+    assert shims["log"].read_text().count('If-None-Match: W/"e1"') == 4, \
+        "every poll GET is conditional, the permission lookup of a trigger's author included"
 
 
 def test_triggers_github_never_sends_a_cached_etag_outside_its_shape(shims, tmp_path):
@@ -1132,8 +1169,8 @@ def test_quota_github_reads_the_headers_of_the_polls_own_requests(shims, tmp_pat
     cache = str(tmp_path / "etags")
     q, _ = quota(shims, tmp_path, "github", "--cache-dir", cache)
     assert q == {"vendor": "github", "window": 3600, "measured": True, "limit": 5000, "remaining": 4812,
-                 "reset": "2026-01-01T00:00:00Z", "near_limit": None, "calls": 3}
-    assert shims["log"].read_text().count("gh ") == 3, "no request is added to read the quota"
+                 "reset": "2026-01-01T00:00:00Z", "near_limit": None, "calls": 4}
+    assert shims["log"].read_text().count("gh ") == 4, "no request is added to read the quota"
     q, _ = quota(shims, tmp_path, "github", "--cache-dir", cache)
     assert q["remaining"] == 4812 and q["calls"] == 0, "a 304 carries the headers and costs nothing"
 
@@ -1209,7 +1246,7 @@ OVERVIEW = ("### Overview\nThanks 🙏\n\n#### 🔴 MUST FIX\n🔴 **`a.rb`** �
 def test_findings_github_groups_one_review_with_its_line_and_file_findings(shims, tmp_path):
     line = lambda i, body, at, review=70, reply_to=None, pr=5: {
         "id": i, "pull_request_url": f"https://api.github.com/repos/o/r/pulls/{pr}", "user": {"login": "rev"},
-        "created_at": at, "body": body, "author_association": "MEMBER", "pull_request_review_id": review,
+        "created_at": at, "body": body, "pull_request_review_id": review,
         "in_reply_to_id": reply_to}
     serve(shims, "gh", [
         ("pulls?state=open", [
@@ -1510,7 +1547,7 @@ def test_triggers_pick_up_a_request_posted_as_a_thread_reply(shims):
         ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
         ("pulls/comments", [
             {"id": 40, "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "user": {"login": "dev"},
-             "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr re-review", "author_association": "MEMBER",
+             "created_at": "2026-01-01T00:00:02Z", "body": "/open-pr re-review",
              "in_reply_to_id": 4}]),
     ])
     assert [(r["comment_id"], r["kind"], r["thread_id"]) for r in triggers(shims, "github")] == [("40", "line", "4")]

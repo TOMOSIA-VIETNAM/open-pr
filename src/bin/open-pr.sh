@@ -897,11 +897,10 @@ trg_fetch() {
             gh_get "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
             jq -c '.[] | {pr: .number, url: .html_url, author: .user.login, head_branch: (.head.ref // null), updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
             q="per_page=100"; [ -z "$SINCE_Z" ] || q="$q&since=$SINCE_Z"
-            auth='(if .author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR" then "yes" else "no" end)'
             gh_get "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: null, review_id: null}" "$TMPD/tr.page"
+            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: \"UNKNOWN\", uid: .user.login, in_reply_to: null, review_id: null}" "$TMPD/tr.page"
             gh_get "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: (.in_reply_to_id // null | if . then tostring else . end), user: .user.login, created_at, body: (.body // \"\"), authorized: $auth, uid: null, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}" "$TMPD/tr.page" ;;
+            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: (.in_reply_to_id // null | if . then tostring else . end), user: .user.login, created_at, body: (.body // \"\"), authorized: \"UNKNOWN\", uid: .user.login, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}" "$TMPD/tr.page" ;;
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
             gl_get "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
@@ -1015,8 +1014,28 @@ cmd_triggers() {
         | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
     printf '{}\n' > "$TMPD/tr.auth"
     case "$V" in
-    # trg_fetch already set `authorized`: GitHub's author_association, Bitbucket's UNKNOWN
-    github|bitbucket) ;;
+    # Only comments that already match the trigger get a lookup, once per distinct author.
+    # Bitbucket has none: trg_fetch set UNKNOWN.
+    bitbucket) ;;
+    github)
+        # write access = role admin, maintain or write; 404 = no such user. A login outside
+        # GitHub's shape (an app's `name[bot]`) is no. Any other failure stops the run so no
+        # trigger is misjudged. Through gh_get: with --cache-dir an unchanged answer is a 304.
+        jq -r '.uid // empty' "$TMPD/tr.cand" | sort -u | while IFS= read -r login; do
+            if ! printf '%s' "$login" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]*$'; then a=no
+            elif gh_get "repos/$OWNER/$REPO/collaborators/$login/permission" > "$TMPD/gh.perm" 2> "$TMPD/gh.perm.err"; then
+                a=$(jq -r 'if type == "object" and ((.role_name // .permission) as $r | ["admin", "maintain", "write"] | index([$r]))
+                           then "yes" else "no" end' "$TMPD/gh.perm" 2>/dev/null) || a=no
+                [ -n "$a" ] || a=no
+            elif grep -q '404' "$TMPD/gh.perm.err"; then
+                a=no
+            else
+                cat "$TMPD/gh.perm.err" >&2
+                die 1 "open-pr.sh triggers: could not read the repository permission of GitHub user $login"
+            fi
+            jq -nc --arg u "$login" --arg a "$a" '{($u): $a}'
+        done > "$TMPD/tr.auth.l"
+        jq -s 'add // {}' "$TMPD/tr.auth.l" > "$TMPD/tr.auth" ;;
     gitlab)
         # write access = Developer (30) or above; 404 = not a member. Any other failure stops
         # the run so no trigger is misjudged.

@@ -55,7 +55,7 @@ Chỉ comment của người có quyền write mới kích hoạt review:
 
 | host | ai kích hoạt được |
 |---|---|
-| GitHub | owner, member hoặc collaborator |
+| GitHub | role admin, maintain hoặc write trên repo |
 | GitLab | Developer trở lên |
 | Bitbucket | bất kỳ ai comment được — người không phải admin không đọc được quyền của user khác, nên hãy giới hạn ai được comment nếu điều đó quan trọng |
 
@@ -193,7 +193,8 @@ Trên Windows và Linux, hãy nhắn watcher trong chat (`status`, `snooze 1h`).
 Một lượt poll phục vụ cả hai vai. Trên GitHub nó tốn ba request có điều kiện: khi không có gì thay đổi,
 host trả `304 Not Modified`, không bị tính vào giới hạn; vai fix thêm một call cho mỗi pull request của bạn
 được cập nhật kể từ lần poll trước. Trên GitLab và Bitbucket, một lượt poll tốn một call, cộng thêm một cho
-mỗi pull request được cập nhật kể từ lần poll trước, đã gồm cả finding. Khi không có session nào active và
+mỗi pull request được cập nhật kể từ lần poll trước, đã gồm cả finding. Trên GitHub và GitLab, trigger mới
+thêm một lần tra quyền cho mỗi tác giả khác nhau (trên GitHub cũng là request có điều kiện). Khi không có session nào active và
 không có gì mới trong 10 phút, watcher poll mỗi 10 phút (không bao giờ nhanh hơn setting). Khi host báo bị giới hạn rate, watcher tăng gấp đôi khoảng thời gian poll
 (tối đa 15 phút) và quay về `poll_interval_seconds` sau lần poll thành công tiếp theo.
 
