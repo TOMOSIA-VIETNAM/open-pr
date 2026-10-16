@@ -860,21 +860,24 @@ def test_triggers_github_emits_only_real_triggers_oldest_first(shims):
 
 def test_triggers_github_checks_write_access_once_per_author_of_a_trigger(shims):
     """author_association says OWNER/MEMBER/COLLABORATOR for any org member and read-only
-    collaborators; only the repository permission says who can write."""
+    collaborators; only the repository permission says who can write. A custom role's
+    role_name is its own name; permission carries the base role it extends."""
     comment = lambda i, login, body: {"id": i, "issue_url": "https://api.github.com/repos/o/r/issues/5",
                                       "user": {"login": login}, "created_at": f"2026-01-01T00:00:0{i}Z", "body": body}
     serve(shims, "gh", [
         ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
         ("issues/comments", [comment(1, "dev", "/open-pr"), comment(2, "dev", "/open-pr again"),
                              comment(3, "triager", "/open-pr"), comment(4, "gone", "/open-pr"),
-                             comment(5, "lurker", "no trigger here"), comment(6, "ci[bot]", "/open-pr")]),
+                             comment(5, "lurker", "no trigger here"), comment(6, "ci[bot]", "/open-pr"),
+                             comment(7, "custom", "/open-pr")]),
         ("collaborators/dev/permission", {"permission": "write", "role_name": "write"}),
         ("collaborators/triager/permission", {"permission": "read", "role_name": "triage"}),
+        ("collaborators/custom/permission", {"permission": "write", "role_name": "release-manager"}),
         ("collaborators/gone/permission", (1, "gh: Not Found (HTTP 404)")),
     ])
     rows = triggers(shims, "github")
     assert {r["comment_id"]: r["authorized"] for r in rows} == \
-        {"1": "yes", "2": "yes", "3": "no", "4": "no", "6": "no"}
+        {"1": "yes", "2": "yes", "3": "no", "4": "no", "6": "no", "7": "yes"}
     calls = shims["log"].read_text()
     assert calls.count("collaborators/dev/permission") == 1, "one lookup per distinct author"
     assert "lurker" not in calls, "only an author of a trigger is looked up"

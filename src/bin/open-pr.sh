@@ -1025,13 +1025,14 @@ cmd_triggers() {
     # Bitbucket has none: trg_fetch set UNKNOWN.
     bitbucket) ;;
     github)
-        # write access = role admin, maintain or write; 404 = no such user. A login outside
-        # GitHub's shape (an app's `name[bot]`) is no. Any other failure stops the run so no
+        # write access = permission admin or write: GitHub folds maintain into write and a custom
+        # role into its base role, where role_name would be the custom name. 404 = no such user. A
+        # login outside GitHub's shape (an app's `name[bot]`) is no. Any other failure stops the run so no
         # trigger is misjudged. Through gh_get: with --cache-dir an unchanged answer is a 304.
         jq -r '.uid // empty' "$TMPD/tr.cand" | sort -u | while IFS= read -r login; do
             if ! printf '%s' "$login" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]*$'; then a=no
             elif gh_get "repos/$OWNER/$REPO/collaborators/$login/permission" > "$TMPD/gh.perm" 2> "$TMPD/gh.perm.err"; then
-                a=$(jq -r 'if type == "object" and ((.role_name // .permission) as $r | ["admin", "maintain", "write"] | index([$r]))
+                a=$(jq -r 'if type == "object" and (.permission as $r | ["admin", "write"] | index([$r]))
                            then "yes" else "no" end' "$TMPD/gh.perm" 2>/dev/null) || a=no
                 [ -n "$a" ] || a=no
             elif grep -q '404' "$TMPD/gh.perm.err"; then
