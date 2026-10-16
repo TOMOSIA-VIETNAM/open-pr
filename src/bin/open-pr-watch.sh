@@ -921,7 +921,8 @@ watcher_field() {   # $1 key of the watcher record WF, $2 ERE → its value, or 
 }
 stop_requested() {
     [ -e "$SD/stop$SFX" ] || return 0
-    rm -f "$SD/stop$SFX"
+    # off the menu bar now, not once the heartbeat goes stale
+    rm -f "$SD/stop$SFX" "$SD/heartbeat$SFX" "$SD/watcher$SFX.json"
     die 11 "open-pr-watch.sh: stopped from the menu bar"
 }
 # A repo with nothing active and no event for IDLE_AFTER s polls every IDLE_POLL s, unless the

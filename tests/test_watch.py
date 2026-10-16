@@ -465,6 +465,8 @@ def test_the_menu_bars_stop_file_ends_wait_with_exit_11(w):
     assert proc.returncode == 11 and "stopped from the menu bar" in err
     assert out == "", "no events"
     assert not (w.sd / "stop").exists(), "consumed"
+    assert not (w.sd / "heartbeat").exists() and not (w.sd / "watcher.json").exists(), \
+        "off the menu bar at once, not after the heartbeat goes stale"
 
 
 def test_a_stale_stop_file_does_not_stop_a_new_wait(w):

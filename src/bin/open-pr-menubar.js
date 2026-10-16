@@ -529,6 +529,11 @@ function hexColor(h) {
     return $.NSColor.colorWithSRGBRedGreenBlueAlpha((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1);
 }
 function rgb(c) { return $.NSColor.colorWithSRGBRedGreenBlueAlpha(c[0], c[1], c[2], 1); }
+// A warning in text: the system orange is too light to read on a light menu, so a darker one there.
+function warnColor() {
+    var a = $.NSApp.effectiveAppearance.bestMatchFromAppearancesWithNames($([$.NSAppearanceNameAqua, $.NSAppearanceNameDarkAqua]));
+    return ObjC.unwrap(a) === ObjC.unwrap($.NSAppearanceNameDarkAqua) ? $.NSColor.systemOrangeColor : rgb([0.7, 0.29, 0]);
+}
 function polygon(pts, k) {   // SVG y grows downward, AppKit's upward
     var p = $.NSBezierPath.bezierPath;
     for (var i = 0; i < pts.length; i += 2) {
@@ -677,7 +682,7 @@ function headerView(until, quota, polls) {
     if (quota) {
         var qt = quota.text + (polls ? ' ·' : '');
         parts.push([label(qt, small, quota.level === 'critical' ? $.NSColor.systemRedColor
-                          : quota.level === 'low' ? $.NSColor.systemOrangeColor : second, 0, 0), textWidth(qt, small),
+                          : quota.level === 'low' ? warnColor() : second, 0, 0), textWidth(qt, small),
                     'API requests left in the host\'s current rate-limit window']);
     }
     if (polls) parts.push([label(polls, small, second, 0, 0), textWidth(polls, small), 'How often the watched repos poll (an idle repo slows to every ' + STALE.idle / 60 + 'm)']);
@@ -755,7 +760,7 @@ function watcherRow(parts, canGo, role) {
     line.setAutoresizingMask($.NSViewWidthSizable);
     var lineAttr = attributed(parts.map(function (x) {
         return [x[0], x[1] === 'role' ? font : $.NSFont.menuFontOfSize(12),
-                x[1] === 'warn' ? $.NSColor.systemOrangeColor : x[1] === 'role' ? $.NSColor.labelColor : $.NSColor.secondaryLabelColor];
+                x[1] === 'warn' ? warnColor() : x[1] === 'role' ? $.NSColor.labelColor : $.NSColor.secondaryLabelColor];
     }), true);
     line.setAttributedStringValue(lineAttr);
     v.addSubview(line);
@@ -1072,7 +1077,7 @@ function showPanel(p, conf) {
         var e = typeof valueAt(conf, 'watch.poll_interval_seconds') === 'number' ? estimate(p.quotas, valueAt(conf, 'watch.poll_interval_seconds')).trim() : '';
         p.cost.setStringValue(e ? 'API cost ' + e : '');
         p.cost.setToolTip('API requests per hour at this interval, from the last poll of each repo; ⚠ = over half the host\'s hourly limit');
-        p.cost.setTextColor(/ ⚠$/.test(e) ? $.NSColor.systemOrangeColor : $.NSColor.secondaryLabelColor);
+        p.cost.setTextColor(/ ⚠$/.test(e) ? warnColor() : $.NSColor.secondaryLabelColor);
     }
     p.doctor.setStringValue(doctorLine(conf));
     p.reveal.setEnabled(!!revealable(p.x.repo + '/settings.json'));
@@ -1193,6 +1198,18 @@ function stopWatcher(o) {
             && dataDirs.some(function (data) { return d.indexOf(data + '/') === 0; });
     });
     dirs.forEach(function (d) { $('').writeToFileAtomicallyEncodingError(stopFile(d, sfx), true, $.NSUTF8StringEncoding, null); });
+    // A wait that already exited leaves its heartbeat until it goes stale: nobody would read the
+    // stop file, so the row is taken off here.
+    var ps = ' ' + output('/bin/ps', ['-A', '-o', 'pid=']).split(/\s+/).join(' ') + ' ';
+    var fm = $.NSFileManager.defaultManager, gone = 0;
+    dirs.forEach(function (d) {
+        var j = parse(readText(d + '/watcher' + sfx + '.json'));
+        if (j && typeof j.pid === 'number' && ps.indexOf(' ' + j.pid + ' ') >= 0) return;
+        fm.removeItemAtPathError(d + '/heartbeat' + sfx, null);
+        fm.removeItemAtPathError(d + '/watcher' + sfx + '.json', null);
+        gone++;
+    });
+    if (gone) refresh();
     var sid = str(o.session_id);
     if (dirs.length && SESSION_ID.test(sid)) stopLater({ dirs: dirs, sfx: sfx, session_id: sid, tries: 0 });
 }
