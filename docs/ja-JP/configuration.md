@@ -16,9 +16,23 @@
 ~/workspace/repo-backend/       ← 触れない
 ```
 
-データディレクトリが未設定なら、最初のコマンドがそのパスを尋ねます。推奨はリポジトリのすぐ外側のディレクトリにある `notebooks/review/` です — `~/workspace/repo-backend` なら `~/workspace/notebooks/review/`。任意のパスも指定できます。リポジトリ内に既にある `notebooks/review/` はそこへ **コピー** され（worktree は除く）、元の場所にも残ります。その後も、データディレクトリにまだないリポジトリは立っている場所の下で同じように探され、見つかった `notebooks/review/<repo>/` の取り込みを提案します。選択は `~/.config/open-pr/config.json` の `data_dir` に保存されます — 場所を変えるにはこのファイルを編集します。
+データディレクトリが未設定なら、最初のコマンドがそのパスを尋ねます。推奨はリポジトリのすぐ外側のディレクトリにある `notebooks/review/` です — `~/workspace/repo-backend` なら `~/workspace/notebooks/review/`。任意のパスも指定できます。リポジトリ内に既にある `notebooks/review/` はそこへ **コピー** され（worktree は除く）、元の場所にも残ります。その後も、データディレクトリにまだないリポジトリは立っている場所の下で同じように探され、見つかった `notebooks/review/<repo>/` の取り込みを提案します。選択は `~/.config/open-pr/config.json` に保存されます。
 
-立つ場所はデータの置き場所に影響しません。複数リポジトリを含むワークスペースからなら、1 回の実行で **リポジトリ横断** PR をレビューできます（並列ではなく順番に）：
+別々のワークスペース — たとえば 2 つのクライアント — は memory を分けて持てます。最初のコマンドが尋ねたときに "this workspace" を選ぶと、立っているフォルダがルートになり、その下のすべてのリポジトリがそのデータディレクトリを使います。どのルートの下にもないリポジトリは `data_dir` を使います。
+
+```json
+{
+  "data_dir": "/Users/me/notebooks/review",
+  "data_dirs": [
+    {"root": "/Users/me/clients/acme", "dir": "/Users/me/clients/acme/notebooks/review"},
+    {"root": "/Users/me/clients/globex", "dir": "/Users/me/clients/globex/notebooks/review"}
+  ]
+}
+```
+
+リポジトリより上にある最も深いルートが優先されます。コマンドは実行した場所（リポジトリ、またはそれを含むワークスペース）から、`/open-pr:watch` は監視するリポジトリごとに解決します。`/open-pr:upgrade` と `/open-pr:clean` はすべてのデータディレクトリを巡回します。
+
+同じワークスペース内では、立つ場所はデータの置き場所に影響しません。複数リポジトリを含むワークスペースからなら、1 回の実行で **リポジトリ横断** PR をレビューできます（並列ではなく順番に）：
 
 ```bash
 cd ~/workspace
@@ -34,7 +48,9 @@ cd ~/workspace
 | `/open-pr:review` | リポジトリを含むワークスペース、またはリポジトリ内 — `git remote` で自動判別 | PR 上のコメント + `<data>/<repo>/` の memory |
 | `/open-pr:fix` | そのリポジトリ内 / それを含むワークスペース — ただし **リポジトリが PR のブランチ上にあること** | リポジトリの実コード + PR への返信 |
 | `/open-pr:upgrade` | どこでも — データディレクトリ内の全リポジトリ、または指定したもの | `<data>/<repo>/settings.json` |
-| `/open-pr:clean` | どこでも | 何も書かない — `<data>/*/worktrees/*` だけを削除 |
+| `/open-pr:clean` | どこでも | 何も書かない — すべてのデータディレクトリで `<data>/*/worktrees/*` だけを削除 |
+| `/open-pr:watch` | リポジトリ群を含むワークスペース、またはその 1 つの中 — `git remote` で一覧にする | `<data>/<repo>/settings.json` の `watch` ノード（初回実行時、またはチャットで設定を変えたとき）、`<data>/<repo>/watch/` 以下の状態とセッションのプロンプト（データディレクトリの git には含めない）、依頼を引き受けた各 PR への "taking a look" の返信 |
+| `/open-pr:menubar` | どこでも（macOS） | 自分では何も書かない。設定パネルでのクリックは、そのキー 1 つを `<data>/<repo>/settings.json` に書く |
 | `/open-pr:feedback` | どこでも | ローカルには何も書かない — 本文を承認したあと、プラグイン自身の tracker に issue を 1 件 |
 
 ## Setting
@@ -59,6 +75,7 @@ cd ~/workspace
 | `review.big_file_threshold_kb` | diff がこのサイズを超えるファイルは最初の読み取りから除外 | `20` |
 | `fix.decline_needs_confirmation` | 指摘を見送る前に確認する | `true` |
 | `fix.auto_push` | コミット後に自動で push する | `false` |
+| `watch.*` | `/open-pr:watch` が使う設定: 同時セッション数、ポーリング間隔、トリガー、どのトーストを出すか — [watch の設定](./watch.md#setting) を参照 | 初回の watch で質問 |
 
 ---
 

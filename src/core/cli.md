@@ -17,14 +17,14 @@ by the exit codes below.
 or writes there; exit 7 ⇒ `Read` `cases/data-dir.md` first.
 
 <!-- open-pr.sh --help, via scripts/cli_doc.py -->
-Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one; `--host H` where self-hostable.
+Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one (`account`: no `--pr`); `--host H` where self-hostable.
 
 | subcommand | does |
 |---|---|
 | `target <url>` | validate + parse → `vendor/owner/repo/pull_number/host` lines |
 | `context [--max-patch-bytes B] [--sections s,…]` | fetch in safe order (Head SHA before Diff, sizes before patch), print `## <label>` sections. Default `info,head,files,sizes,diff,commits,comments,ci`; also `reviews,account,threads`. `--max-patch-bytes` required with `diff` — omission happens inside the call, never post-hoc |
 | `locate-repo --owner O --repo R --host H` | `<repo_dir>` whose git remote matches |
-| `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…` |
+| `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per repo at a time: waits `--lock-timeout` s (120), then exit 1 |
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
 | `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |
 | `publish [--review-id I] [--payload F]` | make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview first) |
@@ -32,16 +32,16 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `reply --comment-id C --body-file F [--kind line\|top] [--thread-id T]` | reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the thread holding C |
 | `resolve --thread-id T` | resolve a review thread |
 | `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
-| `react --comment-id C --emoji E` | `NO-EQUIVALENT` on Bitbucket |
+| `react --comment-id C --emoji E [--kind line\|top]` | `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket |
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
-| `marker --kind finding\|reply` | the marker literal — end every finding/reply with it |
-| `data-dir [--set P]` | print `<data>`, absolute; `--set` records P (`~` and relative expanded, directory created) in the user-level config first. A config that is not a JSON object stops with exit 1 |
+| `marker --kind finding\|reply\|claim [--comment-id C]` | the marker literal — end every finding/reply with it; `claim` needs C |
+| `data-dir [--repo-dir D] \| --set P \| --add-root R --dir P \| --all` | absolute `<data>` for D (default cwd): the `data_dirs` entry with the nearest `root` at or above D, else the default `data_dir`. `--set` records P as the default, `--add-root` maps R and below to P; both take `~`/relative, create P, print it. `--all`: every distinct `<data>`, 1 per line. A config that is not a JSON object ⇒ exit 1 |
 | `find-memory [--repo R]` | memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`: `found=<path>` per `notebooks/review/R` |
-| `settings --repo <repo>` | `<data>/<repo>/settings.json` with read-time defaults applied + computed `doctor_due`. Read-only; missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there |
+| `settings --repo <repo> [--repo-dir D] [--set K --value V]` | `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`, `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: writes that one key first (menu bar, watch chat; keys in reference/settings-schema.md), exit 4 on a refused key or value |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 
-Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set.
+Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL or value · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set for that location · 9 = vendor rate limit (the watcher's poll).
 <!-- /open-pr.sh --help -->
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line

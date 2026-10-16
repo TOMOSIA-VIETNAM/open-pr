@@ -16,9 +16,23 @@
 ~/workspace/repo-backend/       ← 不受影响
 ```
 
-尚未设置数据目录时，第一条命令会询问路径。推荐的是仓库外面紧邻那一层目录里的 `notebooks/review/` —— 对 `~/workspace/repo-backend` 来说就是 `~/workspace/notebooks/review/` —— 也可以输入任意路径。仓库里已有的 `notebooks/review/` 会被 **复制** 过去（不含 worktree），原目录保持不动。之后，数据目录里还没有的仓库也会在你所在位置下面照样查找，找到的 `notebooks/review/<repo>/` 会提议导入。选择保存在 `~/.config/open-pr/config.json` 的 `data_dir` 里 —— 想换位置就编辑这个文件。
+尚未设置数据目录时，第一条命令会询问路径。推荐的是仓库外面紧邻那一层目录里的 `notebooks/review/` —— 对 `~/workspace/repo-backend` 来说就是 `~/workspace/notebooks/review/` —— 也可以输入任意路径。仓库里已有的 `notebooks/review/` 会被 **复制** 过去（不含 worktree），原目录保持不动。之后，数据目录里还没有的仓库也会在你所在位置下面照样查找，找到的 `notebooks/review/<repo>/` 会提议导入。选择保存在 `~/.config/open-pr/config.json` 里。
 
-你站在哪里不影响数据放在哪里。站在装着多个仓库的 workspace 里，仍然可以一次运行评审 **跨仓库** 的 PR（一个接一个，不是并行）：
+彼此独立的 workspace —— 比如两个客户 —— 可以把 memory 分开存放：第一条命令询问时，选 "this workspace"。你所在的文件夹成为一个根（root），它下面的每个仓库都使用那个数据目录；不在任何根下面的仓库使用 `data_dir`。
+
+```json
+{
+  "data_dir": "/Users/me/notebooks/review",
+  "data_dirs": [
+    {"root": "/Users/me/clients/acme", "dir": "/Users/me/clients/acme/notebooks/review"},
+    {"root": "/Users/me/clients/globex", "dir": "/Users/me/clients/globex/notebooks/review"}
+  ]
+}
+```
+
+仓库上方最深的那个根胜出。命令从你运行它的位置（仓库或装着它的 workspace）解析，`/open-pr:watch` 按它监视的每个仓库分别解析；`/open-pr:upgrade` 和 `/open-pr:clean` 会遍历所有数据目录。
+
+在同一个 workspace 里，你站在哪里不影响数据放在哪里。站在装着多个仓库的 workspace 里，仍然可以一次运行评审 **跨仓库** 的 PR（一个接一个，不是并行）：
 
 ```bash
 cd ~/workspace
@@ -34,7 +48,9 @@ cd ~/workspace
 | `/open-pr:review` | 装着该仓库的 workspace，或仓库里面 —— 靠 `git remote` 找到它 | PR 上的评论 + `<data>/<repo>/` 下的 memory |
 | `/open-pr:fix` | 在该仓库里 / 装着它的 workspace 里 —— 但 **仓库必须处在 PR 的分支上** | 仓库里的真实代码 + PR 上的回复 |
 | `/open-pr:upgrade` | 任意位置 —— 数据目录里的所有仓库，或你点名的那些 | `<data>/<repo>/settings.json` |
-| `/open-pr:clean` | 任意位置 | 什么都不写 —— 只删除 `<data>/*/worktrees/*` |
+| `/open-pr:clean` | 任意位置 | 什么都不写 —— 只删除 `<data>/*/worktrees/*`，涵盖每个数据目录 |
+| `/open-pr:watch` | 装着这些仓库的 workspace，或其中一个仓库里面 —— 靠 `git remote` 列出它们 | `<data>/<repo>/settings.json` 的 `watch` 节点（首次运行，或你在聊天中修改某项设置时）、`<data>/<repo>/watch/` 下的状态与会话提示词（不纳入数据目录的 git），以及在它接手请求的每个 PR 上的一条 "taking a look" 回复 |
+| `/open-pr:menubar` | 任意位置（macOS） | 自身什么都不写；在它的设置面板中点击一次，会把那一个键写入 `<data>/<repo>/settings.json` |
 | `/open-pr:feedback` | 任意位置 | 本地什么都不写 —— 在你批准文本之后，往插件自己的 tracker 发一条 issue |
 
 ## 设置
@@ -59,6 +75,7 @@ cd ~/workspace
 | `review.big_file_threshold_kb` | diff 大于这个值的文件不纳入第一次读取 | `20` |
 | `fix.decline_needs_confirmation` | 拒绝一条 finding 之前先询问 | `true` |
 | `fix.auto_push` | commit 之后自动 push | `false` |
+| `watch.*` | `/open-pr:watch` 使用的设置：同时会话数、轮询间隔、触发方式、接收哪些 toast —— 见 [watch 设置](./watch.md#设置) | 首次 watch 时询问 |
 
 ---
 

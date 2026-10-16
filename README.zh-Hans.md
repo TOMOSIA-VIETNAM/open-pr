@@ -9,7 +9,7 @@
   <strong>AI 代码评审，直接落在你的 PR 上。</strong><br>
   <strong>开源。自托管。</strong><br>
   <sub>支持 <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
-  <code>/open-pr:review</code> · <code>/open-pr:fix</code>
+  <code>/open-pr:review</code> · <code>/open-pr:fix</code> · <code>/open-pr:watch</code>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 AI 编码让 PR 变快了。但评审并没有变快。
 
-**`open-pr` 把第一轮评审跑在 PR 上，而不是你的本地。** 任何打开这个 PR 的人，看到的都是同一份反馈。
+**`open-pr` 把第一轮评审跑在 PR 上，而不是你的本地。** 任何打开这个 PR 的人，看到的都是同一份反馈。可以自己运行，也可以让一个 watcher 一直跑着：在 PR 上评论 `/open-pr` 就会请它评审，你自己的 PR 收到评审时会提供 "Fix now"。
 
 <p align="center">
   <a href="./docs/zh-Hans/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="总览、带 suggested change 的行级评论，以及 fix 推送后的回复"></a>
@@ -43,7 +43,8 @@ AI 编码让 PR 变快了。但评审并没有变快。
 
 一次运行会产出三个互相关联的部分：**总览**、**行级评论**（附带 suggested change），以及 `/open-pr:fix` 推送之后的 **回复**。 —— [查看演示](./docs/zh-Hans/demo.md)
 
-- **每次运行恰好 1 条评审** —— 只发一条，不是源源不断的 bot 评论
+- **每次请求 1 条评审** —— 只发一条，不是源源不断的 bot 评论；watcher 只会在请求下额外回复一条 "taking a look"，并在修复之后、经你同意时发一条再次评审的请求
+- **按请求评审** —— `/open-pr:watch` 会为每条 `/open-pr` 评论在你的机器上打开一个评审会话，你在自己的 PR 上点击 "Fix now" 时打开一个修复会话
 - **学习你的仓库** —— 读 README / CLAUDE.md / AGENTS.md / docs / wiki；**团队规范优先于通用规则**
 - **记住团队说过的话** —— 这次 PR 上的一句纠正，下次运行就会应用
 - **`/open-pr:fix` 有纪律** —— 恰好 **1** 个 commit，不 force-push，每个 thread 一条回复
@@ -96,8 +97,8 @@ PR URL 格式：GitHub `.../pull/<n>` · GitLab `.../-/merge_requests/<n>`（含
 
 > [!NOTE]
 > **评审轮次**（给团队的一个建议）：
-> 1. **第 1 轮** —— 开发者自己在 PR 上跑一次 AI 评审。还没有评审评论 → 评审者 **直接退回**，不去碰它。
-> 2. **第 2 轮** —— 评审者再跑一次（AI）。干净 → **LGTM**。
+> 1. **第 1 轮** —— 开发者自己在 PR 上跑一次 AI 评审，或在 PR 上评论 `/open-pr` 让 watcher 来跑。还没有评审评论 → 评审者 **直接退回**，不去碰它。
+> 2. **第 2 轮** —— 评审者再跑一次（AI），手动运行或评论 `/open-pr` 均可。干净 → **LGTM**。
 > 3. **第 3 轮** —— 评审者评审业务领域的部分。
 
 > [!IMPORTANT]
@@ -121,11 +122,11 @@ PR URL 格式：GitHub `.../pull/<n>` · GitLab `.../-/merge_requests/<n>`（含
 
 ```mermaid
 flowchart LR
-  A[新 PR] --> B["第 1 轮 · /open-pr:review"]
+  A[新 PR] --> B["第 1 轮 · /open-pr:review<br/>或 /open-pr 评论"]
   B --> C{远端有评审了吗?}
   C -- 还没有 --> D[评审者退回]
-  C -- 有 --> E[开发者修 / /open-pr:fix]
-  E --> F["第 2 轮 · 再评审一次"]
+  C -- 有 --> E["开发者修 / /open-pr:fix<br/>或 Fix now"]
+  E --> F["第 2 轮 · 再评审一次<br/>或 /open-pr 再次评审评论"]
   F --> G{干净了吗?}
   G -- 是 --> H[LGTM]
   G -- 还没有 --> E
@@ -142,6 +143,8 @@ flowchart LR
 | `/open-pr:fix <PR_URL>` | 读取 findings → 判断对错 → 修复 → **1** 个 commit → 回复。🔵 / 📝 一律先问过你 |
 | `/open-pr:upgrade` | 把本地配置升到当前 schema —— 先给出摘要再询问；你不同意就什么都不写 |
 | `/open-pr:clean` | 删除 `review` 检出的 worktree（会先询问）。memory / 设置不受影响 |
+| `/open-pr:watch [review\|fix]` | 收到 `/open-pr` 评论时评审该 PR，点击 "Fix now" 时修复你自己的 PR，在你的机器上每个 PR 一个会话。[详情](./docs/zh-Hans/watch.md) |
+| `/open-pr:menubar [close]` | macOS：在菜单栏显示进行中的评审与修复、"Fix now"、设置和暂停提醒；`close` 关闭它。[详情](./docs/zh-Hans/watch.md#菜单栏macos) |
 | `/open-pr:feedback` | 把 **本插件** 的问题报到它自己的 issue tracker —— 会剥掉一切能识别你仓库的信息，并在发出前先给你看 |
 
 > [!WARNING]

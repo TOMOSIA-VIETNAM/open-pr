@@ -16,9 +16,23 @@ Memory, settings and review worktrees for every repo sit in **one data directory
 ~/workspace/repo-backend/       ← untouched
 ```
 
-With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. Later, a repo missing from the data directory gets the same lookup under the directory you stand in, and its `notebooks/review/<repo>/` is offered for import. The choice is stored as `data_dir` in `~/.config/open-pr/config.json` — edit it to point elsewhere.
+With no data directory set, the first command asks for one. It recommends `notebooks/review/` in the directory just outside the repo — for `~/workspace/repo-backend`, that is `~/workspace/notebooks/review/` — or takes any path you type. An existing `notebooks/review/` inside the repo is **copied** there (worktrees excluded) and left in place. Later, a repo missing from the data directory gets the same lookup under the directory you stand in, and its `notebooks/review/<repo>/` is offered for import. The choice is stored in `~/.config/open-pr/config.json`.
 
-Where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):
+Separate workspaces — two clients, say — can keep their memory apart: when the first command asks, pick "this workspace". The folder you stand in becomes a root, and every repo below it uses that data directory; a repo under no root uses `data_dir`.
+
+```json
+{
+  "data_dir": "/Users/me/notebooks/review",
+  "data_dirs": [
+    {"root": "/Users/me/clients/acme", "dir": "/Users/me/clients/acme/notebooks/review"},
+    {"root": "/Users/me/clients/globex", "dir": "/Users/me/clients/globex/notebooks/review"}
+  ]
+}
+```
+
+The deepest root above a repo wins. Commands resolve it from where you run them (the repo or the workspace holding it), `/open-pr:watch` per watched repo; `/open-pr:upgrade` and `/open-pr:clean` walk every data directory.
+
+Within one workspace, where you stand does not change where data goes. A workspace holding several repos still lets you review **cross-repo** PRs in one run (one after another, not in parallel):
 
 ```bash
 cd ~/workspace
@@ -34,7 +48,9 @@ cd ~/workspace
 | `/open-pr:review` | workspace holding the repo, or inside the repo — finds it by `git remote` | comments on the PR + memory under `<data>/<repo>/` |
 | `/open-pr:fix` | in that repo / workspace holding it — but **the repo must be on the PR's branch** | real code in the repo + replies on the PR |
 | `/open-pr:upgrade` | anywhere — every repo in the data directory, or the ones you name | `<data>/<repo>/settings.json` |
-| `/open-pr:clean` | anywhere | writes nothing — only deletes `<data>/*/worktrees/*` |
+| `/open-pr:clean` | anywhere | writes nothing — only deletes `<data>/*/worktrees/*`, in every data directory |
+| `/open-pr:watch` | workspace holding the repos, or inside one — lists them by `git remote` | the `watch` node of `<data>/<repo>/settings.json` (first run, or a setting you change in chat), its state and session prompts under `<data>/<repo>/watch/` (kept out of the data directory's git), and a "taking a look" reply on each PR it takes a request from |
+| `/open-pr:menubar` | anywhere (macOS) | writes nothing itself; a click in its settings panel writes that one key into `<data>/<repo>/settings.json` |
 | `/open-pr:feedback` | anywhere | writes nothing locally — one issue on the plugin's own tracker, after you approve the text |
 
 ## Setting
@@ -59,6 +75,7 @@ Team rules go into `ALWAYS_RULE.md` as plain prose (empty by default). Everythin
 | `review.big_file_threshold_kb` | a diffed file larger than this is left out of the first read | `20` |
 | `fix.decline_needs_confirmation` | ask before declining a finding | `true` |
 | `fix.auto_push` | push automatically after committing | `false` |
+| `watch.*` | what `/open-pr:watch` uses: sessions at once, poll interval, trigger, which toasts — see [Watch settings](./watch.md#settings) | asked on the first watch |
 
 ---
 

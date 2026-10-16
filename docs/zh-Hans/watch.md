@@ -1,0 +1,216 @@
+# 监视仓库：按请求评审，修复你自己的 PR
+
+[← README](../../README.zh-Hans.md)
+
+`/open-pr:watch` 会把你运行它的终端变成一个或多个仓库的 watcher，同时承担两个角色：
+
+- **review** —— 开发者在 pull request 上评论来请求评审；你的机器会为该 pull request 打开一个单独的评审会话。
+- **fix** —— 你自己的 pull request 收到新的评审时，toast 会列出发现的问题并附带 "Fix now"；点一下就为该
+  pull request 打开一个单独的修复会话。
+
+需要你处理时它会通知你。`/open-pr:watch review` 或 `/open-pr:watch fix` 只保留一个角色。
+
+## 首次运行之前
+
+1. 在每个仓库里运行一次 `/open-pr:review <any PR URL>`。评审 memory 尚未建立的仓库会被 watcher 拒绝，
+   以免多个会话同时去建立它。
+2. 在仓库内，或在包含多个仓库的工作区目录中运行 `/open-pr:watch`。它会列出找到的所有仓库和远程
+   （每个托管平台各有一个远程的克隆按远程分别列出），询问要监视哪些，并推荐已建立评审 memory 的仓库。
+   `/open-pr:watch owner/api owner/web`（或 PR URL）可直接指定；PR URL 还会把 fix 角色限定在这些 pull request 上。
+3. 在某个仓库首次运行时，会询问最多允许多少个评审会话同时活跃、用什么来请求评审（`/open-pr` 或提及你）
+   以及你想接收哪些 toast，并把回答保存在该仓库的 `settings.json` 里。
+4. 评审会话在你运行 watcher 的文件夹中启动，就像你在那里输入 `/open-pr:review` 一样 —— 相同的数据目录，
+   相同的信任。在 Claude Code 上，该文件夹必须是 trusted workspace；watcher 启动时会检查，如果不是，会让
+   你在那里打开一次 `claude` 并接受信任提示。
+
+每个被监视的仓库保留自己的设置，包括会话上限（评审和修复会话共用）。同一台机器上每个仓库每个角色最多只有一个
+watcher：评审 watcher 和修复 watcher（一个标签页运行 `/open-pr:watch review`，另一个运行 `/open-pr:watch fix`）
+可以并行，各自只处理自己的角色。为已被占用的角色再启动一个时，它会说明哪个进程已在监视，然后不再处理该仓库。
+
+当主机持续无法连接（无网络、登录过期）时，watcher 会告诉你。
+
+## 请求评审
+
+在 pull request 上评论：
+
+```
+/open-pr
+/open-pr please look closely at the migration
+```
+
+`/open-pr` 后面的文字是关于该看哪里的提示，或者是一个提问（`/open-pr 这个锁为什么需要？`），提问会在该评论的
+讨论串中回答，而不是评审。
+
+使用“提及我”触发方式时，改由以 `@<your login>` 开头的评论请求评审，这样 pull request 上不会出现工具命令。
+只有当评论确实是请你评审这个 pull request 时，watcher 才会接手：`@minh 帮忙评审一下` 算数，`@minh 谢谢`
+不算。提及只用于请求评审：以这种方式向你提出的问题只会通过 toast 通知你，watcher 不会回答。
+
+触发词后面的文字被当作数据处理：无法改变评审的方式、发布的内容，也无法改变任何设置。
+
+只有具备 write 权限的人的评论才会触发评审：
+
+| 托管平台 | 谁能触发 |
+|---|---|
+| GitHub | 在仓库上拥有 admin、maintain 或 write 角色 |
+| GitLab | Developer 及以上 |
+| Bitbucket | 任何能评论的人 —— 非管理员无法读取其他用户的权限，如果这很重要，请限制谁可以评论 |
+
+插件发布的评论不会触发；你自己的评论会触发，因此一个人可以同时是开发者和评审者。
+
+## 接下来会发生什么
+
+- watcher 会回复该评论（在其讨论串中；GitHub 的普通评论没有讨论串，因此回复会引用原评论并附上链接）—— "taking a look (commit abc1234)"，使用请求所用的语言 —— 写明它接手的提交。当多台
+  机器监视同一个仓库时，这条回复就是锁：第一条回复获胜，发现已有回复的机器会退出，在势均力敌的竞争中落败
+  的机器会删除自己的回复。
+- 一个名为 `review <owner>/<repo>#<number>` 的会话运行常规评审。达到会话上限时，pull request 在队列里等待。
+- 在已有会话的 pull request 上发出新请求：要求复查之前的发现时 resume 该会话，要求从头评审时打开新会话
+  （pull request 已有进展后，旧的上下文可能造成误导）。意图不明确时，watcher 会询问你。
+- 评审是发布还是留作草稿，由 `auto_submit_review` 决定，除非你另行告诉 watcher。没有你，草稿永远不会被
+  发布。
+- 会话一旦报告了结果，就归你了：在该 pull request 的下一次请求之前，watcher 不会再就它说任何话，也永远
+  不会读取你在那里写的内容。
+- 报告结果后闲置 10 分钟的 Claude Code 评审会话会被停止以释放内存；对话会保留，`claude attach <id>` 和之后的
+  再次评审仍然可用。watcher 从不触碰不是它打开的会话。
+- 已合并或已关闭的 pull request 会在 10 分钟内离开菜单栏，其会话在闲置时被停止（对话会保留）。
+
+## 修复你自己的 pull request
+
+fix 角色监视你创建的 pull request（作者 = watcher 运行所用的账号），或只监视你指定的那些。你自己请求评审
+自己的 pull request 时，它也会加入 —— 在自己的 pull request 上评论 `/open-pr`，发现的问题就会回到你这里。
+
+1. 本插件的一份新评审带着尚无人回复的发现：toast 显示 "#12: 2 🟠 SHOULD FIX, 4 🔵 SUGGESTION" 和
+   **Fix now**；菜单栏对应的行也提供同样的操作。
+2. 点击 **Fix now**（或对 watcher 说 `fix #12`）。一个名为 `fix <owner>/<repo>#12` 的会话在该 pull request
+   分支专属的 worktree 中运行 `/open-pr:fix` —— 绝不碰你正在工作的目录。🔵 和 📝 仍会先问你；`auto_push`
+   关闭时，推送前会先询问。
+3. 完成后，watcher 用 toast 报告结果，并询问是否请求再次评审。只有在你同意后，它才会在 pull request 上用触发词
+   回复（`/open-pr re-review`，仓库使用提及时则提及评审者）—— 它从不自行请求。该请求发在最初评审请求的
+   讨论串里，请求、认领回复与再次评审因此集中在一处；GitHub 的对话评论没有讨论串，那里会是一条新评论。
+
+分支与 watcher 运行处当前检出的分支相同的 pull request（也就是你正在开发的那个会话）会**在该会话中**就地修复：
+
+- 有新发现（或点 **Fix now**）时，watcher 会问 "Fix #12 here now?" —— 在这里、在后台，或稍后。
+- 工作区有未提交的改动时，它先问你是提交这些改动、在单独的 worktree 中后台修复，还是取消，因此修复提交不会
+  混入未完成的工作。
+- 它在菜单栏的行显示 "Fixing here"，"Open session" 会把 watcher 的标签页调到前面。
+- 之后同样会询问是否请求再次评审，与后台修复相同。
+
+watcher 启动时会说明哪些 pull request 在这里修复、哪些在后台修复；说 `fix #12 in the background` 或
+`fix #12 here` 即可切换。
+
+没有你的点击，什么都不会被修复。`remove #12`（或该行的 "Remove from list"）会把 pull request 移出两个角色。
+
+## 打开会话
+
+屏幕右上角的 toast 会告诉你正在发生什么 —— "Reviewing PR #12"、"Posted review on PR #12 — 1 🔴 2 🟠"、
+"LGTM on PR #12"、一份等待中的草稿、一个需要回答的会话。需要你处理时，toast 会显示打开会话的命令。点击它会跳到
+需要处理的地方：
+
+- 会话的提问会在你的终端中打开该会话；
+- watcher 自己的提问或错误会把 watcher 的标签页调到前台；
+- 其他情况打开 pull request。
+
+鼠标悬停时 toast 保持显示，并出现关闭按钮和 "1h"（关闭 toast 一小时）。在 macOS 上 watcher 自己绘制 toast
+（不需要通知权限）；在 Linux 上它使用 `notify-send`。
+
+每行聊天消息都附带打开会话的命令：
+
+| 平台 | 会话类型 | 打开方式 |
+|---|---|---|
+| Claude Code | interactive，在后台运行 | `claude attach <id>` |
+| Codex | non-interactive | `codex resume <id>` |
+| Gemini CLI | non-interactive | `gemini -r <id>` |
+| Cursor | non-interactive | `agent --resume <id>` |
+| Antigravity | non-interactive | `agy --conversation <id>` |
+
+在 Claude Code 上，需要回答（或需要授权）的会话会一直等到你 attach 进去。在其他平台上，会话带着问题停下；
+watcher 问你，然后用你的回答 resume 该会话。
+
+watcher 在 shell sandbox 之外运行：在 sandbox 里，轮询连不到主机，Claude Code 的后台会话会卡在启动阶段。
+non-interactive 会话使用你为该平台配置的权限设置；watcher 不授予任何权限。
+
+## 菜单栏（macOS）
+
+watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整台机器只有一个，涵盖所有 watcher；它一直保留到
+`/open-pr:menubar close`（或菜单中的 Quit），`/open-pr:menubar` 可让它重新出现。
+
+标题只占一行：`open-pr`，暂停提醒期间显示带斜线的铃铛和 `until 23:30`，然后是主机剩余的配额（见速率限制）和
+各仓库的轮询间隔（`every 3m`；各仓库设置不同时为 `every 1–5m`）；名称旁放不下时这些内容移到名称下方一行。
+其下每个被监视的仓库一组，按名称排序——从多个文件夹或多台机器监视的仓库仍是一组：
+
+- **仓库行** —— 仓库名；watcher 运行在非该仓库本身的工作区文件夹时，文件夹名显示在悬停提示中。右侧的**齿轮按钮**
+  在该行下方展开这个仓库的设置面板（见下）。
+- **watcher 行** —— 该仓库的每个 watcher 一行：`Review`、`Fix`，同时服务两个角色的 watcher 为 `Review + fix`，
+  附终端和最近一次轮询（错过两次轮询后显示橙色的 `no poll for …`）。终端图标评审为蓝色、修复为橙色。
+  - 点击该行把该 watcher 的 terminal 标签页调到前台。iTerm 和 Terminal 在 macOS 请求一次 Automation 权限后
+    会选中确切的标签页；其他 terminal 则把应用调到前台。标签页已关闭的 watcher 会用 `claude attach` 重新打开。
+  - **Stop** 停止该 watcher 在此仓库上的监视；它的其他仓库和另一角色的 watcher 继续运行。
+- **pull request 行** —— 在每个 watcher 行下方缩进一级：`#12 <标题>`（轮询读到标题之前只显示编号），下方一行
+  是状态及时间，过长时以 "…" 截断；没有行时显示 "No pull requests yet"。
+  - 就地更新的状态：评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、在此修复中、已修复、失败。
+  - 有新发现的行上显示 **Fix now**。
+  - 打开 pull request；在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的
+    新标签页；其他 terminal 则打开 Terminal）；复制打开命令。
+  - **Remove from list** 会隐藏该 pull request 并把它移出 fix 角色。已合并或已关闭的 pull request 会在 10 分钟内
+    自动离开列表；该 pull request 上的新请求会让这一行重新出现。
+- **设置面板** —— 同一时间只展开一个仓库的。再次点击齿轮或点击外部即关闭。
+  - 同时会话数（1、2、3、5、8、10）；轮询间隔 1、2、3、5 或 10 分钟，附当前间隔每小时的请求数，以及
+    **Apply to all**，把该间隔设到菜单栏显示的所有仓库；触发词（`/open-pr` 或 `@me`）；每个事件一个 toast 复选框。
+  - 评审选项：不经草稿直接发布、无发现时发布 LGTM、自动 resolve 已修复的发现、CI 失败时警告、doctor 间隔
+    1 周、2 周、1 个月、3 个月或从不 —— 并显示 doctor 上次和下次运行（`Doctor: Sep 20, 2026 · next in 11 days`、
+    `· due now`、`· not scheduled` 或 `Doctor: never run`）。
+  - 点击只会把那一个键写入 `settings.json`（见设置），面板保持打开并显示重新读取的值。在聊天中设置、面板中
+    没有的值会显示为一个额外的选项，已选中并变灰。
+  - **Show settings file** 关闭菜单并在 Finder 中选中该仓库的 `settings.json`。
+- **暂停提醒** —— 30 分钟、1 小时、直到明天 9:00，或重新开启 toast。
+
+在 Windows 和 Linux 上，请在聊天中向 watcher 请求（`status`、`snooze 1h`）。
+
+## 与 watcher 对话
+
+| 说 | 效果 |
+|---|---|
+| `status` | 每个会话一行（pull request、角色、状态），含打开命令 |
+| `fix #12` | 打开修复会话，与 **Fix now** 相同 |
+| `fix #12 here` / `fix #12 in the background` | 此后在 watcher 的会话中 / 在它自己的后台会话中修复 #12 |
+| `remove #12` / `unwatch #12` | 把 pull request 移出菜单栏和 fix 角色 |
+| `snooze 2h` / `resume toasts` | 在此之前本机不显示 toast —— 与 toast 的 "1h" 和菜单栏的暂停提醒是同一个开关；队列照常运行 |
+| 某项设置的修改 | 保存到 `settings.json` |
+| PR 12 开一个新会话 | 该 PR 的下一次触发会打开新会话 |
+| `stop` | 停止监视；已打开的会话继续运行 |
+
+## 速率限制
+
+一次轮询同时服务两个角色。开销如下：
+
+- **GitHub** —— 三次条件请求：没有任何变化时主机返回 `304 Not Modified`，不计入限额。fix 角色会为自上次
+  轮询以来有更新的你自己的每个 pull request 多调用一次。
+- **GitLab 和 Bitbucket** —— 一次调用，外加自上次轮询以来每个有更新的 pull request 一次，发现的问题也包含在内。
+- **新的触发评论** —— 在 GitHub 和 GitLab 上，每位不同的作者多一次权限查询（GitHub 上同样是条件请求）。
+
+没有活跃会话且 10 分钟内没有新内容时，watcher 每 10 分钟轮询一次（绝不比设置更快）。当托管平台报告限速时，
+watcher 会把轮询间隔加倍（最多 15 分钟），并在下一次轮询成功后恢复为 `poll_interval_seconds`。
+
+菜单栏标题显示所监视主机中剩余最少的配额，读取自轮询自身请求的限速响应头（不额外发请求）——例如
+`GitHub API 4,812/5,000`，剩余不足 30 % 时为橙色，不足 10 % 时为红色。设置面板的轮询控件下方显示
+按各仓库最近一次轮询估算的当前间隔每小时请求数（每个选项的提示显示它自己的），超过主机每小时上限的一半时加 ⚠
+（GitLab 的每分钟上限换算为每小时）。Bitbucket 可能只告知接近上限；不发送限速响应头的主机不显示该指示。
+
+## 设置
+
+保存在 `<data>/<repo>/settings.json` 的 `watch` 下。菜单栏的设置面板可以修改它们（以及其中列出的
+评审选项）；修改从 watcher 的下一次轮询和下一个评审会话起生效，已在运行的会话保留它读到的值。手动输入的
+触发登录名（`@alice`）、数值阈值以及 doctor 检测到的内容仍在聊天中修改。
+
+| 字段 | 默认值 | 含义 |
+|---|---|---|
+| `max_concurrent` | `5` | 同时活跃的会话数，评审与修复合计（运行中或等待回答） |
+| `poll_interval_seconds` | `180` | 多久检查一次 pull request |
+| `notify.review_started` | `true` | toast：打开了一个评审会话 |
+| `notify.question` | `true` | toast：某个会话或 watcher 需要回答 |
+| `notify.draft_ready` | `true` | toast：一份草稿评审等待你批准 |
+| `notify.posted` | `true` | toast：一份评审已发布，或 LGTM |
+| `notify.re_review` | `true` | toast：已有会话被 resume 以重新评审 |
+| `notify.findings` | `true` | toast：fix 角色的 pull request 收到新评审，附带 "Fix now" |
+| `notify.error` | `true` | toast：出现失败（claim、会话、轮询）—— 回到 watcher 的终端查看 |
+| `trigger` | `/open-pr` | 用什么来请求评审：`/open-pr`，或 `@me` 表示提及 watcher 运行所用的账号 |

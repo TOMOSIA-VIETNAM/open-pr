@@ -9,7 +9,7 @@
   <strong>AI code review that lands directly on your PR.</strong><br>
   <strong>Open source. Self-hosted.</strong><br>
   <sub>Works with <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
-  <code>/open-pr:review</code> · <code>/open-pr:fix</code>
+  <code>/open-pr:review</code> · <code>/open-pr:fix</code> · <code>/open-pr:watch</code>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 AI coding made PRs faster. But review didn't get faster.
 
-**`open-pr` runs that first review round for you — on the PR, not on your laptop.** Anyone who opens the PR sees the same feedback.
+**`open-pr` runs that first review round for you — on the PR, not on your laptop.** Anyone who opens the PR sees the same feedback. Run it yourself, or leave a watcher running: a `/open-pr` comment on the PR asks it for a review, and a review landing on your own PR offers "Fix now".
 
 <p align="center">
   <a href="./docs/demo.md"><img src="./docs/images/review-demo-en.png" width="680" alt="Overview, line comment with a suggested change, and the reply after the fix was pushed"></a>
@@ -43,7 +43,8 @@ AI coding made PRs faster. But review didn't get faster.
 
 One run produces three parts that belong together: an **overview**, **line comments** (with suggested changes), and a **reply** after `/open-pr:fix` has pushed. — [See the demo](./docs/demo.md)
 
-- **Exactly 1 review per run** — one review posted, not a stream of bot comments
+- **1 review per request** — one review posted, not a stream of bot comments; a watcher adds only a "taking a look" reply to the request, and a re-review request after a fix once you say yes
+- **Review on request** — `/open-pr:watch` opens a review session on your machine for each `/open-pr` comment, and a fix session when you click "Fix now" on your own PR
 - **Learns your repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rules beat generic rules
 - **Remembers what the team said** — a correction on one PR carries into the next run
 - **`/open-pr:fix` is disciplined** — exactly **1** commit, no force-push, a reply on every thread
@@ -96,8 +97,8 @@ A local review is hard to trust. Anyone can say *"I already reviewed it"*. So `o
 
 > [!NOTE]
 > **Review rounds** (a suggestion for the team):
-> 1. **Round 1** — Dev runs AI review on the PR themselves. No review comments yet → reviewer **sends it back**, without touching it.
-> 2. **Round 2** — Reviewer runs it again (AI). Clean → **LGTM**.
+> 1. **Round 1** — Dev runs AI review on the PR themselves, or comments `/open-pr` on it for a watcher to run. No review comments yet → reviewer **sends it back**, without touching it.
+> 2. **Round 2** — Reviewer runs it again (AI), by hand or with a `/open-pr` comment. Clean → **LGTM**.
 > 3. **Round 3** — Reviewer reviews the domain part.
 
 > [!IMPORTANT]
@@ -121,11 +122,11 @@ Many review skills are just a `SKILL.md` description. Each run comes out differe
 
 ```mermaid
 flowchart LR
-  A[New PR] --> B["Round 1 · /open-pr:review"]
+  A[New PR] --> B["Round 1 · /open-pr:review<br/>or a /open-pr comment"]
   B --> C{Review on remote?}
   C -- not yet --> D[Reviewer sends it back]
-  C -- yes --> E[Dev fix / /open-pr:fix]
-  E --> F["Round 2 · review again"]
+  C -- yes --> E["Dev fix / /open-pr:fix<br/>or Fix now"]
+  E --> F["Round 2 · review again<br/>or a /open-pr re-review comment"]
   F --> G{Clean?}
   G -- yes --> H[LGTM]
   G -- not yet --> E
@@ -142,6 +143,8 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:fix <PR_URL>` | Reads findings → weighs right/wrong → fixes → **1** commit → replies. 🔵 / 📝 always ask first |
 | `/open-pr:upgrade` | Brings local config up to the current schema — summarises, then asks; nothing written until you agree |
 | `/open-pr:clean` | Removes worktrees that `review` checked out (asks first). Memory / settings untouched |
+| `/open-pr:watch [review\|fix]` | Reviews a PR on a `/open-pr` comment and fixes your own PRs on "Fix now", one session per PR on your machine. [Details](./docs/watch.md) |
+| `/open-pr:menubar [close]` | macOS: the reviews and fixes in progress, "Fix now", settings and snooze in the menu bar; `close` removes it. [Details](./docs/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |
 
 > [!WARNING]

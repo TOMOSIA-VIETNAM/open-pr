@@ -9,7 +9,7 @@
   <strong>AI review code đăng thẳng lên PR của bạn.</strong><br>
   <strong>Open source. Self-hosted.</strong><br>
   <sub>Hoạt động với <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/images/icon/github-dark.png"><img src="./docs/images/icon/github.png" alt="" height="13"></picture>&nbsp;GitHub · <img src="./docs/images/icon/gitlab.png" alt="" height="13">&nbsp;GitLab · <img src="./docs/images/icon/bitbucket.png" alt="" height="13">&nbsp;Bitbucket</sub><br>
-  <code>/open-pr:review</code> · <code>/open-pr:fix</code>
+  <code>/open-pr:review</code> · <code>/open-pr:fix</code> · <code>/open-pr:watch</code>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 AI coding làm PR ra nhanh hơn. Nhưng review thì không nhanh hơn.
 
-**`open-pr` chạy vòng review đầu tiên đó cho bạn — trên chính PR, không phải trên máy bạn.** Ai mở PR cũng thấy cùng một feedback.
+**`open-pr` chạy vòng review đầu tiên đó cho bạn — trên chính PR, không phải trên máy bạn.** Ai mở PR cũng thấy cùng một feedback. Tự chạy, hoặc để một watcher chạy sẵn: comment `/open-pr` trên PR là nhờ nó review, còn review mới trên PR của chính bạn sẽ kèm "Fix now".
 
 <p align="center">
   <a href="./docs/vi-VN/demo.md"><img src="./docs/images/review-demo-vi.png" width="680" alt="Overview, line comment kèm suggested change, và reply sau khi fix đã push"></a>
@@ -43,7 +43,8 @@ AI coding làm PR ra nhanh hơn. Nhưng review thì không nhanh hơn.
 
 Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push. — [Xem demo](./docs/vi-VN/demo.md)
 
-- **Đúng 1 review mỗi lần chạy** — một review được đăng, không phải một dòng comment bot
+- **1 review cho mỗi yêu cầu** — một review được đăng, không phải một dòng comment bot; watcher chỉ thêm một reply "taking a look" vào lời yêu cầu, và một yêu cầu re-review sau khi fix khi bạn đồng ý
+- **Review khi được yêu cầu** — `/open-pr:watch` mở một session review trên máy bạn cho mỗi comment `/open-pr`, và một session fix khi bạn click "Fix now" trên PR của chính bạn
 - **Học convention của repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rule thắng generic rule
 - **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau
 - **`/open-pr:fix` có kỷ luật** — đúng **1** commit, không force-push, reply từng thread
@@ -96,8 +97,8 @@ Nếu review ở local thì khó tin. Ai cũng có thể nói *"tôi review rồ
 
 > [!NOTE]
 > **Review rounds** (gợi ý cho team):
-> 1. **Round 1** — Dev tự chạy AI review trên PR. Chưa thấy comment review → reviewer **trả về**, chưa đụng vào.
-> 2. **Round 2** — Reviewer chạy lại (AI). Sạch → **LGTM**.
+> 1. **Round 1** — Dev tự chạy AI review trên PR, hoặc comment `/open-pr` lên PR để watcher chạy. Chưa thấy comment review → reviewer **trả về**, chưa đụng vào.
+> 2. **Round 2** — Reviewer chạy lại (AI), bằng tay hoặc bằng một comment `/open-pr`. Sạch → **LGTM**.
 > 3. **Round 3** — Reviewer review phần domain.
 
 > [!IMPORTANT]
@@ -121,11 +122,11 @@ Nhiều skill review chỉ là một file `SKILL.md` mô tả. Mỗi lần chạ
 
 ```mermaid
 flowchart LR
-  A[New PR] --> B["Round 1 · /open-pr:review"]
+  A[New PR] --> B["Round 1 · /open-pr:review<br/>hoặc một comment /open-pr"]
   B --> C{Review trên remote?}
   C -- chưa --> D[Reviewer trả về]
-  C -- rồi --> E[Dev fix / /open-pr:fix]
-  E --> F["Round 2 · review lại"]
+  C -- rồi --> E["Dev fix / /open-pr:fix<br/>hoặc Fix now"]
+  E --> F["Round 2 · review lại<br/>hoặc một comment /open-pr re-review"]
   F --> G{Clean?}
   G -- có --> H[LGTM]
   G -- chưa --> E
@@ -142,6 +143,8 @@ Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fi
 | `/open-pr:fix <PR_URL>` | Đọc finding → cân đúng/sai → fix → **1** commit → reply. 🔵 / 📝 luôn ask trước |
 | `/open-pr:upgrade` | Nâng local config lên schema hiện tại — summarize rồi hỏi; chưa đồng ý thì không ghi gì |
 | `/open-pr:clean` | Xóa worktree mà `review` đã checkout (ask trước). Memory / settings không bị đụng |
+| `/open-pr:watch [review\|fix]` | Review một PR khi có comment `/open-pr` và fix PR của chính bạn khi bấm "Fix now", mỗi PR một session trên máy bạn. [Chi tiết](./docs/vi-VN/watch.md) |
+| `/open-pr:menubar [close]` | macOS: review và fix đang chạy, "Fix now", setting và snooze trên menu bar; `close` để tắt. [Chi tiết](./docs/vi-VN/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Báo vấn đề của **chính plugin này** lên issue tracker của nó — đã gỡ hết thứ nhận diện repo của bạn, và cho bạn xem trước khi gửi |
 
 > [!WARNING]

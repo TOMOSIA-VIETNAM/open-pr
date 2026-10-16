@@ -4,7 +4,7 @@ How an agent works in this repo. Orientation + durable invariants — not a ritu
 
 ## Plugin
 
-Claude Code plugin `open-pr`. Markdown + one JSON config + ONE POSIX-sh runtime (`src/bin/open-pr.sh`) that owns every vendor/git mechanic. No build. Only `src/` ships (`/plugin install` copies `src/`).
+Claude Code plugin `open-pr`. Markdown + one JSON config + ONE POSIX-sh runtime (`src/bin/open-pr.sh`) that owns every vendor/git mechanic, plus `src/bin/open-pr-watch.sh`, which owns watch state and each platform's session CLI and reaches vendors only through `open-pr.sh`. No build. Only `src/` ships (`/plugin install` copies `src/`).
 
 | command | does |
 |---|---|
@@ -12,6 +12,8 @@ Claude Code plugin `open-pr`. Markdown + one JSON config + ONE POSIX-sh runtime 
 | `/open-pr:fix <PR_URL>` | read findings, edit real code at pwd, one commit, reply on the PR |
 | `/open-pr:upgrade` | migrate this repo's config to latest `schema_version`; fetches `llm-upgrades/` live |
 | `/open-pr:clean` | remove review worktrees after confirm. Never touches memory or config |
+| `/open-pr:watch [review\|fix]` | watch the repos picked under pwd: 1 review session per `/open-pr` PR comment, 1 fix session per own PR's new findings on "Fix now" (`claude --bg` or a platform's headless CLI); relay questions/drafts |
+| `/open-pr:menubar [close]` | macOS menu bar item for every watcher on this machine: reviews and fixes in progress, "Fix now", recent toasts, snooze |
 | `/open-pr:feedback` | turn this chat into one issue on this plugin's tracker (user-approved, de-identified) |
 
 Vendors: GitHub, GitLab, Bitbucket.
@@ -19,7 +21,7 @@ Vendors: GitHub, GitLab, Bitbucket.
 ## Layout
 
 ```
-src/bin/          open-pr.sh — the deterministic runtime; code, never `Read` into context
+src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar; code, never `Read` into context
 src/commands/     entry points; only these have frontmatter
 src/core/         shared procedure
 src/setup/        bootstrap, doctor, template, lesson
@@ -28,7 +30,7 @@ src/templates/    per-stack criteria, copied into the reviewed repo
 src/reference/    schema + vendor contract — do not Read at run time
 src/seeds/        copied verbatim into the reviewed repo — never Read back
 llm-upgrades/     config migrations, fetched live, not packaged
-adapters/         ROOT + tool-name map; sole file that names a non-Claude platform
+adapters/         ROOT + tool-name map; the only agent-read file naming a non-Claude platform (open-pr-watch.sh, install*.sh, commands/*.toml name them too)
 skills/           one shim per command (Cursor · Codex · Gemini · Antigravity)
 commands/*.toml   Gemini CLI entry format
 install.sh        non-Claude install: clone → install-local.sh
@@ -85,7 +87,7 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | refresh ceilings (none hand-tightened) | `token_report.py --base <ref> --update-budgets` |
 | harder dup hunt | `dup_scan.py --window 10 --all --min-waste 20` |
 | vendor flags offline | `vendor_lint.py` |
-| a subcommand, option or exit code changed | edit `usage()` in `src/bin/open-pr.sh` (`--help` is the source), then `cli_doc.py --write` regenerates `core/cli.md`'s block |
+| a subcommand, option or exit code changed | edit `usage()` in `src/bin/open-pr.sh` (`--help` is the source), then `cli_doc.py --write` regenerates `core/cli.md`'s block and `commands/watch.md`'s (`Watch subcommands:`); `Internal subcommands:` render nowhere |
 | vendor commands live | `vendor_lint.py --url <fixture PR URL>` |
 | the CI suite on a branch with no open PR | `gh workflow run ci.yml --ref <branch>` |
 

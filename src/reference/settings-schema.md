@@ -1,8 +1,10 @@
 # `settings.json` schema
 
 One file per reviewed repo: `<data>/<repo>/settings.json`, 1 node per feature — `<data>` being the
-directory `open-pr.sh data-dir` prints, recorded as `data_dir` in the user-level
-`${XDG_CONFIG_HOME:-~/.config}/open-pr/config.json`. Reference
+directory `open-pr.sh data-dir` prints for that repo, recorded in the user-level
+`${XDG_CONFIG_HOME:-~/.config}/open-pr/config.json`: `data_dirs`, an array of
+`{"root": <abs dir>, "dir": <abs data dir>}` where the longest `root` at or above the repo wins,
+else the default `data_dir` — so separate workspaces keep separate memory. Reference
 for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the file by hand.
 `review.md`/`fix.md` never `Read` this file — their run-time view is `core/repo-settings.md`.
 
@@ -35,6 +37,20 @@ for `/open-pr:upgrade`, for `llm-upgrades/*.md`, and for a human editing the fil
   "fix": {
     "decline_needs_confirmation": true,
     "auto_push": false
+  },
+  "watch": {
+    "max_concurrent": 5,
+    "poll_interval_seconds": 180,
+    "trigger": "/open-pr",
+    "notify": {
+      "review_started": true,
+      "question": true,
+      "draft_ready": true,
+      "posted": true,
+      "re_review": true,
+      "findings": true,
+      "error": true
+    }
   }
 }
 ```
@@ -56,6 +72,7 @@ every run, so a repo whose doctor has never run still detects a bump.
 |---|---|---|---|
 | User config | `.review` | `auto_submit_review`, `auto_resolve_fixed_findings`, `post_lgtm`, `doctor_schedule`, `review_ci_status`, `many_files_threshold`, `big_file_threshold_kb` | read-time default only; the file is upgraded by `/open-pr:upgrade` alone |
 | User config | `.fix` | `decline_needs_confirmation`, `auto_push` | same, owned by `fix.md` |
+| User config | `.watch` | `max_concurrent`, `poll_interval_seconds`, `trigger`, `notify` | read-time default; `/open-pr:watch` writes the whole node on its first run in a repo (asked, then stored), never `/open-pr:upgrade` — no `schema_version` bump |
 | User config | `.shared` | `git_remote_type`, `output_language` | reconciled per run against the PR URL's own shape (`core/pr-target.md` §2), so a stale value is caught rather than trusted |
 | Doctor-detected | `.review` | `project_docs_found`, `templates_copied`, `pr_template_paths` | heals itself on the next doctor run; `/open-pr:upgrade` never touches these |
 | Detected-once | `.shared` | `chat_language` | detected on demand by whichever command runs first; no fixed default |
@@ -66,8 +83,23 @@ table, so that every token in a cell can be checked against the JSON above:
 
 - `git_remote_type` picks the vendor branch inside `src/bin/open-pr.sh`, so its valid values are
   exactly what `target` can print: `github`, `gitlab`, `bitbucket`.
+- `trigger` is the first word a PR comment must start with to call a watcher: `"/open-pr"`
+  (default), `"@me"` (a mention of the account the watcher is logged in as), or any `/word` or
+  `@login` that `<op> triggers --token` accepts.
 - `output_language` is the language both commands POST in. The language they TALK in is
   `chat_language`, a separate field with its own group.
+
+## What the menu bar writes
+
+The menu bar's settings panel changes these keys, and only these, through `<op> settings --set K
+--value V` (the sole writer outside a chat): `watch.max_concurrent`, `watch.poll_interval_seconds`
+(positive integers), `watch.trigger` (a `trigger` value as above), `watch.notify.<event>`,
+`review.auto_submit_review`, `review.post_lgtm`, `review.auto_resolve_fixed_findings`,
+`review.review_ci_status` (`true`/`false`), `review.doctor_schedule` (`"{N} days|weeks|months"` or
+`"never"`). Any other key, or a value outside these, is refused and the file left as it was; a write
+is a temp file renamed into place under `<data>/<repo>/watch/.lock`, the watcher's state lock. It
+never creates the file. Doctor-detected and internal fields, `schema_version` and the numeric
+thresholds stay chat or `/open-pr:upgrade` changes.
 
 **Adding a field:** classify it in the table above, and — if it is User config — give it a read-time
 default in `<op> settings` (`src/bin/open-pr.sh`), the SOLE place a default is applied. Skipping that
