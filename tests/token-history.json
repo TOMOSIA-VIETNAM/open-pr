@@ -166,6 +166,17 @@
       "upgrade": 2239,
       "clean": 1367,
       "feedback": 2188
+    },
+    {
+      "tag": "v2.1.0",
+      "date": "2026-10-16",
+      "review": 9583,
+      "fix": 8219,
+      "upgrade": 2238,
+      "clean": 1361,
+      "feedback": 2188,
+      "watch": 5952,
+      "menubar": 250
     }
   ]
 }
