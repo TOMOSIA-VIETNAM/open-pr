@@ -111,7 +111,8 @@ watcher 启动时会说明哪些 pull request 在这里修复、哪些在后台�
 - 其他情况打开 pull request。
 
 鼠标悬停时 toast 保持显示，并出现关闭按钮和 "1h"（关闭 toast 一小时）。在 macOS 上 watcher 自己绘制 toast
-（不需要通知权限）；在 Linux 上它使用 `notify-send`。
+（不需要通知权限，Apple silicon 和 Intel Mac 都一样）；5 秒内没有出现在屏幕上的 toast 算作未发送，原因记录在
+`~/.config/open-pr/watch/toast.log` 中。在 Linux 上它使用 `notify-send`。
 
 每行聊天消息都附带打开会话的命令：
 
@@ -131,8 +132,10 @@ non-interactive 会话使用你为该平台配置的权限设置；watcher 不�
 
 ## 菜单栏（macOS）
 
-watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整台机器只有一个，涵盖所有 watcher；它一直保留到
-`/open-pr:menubar close`（或菜单中的 Quit），`/open-pr:menubar` 可让它重新出现。
+watcher 启动时会在菜单栏显示飞蛾图标，以及会话正在运行、等待你回答或因点击 Fix now 正在启动的行数（仍在等待
+Fix now 的新发现不计入）。整台机器只有一个，涵盖所有 watcher；它一直保留到 `/open-pr:menubar close`（或菜单中
+的 Quit），`/open-pr:menubar` 可让它重新出现。该命令只在飞蛾出现在菜单栏后才报告 started；否则会停止它并指出
+`menubar.log`。
 
 标题只占一行：`open-pr`，暂停提醒期间显示带斜线的铃铛和 `until 23:30`，然后是主机剩余的配额（见速率限制）和
 各仓库的轮询间隔（`every 3m`；各仓库设置不同时为 `every 1–5m`）；名称旁放不下时这些内容移到名称下方一行。

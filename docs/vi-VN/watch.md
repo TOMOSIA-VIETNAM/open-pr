@@ -132,7 +132,9 @@ Một toast ở góc trên bên phải cho biết chuyện gì đang diễn ra �
 - còn lại thì mở pull request.
 
 Rê chuột vào để giữ toast trên màn hình và hiện nút đóng cùng nút "1h", tắt toast trong một giờ. Trên
-macOS watcher tự vẽ toast (không cần quyền thông báo); trên Linux nó dùng `notify-send`.
+macOS watcher tự vẽ toast (không cần quyền thông báo), trên cả Mac Apple silicon lẫn Intel; toast
+không lên màn hình trong 5 giây thì tính là chưa gửi, lý do nằm trong
+`~/.config/open-pr/watch/toast.log`. Trên Linux nó dùng `notify-send`.
 
 Mọi dòng chat đều kèm command mở session:
 
@@ -153,9 +155,11 @@ Claude Code treo ở bước khởi động. Session non-interactive dùng setti
 
 ## Menu bar (macOS)
 
-Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số session đang chạy. Cả máy chỉ có một, bao quát
-mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong menu), và
-`/open-pr:menubar` đưa nó trở lại.
+Watcher đưa con bướm lên menu bar khi nó khởi động, kèm số dòng có session đang chạy, đang chờ bạn trả
+lời, hoặc đang khởi động sau một cú bấm Fix now (finding mới còn chờ Fix now thì không tính). Cả máy chỉ
+có một, bao quát mọi watcher; nó ở lại cho đến khi bạn gõ `/open-pr:menubar close` (hoặc chọn Quit trong
+menu), và `/open-pr:menubar` đưa nó trở lại. Lệnh này chỉ báo started khi con bướm đã lên menu bar;
+nếu không, nó dừng menu bar và chỉ ra `menubar.log`.
 
 Header của nó gọn trong một dòng: `open-pr`, rồi biểu tượng chuông gạch kèm `until 23:30` khi toast đang
 tạm tắt, quota còn lại của host (xem Giới hạn rate) và bao lâu các repo poll một lần (`every 3m`, hoặc
