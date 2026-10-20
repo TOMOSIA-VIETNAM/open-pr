@@ -65,6 +65,18 @@ Hand several PR URLs to one command and each one is worked through in full befor
 
 The first run in a repo asks a short batch of questions — the language to post on the PR, post immediately or keep a draft, whether to auto-resolve fixed threads, how often to re-read the docs, the too-large PR / file thresholds — then reads the conventions already there: README, CLAUDE.md, AGENTS.md, docs, wiki.
 
+## When something breaks
+
+When a command fails in a way the plugin does not expect on your machine — a crash, a tool error, output it cannot read — your agent stops and works through it with you:
+
+1. Something you fix yourself (a missing tool, jq older than 1.6, an expired token, no permission, the network, a shell sandbox): it says what to do, and patches nothing.
+2. Otherwise it runs `open-pr.sh selftest` — platform, tools, jq, and on macOS whether the menu bar and toast start on this Mac's architecture — and asks whether to diagnose and patch the installed plugin.
+3. A patch touches only the plugin's own `bin/` scripts — never your repo, settings or memory — and never weakens a security check. You see the full diff first; it is applied only if you approve it. The original is kept as a backup and put back if the re-run still fails.
+4. The patch is temporary: the next plugin update replaces it.
+5. It then offers `/open-pr:feedback`, so the maintainers get the error, your environment and the diff — stripped of anything identifying you, and posted only after you approve the exact text.
+
+A review that failed half-posted is never patched midway: the agent reports what the PR shows and stops. `/open-pr:watch` and `/open-pr:menubar` run the self-test at start, so a machine that cannot run them says so up front.
+
 ## Same review on other platforms
 
 The whole procedure the agent follows lives in **one place**: the markdown under `src/`.
