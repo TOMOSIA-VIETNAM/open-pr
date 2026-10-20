@@ -1458,7 +1458,9 @@ cmd_selftest() {
     [ "$#" = 0 ] || die 4 "open-pr.sh selftest: takes no option"
     fails=0
     for c in $SELFTEST; do
-        if out=$("st_$c" 2>&1); then st=ok
+        # A check reports on stdout. Its stderr is dropped: dash prints "Segmentation fault" there
+        # for a tool that crashes, which the check already reports by its exit code.
+        if out=$( { "st_$c"; } 2>/dev/null ); then st=ok
         else case $? in 2) st=skip ;; *) st=fail; fails=$((fails + 1)) ;; esac; fi
         printf '%s %s: %s\n' "$st" "$c" "$(printf '%s' "$out" | tr '\n' ' ')"
     done

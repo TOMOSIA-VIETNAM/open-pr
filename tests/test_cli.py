@@ -10,6 +10,7 @@ vendor_lint.py covers what shims cannot: that a flag exists on the real gh/glab.
 
 import json
 import os
+import shutil
 import stat
 import subprocess
 import time
@@ -160,6 +161,11 @@ def test_a_jq_that_crashes_is_reported_as_a_crash_never_as_a_broken_config(mac, 
     assert r.returncode == 139 and "killed by a signal" in r.stderr and "delete it" not in r.stderr
     r = run("selftest", env_extra=env)
     assert r.returncode == 1 and r.stdout.splitlines()[2].startswith("fail jq: jq --version exited 139")
+    # dash (sh on Debian/Ubuntu) prints "Segmentation fault" on stderr; it must not reach the line
+    if shutil.which("dash"):
+        r = subprocess.run(["dash", str(CLI), "selftest"], capture_output=True, text=True,
+                           env={**os.environ, **env}, timeout=60)
+        assert r.returncode == 1 and r.stdout.splitlines()[2] == "fail jq: jq --version exited 139 "
 
 
 def test_selftest_probes_the_jq_idioms_not_only_the_version(mac, tmp_path):
