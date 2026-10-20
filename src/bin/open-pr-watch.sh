@@ -314,7 +314,7 @@ claude_resume() {   # sets RID SID WARNING; $1 id, $2 session id, $3 prompt
         pid=$(claude_list | jq -r --arg id "$RID" 'first(.[]? | select(.id == $id) | .pid // empty) // empty')
         (cd "$W" && claude stop "$RID") > /dev/null 2>&1 || true
         i=0
-        while claude_list | jq -e --arg id "$RID" 'any(.[]?; .id == $id)' > /dev/null \
+        while claude_list | jq -e -n --arg id "$RID" 'any(inputs | .[]?; .id == $id)' > /dev/null \
             || { [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; }; do
             i=$((i + 1))
             [ "$i" -lt 150 ] || die 1 "claude session $RID still running 30s after claude stop — not resuming (a resume now would start a copy)"
@@ -808,7 +808,7 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
                                   and (.state == "working" or .state == "question"))] | length == 0)' \
         "$TMPD/fixev" > "$TMPD/fixev.ok"
     jq -r '.pr' "$TMPD/fixev" | while IFS= read -r n; do
-        jq -e --argjson p "$n" 'select(.pr == $p)' "$TMPD/fixev.ok" > /dev/null || rm -f "$SD/fix_now/$n"
+        jq -e -n --argjson p "$n" 'any(inputs; .pr == $p)' "$TMPD/fixev.ok" > /dev/null || rm -f "$SD/fix_now/$n"
     done
     mv "$TMPD/fixev.ok" "$TMPD/fixev"
     jq -c -s --slurpfile st "$TMPD/state.in" '
@@ -1298,6 +1298,10 @@ EOF
 
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 need jq
+# 1.6, what Debian 12, Ubuntu 22.04 and macOS ship, is the oldest jq these programs run on.
+case "$(jq --version 2>&1)" in
+    jq-1.[0-5]|jq-1.[0-5][!0-9]*|"jq version "*) die 1 "open-pr-watch.sh: jq 1.6 or newer is required, found $(jq --version 2>&1)" ;;
+esac
 
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr-watch.XXXXXX")
 trap 'unlock; rm -rf "$TMPD" ${OPEN_PR_WATCH_COPY:+"$OPEN_PR_WATCH_COPY"}' EXIT

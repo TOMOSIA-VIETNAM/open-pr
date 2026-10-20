@@ -306,6 +306,31 @@ def test_post_github_creates_a_pending_review(shims, tmp_path):
     assert "pwned" not in calls, "payload text reached an argv — shell saw attacker content"
 
 
+@pytest.mark.parametrize("text", ["  \n", "{}"])
+def test_post_refuses_a_payload_without_a_review_in_it(shims, tmp_path, text):
+    f = tmp_path / "p.json"
+    f.write_text(text)
+    r = run("post", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5",
+            "--payload", str(f), env_extra=env_for(shims))
+    assert r.returncode == 1 and "payload must carry body" in r.stderr
+    assert not shims["log"].exists() or "pulls/5/reviews" not in shims["log"].read_text()
+
+
+@pytest.mark.parametrize("version, ok", [("jq-1.5", False), ("jq-1.5rc2", False), ("jq version 1.3", False),
+                                         ("jq-1.6", True), ("jq-1.10", True), ("jq-1.7.1", True)])
+def test_a_jq_older_than_1_6_is_refused_with_the_install_hint(tmp_path, version, ok):
+    real = subprocess.run(["sh", "-c", "command -v jq"], capture_output=True, text=True, check=True).stdout.strip()
+    d = tmp_path / "jqbin"
+    d.mkdir()
+    make_shim(d, "jq", f'[ "$1" = --version ] && {{ echo "{version}"; exit 0; }}\nexec "{real}" "$@"\n')
+    r = run("data-dir", "--all", env_extra={"PATH": f"{d}{os.pathsep}{os.environ['PATH']}"})
+    if ok:
+        assert r.returncode == 0, r.stderr
+    else:
+        assert r.returncode == 1 and f"jq 1.6 or newer is required, found {version}" in r.stderr
+        assert "brew install jq" in r.stderr
+
+
 def test_post_gitlab_converts_each_comment_to_a_positioned_draft_note(shims, tmp_path):
     f = tmp_path / "p.json"
     f.write_text(json.dumps(PAYLOAD))
@@ -400,17 +425,19 @@ def test_data_dir_is_set_once_and_read_everywhere(tmp_path, monkeypatch):
     assert rel == str(home / "rel-data"), "a relative path is stored absolute, never cwd-relative"
 
 
-def test_a_config_that_is_not_a_json_object_stops_instead_of_reading_as_unset(tmp_path, monkeypatch):
-    """jq 1.6 exits 0 on a parse error, so a broken config would read as "unset" and the
-    --set that follows would overwrite whatever the user had in it."""
+@pytest.mark.parametrize("text", ["{broken", "  \n"])
+def test_a_config_that_is_not_a_json_object_stops_instead_of_reading_as_unset(tmp_path, monkeypatch, text):
+    """jq 1.6 exits 0 on a parse error, and `jq -e` there exits 0 on a file holding no value at
+    all, so a broken config would read as "unset" and the --set that follows would overwrite
+    whatever the user had in it."""
     conf = tmp_path / "broken-xdg" / "open-pr" / "config.json"
     conf.parent.mkdir(parents=True)
-    conf.write_text("{broken")
+    conf.write_text(text)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "broken-xdg"))
     assert run("data-dir").returncode == 1, "a broken config must not read as unset (exit 7)"
     target = tmp_path / "never-created"
     assert run("data-dir", "--set", str(target)).returncode == 1
-    assert conf.read_text() == "{broken", "--set overwrote a config it could not read"
+    assert conf.read_text() == text, "--set overwrote a config it could not read"
     assert not target.exists(), "--set created the directory before checking the config"
 
 

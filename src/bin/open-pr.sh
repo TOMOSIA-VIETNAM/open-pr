@@ -19,9 +19,10 @@ set -eu
 
 err() { printf '%s\n' "$*" >&2; }
 die() { code="$1"; shift; err "$*"; exit "$code"; }
+INSTALL="Install it and call the run again — jq: winget install jqlang.jq (Windows) / brew install jq (macOS) / apt install jq (Debian-Ubuntu); gh: https://cli.github.com; glab: https://gitlab.com/gitlab-org/cli."
 need() {
     command -v "$1" >/dev/null 2>&1 && return 0
-    die 1 "open-pr.sh: required tool missing: $1. Install it and call the run again — jq: winget install jqlang.jq (Windows) / brew install jq (macOS) / apt install jq (Debian-Ubuntu); gh: https://cli.github.com; glab: https://gitlab.com/gitlab-org/cli."
+    die 1 "open-pr.sh: required tool missing: $1. $INSTALL"
 }
 
 # ---------------------------------------------------------------- args ----
@@ -553,7 +554,7 @@ post_error_hint() {
 cmd_post() {
     parse_args "$@"; post_init
     F=$(req payload); [ -s "$F" ] || die 1 "open-pr.sh post: payload file missing/empty"
-    jq -e '.body and .commit_id and (.comments | type == "array")' "$F" >/dev/null \
+    jq -e -n 'input | .body and .commit_id and (.comments | type == "array")' "$F" >/dev/null 2>&1 \
         || die 1 "open-pr.sh post: payload must carry body, commit_id, comments[]"
     case "$V" in
         github)
@@ -833,13 +834,13 @@ quota_note() {   # $1 = response(s) as printed with their headers: `gh api -i`, 
 api_call() { [ -z "$QF" ] || printf '%s\n' "${1:-1}" >> "$TMPD/quota.calls"; }
 quota_write() {
     [ -n "$QF" ] || return 0
-    case "$V" in github) win=3600 def=5000 ;; gitlab) win=60 def=null ;; *) win=3600 def=1000 ;; esac
+    case "$V" in github) win=3600 fallback=5000 ;; gitlab) win=60 fallback=null ;; *) win=3600 fallback=1000 ;; esac
     qh() { sed -n "s/^$1=//p" "$TMPD/quota.h" 2>/dev/null | head -n 1; }
     n=$(awk '{ s += $1 } END { print s + 0 }' "$TMPD/quota.calls" 2>/dev/null || echo 0)
     jq -n -c --arg v "$V" --arg l "$(qh limit)" --arg r "$(qh remaining)" --arg t "$(qh reset)" --arg near "$(qh near)" \
-        --argjson win "$win" --argjson def "$def" --argjson calls "${n:-0}" '
+        --argjson win "$win" --argjson fallback "$fallback" --argjson calls "${n:-0}" '
         {vendor: $v, window: $win, measured: ($l != "" or $r != ""),
-         limit: (if $l != "" then ($l | tonumber) else $def end),
+         limit: (if $l != "" then ($l | tonumber) else $fallback end),
          remaining: (if $r != "" then ($r | tonumber) else null end),
          reset: (if $t != "" and ($t | tonumber) >= 1000000000 then ($t | tonumber | todate) else null end),
          near_limit: (if $near == "" then null else $near == "true" end), calls: $calls}' > "$QF.$$" && mv "$QF.$$" "$QF"
@@ -1119,7 +1120,7 @@ data_conf() {
 conf_json() {
     f=$(data_conf)
     [ -s "$f" ] || { printf '{}'; return 0; }
-    jq -e 'type == "object"' "$f" >/dev/null 2>&1 \
+    jq -e -n 'input | type == "object"' "$f" >/dev/null 2>&1 \
         || die 1 "open-pr: $f is not a JSON object — fix it or delete it"
     cat "$f"
 }
@@ -1491,6 +1492,10 @@ EOF
 
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 need jq
+# 1.6, what Debian 12, Ubuntu 22.04 and macOS ship, is the oldest jq these programs run on.
+case "$(jq --version 2>&1)" in
+    jq-1.[0-5]|jq-1.[0-5][!0-9]*|"jq version "*) die 1 "open-pr.sh: jq 1.6 or newer is required, found $(jq --version 2>&1). $INSTALL" ;;
+esac
 
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr.XXXXXX")
 cleanup() { repo_unlock; rm -rf "$TMPD"; }

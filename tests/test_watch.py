@@ -101,7 +101,9 @@ def new(name):
     db["sessions"].append(s)
     return s
 
-if a[:2] == ["agents", "--json"]:
+if a == ["agents", "--json"] and os.environ.get("FAKE_CLAUDE_LIST_SILENT"):
+    pass
+elif a[:2] == ["agents", "--json"]:
     rows = db["sessions"] if "--all" in a else [s for s in db["sessions"] if s["state"] in ACTIVE]
     print(json.dumps(rows))
 elif a[:1] == ["stop"]:
@@ -584,6 +586,16 @@ def test_spawn_on_a_claude_session_stops_waits_then_resumes_without_flags(w):
     assert w.claude_db()["sessions"][0]["name"] == "review o/r#4"
 
 
+def test_a_resume_reads_an_empty_session_list_as_none_running(w):
+    """`jq -e` exits 0 on no input under jq 1.6: an empty list then read as "still running" for 30 s."""
+    sp = w.spawn(4)
+    w.claude_set(sp["id"], "done")
+    w.status_file(4, state="draft")
+    started = time.time()
+    again = w.spawn(4, text="second look", env_extra={"FAKE_CLAUDE_LIST_SILENT": "1"})
+    assert again["resumed"] and time.time() - started < 10
+
+
 def test_a_resume_that_starts_a_copy_is_reported_and_followed(w):
     sp = w.spawn(6)
     w.claude_set(sp["id"], "done")
@@ -947,6 +959,14 @@ def _minimal_path(w, tmp_path, with_notify_send):
     if with_notify_send:
         shutil.copy(w.fakes / "notify-send", sysbin / "notify-send")
     return str(sysbin)
+
+
+def test_a_jq_older_than_1_6_is_refused(w, tmp_path):
+    d = tmp_path / "oldjq"
+    d.mkdir()
+    make_exe(d / "jq", f'#!/bin/sh\n[ "$1" = --version ] && {{ echo jq-1.5; exit 0; }}\nexec "{shutil.which("jq")}" "$@"\n')
+    r = w.run("snooze", "--off", path=f"{d}{os.pathsep}{w.env['PATH']}", check=False)
+    assert r.returncode == 1 and "jq 1.6 or newer is required, found jq-1.5" in r.stderr
 
 
 def test_notify_send_gets_title_and_text_after_a_double_dash(w, tmp_path):
