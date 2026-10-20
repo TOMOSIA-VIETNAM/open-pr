@@ -147,8 +147,6 @@ flowchart LR
 | `/open-pr:menubar [close]` | macOS：在菜单栏显示进行中的评审与修复、"Fix now"、设置和暂停提醒；`close` 关闭它。[详情](./docs/zh-Hans/watch.md#菜单栏macos) |
 | `/open-pr:feedback` | 把 **本插件** 的问题报到它自己的 issue tracker —— 会剥掉一切能识别你仓库的信息，并在发出前先给你看 |
 
-在你的机器上出了问题？agent 会提出诊断，只有你批准 diff 才修补已安装的插件，只有你批准文本才提交反馈 —— [出问题时](./docs/zh-Hans/how-it-works.md#出问题时)。
-
 > [!WARNING]
 > `fix` 会改动仓库（或 review worktree）里的 **真实代码**。只有当你确实想让它处理这些评论时才运行它。
 

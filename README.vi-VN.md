@@ -147,8 +147,6 @@ Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fi
 | `/open-pr:menubar [close]` | macOS: review và fix đang chạy, "Fix now", setting và snooze trên menu bar; `close` để tắt. [Chi tiết](./docs/vi-VN/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Báo vấn đề của **chính plugin này** lên issue tracker của nó — đã gỡ hết thứ nhận diện repo của bạn, và cho bạn xem trước khi gửi |
 
-Có gì hỏng trên máy bạn? Agent đề nghị chẩn đoán, chỉ patch bản plugin đã cài sau khi bạn duyệt diff, và chỉ gửi feedback sau khi bạn duyệt nội dung — [Khi có gì hỏng](./docs/vi-VN/how-it-works.md#khi-có-gì-hỏng).
-
 > [!WARNING]
 > `fix` sửa **code thật** trong repo (hoặc review worktree). Chỉ chạy khi bạn chủ động muốn nó xử lý comment.
 

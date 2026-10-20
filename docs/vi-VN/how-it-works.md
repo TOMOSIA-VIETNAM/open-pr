@@ -65,18 +65,6 @@ Command chỉ chạy khi bạn tự gõ. Submodule cũng được cover. Viết 
 
 Lần đầu với một repo, plugin hỏi một loạt câu ngắn — output language trên PR, post ngay hay draft, có auto-resolve thread đã fix không, chu kỳ đọc lại docs, ngưỡng PR / file quá lớn — rồi tự đọc convention sẵn có: README, CLAUDE.md, AGENTS.md, docs, wiki.
 
-## Khi có gì hỏng
-
-Khi một lệnh lỗi theo cách plugin không lường trước trên máy bạn — crash, lỗi của một tool, output không đọc được — agent dừng lại và cùng bạn xử lý, không đoán mò:
-
-1. Thứ bạn tự sửa (thiếu tool, jq cũ hơn 1.6, token hết hạn, không có quyền, mạng, sandbox của shell): nó nói cần làm gì, không patch gì cả.
-2. Còn lại thì nó chạy `open-pr.sh selftest` — platform, tool, jq, và trên macOS là menu bar và toast có khởi động được trên kiến trúc của máy Mac này không — rồi hỏi có chẩn đoán và patch bản plugin đã cài không.
-3. Patch chỉ đụng các script `bin/` của chính plugin — không bao giờ đụng repo, settings hay memory của bạn — và không bao giờ nới một kiểm tra bảo mật. Bạn xem toàn bộ diff trước; chỉ áp dụng khi bạn duyệt. File gốc được backup, và được trả lại nếu chạy lại vẫn lỗi.
-4. Patch chỉ là tạm: lần cập nhật plugin kế tiếp sẽ thay nó.
-5. Sau đó nó đề nghị `/open-pr:feedback`, để maintainer nhận được lỗi, môi trường của bạn và diff — đã gỡ mọi thứ nhận diện bạn, và chỉ đăng sau khi bạn duyệt đúng nội dung đó.
-
-Một review lỗi khi mới đăng được một nửa thì không bao giờ bị patch giữa chừng: agent báo PR đang hiện gì rồi dừng. `/open-pr:watch` và `/open-pr:menubar` chạy self-test ngay khi bắt đầu, nên máy nào không chạy được sẽ được báo ngay từ đầu.
-
 ## Cùng một review trên platform khác
 
 Toàn bộ procedure agent đi theo nằm ở **một chỗ**: markdown dưới `src/`.

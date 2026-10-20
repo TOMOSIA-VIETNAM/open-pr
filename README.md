@@ -147,8 +147,6 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:menubar [close]` | macOS: the reviews and fixes in progress, "Fix now", settings and snooze in the menu bar; `close` removes it. [Details](./docs/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |
 
-Something broke on your machine? The agent offers to diagnose it, patches the installed plugin only after you approve the diff, and files feedback only after you approve the text — [When something breaks](./docs/how-it-works.md#when-something-breaks).
-
 > [!WARNING]
 > `fix` edits **real code** in the repo (or the review worktree). Run it only when you deliberately want it to handle the comments.
 

@@ -133,9 +133,8 @@ shows the command that opens the session. Click it to go where you act:
 - anything else opens the pull request.
 
 Hover to keep it on screen and show its close button and "1h", which turns toasts off for an hour. On
-macOS the watcher draws the toast itself (no notification permission needed), on Apple silicon and
-Intel Macs alike; a toast that does not reach the screen within 5 seconds counts as not sent, and
-`~/.config/open-pr/watch/toast.log` says why. On Linux it uses `notify-send`.
+macOS the watcher draws the toast itself (no notification permission needed); on Linux it uses
+`notify-send`.
 
 Every chat line carries the command that opens the session:
 
@@ -156,11 +155,9 @@ configured for that platform; the watcher grants none.
 
 ## Menu bar (macOS)
 
-A watcher puts the moth in the menu bar when it starts, with the number of rows whose session is
-running, waits for your answer, or is starting on a Fix now click (new findings still waiting for Fix
-now do not count). There is one for the whole machine, covering every watcher; it stays until
-`/open-pr:menubar close` (or its Quit item), and `/open-pr:menubar` brings it back. That command says
-it started only once the moth is in the menu bar; otherwise it stops it and names `menubar.log`.
+A watcher puts the moth in the menu bar when it starts, with the number of sessions in progress. There
+is one for the whole machine, covering every watcher; it stays until `/open-pr:menubar close` (or its
+Quit item), and `/open-pr:menubar` brings it back.
 
 Its header is one line: `open-pr`, then a bell-slash with `until 23:30` while toasts are snoozed, the
 host quota left (see Rate limits) and how often the repos poll (`every 3m`, or `every 1–5m` when their

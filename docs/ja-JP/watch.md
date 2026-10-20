@@ -129,9 +129,7 @@ watcher は起動時に、どの pull request をここで、どれをバック�
 - それ以外は pull request を開きます。
 
 マウスを乗せている間は表示が続き、閉じるボタンと "1h"（1 時間トーストをオフ）が現れます。macOS では
-watcher が自分でトーストを描画します（通知の権限は不要、Apple silicon でも Intel Mac でも同じ）。5 秒以内に
-画面に出なかったトーストは未送信として扱われ、理由は `~/.config/open-pr/watch/toast.log` に残ります。Linux
-では `notify-send` を使います。
+watcher が自分でトーストを描画します（通知の権限は不要）。Linux では `notify-send` を使います。
 
 すべてのチャット行にセッションを開くコマンドが付きます:
 
@@ -152,10 +150,9 @@ watcher は shell sandbox の外で動きます。sandbox の中ではポーリ�
 
 ## メニューバー（macOS）
 
-watcher が起動すると、メニューバーに蛾のアイコンと、セッションが実行中・回答待ち・Fix now で起動中の行の数が
-表示されます（Fix now を待っているだけの新しい指摘は数えません）。マシン全体で 1 つだけで、すべての watcher が
-対象です。`/open-pr:menubar close`（またはメニューの Quit）まで残り、`/open-pr:menubar` で再表示できます。この
-コマンドは蛾がメニューバーに出てから started と答え、出なければ止めて `menubar.log` を示します。
+watcher が起動すると、メニューバーに蛾のアイコンと進行中のセッション数が表示されます。マシン全体で 1 つだけで、
+すべての watcher が対象です。`/open-pr:menubar close`（またはメニューの Quit）まで残り、`/open-pr:menubar`
+で再表示できます。
 
 ヘッダーは 1 行です: `open-pr`、トーストのスヌーズ中はベルに斜線のアイコンと `until 23:30`、ホストの残り
 quota（レート制限を参照）、ポーリング間隔（`every 3m`、リポジトリごとに設定が異なれば `every 1–5m`）。
