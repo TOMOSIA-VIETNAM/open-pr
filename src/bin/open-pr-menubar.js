@@ -21,6 +21,8 @@
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
 // argv: snooze file, pid file (its pid is written there once the item is in the menu bar), heartbeat
 // age (seconds) past which a repo is not watched, data dirs, then the absolute path of open-pr-watch.sh.
+// A leading --probe (`open-pr.sh selftest`): the item hidden, its menu built once, any error fatal,
+// the pid file written, then it quits.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, written into a .command file or passed to osascript as argv after matching OPEN_CMD,
 // passed to osascript as argv after matching TAB_ID, turned into `claude attach` after matching
@@ -185,6 +187,8 @@ function act(fn) { var op = $.NSBlockOperation.blockOperationWithBlock(fn); ops.
 var TRACK = 0.05, tracker = null;
 
 function run(argv) {
+    var probe = argv[0] === '--probe';
+    if (probe) argv = argv.slice(1);
     snoozeFile = argv[0] || ''; pidFile = argv[1] || '';
     fresh = Number(argv[2]) || fresh;
     var rest = argv.slice(3), last = str(rest[rest.length - 1]);
@@ -198,6 +202,8 @@ function run(argv) {
     icons.bar = mothImage(18, true);
     icons.header = mothImage(28, false);
     item = $.NSStatusBar.systemStatusBar.statusItemWithLength(-1);   // -1 = variable length
+    // its own autosave name: the hidden state macOS keeps for it never reaches the real item's
+    if (probe) { item.setAutosaveName('open-pr-selftest'); item.setVisible(false); }
     item.button.setImage(icons.bar);
     item.button.setImagePosition($.NSImageLeft);
     item.button.setToolTip('open-pr');
@@ -209,10 +215,12 @@ function run(argv) {
     nc.addObserverForNameObjectQueueUsingBlock($.NSMenuDidEndTrackingNotification, $(), main, function (n) {
         if (isOurs(n.object)) menuClosed();
     });
+    if (probe) item.setMenu(build(scan()));   // throws, where refresh() would show brokenMenu
     refresh();
     $.NSTimer.scheduledTimerWithTimeIntervalRepeatsBlock(REFRESH, true, function () { refresh(); });
     // `menubar` waits for this: the item is in the menu bar
     if (pidFile) $(String($.NSProcessInfo.processInfo.processIdentifier) + '\n').writeToFileAtomicallyEncodingError(pidFile, true, $.NSUTF8StringEncoding, null);
+    if (probe) { $.NSStatusBar.systemStatusBar.removeStatusItem(item); return; }
     app.run;
 }
 function isOurs(menu) { return !!item && !menu.isNil() && !item.menu.isNil() && menu.isEqual(item.menu); }

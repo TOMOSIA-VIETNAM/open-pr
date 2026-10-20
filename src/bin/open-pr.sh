@@ -1120,8 +1120,11 @@ data_conf() {
 conf_json() {
     f=$(data_conf)
     [ -s "$f" ] || { printf '{}'; return 0; }
-    jq -e -n 'input | type == "object"' "$f" >/dev/null 2>&1 \
-        || die 1 "open-pr: $f is not a JSON object — fix it or delete it"
+    rc=0; jq -e -n 'input | type == "object"' "$f" >/dev/null 2>&1 || rc=$?
+    # a jq killed by a signal read nothing: never tell the user to delete a config it never read; its
+    # status passes on, so the caller sees a crash
+    [ "$rc" -le 128 ] || die "$rc" "open-pr: jq exited $rc (killed by a signal) reading $f"
+    [ "$rc" = 0 ] || die 1 "open-pr: $f is not a JSON object — fix it or delete it"
     cat "$f"
 }
 # `~` and a relative path → absolute (not yet resolved: the caller cd's into it).
@@ -1380,6 +1383,88 @@ cmd_push() {
         || die 1 "push to remote '$REMOTE' ($(git -C "$D" remote get-url "$REMOTE" 2>/dev/null)) failed — surface this to the user as printed; the plugin never works around credentials or forces."
 }
 
+# ------------------------------------------------------------ selftest ----
+# Registry: `selftest` runs st_<name> for each name in SELFTEST. A check prints one line of detail
+# and returns 0 (ok), 1 (fail) or 2 (skip: not this platform). A component adds its check here.
+SELFTEST="platform tools jq jxa"
+# 1.6, what Debian 12, Ubuntu 22.04 and macOS ship, is the oldest jq these programs run on.
+jq_too_old() { case "$(jq --version 2>&1)" in jq-1.[0-5]|jq-1.[0-5][!0-9]*|"jq version "*) return 0 ;; esac; return 1; }
+st_platform() {
+    os=$(uname -s) arch=$(uname -m) ver=$(uname -r)
+    [ "$os" != Darwin ] || { os=macOS; ver=$(sw_vers -productVersion 2>/dev/null || echo "$ver"); }
+    how=native
+    [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" != 1 ] || how="Rosetta on arm64"
+    printf '%s %s %s (%s)' "$os" "$ver" "$arch" "$how"
+}
+st_tools() {
+    rc=0 got=""
+    for t in git jq curl gh glab; do
+        if command -v "$t" >/dev/null 2>&1; then got="$got $t"
+        else case "$t" in git|jq) rc=1; got="$got $t:MISSING" ;; *) got="$got $t:absent" ;; esac; fi
+    done
+    printf '%s (git, jq required; gh for GitHub, glab for GitLab, curl for Bitbucket)' "${got# }"
+    return $rc
+}
+# The idioms the scripts rely on, run as they run them.
+st_jq() {
+    command -v jq >/dev/null 2>&1 || { printf 'jq missing'; return 1; }
+    v=$(jq --version 2>&1) || { printf 'jq --version exited %s %s' "$?" "$v"; return 1; }
+    ! jq_too_old || { printf '%s: 1.6 or newer is required' "$v"; return 1; }
+    bad=""
+    ! printf '' | jq -e -n 'input | type == "object"' >/dev/null 2>&1 || bad="$bad; -e -n input passes on empty input"
+    printf '{}\n' | jq -e -n 'input | type == "object"' >/dev/null 2>&1 || bad="$bad; -e -n input fails on {}"
+    printf '[{"id":"a"}]\n' | jq -e -n --arg id a 'any(inputs | .[]?; .id == $id)' >/dev/null 2>&1 \
+        || bad="$bad; any(inputs …; .id == \$id) finds nothing"
+    jq -e -n '"ab12" | test("^[a-z]+[0-9]+$") and (capture("(?<n>[0-9]+)").n == "12")' >/dev/null 2>&1 \
+        || bad="$bad; regex (test/capture) unavailable, a jq built without oniguruma"
+    jq -e -n '"2024-01-01T00:00:00Z" | fromdateiso8601 == 1704067200' >/dev/null 2>&1 \
+        || bad="$bad; fromdateiso8601 wrong"
+    printf '%s%s' "$v" "$bad"
+    [ -z "$bad" ]
+}
+# The menu bar and the toast, each run with --probe: nothing shows, each writes the marker
+# open-pr-watch.sh waits for (the menu bar its pid file, the toast its `shown` file) and quits.
+st_jxa() {
+    { [ "$(uname -s)" = Darwin ] && command -v osascript >/dev/null 2>&1; } || { printf 'not macOS'; return 2; }
+    d=$(mktemp -d "${TMPDIR:-/tmp}/open-pr-selftest.XXXXXX")
+    w="$d/data/repo/watch"
+    mkdir -p "$w"
+    : > "$w/heartbeat"
+    printf '{"pid":1,"cwd":"/","term":"iTerm.app","term_session":"w0t0p0:SELFTEST","tty":"","session_id":""}\n' > "$w/watcher.json"
+    printf '{"sessions":{"1:review":{"pr":1,"role":"review","repo":"o/r","last_state":"working"}}}\n' > "$w/state.json"
+    b=$(cd "$(dirname "$0")" && pwd)
+    osascript -l JavaScript "$b/open-pr-menubar.js" --probe "$d/snooze" "$d/menubar.pid" 2700 "$d/data" \
+        > "$d/menubar.log" 2>&1 < /dev/null &
+    mp=$!
+    osascript -l JavaScript "$b/open-pr-toast.js" --probe open-pr selftest probe findings 0 0 "" "$d/snooze" pr \
+        "" "" "" "" "" "" "" "" "" "" "$d/shown" > "$d/toast.log" 2>&1 < /dev/null &
+    tp=$!
+    i=0   # 10 s, as `menubar` gives its item
+    while { kill -0 "$mp" || kill -0 "$tp"; } 2>/dev/null && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
+    kill "$mp" "$tp" 2>/dev/null || :
+    mrc=0; wait "$mp" || mrc=$?
+    trc=0; wait "$tp" || trc=$?
+    out="" rc=0
+    if [ "$(cat "$d/menubar.pid" 2>/dev/null)" = "$mp" ] && [ "$mrc" = 0 ]; then out="menu bar ok"
+    else rc=1; out="menu bar: exit $mrc, no item: $(tail -n 1 "$d/menubar.log" 2>/dev/null)"; fi
+    if [ -e "$d/shown" ] && [ "$trc" = 0 ]; then out="$out, toast ok"
+    else rc=1; out="$out; toast: exit $trc, not shown: $(tail -n 1 "$d/toast.log" 2>/dev/null)"; fi
+    [ "$rc" = 0 ] || out="$out (inside a shell sandbox osascript cannot reach the window server: run it with the sandbox off)"
+    rm -rf "$d"
+    printf '%s' "$out"
+    return $rc
+}
+cmd_selftest() {
+    [ "$#" = 0 ] || die 4 "open-pr.sh selftest: takes no option"
+    fails=0
+    for c in $SELFTEST; do
+        if out=$("st_$c" 2>&1); then st=ok
+        else case $? in 2) st=skip ;; *) st=fail; fails=$((fails + 1)) ;; esac; fi
+        printf '%s %s: %s\n' "$st" "$c" "$(printf '%s' "$out" | tr '\n' ' ')"
+    done
+    [ "$fails" = 0 ]
+}
+
 # ---------------------------------------------------------------- main ----
 # ---------------------------------------------------------------- usage ----
 # Layout is parsed by scripts/cli_doc.py: a section header ends in ":", a
@@ -1466,6 +1551,14 @@ Watch subcommands (the /open-pr:watch session's own; rendered into commands/watc
   last-claim
       `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing
 
+Diagnostic subcommands (cases/self-repair.md, commands/watch.md and commands/menubar.md call it; rendered nowhere):
+  selftest
+      checks this machine runs the plugin: platform (OS, version, arch, Rosetta), tools, jq (version
+      and the idioms the scripts use), on macOS the menu bar and toast scripts started hidden with
+      `--probe` until each writes its on-screen marker. 1 line per check, `ok|fail|skip <check>:
+      <detail>`; exit 1 when any fails. Posts nothing, touches no watcher state, leaves no process,
+      runs before the jq gate; no option
+
 Internal subcommands (open-pr-watch.sh's own; no prompt calls them):
   repo-target --repo-dir D [--remote R]
       D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines; no common option
@@ -1490,12 +1583,12 @@ Exit codes:
 EOF
 }
 
-case "${1:-}" in -h|--help) usage; exit 0 ;; esac
-need jq
-# 1.6, what Debian 12, Ubuntu 22.04 and macOS ship, is the oldest jq these programs run on.
-case "$(jq --version 2>&1)" in
-    jq-1.[0-5]|jq-1.[0-5][!0-9]*|"jq version "*) die 1 "open-pr.sh: jq 1.6 or newer is required, found $(jq --version 2>&1). $INSTALL" ;;
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    selftest) shift; cmd_selftest "$@"; exit 0 ;;   # before the jq gate: it reports a missing or old jq
 esac
+need jq
+! jq_too_old || die 1 "open-pr.sh: jq 1.6 or newer is required, found $(jq --version 2>&1). $INSTALL"
 
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr.XXXXXX")
 cleanup() { repo_unlock; rm -rf "$TMPD"; }

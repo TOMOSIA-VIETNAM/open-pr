@@ -8,7 +8,8 @@
 // watcher record fields term, term_session, tty, session_id, pid, then — a findings toast only — the
 // absolute open-pr-watch.sh, the repo dir, its remote and the PR number "Fix now" passes to
 // `open-pr-watch.sh fix-now` (each "" on any other toast), then the file to create once the toast
-// is on screen (`notify` waits for it).
+// is on screen (`notify` waits for it). A leading --probe (`open-pr.sh selftest`): the toast is drawn
+// fully transparent, creates that file, and quits.
 // Colours are NSBox fills and borders: a layer colour handed through the bridge crashes osascript on an Intel Mac.
 // focus: pr → open url · watcher → the watcher's terminal tab, or `claude attach` of its session
 // when that tab is gone · session → the open command in the watcher's terminal app (no valid
@@ -70,6 +71,8 @@ var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
 var W = 344, PAD = 14, ICON = 36, RADIUS = 16, OUT = 8, M = 10, GAP = 8, SLOT_H = 76, CLOSE = 18;
 
 function run(argv) {
+    var probe = argv[0] === '--probe';
+    if (probe) argv = argv.slice(1);
     var title = argv[0] || 'open-pr', summary = argv[1] || '', detail = argv[2] || '';
     var badge = BADGE[argv[3]] || BADGE.question;
     var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8);
@@ -165,6 +168,15 @@ function run(argv) {
     hoverViews.forEach(function (v) { v.setHidden(true); root.addSubview(v); });
 
     win.setContentView(root);
+    if (probe) {
+        win.setAlphaValue(0);
+        win.setIgnoresMouseEvents(true);
+        win.orderFrontRegardless;
+        win.displayIfNeeded;
+        if (shown) $('').writeToFileAtomicallyEncodingError(shown, true, $.NSUTF8StringEncoding, null);
+        win.orderOut(null);
+        return;
+    }
     // Slides in from the right edge, easing out, as a banner arrives.
     var i, from = W + OUT + M;
     win.setAlphaValue(0);

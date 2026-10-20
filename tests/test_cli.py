@@ -70,6 +70,111 @@ def test_unknown_subcommand_points_at_help():
     assert r.returncode == 1 and "see --help" in r.stderr
 
 
+# ------------------------------------------------------------ selftest ----
+
+# Stands in for macOS: `uname -s` says Darwin, and osascript does what the menu bar and the toast
+# do once on screen — the menu bar writes its pid to its pid file, the toast creates its last argv
+# — unless FAKE_NO_UI (one that crashed or hung first). Never a real window in this suite.
+FAKE_OSASCRIPT = """printf '%s\\n' "$*" >> "$FAKE_LOG"
+if [ -z "${FAKE_NO_UI:-}" ]; then
+    case "$3" in
+        *open-pr-menubar.js) printf '%s\\n' "$$" > "$6" ;;
+        *open-pr-toast.js) for a; do last=$a; done; : > "$last" ;;
+    esac
+fi
+[ -z "${FAKE_SLEEP:-}" ] || exec sleep "$FAKE_SLEEP"
+exit "${FAKE_EXIT:-0}"
+"""
+SELFTEST_LINE = r"^(ok|fail|skip) (platform|tools|jq|jxa): .+$"
+
+
+@pytest.fixture
+def mac(tmp_path):
+    d = tmp_path / "macbin"
+    d.mkdir()
+    real = subprocess.run(["sh", "-c", "command -v uname"], capture_output=True, text=True, check=True).stdout.strip()
+    make_shim(d, "uname", f'[ "$1" = -s ] && {{ echo Darwin; exit 0; }}\nexec "{real}" "$@"\n')
+    make_shim(d, "osascript", FAKE_OSASCRIPT)
+    log = tmp_path / "osascript.log"
+    return {"PATH": f"{d}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(log), "TMPDIR": str(tmp_path)}, log
+
+
+def test_selftest_prints_one_line_per_registered_check(mac):
+    env, log = mac
+    r = run("selftest", env_extra=env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    lines = r.stdout.splitlines()
+    assert [l.split()[1] for l in lines] == ["platform:", "tools:", "jq:", "jxa:"]
+    assert all(__import__("re").match(SELFTEST_LINE, l) for l in lines), lines
+    assert lines[3] == "ok jxa: menu bar ok, toast ok"
+    calls = log.read_text().splitlines()
+    assert len(calls) == 2 and all(c.split()[3] == "--probe" for c in calls), \
+        "both scripts start hidden, in probe mode"
+    tmp = env["TMPDIR"]
+    assert all(a.startswith(tmp) for c in calls for a in c.split() if a.startswith("/") and "/bin/" not in a), \
+        "the probe writes only into its own temp dir, never a watcher's state"
+    assert not list(Path(tmp).glob("open-pr-selftest.*")), "the probe left its temp dir behind"
+
+
+@pytest.mark.parametrize("env, says", [({"FAKE_NO_UI": "1"}, "menu bar: exit 0, no item"),
+                                       ({"FAKE_EXIT": "139"}, "menu bar: exit 139")])
+def test_a_menu_bar_or_toast_that_never_shows_fails_selftest(mac, env, says):
+    base, _ = mac
+    r = run("selftest", env_extra={**base, **env})
+    assert r.returncode == 1
+    jxa = r.stdout.splitlines()[3]
+    assert jxa.startswith("fail jxa: ") and says in jxa and "toast: exit" in jxa, jxa
+
+
+def test_a_hung_probe_is_stopped_within_its_bound(mac):
+    base, log = mac
+    started = time.time()
+    r = run("selftest", env_extra={**base, "FAKE_NO_UI": "1", "FAKE_SLEEP": "60"})
+    assert r.returncode == 1 and time.time() - started < 20
+    out = subprocess.run(["pgrep", "-f", "sleep 60"], capture_output=True, text=True).stdout.split()
+    mine = [p for p in out if str(base["TMPDIR"]) in subprocess.run(
+        ["ps", "-o", "command=", "-p", p], capture_output=True, text=True).stdout]
+    assert not mine and "fail jxa:" in r.stdout
+
+
+def test_selftest_reports_a_jq_older_than_1_6_and_still_runs_every_check(mac, tmp_path):
+    base, _ = mac
+    real = subprocess.run(["sh", "-c", "command -v jq"], capture_output=True, text=True, check=True).stdout.strip()
+    d = tmp_path / "oldjq"
+    d.mkdir()
+    make_shim(d, "jq", f'[ "$1" = --version ] && {{ echo jq-1.5; exit 0; }}\nexec "{real}" "$@"\n')
+    r = run("selftest", env_extra={**base, "PATH": f"{d}{os.pathsep}{base['PATH']}"})
+    assert r.returncode == 1
+    lines = r.stdout.splitlines()
+    assert lines[2] == "fail jq: jq-1.5: 1.6 or newer is required" and len(lines) == 4
+
+
+def test_a_jq_that_crashes_is_reported_as_a_crash_never_as_a_broken_config(mac, tmp_path, data_dir):
+    """Reading "not a JSON object" the user would delete a config no jq ever read."""
+    base, _ = mac
+    d = tmp_path / "segvjq"
+    d.mkdir()
+    make_shim(d, "jq", "kill -SEGV $$\n")
+    env = {**base, "PATH": f"{d}{os.pathsep}{base['PATH']}"}
+    r = run("data-dir", env_extra=env)
+    assert r.returncode == 139 and "killed by a signal" in r.stderr and "delete it" not in r.stderr
+    r = run("selftest", env_extra=env)
+    assert r.returncode == 1 and r.stdout.splitlines()[2].startswith("fail jq: jq --version exited 139")
+
+
+def test_selftest_probes_the_jq_idioms_not_only_the_version(mac, tmp_path):
+    """A jq that reports a good version but passes `-e -n input` on empty input would let an empty
+    config read as unset."""
+    base, _ = mac
+    real = subprocess.run(["sh", "-c", "command -v jq"], capture_output=True, text=True, check=True).stdout.strip()
+    d = tmp_path / "oddjq"
+    d.mkdir()
+    make_shim(d, "jq", f'[ "$1 $2 $3" = "-e -n input | type == \\"object\\"" ] && exit 0\nexec "{real}" "$@"\n')
+    r = run("selftest", env_extra={**base, "PATH": f"{d}{os.pathsep}{base['PATH']}"})
+    assert r.returncode == 1
+    assert r.stdout.splitlines()[2].startswith("fail jq: ") and "passes on empty input" in r.stdout
+
+
 # ---------------------------------------------------------------- target ----
 
 @pytest.mark.parametrize("url,vendor,owner,repo,n", [
