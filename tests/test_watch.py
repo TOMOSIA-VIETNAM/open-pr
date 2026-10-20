@@ -74,7 +74,18 @@ out = os.path.join(home, f"{name}.out")
 if os.path.exists(out):
     sys.stdout.write(open(out).read())
     sys.stdout.flush()
+# on screen, as the real ones say so (FAKE_NO_UI: never, as one that crashes or hangs first):
+# the toast creates its last argv, the menu bar writes its pid to its pid file
+a = sys.argv[1:]
+if name == "osascript" and len(a) > 4 and not os.environ.get("FAKE_NO_UI"):
+    if a[2].endswith("open-pr-toast.js") and a[-1].endswith("/shown"):
+        open(a[-1], "w").close()
+    elif a[2].endswith("open-pr-menubar.js"):
+        with open(a[4] + ".tmp", "w") as fh:
+            fh.write(f"{os.getpid()}\n")
+        os.replace(a[4] + ".tmp", a[4])
 time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
+sys.exit(int(os.environ.get("FAKE_EXIT", "0")))
 """
 
 FAKE_CLAUDE = r"""#!/usr/bin/env python3
@@ -886,6 +897,29 @@ def test_osascript_gets_the_text_as_argv_never_as_source(w):
 
 
 
+@pytest.mark.parametrize("env, log", [({"FAKE_NO_UI": "1", "FAKE_EXIT": "139"}, "open-pr-toast.js exited 139\n"),
+                                      ({"FAKE_NO_UI": "1", "FAKE_SLEEP": "60"}, "open-pr-toast.js exited 143\n")])
+def test_a_toast_that_never_reaches_the_screen_is_not_reported_sent(w, tmp_path, env, log):
+    """A crash (SIGSEGV) or a hang before the toast is drawn: the hung one is stopped."""
+    started = time.time()
+    out = notify(w, env_extra=dict(env, TMPDIR=str(tmp_path)))
+    assert time.time() - started < 15
+    assert out == {"event": "posted", "sent": False, "reason": "toast not shown", "log": str(w.watch / "toast.log")}
+    deadline = time.time() + 5
+    while not (w.watch / "toast.log").read_text().endswith(log) and time.time() < deadline:
+        time.sleep(0.1)
+    assert (w.watch / "toast.log").read_text().endswith(log), "the shell may name the signal first"
+    assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["summary"] == "PR #3 posted", "the feed line stays"
+
+
+def test_a_toast_that_crashes_after_it_showed_leaves_its_exit_code_in_the_log(w, tmp_path):
+    assert notify(w, env_extra={"FAKE_EXIT": "139", "TMPDIR": str(tmp_path)})["via"] == "toast"
+    deadline = time.time() + 5
+    while (w.watch / "toast.log").read_text() == "" and time.time() < deadline:
+        time.sleep(0.1)
+    assert (w.watch / "toast.log").read_text() == "open-pr-toast.js exited 139\n"
+
+
 def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
     """A new toast takes the first free slot; a slot frees when its toast exits."""
     env = {"TMPDIR": str(tmp_path), "FAKE_SLEEP": "30"}
@@ -918,7 +952,7 @@ def test_notify_focus_hands_the_toast_where_a_click_goes(w):
     rec = w.recorded("osascript")["argv"]
     assert rec[9] == url
     assert rec[11:18] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e", "1"]
-    assert rec[18:] == ["", "", "", ""], "only a findings toast carries Fix now"
+    assert rec[18:22] == ["", "", "", ""], "only a findings toast carries Fix now"
 
 
 # osascript argv[18:] = what the toast's "Fix now" runs: open-pr-watch.sh fix-now for that repo and PR.
@@ -926,7 +960,7 @@ def test_a_findings_toast_offers_fix_now_for_its_repo_and_pr(w):
     w.run("notify", "--event", "findings", "--text-file", w.prompt("#3: 2 🟠", "f.txt"), "--pr", "3",
           "--role", "fix", "--remote", "origin")
     rec = w.recorded("osascript")["argv"]
-    assert rec[18:] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
+    assert rec[18:22] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
     assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["role"] == "fix"
 
 
@@ -1308,11 +1342,23 @@ def test_menubar_without_osascript_is_no_equivalent(w, tmp_path):
 
 def test_a_menu_bar_that_exits_at_start_is_reported_not_started(w):
     """Inside a shell sandbox osascript cannot reach the window server and exits at once."""
-    r = w.run("menubar", check=False)
+    r = w.run("menubar", env_extra={"FAKE_NO_UI": "1"}, check=False)
     assert r.returncode == 1 and r.stdout == "" and "sandbox off" in r.stderr
     assert not (w.watch / "menubar.pid").exists()
     assert w.run("menubar", env_extra={"FAKE_SLEEP": "30"}).stdout == "started\n", "a later start is not blocked"
     os.kill(int((w.watch / "menubar.pid").read_text()), 9)
+
+
+def test_a_menu_bar_that_shows_no_item_is_stopped_not_reported_started(w):
+    """A process merely alive is no item in the menu bar: one hung before its item exists."""
+    started = time.time()
+    r = w.run("menubar", env_extra={"FAKE_NO_UI": "1", "FAKE_SLEEP": "60"}, check=False)
+    assert r.returncode == 1 and r.stdout == "" and "showed no item in 10 s" in r.stderr
+    assert str(w.watch / "menubar.log") in r.stderr
+    assert time.time() - started < 20
+    assert not (w.watch / "menubar.pid").exists()
+    out = subprocess.run(["pgrep", "-f", f"open-pr-menubar.js {w.watch}"], capture_output=True, text=True).stdout
+    assert out == "", "the hung menu bar was left running"
 
 
 def test_menubar_closes_on_request(w):
@@ -1836,12 +1882,11 @@ def test_a_done_line_never_outranks_a_session_still_working(w):
 
 
 def _menubar_js(w, body, script=False):
-    """The menu bar's own functions run headless: its Cocoa classes (registering one outside an
-    app run hangs osascript) left out, its run() replaced by `body`. script: it runs the sandbox's
-    open-pr-watch.sh (beside the fake open-pr.sh), as the real one is handed its own."""
-    src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), flags=re.S | re.M)
+    """The menu bar's own functions run headless: its run() (the status item, the app run) replaced
+    by `body`. script: it runs the sandbox's open-pr-watch.sh (beside the fake open-pr.sh), as the
+    real one is handed its own."""
     ws = json.dumps(str(w.bin / "open-pr-watch.sh")) if script else "''"
-    js = src.replace("function run(argv) {", "function runApp(argv) {", 1) + (
+    js = MENUBAR.read_text().replace("function run(argv) {", "function runApp(argv) {", 1) + (
         f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700; watchScript = {ws}; {body} }}")
     f = w.home / "menubar-headless.js"
     f.write_text(js)
@@ -2040,9 +2085,8 @@ def test_a_panel_control_writes_its_key_and_shows_the_value_read_back(w):
 def test_the_gear_shows_a_repos_settings_inline_under_its_row_and_hides_them(w):
     _watched(w)
     (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
-    # run() is left out: a plain NSButton stands in for the pill button class, which only an app run
-    # can register, and the header icon run() draws is drawn here
-    got = _menubar_js(w, PANEL_DUMP + """$.OPRPillButton = $.NSButton; target = $.NSObject.alloc.init; icons.header = mothImage(28, false);
+    # run() is left out: the header icon it draws is drawn here
+    got = _menubar_js(w, PANEL_DUMP + """icons.header = mothImage(28, false);
         var m = build(scan()), titles = function () { var a = [];
             for (var i = 0; i < m.numberOfItems; i++) a.push(ObjC.unwrap(m.itemAtIndex(i).title)); return a; };
         var row = m.itemArray.js.filter(function (mi) { return !mi.view.isNil() && rowParts[mi.view.hash]; })[0];
@@ -2100,15 +2144,15 @@ def test_a_fix_run_here_shows_as_fixing_here_and_opens_the_watchers_tab(w):
                   "last_state": "working", "last_state_at": "2026-01-01T00:00:00Z"}}})
     (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p1:AA"}))
     (w.sd / "heartbeat").write_text("")
-    got = _menubar_js(w, """$.OPRPillButton = $.NSButton; target = $.NSObject.alloc.init; icons.header = mothImage(28, false);
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
         var s = scan(), r = s.repos[0].watchers[0].rows[0], m = build(s);
         var mi = m.itemArray.js.filter(function (x) { return ObjC.unwrap(x.title) === '#5'; })[0], sub = [];
         for (var i = 0; i < mi.submenu.numberOfItems; i++) { var it = mi.submenu.itemAtIndex(i);
-            sub.push([ObjC.unwrap(it.title), ObjC.unwrap(it.action), unwrapString(it.representedObject)]); }
+            sub.push([ObjC.unwrap(it.title), it.isEnabled && !it.target.isNil(), unwrapString(it.representedObject)]); }
         return JSON.stringify([r.kind, r.text.split(' · ')[0], sub]);""")
     assert got[0:2] == ["fixing_here", "Fixing here"]
     go = [x for x in got[2] if x[0] == "Open session in iTerm"]
-    assert go and go[0][1] == "goTab:" and json.loads(go[0][2])["term_session"] == "w0t0p1:AA"
+    assert go and go[0][1] and json.loads(go[0][2])["term_session"] == "w0t0p1:AA"
     assert not [x for x in got[2] if x[0].startswith("Copy command")], "no session command to copy"
 
 
@@ -2125,3 +2169,93 @@ def test_show_settings_file_reveals_only_a_settings_file_in_a_data_dir(w):
              f"{data}/r/../r/settings.json", f"{w.home}/settings.json", "data/r/settings.json", None]
     got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(revealable));")
     assert got == [f"{data}/r/settings.json"] + [""] * 7, "only <data>/<repo>/settings.json, a regular file"
+
+
+# refresh() against a stand-in status item: what it sets as the badge and the menu.
+REFRESH_STUB = """var bar = { title: null, menu: null };
+    item = { setMenu: function (m) { bar.menu = m; }, button: { setTitle: function (t) { bar.title = String(t); } } };
+    icons.header = mothImage(28, false);
+    var titles = function () { var a = []; for (var i = 0; i < bar.menu.numberOfItems; i++) a.push(ObjC.unwrap(bar.menu.itemAtIndex(i).title)); return a; };"""
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_badge_counts_the_rows_shown_that_run_or_wait_for_an_answer(w):
+    """A row waiting for Fix now, or one done, is nobody being busy: only running sessions, questions
+    and a Fix now click being started count."""
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "1:review": {"pr": 1, "role": "review", "last_state": "working", "last_state_at": now},
+        "2:review": {"pr": 2, "role": "review", "last_state": "question", "last_state_at": now},
+        "3:review": {"pr": 3, "role": "review", "last_state": "posted", "last_state_at": now}},
+        "findings": {"4": {"at": now, "counts": {"🟠": 1}}, "5": {"at": now, "counts": {"🔵": 1}}}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """pendingFix[__REPO__ + '#5'] = Date.now();
+        refresh(); return JSON.stringify([bar.title, scan().repos[0].watchers[0].rows.map(function (r) { return r.kind; }).sort()]);"""
+                      .replace("__REPO__", json.dumps(str(w.repo))))
+    assert got[1] == ["findings", "fix_requested", "posted", "question", "working"]
+    assert got[0] == "3", "working, question and fix_requested; not findings or posted"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_menu_that_fails_to_build_shows_a_minimal_one_and_no_badge(w):
+    """Badge set before the menu was built: a build error left "1" beside a menu saying nothing runs."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "1:review": {"pr": 1, "role": "review", "last_state": "working"}}})
+    _watched(w)
+    f = w.home / "menubar-headless.js"
+    got = _menubar_js(w, REFRESH_STUB + """refresh(); var before = [bar.title, titles().length > 4];
+        watcherItems = function () { throw new Error('boom'); };
+        refresh(); return JSON.stringify([before, bar.title, titles()]);""")
+    assert got[0] == ["1", True]
+    assert got[1:] == ["", ["The menu failed to build — see menubar.log", "", "Quit menu bar"]]
+    out = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", str(f)], capture_output=True, text=True, timeout=30, env=w.env)
+    assert "open-pr menu bar: the menu failed to build: Error: boom" in out.stderr, "the error reaches menubar.log"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_is_built_as_wide_as_the_settings_panel_its_gear_opens(w):
+    """The gear inserts the panel into the menu already open, which keeps the width it opened with:
+    with a short repo name the panel lost "Apply to all" and its right column."""
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
+        var s = scan(), m = build(s), x = s.repos[0].settings[0];
+        return JSON.stringify([m.minimumWidth, settingsPanel(x, s.quotas, '').view.frame.size.width, HEADER_W]);""", script=True)
+    assert got[0] >= got[1] > got[2], got
+
+
+
+def _rosetta():
+    return shutil.which("osascript") and subprocess.run(["arch", "-x86_64", "/usr/bin/true"], capture_output=True).returncode == 0
+
+
+# The real menu bar and toast on screen, under each architecture a Mac runs osascript on: Intel's
+# JXA bridge hung on an ObjC subclass and crashed on a layer colour that Apple silicon's took.
+# Needs the window server: run outside a shell sandbox.
+@pytest.mark.skipif(not _rosetta(), reason="macOS with Rosetta only")
+@pytest.mark.parametrize("arch", ["x86_64", "arm64"])
+def test_the_menu_bar_and_a_toast_reach_the_screen_on_each_architecture(tmp_path, arch):
+    data = tmp_path / "data"
+    data.mkdir()
+    pf = tmp_path / "menubar.pid"
+    bar = subprocess.Popen(["arch", f"-{arch}", "/usr/bin/osascript", "-l", "JavaScript", str(MENUBAR),
+                            str(tmp_path / "snooze"), str(pf), "2700", str(data)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    try:
+        deadline = time.time() + 20
+        while time.time() < deadline and bar.poll() is None and not pf.exists():
+            time.sleep(0.1)
+        assert pf.exists(), f"no item in the menu bar (exit {bar.poll()}): {bar.stderr.read() if bar.poll() is not None else ''}"
+        assert pf.read_text().strip() == str(bar.pid), "arch execs osascript: the pid is the menu bar's"
+        time.sleep(1)
+        assert bar.poll() is None, bar.stderr.read()
+    finally:
+        bar.kill()
+        bar.wait()
+    shown = tmp_path / "slot" / "shown"
+    shown.parent.mkdir()
+    toast = subprocess.run(["arch", f"-{arch}", "/usr/bin/osascript", "-l", "JavaScript",
+                            str(REPO / "src" / "bin" / "open-pr-toast.js"), f"open-pr test ({arch})", "smoke test", "",
+                            "findings", "0", "1", "", "", "pr", "", "", "", "", "", "", "", "", "", "", str(shown)],
+                           capture_output=True, text=True, timeout=30)
+    assert toast.returncode == 0 and shown.exists(), toast.stderr

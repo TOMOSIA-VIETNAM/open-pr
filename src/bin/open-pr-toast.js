@@ -7,7 +7,9 @@
 // `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, the
 // watcher record fields term, term_session, tty, session_id, pid, then — a findings toast only — the
 // absolute open-pr-watch.sh, the repo dir, its remote and the PR number "Fix now" passes to
-// `open-pr-watch.sh fix-now`.
+// `open-pr-watch.sh fix-now` (each "" on any other toast), then the file to create once the toast
+// is on screen (`notify` waits for it).
+// Colours are NSBox fills and borders: a layer colour handed through the bridge crashes osascript on an Intel Mac.
 // focus: pr → open url · watcher → the watcher's terminal tab, or `claude attach` of its session
 // when that tab is gone · session → the open command in the watcher's terminal app (no valid
 // command ⇒ watcher). A watcher in a terminal not in TERMS and with no session ⇒ url. The focus
@@ -71,7 +73,7 @@ function run(argv) {
     var title = argv[0] || 'open-pr', summary = argv[1] || '', detail = argv[2] || '';
     var badge = BADGE[argv[3]] || BADGE.question;
     var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8);
-    var snoozeFile = argv[7] || '';
+    var snoozeFile = argv[7] || '', shown = /^\/.*\/shown$/.test(argv[19] || '') ? argv[19] : '';
     var where = clickTarget(argv), fix = fixArgs(argv);
 
     var app = $.NSApplication.sharedApplication;
@@ -102,12 +104,8 @@ function run(argv) {
     card.setState($.NSVisualEffectStateActive);
     card.setMaskImage(roundedMask(RADIUS));
     root.addSubview(card);
-    var rim = $.NSView.alloc.initWithFrame($.NSMakeRect(OUT, 0, W, H));   // the banner's hairline edge
-    rim.setWantsLayer(true);
-    rim.layer.setCornerRadius(RADIUS);
-    rim.layer.setBorderWidth(0.5);
-    rim.layer.setBorderColor((dark ? gray(1, 0.18) : gray(0, 0.12)).CGColor);
-    root.addSubview(rim);
+    // the banner's hairline edge
+    root.addSubview(pill($.NSMakeRect(OUT, 0, W, H), $.NSColor.clearColor, dark ? gray(1, 0.18) : gray(0, 0.12), RADIUS));
 
     var iconTop = PAD;
     var icon = $.NSImageView.imageViewWithImage(mothImage(ICON));
@@ -115,14 +113,11 @@ function run(argv) {
     card.addSubview(icon);
     var sym = symbol(badge);
     if (sym) {
-        var B = 17, ring = $.NSView.alloc.initWithFrame($.NSMakeRect(PAD + ICON - B + 3, H - iconTop - ICON - 3, B, B));
-        ring.setWantsLayer(true);
-        ring.layer.setCornerRadius(B / 2);
-        ring.layer.setBackgroundColor((dark ? gray(0.17, 1) : gray(1, 1)).CGColor);
+        var B = 17, bx = PAD + ICON - B + 3, by = H - iconTop - ICON - 3;
+        card.addSubview(pill($.NSMakeRect(bx, by, B, B), dark ? gray(0.17, 1) : gray(1, 1), $.NSColor.clearColor));
         var bv = $.NSImageView.imageViewWithImage(sym);
-        bv.setFrame($.NSMakeRect(1, 1, B - 2, B - 2));
-        ring.addSubview(bv);
-        card.addSubview(ring);
+        bv.setFrame($.NSMakeRect(bx + 1, by + 1, B - 2, B - 2));
+        card.addSubview(bv);   // a sibling: an NSBox insets what it contains
     }
 
     var tx = PAD + ICON + 10, tw = W - tx - PAD, labels = [];
@@ -181,6 +176,7 @@ function run(argv) {
         pause(0.012);
     }
     win.invalidateShadow;
+    if (shown) $('').writeToFileAtomicallyEncodingError(shown, true, $.NSUTF8StringEncoding, null);
 
     var TICK = 0.05, left = secs, wasDown = false, hovering = false;
     while (left > 0) {
@@ -214,13 +210,14 @@ function isDark(app) {
     var a = app.effectiveAppearance.bestMatchFromAppearancesWithNames($([$.NSAppearanceNameAqua, $.NSAppearanceNameDarkAqua]));
     return ObjC.unwrap(a) === ObjC.unwrap($.NSAppearanceNameDarkAqua);
 }
-// A rounded box drawn by AppKit itself (a layer colour is not drawn in a view added hidden).
-function pill(frame, fill, border) {
+// A rounded box drawn by AppKit itself (a layer colour is not drawn in a view added hidden); radius
+// defaults to half its short side.
+function pill(frame, fill, border, radius) {
     var b = $.NSBox.alloc.initWithFrame(frame);
     b.setBoxType($.NSBoxCustom);
     b.setTitlePosition($.NSNoTitle);
     b.setContentViewMargins($.NSMakeSize(0, 0));
-    b.setCornerRadius(Math.min(frame.size.width, frame.size.height) / 2);
+    b.setCornerRadius(radius || Math.min(frame.size.width, frame.size.height) / 2);
     b.setFillColor(fill);
     b.setBorderWidth(0.5);
     b.setBorderColor(border);

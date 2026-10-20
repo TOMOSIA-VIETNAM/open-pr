@@ -19,8 +19,8 @@
 //   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
-// argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs,
-// then the absolute path of open-pr-watch.sh.
+// argv: snooze file, pid file (its pid is written there once the item is in the menu bar), heartbeat
+// age (seconds) past which a repo is not watched, data dirs, then the absolute path of open-pr-watch.sh.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, written into a .command file or passed to osascript as argv after matching OPEN_CMD,
 // passed to osascript as argv after matching TAB_ID, turned into `claude attach` after matching
@@ -51,7 +51,7 @@ var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['re
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
-var item = null, target = null, icons = {}, rowParts = {}, pillParts = {}, litRow = null, menuOpen = false;
+var item = null, icons = {}, rowParts = {}, pillParts = {}, litRow = null, menuOpen = false;
 // The watcher row whose settings show inline under it: { row: its rowParts, items: the panel items,
 // panels: settingsPanel's objects }; shown = the scan the open menu was built from.
 var openPanel = null, shown = null;
@@ -84,6 +84,9 @@ var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as l
 // tell apart at a glance. Its PR rows belong to it and carry no role.
 var ROLE_LOOK = { review: [[0.04, 0.42, 0.9], 'Review'], fix: [[0.8, 0.38, 0.02], 'Fix'], '': [null, 'Review + fix'] };
 var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a repo's watchers: both roles, review, fix
+// The badge: rows shown whose session runs, waits for the user's answer, or is starting on a Fix now
+// click. A `findings` row waits for nobody: Fix now is the user's to choose.
+var BUSY = { working: 1, fixing: 1, fixing_here: 1, fix_requested: 1, question: 1 }, busy = 0;
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
 // by TERM_PROGRAM: menu name, bundle id, app a session opens in (see openIn)
@@ -170,42 +173,16 @@ SETTINGS.forEach(function (g) { g[1].forEach(function (k) {
 var settingsCache = {}, SETTINGS_RETRY = 60000;   // ms before a failed read is tried again
 var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
 
-// A button over a watcher row's hand-drawn pill (Stop, the settings gear): darkens the pill while
-// the pointer is on it.
-ObjC.registerSubclass({
-    name: 'OPRPillButton',
-    superclass: 'NSButton',
-    methods: {
-        'mouseEntered:': { types: ['void', ['id']], implementation: function () { hoverPill(this, true); } },
-        'mouseExited:': { types: ['void', ['id']], implementation: function () { hoverPill(this, false); } }
-    }
-});
-ObjC.registerSubclass({
-    name: 'OPRMenuTarget',
-    methods: {
-        'tick:': { types: ['void', ['id']], implementation: function () { refresh(); } },
-        'openURL:': { types: ['void', ['id']], implementation: function (s) { openURL(unwrapString(s.representedObject)); } },
-        'copyText:': { types: ['void', ['id']], implementation: function (s) { copyText(unwrapString(s.representedObject)); } },
-        'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(parse(unwrapString(s.representedObject))); } },
-        // sender: a control inside a watcherRow view; its item carries { go, stop }
-        'goRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'go'); } },
-        'goTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
-        'stopRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'stop'); } },
-        'settingsRow:': { types: ['void', ['id']], implementation: function (s) { toggleSettings(s); } },
-        'menu:willHighlightItem:': { types: ['void', ['id', 'id']], implementation: function (m, mi) { highlightRow(mi); } },
-        'menuWillOpen:': { types: ['void', ['id']], implementation: function () { menuOpen = true; } },
-        'menuDidClose:': { types: ['void', ['id']], implementation: function () { menuOpen = false; highlightRow(null); closeSettings(); } },
-        'stopSession:': { types: ['void', ['id']], implementation: function (t) { stopSession(parse(unwrapString(t.userInfo))); } },
-        'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
-        'fixNow:': { types: ['void', ['id']], implementation: function (s) { fixNow(parse(unwrapString(s.representedObject))); } },
-        'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
-        'applyAll:': { types: ['void', ['id']], implementation: function (s) { applyAll(s); } },
-        // sender: a control in a settings panel (see controls)
-        'setting:': { types: ['void', ['id']], implementation: function (s) { setSetting(s); } },
-        'reveal:': { types: ['void', ['id']], implementation: function (s) { reveal(s); } },
-        'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
-    }
-});
+// Every Cocoa callback is a JS function behind a block: a control's or menu item's target is an
+// NSBlockOperation whose `main` runs it, timers and notifications take a block. No ObjC subclass:
+// registering one hangs osascript on an Intel Mac. A target is held weakly, so each operation is
+// kept here while a menu that can show it lives: the current menu's and the one it replaced (an
+// action may run while a refresh swaps the menu).
+var ops = [], opsBefore = [];
+function act(fn) { var op = $.NSBlockOperation.blockOperationWithBlock(fn); ops.push(op); return op; }
+// While the menu is open (tracking runs its own run loop mode, so the timer is in the common modes):
+// the highlight of a watcher row and the hover of a pill, which a view item gets from nobody else.
+var TRACK = 0.05, tracker = null;
 
 function run(argv) {
     snoozeFile = argv[0] || ''; pidFile = argv[1] || '';
@@ -224,10 +201,53 @@ function run(argv) {
     item.button.setImage(icons.bar);
     item.button.setImagePosition($.NSImageLeft);
     item.button.setToolTip('open-pr');
-    target = $.OPRMenuTarget.alloc.init;
+    // object $() (nil): any menu, ours told by isOurs. A JS null crosses the bridge as NSNull, which no menu is.
+    var nc = $.NSNotificationCenter.defaultCenter, main = $.NSOperationQueue.mainQueue;
+    nc.addObserverForNameObjectQueueUsingBlock($.NSMenuDidBeginTrackingNotification, $(), main, function (n) {
+        if (isOurs(n.object)) menuOpened();
+    });
+    nc.addObserverForNameObjectQueueUsingBlock($.NSMenuDidEndTrackingNotification, $(), main, function (n) {
+        if (isOurs(n.object)) menuClosed();
+    });
     refresh();
-    $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(REFRESH, target, 'tick:', null, true);
+    $.NSTimer.scheduledTimerWithTimeIntervalRepeatsBlock(REFRESH, true, function () { refresh(); });
+    // `menubar` waits for this: the item is in the menu bar
+    if (pidFile) $(String($.NSProcessInfo.processInfo.processIdentifier) + '\n').writeToFileAtomicallyEncodingError(pidFile, true, $.NSUTF8StringEncoding, null);
     app.run;
+}
+function isOurs(menu) { return !!item && !menu.isNil() && !item.menu.isNil() && menu.isEqual(item.menu); }
+function menuOpened() {
+    menuOpen = true;
+    if (tracker) tracker.invalidate;
+    tracker = $.NSTimer.timerWithTimeIntervalRepeatsBlock(TRACK, true, function () { track(); });
+    $.NSRunLoop.currentRunLoop.addTimerForMode(tracker, $.NSRunLoopCommonModes);
+}
+function menuClosed() {
+    if (tracker) { tracker.invalidate; tracker = null; }
+    menuOpen = false;
+    highlightRow(null);
+    Object.keys(pillParts).forEach(function (h) { var q = pillParts[h]; if (q.hover) { q.hover = false; paintPill(q, !!q.lit); } });
+    closeSettings();
+}
+// One tracking step: repaints only what changed since the last.
+function track() {
+    var m = item.menu;
+    if (m.isNil()) return;
+    highlightRow(m.highlightedItem);
+    var at = $.NSEvent.mouseLocation;
+    Object.keys(pillParts).forEach(function (h) {
+        var q = pillParts[h], r = screenRect(q.button);
+        var on = !!r && at.x >= r.origin.x && at.x <= r.origin.x + r.size.width && at.y >= r.origin.y && at.y <= r.origin.y + r.size.height;
+        if (on !== !!q.hover) { q.hover = on; paintPill(q, !!q.lit); }
+    });
+}
+// A view's frame on screen, or null while it is in no window. Through the content view: a nil
+// view to convertRect:toView: crashes the bridge.
+function screenRect(v) {
+    var w = v.window;
+    if (w.isNil()) return null;
+    var c = w.contentView, r = v.convertRectToView(v.bounds, c), o = c.frame.origin;
+    return w.convertRectToScreen($.NSMakeRect(r.origin.x + o.x, r.origin.y + o.y, r.size.width, r.size.height));
 }
 
 // ------------------------------------------------------------- reading ----
@@ -280,10 +300,10 @@ function watcherOf(w, set) {
              dirs: [], rows: [] };
 }
 
-// → { repos: [{ name, folders, settings, watchers }] by name, quotas, polls, active }: one group per
+// → { repos: [{ name, folders, settings, watchers }] by name, quotas, polls }: one group per
 // watched repo (its data dirs merged), its watchers by role, each with its PR rows.
 function scan() {
-    var out = { repos: [], active: 0, quotas: [], polls: [] }, groups = {}, repoCount = {};
+    var out = { repos: [], quotas: [], polls: [] }, groups = {}, repoCount = {};
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch';
@@ -394,7 +414,6 @@ function scan() {
             // waiting on the user first, then the latest
             w.rows.sort(function (a, b) { return (b.active - a.active) || (b.at - a.at); });
             w.rows = w.rows.slice(0, ROWS);
-            w.rows.forEach(function (r) { if (r.active) out.active++; });
         });
         // both roles, review, fix; then by tab
         var key = function (w) { return [ROLE_RANK[w.sfx], low(w.cwdName + ' ' + w.termName)]; };
@@ -584,15 +603,29 @@ function blank() {
 // ---------------------------------------------------------------- menu ----
 // A settings read waits on a task while the run loop turns, so the timer can fire inside it. An open
 // menu is left as it is: a settings panel writes while it stays open, and updates its own controls.
+// The badge and the menu change together, the menu first: a menu that fails to build is logged
+// (menubar.log), a minimal one shows, and the badge counts nothing it does not show.
 var refreshing = false;
 function refresh() {
     if (refreshing || menuOpen) return;
     refreshing = true;
     try {
-        var s = scan();
-        item.button.setTitle(s.active ? String(s.active) : '');
-        item.setMenu(build(s));
+        var m;
+        try { m = build(scan()); } catch (e) {
+            console.log('open-pr menu bar: the menu failed to build: ' + e);
+            m = brokenMenu();
+        }
+        item.setMenu(m);
+        item.button.setTitle(busy ? String(busy) : '');
     } finally { refreshing = false; }
+}
+function brokenMenu() {
+    busy = 0;
+    var m = newMenu('open-pr');
+    add(m, 'The menu failed to build — see menubar.log');
+    m.addItem($.NSMenuItem.separatorItem);
+    add(m, 'Quit menu bar', leave);
+    return m;
 }
 
 function clip(t, n) { n = n || CLIP; return t.length > n ? t.slice(0, n - 1) + '…' : t; }
@@ -602,17 +635,19 @@ function newMenu(title) {
     m.setAutoenablesItems(false);
     return m;
 }
-function add(menu, title, action, value, tag) {
-    var mi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(clip(title), action || null, '');
-    mi.setEnabled(!!action);
-    if (action) {
-        mi.setTarget(target);
+// fn(value) runs on a click; no fn: a line that does nothing. value is also the item's represented object.
+function add(menu, title, fn, value) {
+    var mi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(clip(title), fn ? 'main' : null, '');
+    mi.setEnabled(!!fn);
+    if (fn) {
+        mi.setTarget(act(function () { fn(value); }));
         if (value !== undefined) mi.setRepresentedObject($(value));
-        if (tag !== undefined) mi.setTag(tag);
     }
     menu.addItem(mi);
     return mi;
 }
+// fn of the object a JSON value holds
+function json(fn) { return function (v) { fn(parse(v)); }; }
 // Native subtitle from macOS 14.4; before that, the same two lines as an attributed title. One line,
 // cut with "…" at SUB_W before its tail (the time), which stays whole: the menu widens to fit it (a
 // native subtitle does not widen it, and runs under the submenu arrow).
@@ -726,13 +761,13 @@ function repoRow(name, folders, settings, quotas) {
     if (gw) {
         var gear = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('gearshape', 'Settings'));
         gear.image.setTemplate(true);
-        p.gear = pill(v, p, w - gw - 14, gw, gear, 14, 14, 'settingsRow:', 'Settings of ' + name, REPO.h);
+        p.gear = pill(v, p, w - gw - 14, gw, gear, 14, 14, toggleSettings, 'Settings of ' + name, REPO.h);
     }
     rowParts[v.hash] = p;
     return v;
 }
 // A watcher row (a view item gets neither the item's action nor the menu's highlight): a transparent
-// button over the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
+// button over the left part takes the click, and track() shows the highlight.
 // parts: watcherLine's.
 function watcherRow(parts, canGo, role) {
     var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
@@ -765,7 +800,7 @@ function watcherRow(parts, canGo, role) {
     line.setAttributedStringValue(lineAttr);
     v.addSubview(line);
     if (canGo) {   // ends 4 pt short of the pill, so its hit area stays its own
-        var hit = $.NSButton.buttonWithTitleTargetAction('', target, 'goRow:');
+        var hit = $.NSButton.buttonWithTitleTargetAction('', act(function () { rowAction(hit, 'go'); }), 'main');
         hit.setTransparent(true);
         hit.setFrame($.NSMakeRect(0, 0, w - bw - 18, ROW.h));
         hit.setAutoresizingMask($.NSViewWidthSizable);
@@ -778,14 +813,15 @@ function watcherRow(parts, canGo, role) {
     var word = $.NSTextField.labelWithString('Stop');
     word.setFont(stopFont);
     var ww = Math.ceil(word.intrinsicContentSize.width) + 4;   // room for the last glyph's overhang
-    p.stop = pill(v, p, w - bw - 14, bw, word, ww, 16, 'stopRow:', 'Stop watcher', ROW.h);
+    p.stop = pill(v, p, w - bw - 14, bw, word, ww, 16, function (b) { rowAction(b, 'stop'); }, 'Stop watcher', ROW.h);
     rowParts[v.hash] = p;
     return v;
 }
 // A pill at x (bw wide) in a row rh high, holding `content` (cw × ch, centred by frame: the alignment
-// constant is wrong on Apple silicon) under a transparent OPRPillButton. Drawn by hand: a bezel goes
-// dark on the selection colour, and its title with it.
-function pill(v, row, x, bw, content, cw, ch, action, tip, rh) {
+// constant is wrong on Apple silicon) under a transparent button whose click runs fn(button); track()
+// darkens it while the pointer is on it. Drawn by hand: a bezel goes dark on the selection colour, and
+// its title with it.
+function pill(v, row, x, bw, content, cw, ch, fn, tip, rh) {
     var bh = PILL.h, box = $.NSBox.alloc.initWithFrame($.NSMakeRect(x, (rh - bh) / 2, bw, bh));
     box.setBoxType($.NSBoxCustom);
     box.setTitlePosition($.NSNoTitle);
@@ -796,14 +832,11 @@ function pill(v, row, x, bw, content, cw, ch, action, tip, rh) {
     content.setFrame($.NSMakeRect(x + (bw - cw) / 2, (rh - ch) / 2, cw, ch));
     content.setAutoresizingMask($.NSViewMinXMargin);
     v.addSubview(content);
-    var b = $.OPRPillButton.alloc.initWithFrame(box.frame);
+    var b = $.NSButton.alloc.initWithFrame(box.frame);
     b.setTitle('');
-    b.setTarget(target);
-    b.setAction(action);
+    b.setTarget(act(function () { fn(b); }));
+    b.setAction('main');
     b.setTransparent(true);
-    // InVisibleRect: the area follows the button; ActiveAlways: a menu window is never key
-    b.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect,
-        $.NSTrackingMouseEnteredAndExited | $.NSTrackingActiveAlways | $.NSTrackingInVisibleRect, b, null));
     b.setAutoresizingMask($.NSViewMinXMargin);
     b.setToolTip(tip);
     v.addSubview(b);
@@ -811,12 +844,15 @@ function pill(v, row, x, bw, content, cw, ch, action, tip, rh) {
     paintPill(q, false);
     return q;
 }
+// mi: the menu's highlighted item (nil or null: none); the watcher row it is shows as selected.
 function highlightRow(mi) {
-    if (litRow) paintRow(litRow, false);
-    litRow = null;
     var v = mi && !mi.isNil() ? mi.view : null;
     var p = v && !v.isNil() ? rowParts[v.hash] : null;
-    if (p && p.canGo) { litRow = p; paintRow(p, true); }
+    if (!p || !p.canGo) p = null;
+    if (p === litRow) return;
+    if (litRow) paintRow(litRow, false);
+    litRow = p;
+    if (p) paintRow(p, true);
 }
 function paintRow(p, on) {
     p.bg.setHidden(!on);
@@ -837,12 +873,6 @@ function paintPill(q, on) {
     if (q.content.respondsToSelector('setTextColor:')) q.content.setTextColor(c);
     else q.content.setContentTintColor(c);
 }
-function hoverPill(button, on) {
-    var q = pillParts[button.hash];
-    if (!q) return;
-    q.hover = on;
-    paintPill(q, !!q.lit);
-}
 function rowAction(sender, which) {
     var mi = sender.enclosingMenuItem;
     if (mi.isNil()) return;
@@ -861,11 +891,11 @@ function toggleSettings(sender) {
     var was = openPanel && openPanel.row === q.row;
     closeSettings();
     if (was) return;
-    var menu = mi.menu, at = Number(menu.indexOfItem(mi)), many = q.row.settings.length > 1;
+    var menu = mi.menu, at = Number(menu.indexOfItem(mi));
     openPanel = { row: q.row, items: q.row.settings.map(function (x, i) {
         // re-read: the menu is not rebuilt while open, so x.conf may be older than the file
         var y = { name: x.name, repo: x.repo, arg: x.arg, conf: repoSettings(x.repo, x.arg.repo_dir, x.arg.remote) || x.conf };
-        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, ''), p = settingsPanel(y, q.row.quotas, many ? x.repo : '');
+        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, ''), p = settingsPanel(y, q.row.quotas, caption(q.row.settings, x));
         pi.setView(p.view);
         menu.insertItemAtIndex(pi, at + 1 + i);
         return { item: pi, panel: p };
@@ -874,6 +904,20 @@ function toggleSettings(sender) {
     openPanel.items = openPanel.items.map(function (o) { return o.item; });
     q.pressed = true;
     paintPill(q, !!q.lit);
+}
+// A panel's title line: its data dir, when the repo has one in each of several.
+function caption(settings, x) { return settings.length > 1 ? x.repo : ''; }
+// The width of x's panel, measured on a panel built aside; again only once what it shows changes.
+var panelWidths = {};
+function panelWidth(x, quotas, cap) {
+    var k = JSON.stringify([x.conf, quotas, cap]), c = panelWidths[x.repo];
+    if (!c || c.k !== k) {
+        var keep = controls, n = ops.length;
+        controls = {};
+        c = panelWidths[x.repo] = { k: k, w: settingsPanel(x, quotas, cap).view.frame.size.width };
+        controls = keep; ops.length = n;
+    }
+    return c.w;
 }
 function closeSettings() {
     if (!openPanel) return;
@@ -885,8 +929,8 @@ function closeSettings() {
 
 function build(s) {
     var m = newMenu('open-pr');
-    m.setDelegate(target);
-    rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {}; shown = s;
+    opsBefore = ops; ops = [];
+    rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {}; shown = s; busy = 0;
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
     head.setView(headerView(until, gauge(s.quotas), pollSpan(s.polls)));
@@ -900,22 +944,26 @@ function build(s) {
         gi.setView(repoRow(g.name, g.folders, g.settings, s.quotas));
         m.addItem(gi);
         g.watchers.forEach(function (w) { watcherItems(m, w); });
+        // the menu keeps the width it opened with: room for the widest panel its gear may show
+        g.settings.forEach(function (x) {
+            m.setMinimumWidth(Math.max(m.minimumWidth, panelWidth(x, s.quotas, caption(g.settings, x))));
+        });
     });
 
     m.addItem($.NSMenuItem.separatorItem);
     var sub = newMenu('Snooze toasts');
     if (until) add(sub, 'Off until ' + when(until)).setState($.NSControlStateValueOn);
-    add(sub, '30 minutes', 'snooze:', undefined, 30);
-    add(sub, '1 hour', 'snooze:', undefined, 60);
-    add(sub, 'Until 9:00 tomorrow', 'snooze:', undefined, -1);
+    add(sub, '30 minutes', snooze, 30);
+    add(sub, '1 hour', snooze, 60);
+    add(sub, 'Until 9:00 tomorrow', snooze, -1);
     sub.addItem($.NSMenuItem.separatorItem);
-    if (until) add(sub, 'Turn toasts back on', 'snooze:', undefined, 0);
+    if (until) add(sub, 'Turn toasts back on', snooze, 0);
     else add(sub, 'Toasts on').setState($.NSControlStateValueOn);
     var sn = add(m, 'Snooze toasts');
     sn.setSubmenu(sub);
     sn.setEnabled(true);
     sn.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription(until ? 'bell.slash' : 'bell', ''));
-    add(m, 'Quit menu bar', 'quit:').setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('power', ''));
+    add(m, 'Quit menu bar', leave).setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('power', ''));
     return m;
 }
 // A watcher's row, then its PR rows one indentation step in (their icons under its text).
@@ -938,18 +986,19 @@ function watcherItems(m, w) {
     }
     w.rows.forEach(function (x) {
         var spec = KIND[x.kind];
-        var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
+        if (BUSY[x.kind]) busy++;
+        var mi = add(m, x.title, isURL(x.url) ? openURL : null, x.url);
         mi.setIndentationLevel(PR_INDENT);
         subtitle(mi, x.text, x.time);
         mi.setImage(spec ? symbol(spec) : blank());
         // Offered in every state: `open` also reopens a finished or stopped session.
         var sub = newMenu(x.title);
-        if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
-        if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
-        if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, term: w.term }));
-        if (x.here && go) add(sub, 'Open session in ' + w.app, 'goTab:', JSON.stringify(go));
-        if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
-        if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
+        if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', json(fixNow), x.fix);
+        if (isURL(x.url)) add(sub, 'Open pull request', openURL, x.url);
+        if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, json(openTerminal), JSON.stringify({ open: x.open, term: w.term }));
+        if (x.here && go) add(sub, 'Open session in ' + w.app, json(goToTab), JSON.stringify(go));
+        if (x.open) add(sub, 'Copy command  ' + x.open, copyText, x.open);
+        if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', json(hide), x.hide);
         if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
     });
 }
@@ -971,7 +1020,10 @@ function control(p, v, key, values) {
     p.ctl.push(c);
     return v;
 }
-function checkbox(p, key, title) { return control(p, $.NSButton.checkboxWithTitleTargetAction(title, target, 'setting:'), key); }
+function checkbox(p, key, title) {
+    var b = $.NSButton.checkboxWithTitleTargetAction(title, act(function () { setSetting(b); }), 'main');
+    return control(p, b, key);
+}
 // x: { name, repo, conf, arg }; caption: a title line on top (the repo, when a watcher has several).
 // The view of one menu item: a click on a control inside it leaves the menu open, where a plain
 // item's action closes it.
@@ -997,14 +1049,14 @@ function settingsPanel(x, quotas, caption) {
                 return;
             }
             var seg = $.NSSegmentedControl.segmentedControlWithLabelsTrackingModeTargetAction(
-                $(k[2].map(function (o) { return o[1]; })), $.NSSegmentSwitchTrackingSelectOne, target, 'setting:');
+                $(k[2].map(function (o) { return o[1]; })), $.NSSegmentSwitchTrackingSelectOne, act(function () { setSetting(seg); }), 'main');
             k[2].forEach(function (o, j) {
                 var tip = k[0] === 'watch.poll_interval_seconds' ? span(o[0]) + estimate(quotas, o[0]) : o[2];
                 if (tip) seg.setToolTipForSegment(tip, j);
             });
             put(control(p, seg, k[0], k[2].map(function (o) { return o[0]; })), col, undefined, 24);
             if (k[0] === 'watch.poll_interval_seconds') {   // placed right of the control once it is sized
-                var b = $.NSButton.buttonWithTitleTargetAction('Apply to all', target, 'applyAll:');
+                var b = $.NSButton.buttonWithTitleTargetAction('Apply to all', act(function () { applyAll(b); }), 'main');
                 b.setControlSize($.NSControlSizeSmall);
                 b.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
                 b.setToolTip('Poll every repo this menu shows at this interval');
@@ -1025,7 +1077,7 @@ function settingsPanel(x, quotas, caption) {
     put(steth, pad, 14, 14, 1);
     p.doctor = put(text('', small, second), pad + 20, -1, 14, 1);
     top += 22;
-    p.reveal = $.NSButton.buttonWithTitleTargetAction('Show settings file', target, 'reveal:');
+    p.reveal = $.NSButton.buttonWithTitleTargetAction('Show settings file', act(function () { reveal(p.reveal); }), 'main');
     p.reveal.setControlSize($.NSControlSizeSmall);
     p.reveal.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
     controls[p.reveal.hash] = { reveal: x.repo + '/settings.json' };
@@ -1214,7 +1266,7 @@ function stopWatcher(o) {
     if (dirs.length && SESSION_ID.test(sid)) stopLater({ dirs: dirs, sfx: sfx, session_id: sid, tries: 0 });
 }
 function stopLater(o) {
-    $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(3, target, 'stopSession:', $(JSON.stringify(o)), false);
+    $.NSTimer.scheduledTimerWithTimeIntervalRepeatsBlock(3, false, function () { stopSession(o); });
 }
 // A watcher session left running in the background (its user quit `claude`) has nobody to close
 // it once its waits are stopped. Stopped once its waits consumed their stop files, or after 15 s.

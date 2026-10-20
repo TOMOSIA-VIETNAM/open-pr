@@ -25,6 +25,8 @@ TERMINAL="posted draft lgtm_chat nothing answered fixed failed stopped"
 REPORTED="posted draft lgtm_chat nothing answered fixed failed question"
 # Longest rate-limit backoff; the menu bar counts a repo watched while its heartbeat is < 3x this.
 BACKOFF_CAP=900
+# Naps (0.2 s) `notify` waits for its toast, and `menubar` for its item, to be on screen.
+TOAST_WAIT=25 MENUBAR_WAIT=50
 
 err() { printf '%s\n' "$*" >&2; }
 die() { code="$1"; shift; err "$*"; exit "$code"; }
@@ -1044,13 +1046,26 @@ cmd_notify() {
         open=""; [ -z "$P" ] || open=$(fit "$(session_field "$P:$ROLE" open)" "$OPEN_CMD_RE")
         # "Fix now" on a findings toast runs `fix-now` for this repo
         fx=""; [ "$E" != findings ] || [ -z "$P" ] || fx="$SELF_DIR/open-pr-watch.sh"
-        nohup osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
+        # The toast creates `shown` once on screen; toast.log ends with its exit code when not 0.
+        shown="$sd/$slot/shown"
+        ( trap '' HUP; rc=0
+          osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
             "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" "$FOCUS" "$open" \
             "$(watcher_field term "$TERM_RE")" "$(watcher_field term_session "$TERM_SESSION_RE")" \
             "$(watcher_field tty "$TTY_RE")" "$(watcher_field session_id "$SESSION_ID_RE")" \
             "$(jq -r '.pid // "" | numbers' "$WF" 2>/dev/null || true)" "$fx" "${fx:+$D}" "${fx:+$(fit "$RM" '[A-Za-z0-9._-]{1,128}')}" "${fx:+$P}" \
-            > "$WD/toast.log" 2>&1 &
-        printf '%s\n' "$!" > "$sd/$slot/pid"
+            "$shown" || rc=$?
+          [ "$rc" = 0 ] || printf 'open-pr-toast.js exited %s\n' "$rc"
+        ) > "$WD/toast.log" 2>&1 < /dev/null &
+        tp=$!
+        printf '%s\n' "$tp" > "$sd/$slot/pid"
+        i=0
+        while [ ! -e "$shown" ] && kill -0 "$tp" 2>/dev/null && [ "$i" -lt "$TOAST_WAIT" ]; do nap; i=$((i + 1)); done
+        if [ ! -e "$shown" ]; then
+            pkill -P "$tp" 2>/dev/null || :
+            jq -n -c --arg e "$E" --arg log "$WD/toast.log" '{event: $e, sent: false, reason: "toast not shown", log: $log}'
+            return 0
+        fi
     elif command -v notify-send >/dev/null 2>&1; then
         via=notify-send
         notify-send -- "$title" "$summary${detail:+
@@ -1130,6 +1145,7 @@ cmd_menubar() {
         kill "$pid" 2>/dev/null || true
     fi
     printf '%s\n' "$dirs" > "$WD/menubar.dirs"
+    rm -f "$pf"
     # one data dir per argv element (a path holding a newline is not supported)
     nl='
 '
@@ -1139,15 +1155,18 @@ cmd_menubar() {
     nohup osascript -l JavaScript "$SELF_DIR/open-pr-menubar.js" "$WD/snooze_until" "$pf" \
         "$((3 * BACKOFF_CAP))" "$@" "$SELF_DIR/open-pr-watch.sh" > "$WD/menubar.log" 2>&1 < /dev/null &
     pid=$!
-    printf '%s\n' "$pid" > "$pf"
-    # Inside a shell sandbox it cannot reach the window server and exits at once: say so, never
-    # `started` for an item that is not there.
-    sleep 2
-    if ! kill -0 "$pid" 2>/dev/null; then
-        rm -f "$pf" "$WD/menubar.dirs"
-        die 1 "open-pr-watch.sh menubar: the menu bar exited at start — run it with the shell sandbox off (log: $WD/menubar.log)"
-    fi
-    printf 'started\n'
+    # It writes its pid to the pid file once its item is in the menu bar: never `started` for an item
+    # that is not there. Inside a shell sandbox it cannot reach the window server and exits at once.
+    i=0
+    while [ "$(cat "$pf" 2>/dev/null || true)" != "$pid" ] && kill -0 "$pid" 2>/dev/null && [ "$i" -lt "$MENUBAR_WAIT" ]; do
+        nap; i=$((i + 1))
+    done
+    [ "$(cat "$pf" 2>/dev/null || true)" != "$pid" ] || { printf 'started\n'; return 0; }
+    rm -f "$pf" "$WD/menubar.dirs"
+    kill -0 "$pid" 2>/dev/null \
+        || die 1 "open-pr-watch.sh menubar: the menu bar exited at start — run it with the shell sandbox off (log: $WD/menubar.log)"
+    kill "$pid" 2>/dev/null || :
+    die 1 "open-pr-watch.sh menubar: the menu bar showed no item in $((MENUBAR_WAIT / 5)) s and was stopped (log: $WD/menubar.log)"
 }
 
 # --------------------------------------------------------------- trust ----
@@ -1258,7 +1277,8 @@ Subcommands:
       `pr` (default) opens U; `watcher` brings the watcher's terminal tab forward; `session` opens
       PR N's session of role R in the watcher's terminal app (no valid open command ⇒ as
       `watcher`); a watcher in an unknown terminal ⇒ opens U. The watcher = the wait serving R.
-      `--quiet`: the feed line only (whatever the setting or snooze), no toast
+      `--quiet`: the feed line only (whatever the setting or snooze), no toast. A toast not on screen
+      within 5 s (it crashed or hung; stopped then) → `"sent":false,"reason":"toast not shown"` + `log`
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
@@ -1270,10 +1290,10 @@ Subcommands:
   menubar [--close]
       macOS: start the menu bar item (review and fix rows grouped by the watcher serving their role,
       recent toasts, snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
-      `started` | `running` (exit 1 when it exits at start, e.g. inside a shell sandbox; its
-      stderr is `menubar.log`); one running on other data dirs than `data-dir --all` now prints is
-      restarted (`started`); it stays until closed. `--close` → `closed` | `not running`. Elsewhere
-      `NO-EQUIVALENT`. Plain lines
+      `started` once its item is in the menu bar | `running` (exit 1 when it exits at start, e.g.
+      inside a shell sandbox, or shows no item within 10 s; its stderr is `menubar.log`); one
+      running on other data dirs than `data-dir --all` now prints is restarted (`started`); it stays
+      until closed. `--close` → `closed` | `not running`. Elsewhere `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]
       will R open a session in W (default the repo dir) without a prompt? claude: `trusted` | `untrusted` plus
       a `run: cd <dir> && claude` line (trust is per exact directory, a trusted parent does not
