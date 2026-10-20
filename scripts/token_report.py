@@ -90,6 +90,7 @@ ROLES = {
     "case-multi-pr-fix": ["cases/multi-pr-fix.md"],
     "case-data-dir": ["cases/data-dir.md"],
     "case-memory-not-found": ["cases/memory-not-found.md"],
+    "case-self-repair": ["cases/self-repair.md"],
     "tpl-rails": ["templates/rails.md"],
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
@@ -165,6 +166,12 @@ SCENARIOS = {
     ],
     "menubar": [
         "menubar-cmd",
+    ],
+    # a review whose `<op>` call failed in a way no table documents: diagnose, patch the installed
+    # plugin, hand off to feedback (the bin/ file it Reads varies, so it is not counted)
+    "review/self-repair-github": [
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "case-self-repair", "feedback-cmd",
     ],
     # a session the watcher opened to answer a question asked on a PR
     "watch/answer-session": [

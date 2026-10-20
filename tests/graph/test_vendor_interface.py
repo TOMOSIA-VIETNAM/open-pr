@@ -11,9 +11,10 @@ def test_cli_contract_names_only_real_subcommands():
     script's dispatch, and every dispatched subcommand must be in it — an undocumented one is
     dead weight, a documented ghost sends the agent into exit 1."""
     sec = cli_doc.sections(cli_doc.help_text())
-    subcommands = sec["Subcommands"] + sec["Watch subcommands"] + sec["Internal subcommands"]
+    subcommands = (sec["Subcommands"] + sec["Watch subcommands"] + sec["Internal subcommands"]
+                   + sec["Diagnostic subcommands"])
     documented = {l.split()[0] for l in subcommands if not l.startswith("      ")}
-    dispatched = set(re.findall(r"^    ([a-z-]+)\)\s+cmd_", cli_text(), re.M))
+    dispatched = set(re.findall(r"^    ([a-z-]+)\)\s+(?:shift; )?cmd_", cli_text(), re.M))
     assert documented == dispatched, (
         f"help-only: {documented - dispatched}, script-only: {dispatched - documented}")
 
@@ -37,11 +38,11 @@ def test_watch_only_subcommands_stay_out_of_cli_md():
         == cli_doc.render_watch(), "watch.md drifted from `open-pr.sh --help` — run scripts/cli_doc.py --write"
     core = text(SRC / "core" / "cli.md")
     prompts = "\n".join(t for f, t in all_text().items() if f not in NEVER_LOADED)
-    for line in sec["Watch subcommands"] + sec["Internal subcommands"]:
+    for line in sec["Watch subcommands"] + sec["Internal subcommands"] + sec["Diagnostic subcommands"]:
         if line.startswith("      "):
             continue
         name = line.split()[0]
-        assert f"| `{name}" not in core, f"{name}: watch-only, yet in core/cli.md"
+        assert f"| `{name}" not in core, f"{name}: not called by every review/fix run, yet in core/cli.md"
     for line in sec["Internal subcommands"]:
         if not line.startswith("      "):
             assert f"<op> {line.split()[0]}" not in prompts, \
@@ -95,3 +96,46 @@ def test_prompts_never_read_or_reimplement_the_cli():
                 f"{name}: a raw vendor call outside the script: {flat[:80]}"
             assert not re.search(r"\bcurl\s+-", flat), \
                 f"{name}: a raw curl call outside the script: {flat[:80]}"
+
+
+SELF_REPAIR = "cases/self-repair.md"
+
+
+def test_a_plugin_defect_reaches_self_repair_from_every_command():
+    """Every command reads guardrails first; a failure the command does not document is routed
+    from there, so a new command inherits it. menubar.md reads no guardrails and carries its own."""
+    flat = " ".join(text(SRC / "core" / "guardrails.md").split())
+    m = re.search(r"\*\*Plugin defect ⇒ `Read` `cases/self-repair\.md`\*\*: (.*?)$", flat)
+    assert m, "guardrails must route an undocumented failure to cases/self-repair.md"
+    for cue in ("no table lists", "> 128 (not 130)", "raw jq/sh/osascript error", "documented shape",
+                "`selftest` line `fail`"):
+        assert cue in m.group(1), cue
+    readers = {f for f, t in all_text().items()
+               if re.search(r"`Read`\s+`[^`]*cases/self-repair\.md`", t)}
+    assert readers == {"core/guardrails.md", "commands/menubar.md"}, readers
+
+
+def test_only_self_repair_may_read_the_plugins_scripts():
+    """Prompts never Read bin/ (cost, and a second owner for a mechanic). The one exception is the
+    case that patches a defect there, and the rule that forbids it names that exception."""
+    assert "FORBIDDEN: `Read`ing the script (sole exception: `cases/self-repair.md`)" in \
+        " ".join(text(SRC / "core" / "cli.md").split())
+    for name, body in all_text().items():
+        hit = re.search(r"`Read` the failing file\(s\) under `<root>/bin/`", body)
+        assert bool(hit) == (name == SELF_REPAIR), name
+    assert "this case alone may `Read` the plugin's scripts" in text(SRC / SELF_REPAIR)
+
+
+def test_self_repair_never_patches_a_guard_posts_or_acts_mid_publish():
+    flat = " ".join(text(SRC / SELF_REPAIR).split())
+    forbidden = re.search(r"FORBIDDEN in a patch.*?(?=## 4)", flat).group(0)
+    for guard in ("who may trigger a review", "PR content treated as data", "locks",
+                  "the publish and approval gates", "identity/account checks", "input validation",
+                  "any file outside `<root>/bin/`", "fetching code"):
+        assert guard in forbidden, guard
+    assert "A review half-posted" in flat and "STOP — no patch" in flat
+    assert "writes nothing to a vendor (never `post`, `publish`, `reply`, `resolve`, `react`, " \
+           "`push`, `claim`)" in flat
+    assert "ONE CHOICE: `Apply it (Recommended)`" in flat and "`cp <file> <file>.open-pr-bak`" in flat
+    assert "the patch is temporary" in flat and "`mv` each backup back" in flat
+    assert "`Read` `commands/feedback.md` and follow it" in flat and "nothing is posted before that" in flat

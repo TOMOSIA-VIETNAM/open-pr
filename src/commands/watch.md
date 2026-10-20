@@ -23,7 +23,7 @@ description: Watch the PRs of one or more repos — review on an `/open-pr` comm
 
 ## Step 1 — Repos and setup
 
-`<roles>` = a leading `review` or `fix` in `ARGUMENTS` alone, else `review,fix`; `fix` in it ⇒
+`<op> selftest` first, shell sandbox off. `<roles>` = a leading `review` or `fix` in `ARGUMENTS` alone, else `review,fix`; `fix` in it ⇒
 `Read` `cases/watch-fix.md` now. `<op> list-repos` → 1 line per hosted remote at or below pwd.
 `ARGUMENTS` ⇒ keep only the lines it names (a PR URL via `<op> target`, `owner/repo`, a repo name, a
 directory) and watch them all; a PR URL also lists that PR for the fix role (`<listed>`). Per

@@ -15,7 +15,7 @@ description: Report a problem with the open-pr plugin itself, or ask for a chang
 
 ## Step 1 — What is being reported
 
-Sources, in order: `ARGUMENTS`, then what THIS chat session shows — which `/open-pr:` command the user
+Sources, in order: `ARGUMENTS` — or the report `cases/self-repair.md` hands over, a bug — then what THIS chat session shows — which `/open-pr:` command the user
 ran, what it did, what they wanted instead. FORBIDDEN: reading the reviewed repo, its diff, its
 settings or memory.
 
@@ -32,7 +32,7 @@ Anonymise: a reader MUST NOT be able to tell which repo, company or person it ca
 | code, diff, log or error text quoting the user's content | the behaviour, in your own words |
 | person name, email, handle | drop |
 | token, key, password, internal hostname, IP | drop — never echoed, not even masked |
-| vendor (GitHub/GitLab/Bitbucket), stack, language, command name, plugin's own message text | KEEP |
+| vendor (GitHub/GitLab/Bitbucket), stack, language, command name, plugin's own message text, a diff of the plugin's own files | KEEP |
 
 Unsure whether a detail identifies ⇒ drop it.
 
@@ -49,8 +49,8 @@ English whatever the chat language. Title ≤ 70 chars, states the problem. The 
 FORBIDDEN to fill: `pr_url`, `evidence` — Step 2 strips exactly what they ask for. Only the user, in
 the browser, may add them.
 
-Each field: 1-3 sentences. FORBIDDEN in any of them: the chat transcript, your own reasoning or steps,
-a proposed diff, apologies.
+Each field: 1-3 sentences; self-repair's diff, fenced, closes `description`. FORBIDDEN in any of them:
+the chat transcript, your own reasoning or steps, any other proposed diff, apologies.
 
 Version:
 

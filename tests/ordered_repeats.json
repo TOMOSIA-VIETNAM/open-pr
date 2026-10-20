@@ -84,6 +84,18 @@
       "file": "cases/memory-not-found.md",
       "claim": "written",
       "reason": "Import just copied this repo's settings.json into <data>; the first settings call read defaults from a file that did not exist yet, so the second reads what the copy WROTE."
+    },
+    {
+      "sha": "ad407a7e43f1",
+      "file": "cases/self-repair.md",
+      "claim": "written",
+      "reason": "The failed call (or selftest) runs again only after the patch was WRITTEN to the plugin's bin/: it proves the written file, which the first run never saw."
+    },
+    {
+      "sha": "23fed238af53",
+      "file": "cases/self-repair.md",
+      "claim": "not-a-repeat",
+      "reason": "Names the re-run's outcome as a field of the report handed to feedback; nothing is looked up again there."
     }
   ]
 }

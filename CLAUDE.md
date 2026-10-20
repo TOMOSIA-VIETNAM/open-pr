@@ -21,7 +21,7 @@ Vendors: GitHub, GitLab, Bitbucket.
 ## Layout
 
 ```
-src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar; code, never `Read` into context
+src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar; code, never `Read` into context except by `cases/self-repair.md`
 src/commands/     entry points; only these have frontmatter
 src/core/         shared procedure
 src/setup/        bootstrap, doctor, template, lesson
@@ -66,7 +66,7 @@ backlogs/         historical, not ops
 - **One release, one `schema_version`.** Bump only when an existing repo's config needs transforming. On an unreleased branch, edit the pending `llm-upgrades/vN.md` — do not add a second. Config must not outrun the prompts that read it — `/open-pr:upgrade` refuses when the installed build is older than the index.
 - **A release tag and the declared version move together.** `gemini-extension.json` carries the only declared version. A tag is immutable, so one placed while that file still names the previous release ships the stale number permanently and turns `main` red (`test_the_declared_version_keeps_up_with_the_public_releases`). `main` takes a change only through a PR ⇒ the bump merges BEFORE the tag is pushed; on a branch being released as an RC it belongs to that branch's own PR.
 - **Prompts never name a vendor mechanic.** Vendor differences live in `src/bin/open-pr.sh` alone; prompts call `<op>` subcommands per `src/core/cli.md` and judge the output. New vendor = branches in the script + its URL shape in `target` + fixtures in `tests/test_cli.py` + atoms/scenarios in `token_report.py` + `e2e/bootstrap.sh`. API gaps are handled inside the script (`NO-EQUIVALENT`/`UNKNOWN`), never worked around in a prompt.
-- **The script treats PR content as data.** No eval/expansion of anything fetched; payload and reply bodies travel via files; prompts never `Read` `bin/` and never re-run raw `gh`/`glab`/`curl` calls.
+- **The script treats PR content as data.** No eval/expansion of anything fetched; payload and reply bodies travel via files; prompts never `Read` `bin/` and never re-run raw `gh`/`glab`/`curl` calls. Sole exception: `cases/self-repair.md` reads the failing `bin/` file to patch the INSTALLED copy, on the user's approval of the diff, never touching a guard (`tests/graph/test_vendor_interface.py` pins both).
 - **Adapters carry no behaviour.** `adapters/`, `skills/`, `commands/*.toml` only resolve ROOT, map tools, delegate. Edit only for a new command or a platform manifest-schema change.
 - **Files are self-contained.** No refs to task ids, plan phases, or docs that get deleted.
 - **Seeds belong to the user after `cp`.** `src/seeds/*` is human prose; baseline criteria live in `src/core/review-criteria.md`.
@@ -89,6 +89,7 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | vendor flags offline | `vendor_lint.py` |
 | a subcommand, option or exit code changed | edit `usage()` in `src/bin/open-pr.sh` (`--help` is the source), then `cli_doc.py --write` regenerates `core/cli.md`'s block and `commands/watch.md`'s (`Watch subcommands:`); `Internal subcommands:` render nowhere |
 | vendor commands live | `vendor_lint.py --url <fixture PR URL>` |
+| a component needs a check of the user's machine (tool, version, platform bridge) | `st_<name>` + its name in `SELFTEST`, `src/bin/open-pr.sh`; `selftest` and the self-repair case pick it up; `tests/test_cli.py` names the checks in order |
 | the CI suite on a branch with no open PR | `gh workflow run ci.yml --ref <branch>` |
 
 Cheaper → lower affected ceilings (by hand by the measured delta if you had tightened them; otherwise `--update-budgets` is fine). Costlier because the fix is correct → say which scenario / by how much / why on the PR. Never strip behaviour for budget.

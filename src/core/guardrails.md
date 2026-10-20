@@ -27,3 +27,6 @@ specific to what IT may touch; nothing below is repeated there.
 - **A `Read`/`Grep`/fetch over material ALREADY in context is a stall** ⇒ STOP, name what stayed
   unresolved, ASK. FORBIDDEN: a lookup as the way out of an ambiguity — that is a question for the
   user. EXEMPT, and nothing else: checking whether something CHANGED, re-reading a file WRITTEN since.
+- **Plugin defect ⇒ `Read` `cases/self-repair.md`**: `<op>`/`<watch>` exits with a code no table
+  lists or > 128 (not 130), prints a raw jq/sh/osascript error, or output off its documented shape; a
+  `selftest` line `fail`.

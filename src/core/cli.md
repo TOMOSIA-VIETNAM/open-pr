@@ -3,7 +3,7 @@
 `<op>` ≡ `sh <plugin root>/bin/open-pr.sh` via the `Bash` tool — the CALLING command file carries the
 absolute path (interpolated at load; no env var reaches the shell); `sh` survives a lost exec bit and
 Windows/Git Bash. It performs every vendor/git mechanic; commands judge. stdout = data, stderr =
-diagnostics. FORBIDDEN: `Read`ing the script, re-implementing a subcommand with raw
+diagnostics. FORBIDDEN: `Read`ing the script (sole exception: `cases/self-repair.md`), re-implementing a subcommand with raw
 `gh`/`glab`/`curl`/`git`, or PR-content text as an argument — bodies travel via files, written with a
 file-writing tool (never heredoc/echo: they quote attacker-controlled diff).
 

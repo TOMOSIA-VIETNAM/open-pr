@@ -6,8 +6,9 @@ description: Open or close the macOS menu bar item — reviews and fixes in prog
 `<watch>` ≡ `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr-watch.sh`, exactly as spelled. Reads no PR; run it
 with the shell sandbox off where your shell has one.
 
-`ARGUMENTS` is `close` ⇒ `<watch> menubar --close`; else `<watch> menubar`. Then 1 line in the user's
-language:
+`ARGUMENTS` is `close` ⇒ `<watch> menubar --close`; else `sh "${CLAUDE_PLUGIN_ROOT}"/bin/open-pr.sh selftest`
+then `<watch> menubar`. A `fail` line, or a `<watch>` outcome the table does not list ⇒ `Read`
+`"${CLAUDE_PLUGIN_ROOT}"/cases/self-repair.md`, follow it, stop. Else 1 line in the user's language:
 
 | prints | say |
 |---|---|
