@@ -10,8 +10,9 @@
 //                                           session's state, is its row's text; a question's `focus`
 //                                           (watcher | session) is where its row's click goes
 //   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pids of
-//                                           its wait and of its `claude` (liveTab), and the repo_dir/remote "Remove from list"
-//                                           passes to `hide` and "Fix now" to `fix-now`
+//                                           its wait and of its `claude` (liveTab), the repo_dir/remote "Remove from list"
+//                                           passes to `hide` and "Fix now" to `fix-now`, and the
+//                                           open-pr-watch.sh its wait runs (see pluginUpdate)
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
 //   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE); the settings
@@ -56,6 +57,8 @@ var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['re
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
+// mtime of the open-pr-menubar.js beside watchScript when this menu bar started: the code it runs
+var launched = 0;
 var item = null, icons = {}, rowParts = {}, pillParts = {}, litRow = null, menuOpen = false;
 // The watcher row whose settings show inline under it: { row: its rowParts, items: the panel items,
 // panels: settingsPanel's objects }; shown = the scan the open menu was built from.
@@ -199,6 +202,7 @@ function run(argv) {
         rest.pop();
         if ($.NSFileManager.defaultManager.fileExistsAtPath(last)) watchScript = last;
     }
+    launched = menubarTime(watchScript);
     dataDirs = rest.filter(function (d) { return typeof d === 'string' && d !== ''; });
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
@@ -314,7 +318,7 @@ function watcherOf(w, set) {
 // → { repos: [{ name, folders, settings, watchers }] by name, quotas, polls }: one group per
 // watched repo (its data dirs merged), its watchers by role, each with its PR rows.
 function scan() {
-    var out = { repos: [], quotas: [], polls: [] }, groups = {}, repoCount = {};
+    var out = { repos: [], quotas: [], polls: [] }, groups = {}, repoCount = {}, scripts = [];
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch';
@@ -338,6 +342,7 @@ function scan() {
             e.start = Math.max(e.start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
             if (j && typeof j === 'object' && typeof j.pid === 'number') e.pids.push(j.pid);
             if (j && typeof j === 'object' && typeof j.host_pid === 'number') e.hosts.push(j.host_pid);
+            if (j && typeof j === 'object') scripts.push(str(j.script));
             e.beat = Math.min(e.beat, ageSeconds(dir + '/heartbeat' + set.sfx));
             e.poll = Math.max(e.poll, repoPoll(data + '/' + name));
             e.dirs.push(dir);
@@ -446,7 +451,32 @@ function scan() {
             return 0;
         });
     });
+    out.update = pluginUpdate(scripts);
     return out;
+}
+// mtime of the open-pr-menubar.js beside open-pr-watch.sh path p; 0 for none
+function menubarTime(p) { return /^\/.*\/open-pr-watch\.sh$/.test(p) ? mtime(p.replace(/[^\/]+$/, 'open-pr-menubar.js')) : 0; }
+// A plugin update: an open-pr-menubar.js written after the one this menu bar runs — its own, changed
+// in place (a git clone), or the one beside a live watcher's script (a new install directory; a
+// watcher still on an older build is none). It never restarts itself: → null, or { args: the newest
+// such build's `menubar --restart` argv for /bin/sh, null when that script fails buildScript }.
+function pluginUpdate(scripts) {
+    if (!launched) return null;
+    var best = '', at = launched;
+    [watchScript].concat(scripts).forEach(function (p) { var t = menubarTime(p); if (t > at) { at = t; best = p; } });
+    if (!best) return null;
+    var ok = buildScript(best);
+    return { args: ok ? [ok, 'menubar', '--restart'] : null };
+}
+// p when a click may run it: watchScript, or the same file of a sibling install — `<dir>/<build>/bin/
+// open-pr-watch.sh` beside watchScript's `<dir>/<its build>`, one directory per version as a plugin
+// manager keeps them; a regular file (a symlink is not followed), no empty, `.` or `..` segment. Else ''.
+function buildScript(p) {
+    var up = function (x) { return x.split('/').slice(0, -3).join('/'); };
+    if (!/^\/.+\/bin\/open-pr-watch\.sh$/.test(p) || /\/\/|\/\.\.?\/|[\x00-\x1f\x7f]/.test(p)) return '';
+    if (p !== watchScript && (p.split('/').length !== watchScript.split('/').length || up(p) !== up(watchScript))) return '';
+    var at = $.NSFileManager.defaultManager.attributesOfItemAtPathError(p, null);
+    return !at.isNil() && ObjC.unwrap(at.objectForKey($.NSFileType)) === ObjC.unwrap($.NSFileTypeRegular) ? p : '';
 }
 // A row's state without its own PR's number, which its title shows: the feed's summary was written
 // for the toast. `#N` or `owner/repo#N` leading (with its ":") or after a space; never `#N0`.
@@ -987,6 +1017,13 @@ function build(s) {
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
     head.setView(headerView(until, gauge(s.quotas), pollSpan(s.polls)));
     m.addItem(head);
+    // The new build's script stops this menu bar and starts its own.
+    if (s.update) {
+        var args = s.update.args, up = add(m, 'open-pr was updated — ' + (args ? 'Restart menu bar' : 'run /open-pr:menubar restart'),
+            args ? function () { spawn('/bin/sh', args); } : null);
+        up.setAttributedTitle(attributed([[ObjC.unwrap(up.title), $.NSFont.menuFontOfSize(0), warnColor()]], false));
+        up.setImage(symbol(['arrow.clockwise']));
+    }
 
     m.addItem($.NSMenuItem.separatorItem);
     if (!s.repos.length) add(m, 'Not watching any repository');

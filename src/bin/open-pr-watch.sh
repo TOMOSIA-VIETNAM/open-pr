@@ -56,6 +56,7 @@ parse_args() {
             --off) ARG_off=1; shift ;;
             --fresh) ARG_fresh=1; shift ;;
             --close) ARG_close=1; shift ;;
+            --restart) ARG_restart=1; shift ;;
             --quiet) ARG_quiet=1; shift ;;
             --backlog) ARG_backlog=1; shift ;;
             --*)
@@ -989,11 +990,13 @@ write_watcher() {
     # no control characters (a newline would pass grep line by line)
     [ "$cwd" = "$(printf '%s' "$cwd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#cwd} -le 1024 ] || cwd=""
     rd=$D; [ "$rd" = "$(printf '%s' "$rd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#rd} -le 1024 ] || rd=""
+    # the plugin build this wait runs: the menu bar restarts into the newest one it sees
+    sc=$SELF_DIR/open-pr-watch.sh; [ "$sc" = "$(printf '%s' "$sc" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#sc} -le 1024 ] || sc=""
     jq -n -c --argjson pid "$$" --arg cwd "$cwd" --arg rd "$rd" --arg rm "$(fit "$RM" '[A-Za-z0-9._-]{1,128}')" \
         --arg term "$(t=$(fit "${TERM_PROGRAM:-}" "$TERM_RE"); [ -n "$t" ] || t=$(watcher_field term "$TERM_RE"); printf '%s' "$t")" \
         --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
-        --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" --arg hp "$(host_pid)" \
-        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}
+        --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" --arg hp "$(host_pid)" --arg sc "$sc" \
+        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm, script: $sc}
          + (if $hp == "" then {} else {host_pid: ($hp | tonumber)} end)' > "$WF.tmp"
     mv "$WF.tmp" "$WF"
 }
@@ -1224,9 +1227,14 @@ cmd_menubar() {
         kill "$pid" 2>/dev/null || true; rm -f "$pf"; printf 'closed\n'; return 0
     fi
     # It reads the data dirs it was started with: a mapping added since (`data-dir --add-root`)
-    # restarts it, else the repos under that mapping never show.
+    # restarts it, else the repos under that mapping never show. It runs the code it was started
+    # from: this build's menu bar script written after that start (menubar.dirs is written at each
+    # start) is a plugin update, which only the user restarts it for (`--restart`, or its menu).
     if [ -n "$live" ]; then
-        [ "$dirs" != "$(cat "$WD/menubar.dirs" 2>/dev/null || true)" ] || { printf 'running\n'; return 0; }
+        if [ -z "$(arg restart)" ] && [ "$dirs" = "$(cat "$WD/menubar.dirs" 2>/dev/null || true)" ]; then
+            [ -z "$(find "$SELF_DIR/open-pr-menubar.js" -newer "$WD/menubar.dirs" 2>/dev/null)" ] || { printf 'out of date\n'; return 0; }
+            printf 'running\n'; return 0
+        fi
         kill "$pid" 2>/dev/null || true
     fi
     printf '%s\n' "$dirs" > "$WD/menubar.dirs"
@@ -1318,8 +1326,8 @@ Subcommands:
       open (merged or closed) is hidden and its sessions marked closed, then stopped once not in use;
       a failed check prints one stderr line and waits for the next. Every poll touches `heartbeat`;
       each start writes `watcher.json` {pid, cwd, term, term_session, tty, session_id, repo_dir,
-      remote[, host_pid]} (the terminal tab it runs in, its Claude Code session and the pid of the
-      `claude` running it, and the repo, for the menu bar).
+      remote, script[, host_pid]} (the terminal tab it runs in, its Claude Code session and the pid of the
+      `claude` running it, the repo, and the path of this script, for the menu bar).
       A wait serving one role names these and `stop` with a suffix: `heartbeat-fix`,
       `watcher-fix.json`, `stop-fix`, `quota-fix.json`.
       `--once`: one poll, exit 0 with nothing printed when nothing happened
@@ -1382,13 +1390,15 @@ Subcommands:
       (its key allowlist, its exit codes; the file untouched on a refusal). A running wait applies
       `poll_interval_seconds` and `max_concurrent` from its next poll; a running session keeps the values
       it read. The menu bar's settings panel runs it
-  menubar [--close]
+  menubar [--close | --restart]
       macOS: start the menu bar item (review and fix rows grouped by the watcher serving their role,
       recent toasts, snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
-      `started` once its item is in the menu bar | `running` (exit 1 when it exits at start, e.g.
-      inside a shell sandbox, or shows no item within 10 s; its stderr is `menubar.log`); one
-      running on other data dirs than `data-dir --all` now prints is restarted (`started`); it stays
-      until closed. `--close` → `closed` | `not running`. Elsewhere `NO-EQUIVALENT`. Plain lines
+      `started` once its item is in the menu bar | `running` | `out of date` (it runs, and this
+      script's `open-pr-menubar.js` changed after it started: a plugin update; it is left running)
+      (exit 1 when it exits at start, e.g. inside a shell sandbox, or shows no item within 10 s; its
+      stderr is `menubar.log`); one running on other data dirs than `data-dir --all` now prints is
+      restarted (`started`); it stays until closed. `--restart`: one running is stopped, then this
+      script's is started. `--close` → `closed` | `not running`. Elsewhere `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]
       will R open a session in W (default the repo dir) without a prompt? claude: `trusted` | `untrusted` plus
       a `run: cd <dir> && claude` line (trust is per exact directory, a trusted parent does not

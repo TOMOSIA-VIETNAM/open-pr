@@ -593,7 +593,8 @@ def test_wait_records_the_terminal_tab_it_runs_in(w):
                         TERM_SESSION_ID="other", CLAUDE_CODE_SESSION_ID="269289ac-1f2e-4d3c-9b8a-0123456789ab")
     r = w.run("wait", "--once", "--repo-dir", str(w.repo), cwd=where)
     rec = json.loads((w.sd / "watcher.json").read_text())
-    assert set(rec) - {"host_pid"} == {"pid", "cwd", "term", "term_session", "tty", "session_id", "repo_dir", "remote"}
+    assert set(rec) - {"host_pid"} == {"pid", "cwd", "term", "term_session", "tty", "session_id", "repo_dir", "remote", "script"}
+    assert rec["script"] == str(w.bin / "open-pr-watch.sh"), "the plugin build the wait runs, not its private copy"
     assert rec["session_id"] == "269289ac-1f2e-4d3c-9b8a-0123456789ab", "what `claude attach` reopens"
     assert (rec["repo_dir"], rec["remote"]) == (str(w.repo), ""), "what the menu bar passes to hide"
     assert rec["cwd"] == str(where), "the directory the user runs the watcher from"
@@ -1586,6 +1587,34 @@ def test_menubar_runs_detached_once_per_machine(w):
     (watch / "menubar.pid").write_text(f"{os.getpid()}\n")
     assert w.run("menubar", env_extra=env).stdout == "started\n", "a reused pid is not the menu bar"
     os.kill(int((watch / "menubar.pid").read_text()), 9)
+
+
+def test_a_menubar_older_than_its_build_says_so_and_restarts_only_on_request(w):
+    """A plugin update rewrites open-pr-menubar.js (a new install directory, or in place): a menu bar
+    started before it runs the old code. A watcher's start runs `menubar` too: it never restarts it."""
+    env = {"FAKE_SLEEP": "30"}
+    js = w.bin / "open-pr-menubar.js"
+    js.write_text("")
+    t = time.time()
+    os.utime(js, (t - 100, t - 100))
+    assert w.run("menubar", env_extra=env).stdout == "started\n"
+    old = int((w.watch / "menubar.pid").read_text())
+    try:
+        assert w.run("menubar", env_extra=env).stdout == "running\n", "a build older than the start is none"
+        os.utime(w.watch / "menubar.dirs", (t - 60, t - 60))   # it started at t - 60 …
+        os.utime(js, (t - 50, t - 50))                         # … and the plugin updated after
+        assert w.run("menubar", env_extra=env).stdout == "out of date\n"
+        os.kill(old, 0)
+        assert not (w.home / "osascript.1.json").exists(), "it was restarted on its own"
+        assert w.run("menubar", "--restart", env_extra=env).stdout == "started\n"
+        w.wait_dead(old)
+        new = int((w.watch / "menubar.pid").read_text())
+        assert new != old and w.recorded("osascript", 1)["argv"][2] == str(js)
+        assert w.run("menubar", env_extra=env).stdout == "running\n", "the one started runs this build"
+    finally:
+        for pid in (old, int((w.watch / "menubar.pid").read_text() or 0)):
+            try: os.kill(pid, 9)
+            except (OSError, ValueError): pass
 
 
 # ------------------------------------------------------------ hide / closed PRs ----
@@ -2600,6 +2629,70 @@ def test_the_menu_is_built_as_wide_as_the_settings_panel_its_gear_opens(w):
         var s = scan(), m = build(s), x = s.repos[0].settings[0];
         return JSON.stringify([m.minimumWidth, settingsPanel(x, s.quotas, '').view.frame.size.width, HEADER_W]);""", script=True)
     assert got[0] >= got[1] > got[2], got
+
+
+def _build(root, age):
+    """A plugin build's bin/ under root: its scripts, the menu bar's written `age` seconds ago."""
+    b = root / "bin"
+    b.mkdir(parents=True)
+    (b / "open-pr-watch.sh").write_text("")
+    (b / "open-pr-menubar.js").write_text("")
+    t = time.time() - age
+    os.utime(b / "open-pr-menubar.js", (t, t))
+    return str(b / "open-pr-watch.sh")
+
+
+# The line the menu shows under its header, whether a click runs anything, and what: one per watcher
+# record's `script` (None: the build the menu bar runs, updated in place since it started).
+UPDATE = """var log = [];
+    $.NSApplication.sharedApplication;   // warnColor reads NSApp, as in run()
+    spawn = function (p, a) { log.push([p].concat(a)); return true; };
+    launched = menubarTime(watchScript); __TOUCH__ refresh();
+    var mi = bar.menu.itemAtIndex(1), t = ObjC.unwrap(mi.title);
+    if (mi.isEnabled) bar.menu.performActionForItemAtIndex(1);
+    return JSON.stringify([/updated/.test(t) ? t : '', mi.isEnabled, log, scan().update]);"""
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("case", ["same", "newer", "older", "elsewhere", "missing", "in place"])
+def test_the_menu_says_open_pr_was_updated_and_restarts_into_the_newest_build(w, tmp_path, case):
+    """Every live watcher records the script its wait runs. One whose build is newer than the menu
+    bar's start is an update; a click runs that build's `menubar --restart`, and only a sibling install
+    of the one it runs (or itself) — any other path gets the line and no action."""
+    (w.bin / "open-pr-menubar.js").write_text("")
+    t = time.time() - 100
+    os.utime(w.bin / "open-pr-menubar.js", (t, t))
+    script = {"same": str(w.bin / "open-pr-watch.sh"), "in place": str(w.bin / "open-pr-watch.sh"),
+              "newer": _build(tmp_path.parent / (tmp_path.name + "-new"), 0),
+              "older": _build(tmp_path.parent / (tmp_path.name + "-old"), 500),
+              "elsewhere": _build(tmp_path / "x" / "new", 0),
+              "missing": str(tmp_path.parent / (tmp_path.name + "-gone") / "bin" / "open-pr-watch.sh")}[case]
+    _watched(w)
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    (w.sd / "watcher.json").write_text(json.dumps(dict(rec, script=script)))
+    touch = "$.NSFileManager.defaultManager.setAttributesOfItemAtPathError($({ NSFileModificationDate: $.NSDate.date }), " \
+            + json.dumps(str(w.bin / "open-pr-menubar.js")) + ", null);" if case == "in place" else ""
+    got = _menubar_js(w, REFRESH_STUB + UPDATE.replace("__TOUCH__", touch), script=True)
+    restart = {"newer": script, "in place": str(w.bin / "open-pr-watch.sh")}.get(case)
+    if restart:
+        assert got == ["open-pr was updated — Restart menu bar", True, [["/bin/sh", restart, "menubar", "--restart"]],
+                       {"args": [restart, "menubar", "--restart"]}]
+    elif case == "elsewhere":
+        assert got == ["open-pr was updated — run /open-pr:menubar restart", False, [], {"args": None}]
+    else:
+        assert got[0] == "" and got[3] is None, "an older or missing build is no update"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_click_runs_only_a_script_of_a_sibling_install(w, tmp_path):
+    new = _build(tmp_path.parent / (tmp_path.name + "-new"), 0)
+    here = str(w.bin / "open-pr-watch.sh")
+    up = str(tmp_path.parent)
+    cases = [here, new, up + "/" + tmp_path.name + "-new/../" + tmp_path.name + "-new/bin/open-pr-watch.sh",
+             up + "/./bin/open-pr-watch.sh", up + "//bin/open-pr-watch.sh", up + "/x\n/bin/open-pr-watch.sh",
+             new.replace("open-pr-watch.sh", "open-pr.sh"), "bin/open-pr-watch.sh", ""]
+    got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(buildScript));", script=True)
+    assert got == [here, new, "", "", "", "", "", "", ""]
 
 
 
