@@ -446,6 +446,13 @@ function scan() {
     });
     return out;
 }
+// A row's state without its own PR's number, which its title shows: the feed's summary was written
+// for the toast. `#N` or `owner/repo#N` leading (with its ":") or after a space; never `#N0`.
+function ownless(t, pr) {
+    if (!pr) return t;
+    var n = '(?:[\\w.-]+/[\\w.-]+)?#' + pr + '(?![0-9])';
+    return t.replace(new RegExp('^' + n + ':?\\s*'), '').replace(new RegExp('\\s+' + n, 'g'), '');
+}
 // Text from a file shown as a menu title: one line.
 function oneLine(t) { return str(t).replace(/\s+/g, ' ').trim(); }
 // One host per vendor + host name.
@@ -1014,7 +1021,7 @@ function watcherItems(m, w) {
         // A click goes where the user acts: a question's answer, else the pull request.
         var session = OPEN_CMD.test(x.open) ? JSON.stringify({ open: x.open, term: w.term }) : '';
         var answer = x.focus === 'watcher' && go ? JSON.stringify(go) : '';
-        var text = x.role === 'fix' ? 'Fix: ' + x.text : x.text, title = x.nested ? oneLine(text) : x.title;
+        var text = (x.role === 'fix' ? 'Fix: ' : '') + ownless(x.text, x.pr), title = x.nested ? oneLine(text) : x.title;
         var mi = answer ? add(m, title, json(goToTab), answer)
             : x.focus === 'session' && session ? add(m, title, json(openTerminal), session)
             : add(m, title, isURL(x.url) ? openURL : null, x.url);

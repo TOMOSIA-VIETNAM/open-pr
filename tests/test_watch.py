@@ -2643,6 +2643,33 @@ def test_a_prs_fix_row_nests_under_its_review_row_and_groups_keep_the_row_order(
     ], got
 
 
+# A feed summary (written for the toast, which needs the number) → the row's state under its title.
+OWN_NUMBER = [
+    (1914, "#1914: 4 🔵 SUGGESTION", "4 🔵 SUGGESTION"),
+    (1915, "Đã post review #1915: 4 🔵", "Đã post review: 4 🔵"),
+    (1916, "#1916 posted", "posted"),
+    (1917, "bỏ qua #1913, xong #1917", "bỏ qua #1913, xong"),
+    (1918, "LGTM", "LGTM"),
+    (1919, "#19190: other PR", "#19190: other PR"),
+    (1920, "Reviewed o/r#1920 — 1 🟠", "Reviewed — 1 🟠"),
+    (None, "poll failed after #1914", "poll failed after #1914"),
+]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_rows_state_leaves_out_its_own_pr_number(w):
+    """`#1914 Title` over `#1914: 4 🔵 …` said the number twice: a row's state drops its own PR's
+    number, never another's, nor anything on the repo-wide row."""
+    _watched(w)   # a repo-wide line older than the watcher is over: these are newer
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {}})
+    (w.sd / "feed.jsonl").write_text("".join(json.dumps(
+        {"at": _ago(-60), "repo": "o/r", "role": "review", "event": "posted", "summary": summary, **({"pr": pr} if pr else {})}) + "\n"
+        for pr, summary, _ in OWN_NUMBER))
+    got = _menubar_js(w, REFRESH_STUB + PR_ITEMS + "refresh(); return JSON.stringify(items());")
+    seen = {t.split(" ")[0]: sub.rsplit(" · ", 1)[0] for t, _, sub, _ in got}
+    assert seen == {(f"#{pr}" if pr else "Repository"): want for pr, _, want in OWN_NUMBER}
+
+
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
 @pytest.mark.parametrize("n", [10, 11])
 def test_the_row_limit_counts_prs_and_the_badge_counts_each_nested_row(w, n):
