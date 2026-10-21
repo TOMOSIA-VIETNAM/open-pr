@@ -74,7 +74,8 @@ review in each (a PR comment opening with its `trigger`, `@me` shown as `@<accou
 PRs it fixes (`<listed>`, else their own open PRs) and that a new review there toasts "Fix now"; that
 they can say here `status`, `snooze <duration>`, `remove #N`, a setting change, `stop`; to quit, `stop` then `/exit` (quitting
 while a `wait` runs keeps this session alive in the background); on `started`/`running`, that the menu
-bar shows active reviews, recent toasts and snooze, and `/open-pr:menubar close` removes it.
+bar shows active reviews, recent toasts and snooze, and `/open-pr:menubar close` removes it; on `out of date`,
+that too, and that it still runs the open-pr from before an update until they click its "Restart menu bar".
 
 Run 1 `<watch> wait --roles <roles>` (+ `--fix-prs <its listed PR numbers, comma-joined>`; + `--backlog`
 until that repo's `wait` exits 0) per watched repo, each its own background command; one exiting wakes you: 1 JSON
