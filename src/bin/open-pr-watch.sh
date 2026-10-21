@@ -57,6 +57,7 @@ parse_args() {
             --fresh) ARG_fresh=1; shift ;;
             --close) ARG_close=1; shift ;;
             --quiet) ARG_quiet=1; shift ;;
+            --backlog) ARG_backlog=1; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
                 printf '%s' "$key" | grep -Eq '^[a-z_]+$' || die 1 "open-pr-watch.sh: bad option $1"
@@ -139,6 +140,7 @@ setting_int() {
 #   cursor    newest processed comment created_at, UTC, second precision — of the wait serving
 #             both roles; a wait serving one role keeps its own under cursors.<role>, with its seen
 #   seen      comment ids at exactly that created_at (ties the cursor cannot order)
+#   skipped   trigger comment ids the user chose not to review (see skip); never delivered
 #   sessions  { "<pr>:<role>": {pr,role,runner,id,session_id,name,repo,url,open,cwd,pid,started_at,
 #                        last_state,last_state_at,finished[,closed]} }   role = review | fix
 #             runner `here` = a fix the watcher runs in its own session (see `here`): no id, no open
@@ -643,6 +645,14 @@ cmd_forget() {
     rm -f "$(status_file "$N:$ROLE")"
     jq -n -c --argjson pr "$N" --arg role "$ROLE" '{pr: $pr, role: $role, forgotten: true}'
 }
+# Backlog triggers the user chose not to review: no wait delivers them again.
+cmd_skip() {
+    parse_args "$@"
+    ids=$(req comment_ids); check_ident '^[0-9]+(,[0-9]+)*$' "$ids"
+    load_repo; lock
+    state_update --arg ids "$ids" '.skipped = ((.skipped // []) + ($ids | split(",")) | map(tonumber) | unique | .[-500:] | map(tostring))'
+    jq -n -c --arg ids "$ids" '{skipped: ($ids | split(","))}'
+}
 # Both roles: off the menu bar, out of the fix role, its pending findings dropped.
 cmd_hide() {
     parse_args "$@"
@@ -787,6 +797,7 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
         ($st[0] | getpath($p + ["cursor"])) as $cur | ($st[0] | getpath($p + ["seen"]) // []) as $seen
         | map(select(type == "object") | . + {_k: (.created_at | utc)})
         | map(select(._k > $cur or (._k == $cur and ((.comment_id | tostring) as $c | $seen | index([$c]) | not))))
+        | map(select((.comment_id | tostring) as $c | $st[0].skipped // [] | index([$c]) | not))
         | reduce .[] as $t ([]; if any(.[]; .comment_id == $t.comment_id) then . else . + [$t] end)
         | sort_by(._k)[]' "$TMPD/triggers" > "$TMPD/new"
     # The user asking for a review of their own PR puts it in the fix role.
@@ -881,6 +892,37 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     unlock
     GOT=1
 }
+# --backlog: before polling, the requests pending on each open PR whatever their age — the PR, not
+# when the watcher started, says what is pending. Delivered as trigger events with `backlog: true`,
+# a skipped one left out. A role set with no cursor yet starts at the newest comment read. A failed
+# pass is tried again before the next poll.
+backlog_once() {   # sets GOT
+    GOT=""
+    [ -n "$TOKEN" ] || TOKEN=$(trigger_token)
+    rc=0
+    opr triggers --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} --backlog \
+        --mark-file "$TMPD/mark" --token "$TOKEN" --cache-dir "$SD/etags" > "$TMPD/backlog" 2> "$TMPD/backlog.err" || rc=$?
+    if [ "$rc" != 0 ]; then
+        cat "$TMPD/backlog.err" >&2
+        err "open-pr-watch.sh: backlog pass failed (exit $rc); retrying next poll"
+        return 0
+    fi
+    BACKLOG=""
+    lock
+    state_json > "$TMPD/state.in"
+    jq -c --slurpfile st "$TMPD/state.in" --arg r "$OWNER/$REPO" '
+        select(type == "object" and ((.comment_id | tostring) as $c | $st[0].skipped // [] | index([$c]) | not))
+        | {event: "trigger", repo: $r} + del(.pr_author, .title)' "$TMPD/backlog" > "$TMPD/events"
+    jq -s '[.[] | select(type == "object" and (.title | type) == "string") | {key: (.pr | tostring), value: .title}]
+        | from_entries' "$TMPD/backlog" > "$TMPD/titles"
+    state_update --argjson p "$CP" --arg c "$(cat "$TMPD/mark" 2>/dev/null || true)" --arg now "$(now_iso)" \
+        --slurpfile ti "$TMPD/titles" '.titles = ((.titles // {}) + $ti[0])
+        | if getpath($p + ["cursor"]) then . else setpath($p + ["cursor"]; if $c == "" then $now else $c end) | setpath($p + ["seen"]; []) end'
+    unlock
+    [ -s "$TMPD/events" ] || return 0
+    cat "$TMPD/events"
+    GOT=1
+}
 # watcher$SFX.json: which terminal tab runs this watcher, for the menu bar to group its repos and
 # focus that tab. Env values are data: a value outside its pattern is recorded as "".
 NL='
@@ -971,11 +1013,16 @@ cmd_wait() {
     done
     unlock
     write_watcher
+    BACKLOG=""; ! has_role review || BACKLOG=$(arg backlog)
     STARTED=$(date +%s)
     base=$(setting_int poll_interval_seconds 180)
     interval=$(next_interval "$base"); delay=$interval
     while :; do
         stop_requested
+        if [ -n "$BACKLOG" ]; then
+            backlog_once
+            [ -z "$GOT" ] || return 0
+        fi
         # Not an `if` condition: set -e must still apply inside.
         poll_once
         [ -z "$GOT" ] || return 0
@@ -1209,7 +1256,7 @@ Common options:
   Output is JSON lines unless stated.
 
 Subcommands:
-  wait [--once] [--roles review,fix] [--fix-prs N,N…]
+  wait [--once] [--backlog] [--roles review,fix] [--fix-prs N,N…]
       poll every `watch.poll_interval_seconds` until something happens, print it, exit 0; `repo` =
       owner/repo in every event. `--roles` (default both) picks what is delivered; one wait per repo
       and role on a machine, so a review wait and a fix wait run side by side:
@@ -1228,7 +1275,10 @@ Subcommands:
       delivered the session is finished: no slot held, and no more events from it until spawn resumes
       it, except a new result its status file is rewritten to (a draft the user published there).
       `{"event":"ready","repo","pr","role"}` = a queued session of its roles has its turn (run `next`
-      with the same `--roles`). The first run of a role set starts its cursor at now (no replay). Events count as delivered only when wait exits
+      with the same `--roles`). `--backlog` (review role): first, each open PR's pending request
+      whatever its age (`triggers --backlog`: unclaimed, its newest, `"backlog":true`, `"superseded"`),
+      except those `skip` names; a role set's first run starts its cursor at the newest comment read,
+      at now without `--backlog`. A skipped trigger is never delivered again. Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
       Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower. Each poll writes `quota.json`: the host's rate limit as
       `triggers --quota-file` read it, plus `host` and `at`. A vendor rate limit doubles the wait (up to 900 s, one
@@ -1266,6 +1316,8 @@ Subcommands:
       "prompt_file","queued_at"[,"cwd"][,"url"][,"fresh"]}`, to pass back to spawn; else nothing
   forget --pr N [--role R]
       drop that session (default review), so the next spawn opens a fresh one
+  skip --comment-ids C,C…
+      backlog triggers the user chose not to review: no wait delivers them again → `{"skipped":[…]}`
   hide --pr N
       both roles: leave PR N out of the menu bar until the next spawn for it, out of the fix role,
       its pending findings dropped → `{"pr","hidden":true}`
@@ -1352,6 +1404,7 @@ case "$sub" in
     next)    cmd_next "$@" ;;
     forget)  cmd_forget "$@" ;;
     hide)    cmd_hide "$@" ;;
+    skip)    cmd_skip "$@" ;;
     fix-now) cmd_fix_now "$@" ;;
     paths)   cmd_paths "$@" ;;
     notify)  cmd_notify "$@" ;;

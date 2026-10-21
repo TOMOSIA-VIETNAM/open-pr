@@ -47,7 +47,9 @@ case "$1" in
               [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
               ff=$(printf '%s\n' "$@" | sed -n '/^--findings-file$/{n;p;}')
               [ -z "$ff" ] || cat "$FAKE_HOME/findings.jsonl" > "$ff" 2>/dev/null || : > "$ff"
-              cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
+              # --backlog: backlog.jsonl, what `triggers --backlog` prints
+              case " $* " in *" --backlog "*) cat "$FAKE_HOME/backlog.jsonl" 2>/dev/null || true ;;
+                  *) cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;; esac ;;
     # open.txt: the open PR numbers; absent = the call fails (open.rc: its exit code, default 1)
     open-prs) [ -f "$FAKE_HOME/open.txt" ] || { printf 'open-prs down\n' >&2; exit "$(cat "$FAKE_HOME/open.rc" 2>/dev/null || echo 1)"; }
               cat "$FAKE_HOME/open.txt" ;;
@@ -1820,6 +1822,83 @@ def test_a_review_wait_and_a_fix_wait_watch_one_repo_side_by_side(w):
             p.kill(); p.wait()
     (w.sd / "wait-fix.pid").write_text("999999\n")
     assert w.run("wait", "--once", "--roles", "fix", check=False).returncode == 0, "a dead holder frees its role"
+
+
+def backlog(w, *rows):
+    (w.home / "backlog.jsonl").write_text("".join(json.dumps(dict(r, backlog=True, superseded=[])) + "\n" for r in rows))
+
+
+def backlog_calls(w):
+    return sum(1 for l in (w.home / "open-pr.calls").read_text().splitlines()
+               if l.startswith("triggers") and "--backlog" in l.split())
+
+
+def test_a_request_made_before_the_first_start_is_delivered_as_backlog(w):
+    """The reviewer starts watching a day after the dev asked: the PR still holds the request."""
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    (w.home / "mark.txt").write_text("2025-01-02T00:00:00Z")
+    ev = w.jsonl("wait", "--once", "--backlog")
+    assert ev == [{"event": "trigger", "repo": "o/r", **trig("5", "2025-01-01T00:00:00Z"), "backlog": True, "superseded": []}]
+    assert w.state()["cursor"] == "2025-01-02T00:00:00Z", "a first run starts at the newest comment read, not at now"
+    assert w.run("wait", "--once").stdout == "", "without --backlog the pass does not run"
+    assert backlog_calls(w) == 1
+
+
+def test_a_backlog_pass_with_nothing_pending_keeps_an_existing_cursor(w):
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    assert w.run("wait", "--once", "--backlog").stdout == ""
+    assert w.state()["cursor"] == "2026-01-01T00:00:00Z", "the poll, not the pass, moves a cursor that exists"
+
+
+def test_a_skipped_backlog_trigger_is_never_delivered_again_but_a_newer_one_is(w):
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    assert w.jsonl("skip", "--comment-ids", "5,3") == [{"skipped": ["5", "3"]}]
+    assert w.run("wait", "--once", "--backlog").stdout == "", "skipped: not asked again on a restart"
+    w.triggers(trig("5", "2026-01-01T00:00:05Z"), trig("6", "2026-01-01T00:00:06Z"))
+    w.put_state(dict(w.state(), cursor="2026-01-01T00:00:00Z", seen=[]))
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["6"], "a stale cursor never brings it back"
+    backlog(w, trig("7", "2026-01-02T00:00:00Z"))
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once", "--backlog")] == ["7"], "a newer request on that PR"
+    assert w.state()["skipped"] == ["3", "5"]
+    for bad in ("5;id", "", "a,1"):
+        assert w.run("skip", "--comment-ids", bad, check=False).returncode in (1, 4), bad
+
+
+def test_the_backlog_pass_runs_once_per_wait_not_per_poll(w):
+    w.settings(poll_interval_seconds=1)
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait", "--backlog"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    w.children.append(proc)
+    try:
+        end = time.time() + 20
+        calls = w.home / "open-pr.calls"
+        while time.time() < end and (not calls.exists() or sum(1 for l in calls.read_text().splitlines()
+                                                                if l.startswith("triggers")) < 4):
+            time.sleep(0.2)
+    finally:
+        proc.kill(); proc.wait()
+    polls = sum(1 for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("triggers"))
+    assert polls >= 4 and backlog_calls(w) == 1
+
+
+def test_a_failed_backlog_pass_is_tried_again_before_the_next_poll(w):
+    w.settings(poll_interval_seconds=1)
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("1\n")
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait", "--backlog"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    w.children.append(proc)
+    out, err = proc.communicate(timeout=30)
+    assert proc.returncode == 0 and [json.loads(l)["comment_id"] for l in out.splitlines()] == ["5"]
+    assert "backlog pass failed (exit 1)" in err and backlog_calls(w) == 2
+
+
+def test_a_fix_only_wait_runs_no_backlog_pass(w):
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    assert w.run("wait", "--once", "--backlog", "--roles", "fix").stdout == ""
+    assert backlog_calls(w) == 0, "it delivers no trigger"
 
 
 def test_each_role_wait_keeps_its_own_cursor(w):
