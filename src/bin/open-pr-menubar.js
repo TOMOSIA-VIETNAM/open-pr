@@ -84,7 +84,7 @@ var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as l
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
 // A watcher row's terminal icon tint and role word, by the role it serves: review and fix watchers
-// tell apart at a glance. Its PR rows belong to it and carry no role.
+// tell apart at a glance. Its PR rows belong to it; a fix row's state starts "Fix: ".
 var ROLE_LOOK = { review: [[0.04, 0.42, 0.9], 'Review'], fix: [[0.8, 0.38, 0.02], 'Fix'], '': [null, 'Review + fix'] };
 var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a repo's watchers: both roles, review, fix
 // The badge: rows shown whose session runs, waits for the user's answer, or is starting on a Fix now
@@ -421,9 +421,20 @@ function scan() {
         g.watchers.forEach(function (w) {
             // Stop ends the watcher's session only when this is its one repo
             w.only = repoCount[w.key] === 1;
-            // waiting on the user first, then the latest
+            // waiting on the user first, then the latest; a PR's rows side by side where its first
+            // one falls, review on top and its fix row nested under it; ROWS PRs shown, never split.
+            // A repo-wide row is its own group.
             w.rows.sort(function (a, b) { return (b.active - a.active) || (b.at - a.at); });
-            w.rows = w.rows.slice(0, ROWS);
+            var prs = [], of = {};
+            w.rows.forEach(function (r) {
+                var k = r.pr || ':' + r.role;
+                if (!of[k]) prs.push(of[k] = []);
+                of[k].push(r);
+            });
+            w.rows = [].concat.apply([], prs.slice(0, ROWS).map(function (g) {
+                if (g.length > 1) { if (g[0].role === 'fix') g.reverse(); g[1].nested = true; }
+                return g;
+            }));
         });
         // both roles, review, fix; then by tab
         var key = function (w) { return [ROLE_RANK[w.sfx], low(w.cwdName + ' ' + w.termName)]; };
@@ -978,7 +989,8 @@ function build(s) {
     add(m, 'Quit menu bar', leave).setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('power', ''));
     return m;
 }
-// A watcher's row, then its PR rows one indentation step in (their icons under its text).
+// A watcher's row, then its PR rows one indentation step in (their icons under its text); a fix
+// row nested under its PR's review row one more step, its state as its title.
 function watcherItems(m, w) {
     // A record from before watcher.json existed has no tab to show.
     var go = w.key && (TERMS[w.term] || SESSION_ID.test(w.session_id))
@@ -1002,11 +1014,12 @@ function watcherItems(m, w) {
         // A click goes where the user acts: a question's answer, else the pull request.
         var session = OPEN_CMD.test(x.open) ? JSON.stringify({ open: x.open, term: w.term }) : '';
         var answer = x.focus === 'watcher' && go ? JSON.stringify(go) : '';
-        var mi = answer ? add(m, x.title, json(goToTab), answer)
-            : x.focus === 'session' && session ? add(m, x.title, json(openTerminal), session)
-            : add(m, x.title, isURL(x.url) ? openURL : null, x.url);
-        mi.setIndentationLevel(PR_INDENT);
-        subtitle(mi, x.text, x.time);
+        var text = x.role === 'fix' ? 'Fix: ' + x.text : x.text, title = x.nested ? oneLine(text) : x.title;
+        var mi = answer ? add(m, title, json(goToTab), answer)
+            : x.focus === 'session' && session ? add(m, title, json(openTerminal), session)
+            : add(m, title, isURL(x.url) ? openURL : null, x.url);
+        mi.setIndentationLevel(PR_INDENT + (x.nested ? 1 : 0));
+        if (!x.nested) subtitle(mi, text, x.time);
         mi.setImage(spec ? symbol(spec) : blank());
         // Offered in every state: `open` also reopens a finished or stopped session.
         var sub = newMenu(x.title);

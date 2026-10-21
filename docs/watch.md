@@ -176,7 +176,8 @@ watched repo, sorted by name — a repo watched from several folders or machines
     running.
 - **Pull request rows** — under each watcher row, one step in: `#12 <title>` (the number alone until a
   poll has read the title), and one line under it with the state and its time, cut with "…" when long;
-  "No pull requests yet" when there are none.
+  "No pull requests yet" when there are none. A fix row's state starts `Fix:`; a pull request with both
+  a review and a fix row shows the fix row one step further in under the review row, as that one line.
   - The state, updated in place: reviewing, posted with counts, LGTM, draft, needs an answer, new
     findings, fixing, fixing here, fixed, failed.
   - **Fix now** on a row with new findings.

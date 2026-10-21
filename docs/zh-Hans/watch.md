@@ -146,7 +146,8 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
     会选中确切的标签页；其他 terminal 则把应用调到前台。标签页已关闭的 watcher 会用 `claude attach` 重新打开。
   - **Stop** 停止该 watcher 在此仓库上的监视；它的其他仓库和另一角色的 watcher 继续运行。
 - **pull request 行** —— 在每个 watcher 行下方缩进一级：`#12 <标题>`（轮询读到标题之前只显示编号），下方一行
-  是状态及时间，过长时以 "…" 截断；没有行时显示 "No pull requests yet"。
+  是状态及时间，过长时以 "…" 截断；没有行时显示 "No pull requests yet"。修复行的状态以 `Fix:` 开头；
+  同时有评审行和修复行的 pull request，修复行再缩进一级、位于评审行下方，只显示这一行状态。
   - 就地更新的状态：评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、在此修复中、已修复、失败。
   - 有新发现的行上显示 **Fix now**。
   - 打开 pull request；在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的

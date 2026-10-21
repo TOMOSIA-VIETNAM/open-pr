@@ -2602,6 +2602,63 @@ def test_the_badge_counts_only_the_rows_the_menu_shows(w, n, hidden, shown):
     assert got == [str(shown) if shown else "", shown, 10]
 
 
+def _ago(sec):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - sec))
+
+
+# The PR rows of the menu refresh() built: [title, indentation steps past a PR row's, subtitle, submenu titles].
+PR_ITEMS = """var items = function () { var a = [];
+        for (var i = 0; i < bar.menu.numberOfItems; i++) { var mi = bar.menu.itemAtIndex(i), sub = [], s = mi.submenu;
+            if (mi.indentationLevel < PR_INDENT || ObjC.unwrap(mi.title) === 'No pull requests yet') continue;
+            if (!s.isNil()) for (var j = 0; j < s.numberOfItems; j++) sub.push(ObjC.unwrap(s.itemAtIndex(j).title));
+            a.push([ObjC.unwrap(mi.title), mi.indentationLevel - PR_INDENT,
+                    mi.respondsToSelector('subtitle') ? ObjC.unwrap(mi.subtitle) || '' : '', sub]); }
+        return a; };"""
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_prs_fix_row_nests_under_its_review_row_and_groups_keep_the_row_order(w):
+    """A PR's review and fix rows sat apart, each placed by its own time. Now one PR is one group:
+    review on top, its fix row one step further in, titled by its state alone; groups ordered as rows
+    were (one waiting on the user first, then the newest of its rows). A PR with one row is as before,
+    a fix row's state saying it is the fix."""
+    url = lambda n: f"https://github.com/o/r/pull/{n}"
+    w.put_state({"cursor": None, "seen": [], "queue": [], "titles": {"1": "One", "2": "Two", "3": "Three", "4": "Four"},
+                 "sessions": {
+                     "1:review": {"pr": 1, "role": "review", "last_state": "posted", "last_state_at": _ago(300), "url": url(1)},
+                     "2:review": {"pr": 2, "role": "review", "last_state": "posted", "last_state_at": _ago(200), "url": url(2)},
+                     "4:review": {"pr": 4, "role": "review", "last_state": "working", "last_state_at": _ago(500), "url": url(4)}},
+                 "findings": {"1": {"at": _ago(100), "counts": {"🔵": 4}, "url": url(1)},
+                              "3": {"at": _ago(400), "counts": {"🟠": 1}, "url": url(3)}}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + PR_ITEMS + "refresh(); return JSON.stringify(items());", script=True)
+    got = [[t.split(" · ")[0], lvl, sub.split(" · ")[0], menu] for t, lvl, sub, menu in got]
+    pr = ["Open pull request", "Remove from list"]
+    assert got == [
+        ["#1 One", 0, "Posted", pr],
+        ["Fix: 4 🔵 — Fix now", 1, "", ["Fix now"] + pr],
+        ["#3 Three", 0, "Fix: 1 🟠 — Fix now", ["Fix now"] + pr],
+        ["#4 Four", 0, "Reviewing", pr],
+        ["#2 Two", 0, "Posted", pr],
+    ], got
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("n", [10, 11])
+def test_the_row_limit_counts_prs_and_the_badge_counts_each_nested_row(w, n):
+    """ROWS is PRs shown, never rows: a PR is never split by the limit, and the badge counts both
+    of its running rows."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        f"{i}:{role}": {"pr": i, "role": role, "last_state": "working", "last_state_at": _ago(100 - i)}
+        for i in range(1, n + 1) for role in ("review", "fix")}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + PR_ITEMS + """refresh();
+        return JSON.stringify([bar.title, items().map(function (x) { return [x[0].split(' · ')[0], x[1]]; })]);""")
+    assert got[0] == "20"
+    shown = list(range(n, n - 10, -1))
+    assert got[1] == [x for i in shown for x in ([f"#{i}", 0], ["Fix: Fixing", 1])]
+
+
 # A panel wider than the default one: a typed trigger shows as an extra segment, a repo held in
 # several data dirs gets its path as a caption.
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")

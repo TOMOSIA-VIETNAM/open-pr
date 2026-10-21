@@ -174,7 +174,9 @@ là một nhóm:
   - **Stop** dừng watcher đó trên repo này; các repo khác của nó và watcher của vai kia vẫn chạy.
 - **Dòng pull request** — dưới mỗi dòng watcher, thụt vào một bậc: `#12 <tiêu đề>` (chỉ có số cho đến
   khi một lượt poll đọc được tiêu đề), và một dòng bên dưới ghi trạng thái kèm thời điểm, cắt bằng "…"
-  khi quá dài; ghi "No pull requests yet" khi chưa có dòng nào.
+  khi quá dài; ghi "No pull requests yet" khi chưa có dòng nào. Trạng thái của dòng fix bắt đầu bằng
+  `Fix:`; pull request có cả dòng review và dòng fix thì dòng fix thụt thêm một bậc ngay dưới dòng review,
+  chỉ còn dòng trạng thái đó.
   - Trạng thái, cập nhật ngay tại chỗ: đang review, đã post kèm số finding, LGTM, draft, cần trả lời, có
     finding mới, đang fix, đang fix tại đây, đã fix, lỗi.
   - **Fix now** trên dòng có finding mới.
