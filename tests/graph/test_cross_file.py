@@ -293,3 +293,18 @@ def test_an_ordered_repeat_is_registered_against_the_stall_rule():
         assert site.get("reason", "").strip(), f"{sha} needs a reason, not just a claim"
         assert any(n == site["file"] for n, _, h in found if h == sha), \
             f"{sha} is registered against {site['file']}, which is not where it was found"
+
+
+def test_a_watcher_asks_its_roles_unless_its_arguments_name_them():
+    """`/open-pr:watch admin` meant a review watcher and got fix rows too: a role nobody named was a
+    default. The roles come from `ARGUMENTS` or the user's answer, asked every run; and the fix
+    role's file, read only when `<roles>` holds `fix`, is decided after that answer."""
+    step1 = re.search(r"## Step 1\b.*?(?=\n## )", text(SRC / "commands" / "watch.md"), re.S).group(0)
+    flat = " ".join(step1.split())
+    ask = flat.find("ONE CHOICE `Review` · `Fix` · `Review and fix`")
+    assert ask >= 0, "no role in ARGUMENTS ⇒ the three-way question"
+    assert "asked each time, never saved" in flat
+    assert ask < flat.find("`Read` `cases/watch-fix.md`"), "the fix role's file is read after the answer"
+    for name, body in all_text().items():
+        assert "else `review,fix`" not in body, f"{name}: a default role set"
+    assert "when `<roles>` holds `fix`" in text(SRC / "cases" / "watch-fix.md")

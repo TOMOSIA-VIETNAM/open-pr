@@ -152,11 +152,11 @@ SCENARIOS = {
     "feedback": [
         "feedback-cmd", "guardrails",
     ],
-    # the watcher's own session: first run asks its settings and commits them; both roles by default
+    # the watcher's own session: first run asks its settings and commits them; both roles named or answered
     "watch/first-run": [
         "watch-cmd", "guardrails", "cli", "repo-settings", "memory-commit", "case-watch-fix",
     ],
-    # a known repo, `/open-pr:watch review`: the fix role's prompt stays unread
+    # a known repo, `/open-pr:watch review` (or the answer `Review`): the fix role's prompt stays unread
     "watch/review-only": [
         "watch-cmd", "guardrails", "cli",
     ],
