@@ -265,7 +265,7 @@ Then `<op> post`. Invariants on every vendor:
   DIFFERENT PR and doesn't count here.
 - every LINE finding attached to its correct diff line + side
 
-`auto_submit_review`: `true` → `<op> publish`, then `<op> post-verify` confirms it landed; `false` →
+`auto_submit_review`: `true` → `<op> publish`, then `<op> post-verify --payload <it>` confirms it landed; `false` →
 stop at whatever `post` left unpublished — a server-side draft, or (Bitbucket, which has no draft) the
 payload file itself with nothing on the PR — and say it isn't published. FORBIDDEN: publishing on the
 user's behalf.

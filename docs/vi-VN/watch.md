@@ -81,6 +81,9 @@ developer vừa là reviewer.
   thay đổi). Khi không rõ, watcher hỏi bạn.
 - `auto_submit_review` quyết định review được publish hay giữ dạng draft, trừ khi bạn dặn watcher khác đi.
   Draft không bao giờ được publish khi chưa có bạn.
+- Khi review đã lên pull request, watcher reply thêm một lần đúng chỗ đã nhận yêu cầu: commit đã review,
+  số finding theo mức độ (hoặc LGTM) và link tới review. Draft được reply khi bạn publish nó; LGTM không
+  đăng lên pull request (`post_lgtm: false`) thì không có reply.
 - Khi một session đã báo kết quả, nó thuộc về bạn: watcher im lặng về nó và không bao giờ đọc những gì bạn
   viết ở đó, cho đến yêu cầu tiếp theo trên pull request đó.
 - Session review Claude Code để idle 10 phút sau khi có kết quả sẽ được stop để giải phóng bộ nhớ; hội

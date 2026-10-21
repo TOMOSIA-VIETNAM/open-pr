@@ -43,7 +43,7 @@ AI coding made PRs faster. But review didn't get faster.
 
 One run produces three parts that belong together: an **overview**, **line comments** (with suggested changes), and a **reply** after `/open-pr:fix` has pushed. — [See the demo](./docs/demo.md)
 
-- **1 review per request** — one review posted, not a stream of bot comments; a watcher adds only a "taking a look" reply to the request, and a re-review request after a fix once you say yes
+- **1 review per request** — one review posted, not a stream of bot comments; a watcher adds only a "taking a look" reply to the request, one reply with the result once the review is published, and a re-review request after a fix once you say yes
 - **Review on request** — `/open-pr:watch` opens a review session on your machine for each `/open-pr` comment, and a fix session when you click "Fix now" on your own PR
 - **Learns your repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rules beat generic rules
 - **Remembers what the team said** — a correction on one PR carries into the next run

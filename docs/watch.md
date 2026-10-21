@@ -81,6 +81,9 @@ Comments the plugin posts never trigger; your own do, so one person can be both 
   once the pull request has moved on). When unclear, the watcher asks you.
 - `auto_submit_review` decides whether the review is published or left as a draft, unless you tell the
   watcher otherwise. A draft is never published without you.
+- Once the review is on the pull request, the watcher replies once more where it claimed the request:
+  the commit reviewed, the count per severity (or LGTM) and a link to the review. A draft gets that reply
+  when you publish it; an LGTM kept off the pull request (`post_lgtm: false`) gets none.
 - Once a session has reported its result, it is yours: the watcher stays silent about it and never reads
   what you write there, until the next request on that pull request.
 - A Claude Code review session left idle for 10 minutes after its result is stopped to free memory;

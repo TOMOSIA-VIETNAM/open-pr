@@ -308,3 +308,23 @@ def test_a_watcher_asks_its_roles_unless_its_arguments_name_them():
     for name, body in all_text().items():
         assert "else `review,fix`" not in body, f"{name}: a default role set"
     assert "when `<roles>` holds `fix`" in text(SRC / "cases" / "watch-fix.md")
+
+
+def test_a_posted_review_is_reported_to_its_request_from_what_the_session_wrote():
+    """The watcher answers a request once its review is on the PR, with the link `post-verify` found
+    and the commit the payload named: the session writes both, the watcher reads both, and no other
+    outcome earns a report (an LGTM kept off the PR has nothing to link; an answer is its own reply)."""
+    watch = " ".join(text(SRC / "commands" / "watch.md").split())
+    session = " ".join(text(SRC / "cases" / "watch-session.md").split())
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    assert '"review_url": "", "commit": ""' in session
+    assert "`review_url` = its `url=` line, `commit` = the payload's `commit_id`" in session
+    assert "`<op> post-verify --payload <it>`" in review, "GitLab and Bitbucket find the overview by its body"
+    assert "| `posted` | notify `posted`; 1 chat line; review role ⇒ report it (below) |" in watch
+    assert "| `lgtm_chat` | notify `posted`; 1 chat line; no report (kept off the PR) |" in watch
+    rule = re.search(r"Report — .*?done before\.", watch).group(0)
+    assert "on `posted` only" in rule and "no other state" in rule
+    for field in ("status file commit", "status file's `review_url`"):
+        assert field in rule, field
+    assert "`<op> report --body-file <it>` + `<request thread>`" in rule
+    assert "`<request thread>` = what `<op> last-claim … --pr N` prints" in watch

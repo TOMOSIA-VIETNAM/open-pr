@@ -43,7 +43,7 @@ AI coding làm PR ra nhanh hơn. Nhưng review thì không nhanh hơn.
 
 Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push. — [Xem demo](./docs/vi-VN/demo.md)
 
-- **1 review cho mỗi yêu cầu** — một review được đăng, không phải một dòng comment bot; watcher chỉ thêm một reply "taking a look" vào lời yêu cầu, và một yêu cầu re-review sau khi fix khi bạn đồng ý
+- **1 review cho mỗi yêu cầu** — một review được đăng, không phải một dòng comment bot; watcher chỉ thêm một reply "taking a look" vào lời yêu cầu, một reply kết quả khi review đã được đăng, và một yêu cầu re-review sau khi fix khi bạn đồng ý
 - **Review khi được yêu cầu** — `/open-pr:watch` mở một session review trên máy bạn cho mỗi comment `/open-pr`, và một session fix khi bạn click "Fix now" trên PR của chính bạn
 - **Học convention của repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rule thắng generic rule
 - **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau

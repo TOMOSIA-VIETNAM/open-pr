@@ -613,21 +613,38 @@ cmd_publish() {
             printf 'PUBLISHED\n' ;;
     esac
 }
+# Last line `url=<the review overview>` once it is on the PR: GitHub's review, else the newest
+# overview-level comment whose body is the payload's (--payload).
 cmd_post_verify() {
     parse_args "$@"; post_init
+    P=$(arg payload); [ -z "$P" ] || [ -s "$P" ] || die 1 "open-pr.sh post-verify: payload file missing/empty"
     case "$V" in
         github)
             RID=$(req review_id); check_ident '^[0-9]+$' "$RID"
-            gh api "repos/$OWNER/$REPO/pulls/$N/reviews/$RID" --jq '{id, state}' ;;
+            gh api "repos/$OWNER/$REPO/pulls/$N/reviews/$RID" > "$TMPD/pv.json"
+            jq -c '{id, state}' "$TMPD/pv.json"
+            jq -r 'select(.state != "PENDING") | .html_url // empty' "$TMPD/pv.json" > "$TMPD/pv.url" ;;
         gitlab)
             left=$(glab api "projects/$GL_PROJ/merge_requests/$N/draft_notes" | jq 'length')
-            if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi ;;
+            if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi
+            if [ "$left" = 0 ] && [ -n "$P" ]; then
+                glab api "projects/$GL_PROJ/merge_requests/$N/notes?sort=desc&order_by=created_at&per_page=100" > "$TMPD/pv.notes"
+                id=$(jq -r --slurpfile p "$P" '($p[0].body | sub("\\s+$"; "")) as $b
+                    | [.[] | select(.system != true and .position == null and ((.body // "") | sub("\\s+$"; "")) == $b)][0].id // empty' "$TMPD/pv.notes")
+                [ -z "$id" ] || { check_ident '^[0-9]+$' "$id"; gl_mr_cached "$N" | jq -r --arg id "$id" '.web_url // empty | . + "#note_" + $id' > "$TMPD/pv.url"; }
+            fi ;;
         bitbucket)
             M=$(req marker)
-            found=$(bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.inline,values.deleted" \
-                ".values[] | select(.deleted != true and (.content.raw | contains(\"$M\"))) | {id, path: .inline.path, line: .inline.to} | @json")
-            if [ -n "$found" ]; then printf '%s\n' "$found"; else printf 'NOTHING-POSTED (no comment carries the marker)\n'; fi ;;
+            bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.inline,values.deleted,values.links.html.href" \
+                ".values[] | select(.deleted != true) | @json" > "$TMPD/pv.rows"
+            found=$(jq -c --arg m "$M" 'select(.content.raw | contains($m)) | {id, path: .inline.path, line: .inline.to}' "$TMPD/pv.rows")
+            if [ -n "$found" ]; then printf '%s\n' "$found"; else printf 'NOTHING-POSTED (no comment carries the marker)\n'; fi
+            [ -z "$P" ] || jq -r -s --slurpfile p "$P" '($p[0].body | sub("\\s+$"; "")) as $b
+                | [.[] | select(.inline == null and ((.content.raw // "") | sub("\\s+$"; "")) == $b)] | last | .links.html.href // empty' \
+                "$TMPD/pv.rows" > "$TMPD/pv.url" ;;
     esac
+    u=$(head -n 1 "$TMPD/pv.url" 2>/dev/null || true)
+    if printf '%s' "$u" | grep -Eq '^https://[^[:space:]]+$'; then printf 'url=%s\n' "$u"; fi
 }
 
 # -------------------------------------------------------------- thread ----
@@ -752,20 +769,7 @@ cmd_claim() {
     claim_rows > "$TMPD/claim.before"
     first=$(claim_first "$TMPD/claim.before")
     [ -z "$first" ] || { printf 'taken %s\n' "${first#* }"; return 0; }
-    m=$(cmd_marker --vendor "$V" --kind claim --comment-id "$CID")
-    : > "$TMPD/claim.body"
-    # A GitHub conversation comment has no thread: quote the request as GitHub's "Quote reply"
-    # does (20 lines at most), with its plain URL. It stays inside jq: attacker text never
-    # reaches the shell.
-    if [ "$V" = github ] && [ "$KIND" = top ]; then
-        gh api "repos/$OWNER/$REPO/issues/comments/$CID" > "$TMPD/claim.req" \
-            && jq -r '(.html_url // "") as $u | (.body // "" | sub("\\s+$"; "") | split("\n")) as $l
-                      | ($l[:20] + (if ($l | length) > 20 then ["…"] else [] end))
-                      | map("> " + sub("\r$"; "")) + (if $u != "" then [">", "> " + $u] else [] end)
-                      | join("\n") + "\n"' "$TMPD/claim.req" > "$TMPD/claim.body" \
-            || : > "$TMPD/claim.body"
-    fi
-    { cat "$F"; printf '\n\n%s\n' "$m"; } >> "$TMPD/claim.body"
+    trigger_reply claim "$F" > "$TMPD/claim.body"
     reply_post "$TMPD/claim.body" "$KIND" "$CID" "$T" \
         || die 1 "open-pr.sh claim: could not post the claim reply on comment $CID"
     mine=$(jq -r '.id' "$TMPD/reply.out")
@@ -778,6 +782,38 @@ cmd_claim() {
     if [ "${first%% *}" = "$mine" ]; then printf 'claimed %s\n' "$mine"; return 0; fi
     claim_delete "$mine" || err "open-pr.sh claim: could not delete the losing claim reply $mine — remove it by hand"
     printf 'taken %s\n' "${first#* }"
+}
+# trigger_reply <marker kind> <body file>: the reply to trigger $CID ($KIND), its marker last. A
+# GitHub conversation comment has no thread: the request is quoted as GitHub's "Quote reply" does
+# (20 lines at most), with its plain URL. It stays inside jq: attacker text never reaches the shell.
+trigger_reply() {
+    if [ "$V" = github ] && [ "$KIND" = top ]; then
+        gh api "repos/$OWNER/$REPO/issues/comments/$CID" > "$TMPD/trigger.req" \
+            && jq -r '(.html_url // "") as $u | (.body // "" | sub("\\s+$"; "") | split("\n")) as $l
+                      | ($l[:20] + (if ($l | length) > 20 then ["…"] else [] end))
+                      | map("> " + sub("\r$"; "")) + (if $u != "" then [">", "> " + $u] else [] end)
+                      | join("\n") + "\n"' "$TMPD/trigger.req" \
+            || :
+    fi
+    cat "$2"; printf '\n\n%s\n' "$(cmd_marker --vendor "$V" --kind "$1" --comment-id "$CID")"
+}
+# report: once per request, its review's result, replying to trigger C as `claim` did. A reply
+# carrying C's report marker already (any machine, any earlier run) ⇒ `reported <its id>`, nothing
+# posted; else `posted <id>`.
+cmd_report() {
+    parse_args "$@"; post_init
+    CID=$(req comment_id); KIND=$(req kind); F=$(req body_file); T=$(arg thread_id)
+    check_ident '^[0-9]+$' "$CID"; check_ident '^(line|top)$' "$KIND"
+    [ -z "$T" ] || check_ident '^[A-Za-z0-9_-]+$' "$T"
+    [ -s "$F" ] || die 1 "open-pr.sh report: body file missing/empty"
+    claim_rows > "$TMPD/report.rows"
+    old=$(jq -r -s --arg c "$CID" 'map(select(.body | test("bot-report:" + $c + "(\\s*-->|\\]:)"))) | .[0].id // empty' "$TMPD/report.rows")
+    [ -z "$old" ] || { printf 'reported %s\n' "$old"; return 0; }
+    trigger_reply report "$F" > "$TMPD/report.body"
+    reply_post "$TMPD/report.body" "$KIND" "$CID" "$T" \
+        || die 1 "open-pr.sh report: could not post the report reply on comment $CID"
+    id=$(jq -r '.id' "$TMPD/reply.out"); check_ident '^[0-9]+$' "$id"
+    printf 'posted %s\n' "$id"
 }
 # last-claim: where the newest claim on PR N answered its trigger C, as the reply that keeps a
 # follow-up in that thread: {comment_id: C, kind, thread_id}; nothing when no claim exists.
@@ -1036,7 +1072,7 @@ cmd_triggers() {
         | (if ($tok | startswith("@")) then "i" else "" end) as $fl
         | [ .[] | select($open[.pr | tostring] != null)
             | select(.body | test($re; $fl))
-            | select((.body | contains($mf)) or (.body | contains($mr)) or (.body | contains("bot-claim:")) | not)
+            | select((.body | contains($mf)) or (.body | contains($mr)) or (.body | contains("bot-claim:")) or (.body | contains("bot-report:")) | not)
             | select(.comment_id as $c | $claimed | index([$c]) | not)
             | select(($last[.pr | tostring] // null) as $l | $l == null or (.created_at | epoch) > $l)
             | select($after == null or (.created_at | epoch) > $after)
@@ -1126,13 +1162,14 @@ cmd_marker() {
     parse_args "$@"
     V=$(req vendor); K=$(req kind)
     # claim markers name the trigger comment they lock: bot-claim:<comment id>
-    if [ "$K" = claim ]; then C=$(req comment_id); check_ident '^[0-9]+$' "$C"; K="claim:$C"; fi
+    # a report marker names the trigger whose review result it carries: bot-report:<comment id>
+    case "$K" in claim|report) C=$(req comment_id); check_ident '^[0-9]+$' "$C"; K="$K:$C" ;; esac
     case "$V/$K" in
-        github/finding|github/reply|github/claim:*|gitlab/finding|gitlab/reply|gitlab/claim:*)
+        github/finding|github/reply|github/claim:*|github/report:*|gitlab/finding|gitlab/reply|gitlab/claim:*|gitlab/report:*)
             printf '<!-- bot-%s -->\n' "$K" ;;
-        bitbucket/finding|bitbucket/reply|bitbucket/claim:*)
+        bitbucket/finding|bitbucket/reply|bitbucket/claim:*|bitbucket/report:*)
             printf '[bot-%s]: #\n' "$K" ;;
-        *) die 1 "open-pr.sh marker: --kind finding|reply|claim (claim takes --comment-id)" ;;
+        *) die 1 "open-pr.sh marker: --kind finding|reply|claim|report (claim and report take --comment-id)" ;;
     esac
 }
 
@@ -1535,8 +1572,9 @@ Subcommands:
   publish [--review-id I] [--payload F]
       make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview
       first)
-  post-verify [--review-id I] [--marker M]
-      what the PR actually shows (Bitbucket: `--marker` = the finding marker)
+  post-verify [--review-id I] [--marker M] [--payload F]
+      what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line
+      `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body)
   reply --comment-id C --body-file F [--kind line|top] [--thread-id T]
       reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the
       thread holding C
@@ -1551,8 +1589,8 @@ Subcommands:
       login name, or `UNKNOWN` (marker-only detection)
   commit-url --sha S
       markdown commit link, for the anchor
-  marker --kind finding|reply|claim [--comment-id C]
-      the marker literal — end every finding/reply with it; `claim` needs C
+  marker --kind finding|reply|claim|report [--comment-id C]
+      the marker literal — end every finding/reply with it; `claim` and `report` need C
   data-dir [--repo-dir D] | --set P | --add-root R --dir P | --all
       absolute `<data>` for D (default cwd): the `data_dirs` entry with the nearest `root` at or above
       D, else the default `data_dir`. `--set` records P as the default, `--add-root` maps R and below
@@ -1582,6 +1620,9 @@ Watch subcommands (the /open-pr:watch session's own; rendered into commands/watc
       else `taken <login>`
   last-claim
       `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing
+  report --comment-id C --kind line|top --body-file F [--thread-id T]
+      once per trigger C: replies F + report marker where `claim` answered C; `posted <reply id>`,
+      or `reported <id>` when C has a report already (nothing posted)
 
 Diagnostic subcommands (cases/self-repair.md, commands/watch.md and commands/menubar.md call it; rendered nowhere):
   selftest
@@ -1650,6 +1691,7 @@ case "$sub" in
     react)        cmd_react "$@" ;;
     claim)        cmd_claim "$@" ;;
     last-claim)   cmd_last_claim "$@" ;;
+    report)       cmd_report "$@" ;;
     account)      cmd_account "$@" ;;
     commit-url)   cmd_commit_url "$@" ;;
     marker)       cmd_marker "$@" ;;

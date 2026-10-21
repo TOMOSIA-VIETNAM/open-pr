@@ -28,14 +28,14 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
 | `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |
 | `publish [--review-id I] [--payload F]` | make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview first) |
-| `post-verify [--review-id I] [--marker M]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker) |
+| `post-verify [--review-id I] [--marker M] [--payload F]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body) |
 | `reply --comment-id C --body-file F [--kind line\|top] [--thread-id T]` | reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the thread holding C |
 | `resolve --thread-id T` | resolve a review thread |
 | `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
 | `react --comment-id C --emoji E [--kind line\|top]` | `top` = conversation comment. `NO-EQUIVALENT` on Bitbucket |
 | `account` | login name, or `UNKNOWN` (marker-only detection) |
 | `commit-url --sha S` | markdown commit link, for the anchor |
-| `marker --kind finding\|reply\|claim [--comment-id C]` | the marker literal — end every finding/reply with it; `claim` needs C |
+| `marker --kind finding\|reply\|claim\|report [--comment-id C]` | the marker literal — end every finding/reply with it; `claim` and `report` need C |
 | `data-dir [--repo-dir D] \| --set P \| --add-root R --dir P \| --all` | absolute `<data>` for D (default cwd): the `data_dirs` entry with the nearest `root` at or above D, else the default `data_dir`. `--set` records P as the default, `--add-root` maps R and below to P; both take `~`/relative, create P, print it. `--all`: every distinct `<data>`, 1 per line. A config that is not a JSON object ⇒ exit 1 |
 | `find-memory [--repo R]` | memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`: `found=<path>` per `notebooks/review/R` |
 | `settings --repo <repo> [--repo-dir D] [--set K --value V]` | `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`, `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: writes that one key first (menu bar, watch chat; keys in reference/settings-schema.md), exit 4 on a refused key or value |

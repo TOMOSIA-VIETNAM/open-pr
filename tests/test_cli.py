@@ -2037,6 +2037,123 @@ def test_last_claim_prints_nothing_when_no_claim_exists(shims):
     assert "pwned" not in shims["log"].read_text()
 
 
+# -------------------------------------------------------------- report ----
+
+def report(shims, vendor, body_file, *extra, cid="9"):
+    r = run("report", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5",
+            "--comment-id", cid, "--body-file", str(body_file), *extra, env_extra=env_for(shims), check=True)
+    return r.stdout.strip()
+
+
+@pytest.fixture
+def report_body(tmp_path):
+    f = tmp_path / "report.md"
+    f.write_text("Posted the review (commit `$(id)`): 1 🟠 SHOULD FIX — https://github.com/o/r/pull/5#pullrequestreview-77")
+    return f
+
+
+def test_report_github_answers_a_conversation_trigger_once_quoting_it(shims, report_body):
+    """The result goes where the claim went, once per request: a report already on the trigger (a
+    re-poll, a restart, another machine) posts nothing; its marker is its own, never a claim's."""
+    ours = gh_comment(600, "me", "2026-01-01T00:00:09Z", "x")
+    claimed = [gh_comment(9, "dev", "2026-01-01T00:00:01Z", "/open-pr"),
+               gh_comment(10, "me", "2026-01-01T00:00:02Z", "on it\n\n<!-- bot-claim:9 -->")]
+    serve(shims, "gh", [
+        ("-X POST repos/o/r/issues/5/comments", ours),
+        ("api repos/o/r/issues/comments/9", {"body": "/open-pr", "html_url": "https://github.com/o/r/pull/5#issuecomment-9"}),
+        ("repos/o/r/issues/5/comments?per_page=100", claimed),
+        ("repos/o/r/pulls/5/comments?per_page=100", []),
+    ])
+    assert report(shims, "github", report_body, "--kind", "top") == "posted 600"
+    sent = json.JSONDecoder().raw_decode((shims["tmp"] / "calls.log.bodies").read_text())[0]["body"]
+    assert sent == ("> /open-pr\n>\n> https://github.com/o/r/pull/5#issuecomment-9\n\n"
+                    + report_body.read_text() + "\n\n<!-- bot-report:9 -->\n")
+    assert "bot-claim" not in sent and "$(id)" not in shims["log"].read_text()
+    shims["log"].unlink()
+    serve(shims, "gh", [
+        ("repos/o/r/issues/5/comments?per_page=100", claimed + [gh_comment(600, "me", "2026-01-01T00:00:09Z", sent)]),
+        ("repos/o/r/pulls/5/comments?per_page=100", []),
+    ])
+    assert report(shims, "github", report_body, "--kind", "top") == "reported 600"
+    assert "POST" not in shims["log"].read_text()
+    assert last_claim(shims, "github") == {"comment_id": "9", "kind": "top", "thread_id": None}, \
+        "a report is no claim"
+
+
+def test_report_on_a_later_request_gets_its_own_reply_in_its_thread(shims, report_body):
+    line = lambda cid, at, body, to=None: {**gh_comment(cid, "x", at, body),
+                                          "pull_request_url": "https://api.github.com/repos/o/r/pulls/5", "in_reply_to_id": to}
+    serve(shims, "gh", [
+        ("-X POST repos/o/r/pulls/5/comments/20/replies", gh_comment(700, "me", "2026-01-01T00:00:09Z", "x")),
+        ("repos/o/r/issues/5/comments?per_page=100", []),
+        ("repos/o/r/pulls/5/comments?per_page=100", [
+            line(20, "2026-01-01T00:00:01Z", "/open-pr"),
+            line(21, "2026-01-01T00:00:02Z", "on it <!-- bot-claim:20 -->", 20),
+            line(22, "2026-01-01T00:00:03Z", "done <!-- bot-report:20 -->", 20),
+            line(30, "2026-01-01T00:00:04Z", "/open-pr re-review", 20),
+            line(31, "2026-01-01T00:00:05Z", "on it <!-- bot-claim:30 -->", 20)]),
+    ])
+    assert report(shims, "github", report_body, "--kind", "line", "--thread-id", "20", cid="30") == "posted 700"
+    assert "-X POST repos/o/r/pulls/5/comments/20/replies" in shims["log"].read_text(), \
+        "GitHub takes no reply to a reply: the thread's root"
+
+
+def test_report_gitlab_and_bitbucket_reply_where_the_claim_did(shims, report_body):
+    note = {"id": 801, "author": {"username": "me"}, "created_at": "2026-01-01T00:00:05Z", "body": "x", "system": False}
+    serve(shims, "glab", [
+        ("-X POST -H Content-Type: application/json projects/o%2Fr/merge_requests/5/discussions/abc/notes", note),
+        ("merge_requests/5/discussions?per_page=100", []),
+    ])
+    assert report(shims, "gitlab", report_body, "--kind", "top", "--thread-id", "abc") == "posted 801"
+    assert json.loads((shims["tmp"] / "calls.log.bodies").read_text())["body"].endswith("\n\n<!-- bot-report:9 -->\n")
+    (shims["tmp"] / "calls.log.bodies").unlink()
+    row = {"id": 901, "user": {"nickname": "me"}, "created_on": "2026-01-01T00:00:05+00:00", "content": {"raw": "x"}}
+    serve(shims, "curl", [("-X POST", row), ("pullrequests/5/comments?pagelen=100", {"values": [], "next": None})])
+    assert report(shims, "bitbucket", report_body, "--kind", "top") == "posted 901"
+    sent = json.loads((shims["tmp"] / "calls.log.bodies").read_text().splitlines()[0])
+    assert sent["parent"] == {"id": 9} and sent["content"]["raw"].endswith("\n\n[bot-report:9]: #\n")
+
+
+def test_triggers_drop_a_report_reply(shims):
+    """A report answers a request; whatever it opens with, it never becomes one."""
+    serve(shims, "curl", [
+        ("pullrequests?state=OPEN", {"values": [{"id": 7, "links": {"html": {"href": "u7"}}}], "next": None}),
+        ("pullrequests/7/comments", {"values": [
+            {"id": 31, "content": {"raw": "/open-pr go"}, "user": {"nickname": "dev"}, "inline": None,
+             "created_on": "2026-01-01T00:00:01+00:00", "deleted": False},
+            {"id": 34, "content": {"raw": "/open-pr done: LGTM\n\n[bot-report:31]: #"}, "user": {"nickname": "bot"},
+             "inline": None, "created_on": "2026-01-01T00:00:04+00:00", "deleted": False}], "next": None})])
+    assert [r["comment_id"] for r in triggers(shims, "bitbucket")] == ["31"]
+
+
+def test_post_verify_names_the_published_reviews_url_on_each_vendor(shims, tmp_path):
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps(PAYLOAD))
+    pv = lambda vendor, *extra: run("post-verify", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", *extra,
+                                    env_extra=env_for(shims), check=True).stdout.splitlines()
+    serve(shims, "gh", [("repos/o/r/pulls/5/reviews/77", {"id": 77, "state": "COMMENTED",
+                                                           "html_url": "https://github.com/o/r/pull/5#pullrequestreview-77"})])
+    assert pv("github", "--review-id", "77") == ['{"id":77,"state":"COMMENTED"}', "url=https://github.com/o/r/pull/5#pullrequestreview-77"]
+    serve(shims, "gh", [("repos/o/r/pulls/5/reviews/77", {"id": 77, "state": "PENDING", "html_url": "https://x/y"})])
+    assert pv("github", "--review-id", "77") == ['{"id":77,"state":"PENDING"}'], "a draft has no review to link"
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [
+            {"id": 12, "body": "a line finding", "position": {"new_line": 2}, "system": False},
+            {"id": 11, "body": PAYLOAD["body"] + "\n", "position": None, "system": False},
+            {"id": 10, "body": PAYLOAD["body"], "position": None, "system": False}]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"}),
+    ])
+    assert pv("gitlab", "--payload", str(f)) == ["PUBLISHED", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+    serve(shims, "curl", [("pullrequests/5/comments?pagelen=100", {"values": [
+        {"id": 41, "content": {"raw": PAYLOAD["body"]}, "inline": None, "deleted": False,
+         "links": {"html": {"href": "https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-41"}}},
+        {"id": 42, "content": {"raw": "f [bot-finding]: #"}, "inline": {"path": "a.txt", "to": 2}, "deleted": False,
+         "links": {"html": {"href": "https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-42"}}}], "next": None})])
+    assert pv("bitbucket", "--marker", "[bot-finding]: #", "--payload", str(f)) == [
+        '{"id":42,"path":"a.txt","line":2}', "url=https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-41"]
+
+
 def test_reply_github_line_with_a_thread_answers_its_root(shims, tmp_path):
     f = tmp_path / "b.md"
     f.write_text("/open-pr re-review")

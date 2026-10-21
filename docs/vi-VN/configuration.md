@@ -49,7 +49,7 @@ cd ~/workspace
 | `/open-pr:fix` | trong repo đó / workspace chứa nó — nhưng **repo phải đang ở branch của PR** | code thật trong repo + reply trên PR |
 | `/open-pr:upgrade` | bất kỳ đâu — mọi repo trong thư mục dữ liệu, hoặc các repo bạn nêu tên | `<data>/<repo>/settings.json` |
 | `/open-pr:clean` | bất kỳ đâu | không ghi gì — chỉ xóa `<data>/*/worktrees/*`, trong mọi thư mục dữ liệu |
-| `/open-pr:watch` | workspace chứa các repo, hoặc trong một repo — liệt kê chúng theo `git remote` | node `watch` của `<data>/<repo>/settings.json` (lần chạy đầu, hoặc một setting bạn đổi trong chat), state và prompt của session ở `<data>/<repo>/watch/` (nằm ngoài git của thư mục dữ liệu), và một reply "taking a look" trên mỗi PR mà nó nhận yêu cầu |
+| `/open-pr:watch` | workspace chứa các repo, hoặc trong một repo — liệt kê chúng theo `git remote` | node `watch` của `<data>/<repo>/settings.json` (lần chạy đầu, hoặc một setting bạn đổi trong chat), state và prompt của session ở `<data>/<repo>/watch/` (nằm ngoài git của thư mục dữ liệu), và trên mỗi PR mà nó nhận yêu cầu: một reply "taking a look", rồi một reply về review đã đăng |
 | `/open-pr:menubar` | bất kỳ đâu (macOS) | tự nó không ghi gì; một click trong panel setting của nó ghi đúng key đó vào `<data>/<repo>/settings.json` |
 | `/open-pr:feedback` | bất kỳ đâu | không ghi gì ở máy — một issue trên tracker của plugin, sau khi bạn duyệt nội dung |
 

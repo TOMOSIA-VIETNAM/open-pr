@@ -145,10 +145,17 @@ Per `{"event":"session",…}` (it carries `open`; `role: fix` ⇒ `cases/watch-f
 | `question`, `claude` runner | notify `question`: the user answers inside that session via `open` |
 | `question`, other runner | ask the status file's `question`, prefixed `[owner/repo#N]`; `Write` the answer as the new prompt file; `<watch> spawn` again (it resumes that session) |
 | `draft` | notify `draft_ready`; chat: link + counts. To publish: the user does it in the session, or you `spawn` again with a prompt file saying the user approved publishing |
-| `posted`, `lgtm_chat` | notify `posted`; 1 chat line |
+| `posted` | notify `posted`; 1 chat line; review role ⇒ report it (below) |
+| `lgtm_chat` | notify `posted`; 1 chat line; no report (kept off the PR) |
 | `failed`, `stopped` | notify `error`; the status file's `note`, else the event's `note`, in chat |
 | `nothing` | notify `question` with its `note` (e.g. no new commit: the dev has to push); 1 chat line |
 | `answered` | notify `posted` ("answered #N"); 1 chat line |
+
+Report — on `posted` only (a draft once rewritten to it), no other state: `Write` `<prompts>/pr-N.report.md`
+in the claim's language: posted (commit `<op> commit-url --sha <status file commit>`): counts as
+"notify" words them, LGTM when none, + ` — <status file's `review_url`>` (empty ⇒ no link). `<op> report
+--body-file <it>` + `<request thread>`; none ⇒ no report. `reported` = done before. `<request thread>` =
+what `<op> last-claim … --pr N` prints, as `--comment-id`, `--kind`, `--thread-id` when not null.
 
 Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`.
 
@@ -174,4 +181,5 @@ Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <ro
 | `list-repos [--dir D]` | every hosted remote of each repo at or below D (default cwd, 3 levels), TSV: dir, remote, vendor, owner, repo, host, last commit ISO-8601; no common option |
 | `claim --comment-id C --kind line\|top --body-file F [--thread-id T]` | cross-machine lock on trigger C: replies F + claim marker (GitLab: into discussion T, else top-level) unless C is claimed already; `claimed <reply id>` if ours is the earliest claim, else `taken <login>` |
 | `last-claim` | `{comment_id, kind, thread_id}` replying in the newest claimed trigger's thread, or nothing |
+| `report --comment-id C --kind line\|top --body-file F [--thread-id T]` | once per trigger C: replies F + report marker where `claim` answered C; `posted <reply id>`, or `reported <id>` when C has a report already (nothing posted) |
 <!-- /open-pr.sh --help Watch subcommands -->

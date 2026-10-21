@@ -67,6 +67,8 @@ watcher：评审 watcher 和修复 watcher（一个标签页运行 `/open-pr:wat
   （pull request 已有进展后，旧的上下文可能造成误导）。意图不明确时，watcher 会询问你。
 - 评审是发布还是留作草稿，由 `auto_submit_review` 决定，除非你另行告诉 watcher。没有你，草稿永远不会被
   发布。
+- 评审出现在 pull request 上之后，watcher 会在认领请求的位置再回复一次：评审的提交、各严重级别的数量
+  （或 LGTM）以及评审链接。草稿在你发布时才回复；不发到 pull request 上的 LGTM（`post_lgtm: false`）不回复。
 - 会话一旦报告了结果，就归你了：在该 pull request 的下一次请求之前，watcher 不会再就它说任何话，也永远
   不会读取你在那里写的内容。
 - 报告结果后闲置 10 分钟的 Claude Code 评审会话会被停止以释放内存；对话会保留，`claude attach <id>` 和之后的
