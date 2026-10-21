@@ -124,18 +124,25 @@ function run(argv) {
     }
 
     var tx = PAD + ICON + 10, tw = W - tx - PAD, labels = [];
-    function label(text, top, weight, color) {
+    // tone: the grey (light, dark) a line with severity marks takes. Attributed text in this vibrant
+    // card draws without vibrancy, where the dynamic colours turn dim on dark.
+    function label(text, top, weight, color, tone) {
         var t = $.NSTextField.labelWithString(text);
         t.setFrame($.NSMakeRect(tx, H - top - 17, tw, 17));
         t.setFont($.NSFont.systemFontOfSizeWeight(13, weight));
         t.setTextColor(color);
         t.setLineBreakMode($.NSLineBreakByTruncatingTail);
+        if (tone && /🔴|🟠|🔵|📝/.test(text)) {
+            var a = t.attributedStringValue.mutableCopy;
+            a.addAttributeValueRange('NSColor', gray(tone[dark ? 1 : 0], 1), $.NSMakeRange(0, text.length));
+            t.setAttributedStringValue(smallMarks(a, 0, text, 13));
+        }
         card.addSubview(t);
         labels.push(t);
     }
     label(title, PAD - 2, $.NSFontWeightSemibold, $.NSColor.labelColor);
-    label(summary, PAD + 15, $.NSFontWeightRegular, $.NSColor.labelColor);
-    if (detail) label(detail, PAD + 32, $.NSFontWeightRegular, $.NSColor.secondaryLabelColor);
+    label(summary, PAD + 15, $.NSFontWeightRegular, $.NSColor.labelColor, [0.15, 0.93]);
+    if (detail) label(detail, PAD + 32, $.NSFontWeightRegular, $.NSColor.secondaryLabelColor, [0.45, 0.9]);
 
     // Shown on hover only, as the system banner shows its close button and actions.
     var hoverViews = [], buttons = [];
@@ -218,6 +225,19 @@ function run(argv) {
     win.orderOut(null);
 }
 
+// Severity marks in s from `at` on, `text` long, at about the x-height of text `size` points high and
+// centred on it: at the text's own size they outweigh its words. Opaque black: a translucent text
+// colour tints the colour glyph. Same in open-pr-menubar.js.
+function smallMarks(s, at, text, size) {
+    var re = /🔴|🟠|🔵|📝/g, m, font = $.NSFont.systemFontOfSize(Math.round(size * 0.7));
+    while ((m = re.exec(text))) {
+        var r = $.NSMakeRange(at + m.index, m[0].length);
+        s.addAttributeValueRange('NSFont', font, r);
+        s.addAttributeValueRange('NSBaselineOffset', $(size * 0.1), r);
+        s.addAttributeValueRange('NSColor', $.NSColor.blackColor, r);
+    }
+    return s;
+}
 function isDark(app) {
     var a = app.effectiveAppearance.bestMatchFromAppearancesWithNames($([$.NSAppearanceNameAqua, $.NSAppearanceNameDarkAqua]));
     return ObjC.unwrap(a) === ObjC.unwrap($.NSAppearanceNameDarkAqua);

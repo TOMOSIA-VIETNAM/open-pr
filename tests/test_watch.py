@@ -2207,10 +2207,10 @@ def test_a_click_on_a_watcher_between_waits_focuses_its_tab_and_starts_nothing(w
     assert ["output", "/usr/bin/env", "claude"] in gone
 
 
-def test_the_toast_and_the_menu_bar_find_a_watchers_tab_the_same_way():
+def test_the_toast_and_the_menu_bar_find_a_tab_and_draw_severity_marks_the_same_way():
     toast = (REPO / "src" / "bin" / "open-pr-toast.js").read_text()
     body = lambda src, name: re.search(rf"^function {name}\(.*?^\}}$", src, re.S | re.M).group(0)
-    for name in ("tabId", "hostTty", "liveTab", "reopen"):
+    for name in ("tabId", "hostTty", "liveTab", "reopen", "smallMarks"):
         assert body(toast, name) == body(MENUBAR.read_text(), name), name
     for src in (toast, MENUBAR.read_text()):
         assert "'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',\n" \
@@ -2611,8 +2611,10 @@ PR_ITEMS = """var items = function () { var a = [];
         for (var i = 0; i < bar.menu.numberOfItems; i++) { var mi = bar.menu.itemAtIndex(i), sub = [], s = mi.submenu;
             if (mi.indentationLevel < PR_INDENT || ObjC.unwrap(mi.title) === 'No pull requests yet') continue;
             if (!s.isNil()) for (var j = 0; j < s.numberOfItems; j++) sub.push(ObjC.unwrap(s.itemAtIndex(j).title));
-            a.push([ObjC.unwrap(mi.title), mi.indentationLevel - PR_INDENT,
-                    mi.respondsToSelector('subtitle') ? ObjC.unwrap(mi.subtitle) || '' : '', sub]); }
+            // a state with severity marks is the title's second line (smallMarks needs an attributed title)
+            var two = ObjC.unwrap(mi.title).split('\\n');
+            a.push([two[0], mi.indentationLevel - PR_INDENT,
+                    two[1] || (mi.respondsToSelector('subtitle') ? ObjC.unwrap(mi.subtitle) || '' : ''), sub]); }
         return a; };"""
 
 
@@ -2668,6 +2670,25 @@ def test_a_rows_state_leaves_out_its_own_pr_number(w):
     got = _menubar_js(w, REFRESH_STUB + PR_ITEMS + "refresh(); return JSON.stringify(items());")
     seen = {t.split(" ")[0]: sub.rsplit(" · ", 1)[0] for t, _, sub, _ in got}
     assert seen == {(f"#{pr}" if pr else "Repository"): want for pr, _, want in OWN_NUMBER}
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_severity_marks_are_drawn_smaller_than_the_text_around_them(w):
+    """At the text's size a 🔵 outweighed the words of its line: in a row's state and in a nested fix
+    row's title, each mark is drawn smaller than the text beside it, in its own colours."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "1:review": {"pr": 1, "role": "review", "last_state": "posted", "last_state_at": _ago(300)}},
+        "findings": {"1": {"at": _ago(100), "counts": {"🔵": 4}}, "2": {"at": _ago(200), "counts": {"🔴": 1, "📝": 2}}}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """refresh(); var out = [];
+        for (var i = 0; i < bar.menu.numberOfItems; i++) {
+            var mi = bar.menu.itemAtIndex(i), a = mi.attributedTitle, t = a.isNil() ? '' : ObjC.unwrap(a.string), re = /🔴|🟠|🔵|📝/g, m;
+            if (mi.indentationLevel < PR_INDENT || !t) continue;
+            var size = function (k) { return a.attributeAtIndexEffectiveRange('NSFont', k, null).pointSize; };
+            while ((m = re.exec(t))) out.push([t.split('\\n')[0].split(' ')[0], m[0], size(m.index) < size(m.index - 2)]);
+        }
+        return JSON.stringify(out);""")
+    assert got == [["Fix:", "🔵", True], ["#2", "🔴", True], ["#2", "📝", True]], got
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")

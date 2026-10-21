@@ -43,6 +43,8 @@ var PR_INDENT = 3;
 var PILL = { h: 20, gear: 30 };
 // Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
 var SUBTITLE_PAD = 140;
+// A severity mark in a row's text (see smallMarks).
+var MARK = /🔴|🟠|🔵|📝/;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 // iTerm's unique id (the part of ITERM_SESSION_ID after ':') or a Terminal tab's tty.
@@ -682,7 +684,8 @@ function json(fn) { return function (v) { fn(parse(v)); }; }
 // cut with "…" at SUB_W before its tail (the time), which stays whole: the menu widens to fit it (a
 // native subtitle does not widen it, and runs under the submenu arrow).
 function subtitle(mi, text, tail) {
-    var font = $.NSFont.menuFontOfSize(12), width = function (t) { return $(t).sizeWithAttributes($({ NSFont: font })).width; };
+    // a severity mark measured as a wide letter: smallMarks draws it smaller than at this size
+    var font = $.NSFont.menuFontOfSize(12), width = function (t) { return $(t.replace(/🔴|🟠|🔵|📝/g, 'W')).sizeWithAttributes($({ NSFont: font })).width; };
     tail = tail && text.slice(-tail.length) === tail ? tail : '';
     var head = oneLine(text.slice(0, text.length - tail.length));
     text = head + tail;
@@ -691,14 +694,33 @@ function subtitle(mi, text, tail) {
         while (lo < hi) { var mid = Math.ceil((lo + hi) / 2); if (width(head.slice(0, mid) + '…' + tail) <= SUB_W) lo = mid; else hi = mid - 1; }
         text = head.slice(0, lo).replace(/\s+$/, '') + '…' + tail;
     }
-    if (mi.respondsToSelector('setSubtitle:')) {
+    if (!MARK.test(text) && mi.respondsToSelector('setSubtitle:')) {
         var menu = mi.menu, w = width(text);
         if (!menu.isNil() && w + SUBTITLE_PAD > menu.minimumWidth) menu.setMinimumWidth(w + SUBTITLE_PAD);
         mi.setSubtitle(text);
         return;
     }
-    mi.setAttributedTitle(attributed([[ObjC.unwrap(mi.title) + '\n', $.NSFont.menuFontOfSize(0), $.NSColor.labelColor],
-                                      [text, $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor]], false));
+    var title = ObjC.unwrap(mi.title) + '\n';
+    mi.setAttributedTitle(smallMarks(attributed([[title, $.NSFont.menuFontOfSize(0), $.NSColor.labelColor],
+                                                 [text, font, $.NSColor.secondaryLabelColor]], false), title.length, text, 12));
+}
+// A one-line title with severity marks (a nested fix row's).
+function markedTitle(mi) {
+    var t = ObjC.unwrap(mi.title), font = $.NSFont.menuFontOfSize(0);
+    if (MARK.test(t)) mi.setAttributedTitle(smallMarks(attributed([[t, font, $.NSColor.labelColor]], false), 0, t, font.pointSize));
+}
+// Severity marks in s from `at` on, `text` long, at about the x-height of text `size` points high and
+// centred on it: at the text's own size they outweigh its words. Opaque black: a translucent text
+// colour tints the colour glyph. Same in open-pr-toast.js.
+function smallMarks(s, at, text, size) {
+    var re = /🔴|🟠|🔵|📝/g, m, font = $.NSFont.systemFontOfSize(Math.round(size * 0.7));
+    while ((m = re.exec(text))) {
+        var r = $.NSMakeRange(at + m.index, m[0].length);
+        s.addAttributeValueRange('NSFont', font, r);
+        s.addAttributeValueRange('NSBaselineOffset', $(size * 0.1), r);
+        s.addAttributeValueRange('NSColor', $.NSColor.blackColor, r);
+    }
+    return s;
 }
 // parts [[text, font, colour]…] → one attributed string, built piece by piece (JXA does not bridge
 // NSAttributedString's initWithString… initializers). cut: one line, its tail cut with "…" (an
@@ -1026,7 +1048,7 @@ function watcherItems(m, w) {
             : x.focus === 'session' && session ? add(m, title, json(openTerminal), session)
             : add(m, title, isURL(x.url) ? openURL : null, x.url);
         mi.setIndentationLevel(PR_INDENT + (x.nested ? 1 : 0));
-        if (!x.nested) subtitle(mi, text, x.time);
+        if (x.nested) markedTitle(mi); else subtitle(mi, text, x.time);
         mi.setImage(spec ? symbol(spec) : blank());
         // Offered in every state: `open` also reopens a finished or stopped session.
         var sub = newMenu(x.title);
