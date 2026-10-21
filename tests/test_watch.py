@@ -78,6 +78,7 @@ if os.path.exists(out):
 # the toast creates its last argv, the menu bar writes its pid to its pid file
 a = sys.argv[1:]
 if name == "osascript" and len(a) > 4 and not os.environ.get("FAKE_NO_UI"):
+    time.sleep(float(os.environ.get("FAKE_UI_DELAY", "0")))
     if a[2].endswith("open-pr-toast.js") and a[-1].endswith("/shown"):
         open(a[-1], "w").close()
     elif a[2].endswith("open-pr-menubar.js"):
@@ -112,15 +113,22 @@ def new(name):
     db["sessions"].append(s)
     return s
 
-if a == ["agents", "--json"] and os.environ.get("FAKE_CLAUDE_LIST_SILENT"):
-    pass
+if a == ["agents", "--json"] and "FAKE_CLAUDE_LIST" in os.environ:
+    sys.stdout.write(os.environ["FAKE_CLAUDE_LIST"])
 elif a[:2] == ["agents", "--json"]:
+    for s in db["sessions"]:   # FAKE_CLAUDE_LINGER: listed for that many more listings after `stop`
+        if s.get("linger"):
+            s["linger"] -= 1
+            if not s["linger"]:
+                s["state"] = "stopped"
     rows = db["sessions"] if "--all" in a else [s for s in db["sessions"] if s["state"] in ACTIVE]
     print(json.dumps(rows))
 elif a[:1] == ["stop"]:
     for s in db["sessions"]:
         if s["id"] == a[1]:
-            s["state"] = "stopped"
+            s["linger"] = int(os.environ.get("FAKE_CLAUDE_LINGER", "0"))
+            if not s["linger"]:
+                s["state"] = "stopped"
 elif a[:1] == ["--bg"] and "--resume" in a:
     sid = a[a.index("--resume") + 1]
     s = next(s for s in db["sessions"] if s["sessionId"] == sid)
@@ -597,14 +605,30 @@ def test_spawn_on_a_claude_session_stops_waits_then_resumes_without_flags(w):
     assert w.claude_db()["sessions"][0]["name"] == "review o/r#4"
 
 
-def test_a_resume_reads_an_empty_session_list_as_none_running(w):
-    """`jq -e` exits 0 on no input under jq 1.6: an empty list then read as "still running" for 30 s."""
+# What `claude agents --json` printed while a resume waits for the stopped session to leave it.
+@pytest.mark.parametrize("listing", ["", " \n", "[]", '[{"id": "other"}]', "{oops", "[] notice", "{}", "null",
+                                     'Update available\n[{"id": "other"}]'])
+def test_a_resume_reads_a_listing_without_the_session_as_none_running(w, listing):
+    """`jq -e` exits 0 on no input under jq 1.6: an empty list then read as "still running" for 30 s.
+    A listing that is not one JSON array reads as none running, never as a jq error that ends the run."""
     sp = w.spawn(4)
     w.claude_set(sp["id"], "done")
     w.status_file(4, state="draft")
     started = time.time()
-    again = w.spawn(4, text="second look", env_extra={"FAKE_CLAUDE_LIST_SILENT": "1"})
+    again = w.spawn(4, text="second look", env_extra={"FAKE_CLAUDE_LIST": listing})
     assert again["resumed"] and time.time() - started < 10
+
+
+def test_a_resume_waits_while_the_stopped_session_is_still_listed(w):
+    """Resumed while still listed, the CLI starts a copy instead."""
+    sp = w.spawn(4)
+    w.claude_set(sp["id"], "done")
+    w.status_file(4, state="draft")
+    again = w.spawn(4, text="second look", env_extra={"FAKE_CLAUDE_LINGER": "3"})
+    assert again["resumed"] and "warning" not in again and again["id"] == sp["id"]
+    calls = w.claude_calls()
+    stop, resume = calls.index(["stop", sp["id"]]), [c[:2] for c in calls].index(["--bg", "--resume"])
+    assert calls[stop + 1:resume].count(["agents", "--json"]) >= 3
 
 
 def test_a_resume_that_starts_a_copy_is_reported_and_followed(w):
@@ -920,6 +944,26 @@ def test_a_toast_that_crashes_after_it_showed_leaves_its_exit_code_in_the_log(w,
     assert (w.watch / "toast.log").read_text() == "open-pr-toast.js exited 139\n"
 
 
+def test_a_toast_on_screen_late_within_its_bound_is_sent_and_logs_nothing(w, tmp_path):
+    started = time.time()
+    out = notify(w, env_extra={"FAKE_UI_DELAY": "3", "TMPDIR": str(tmp_path)})
+    assert out == {"event": "posted", "sent": True, "via": "toast"} and time.time() - started >= 3
+    w.wait_dead(int((tmp_path / "open-pr-toast" / "0" / "pid").read_text()))
+    assert (w.watch / "toast.log").read_text() == "", "a toast that exits 0 appends nothing"
+    assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["summary"] == "PR #3 posted"
+
+
+def test_a_toast_in_a_reused_slot_is_judged_by_its_own_marker(w, tmp_path):
+    """Eight toasts on screen: the ninth takes slot 0, whose toast already created `shown`."""
+    me = str(os.getpid())
+    for n in range(8):
+        (tmp_path / "open-pr-toast" / str(n)).mkdir(parents=True)
+        (tmp_path / "open-pr-toast" / str(n) / "pid").write_text(me + "\n")
+    (tmp_path / "open-pr-toast" / "0" / "shown").write_text("")
+    out = notify(w, env_extra={"FAKE_NO_UI": "1", "FAKE_EXIT": "139", "TMPDIR": str(tmp_path)})
+    assert (out["sent"], out.get("reason")) == (False, "toast not shown"), out
+
+
 def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
     """A new toast takes the first free slot; a slot frees when its toast exits."""
     env = {"TMPDIR": str(tmp_path), "FAKE_SLEEP": "30"}
@@ -995,12 +1039,20 @@ def _minimal_path(w, tmp_path, with_notify_send):
     return str(sysbin)
 
 
-def test_a_jq_older_than_1_6_is_refused(w, tmp_path):
+# `jq --version` as each release prints it; the floor is 1.6 (open-pr.sh holds the same table).
+@pytest.mark.parametrize("version, ok", [
+    ("jq-1.5", False), ("jq-1.5rc2", False), ("jq-1.0", False), ("jq version 1.4", False), ("jq version 1.3", False),
+    ("jq-1.6", True), ("jq-1.6-159-apple-gcff5336-dirty", True), ("jq-1.7.1", True), ("jq-1.8.0", True),
+    ("jq-1.10", True), ("jq-1.15", True), ("", True), ("garbage", True)])
+def test_a_jq_older_than_1_6_is_refused(w, tmp_path, version, ok):
     d = tmp_path / "oldjq"
     d.mkdir()
-    make_exe(d / "jq", f'#!/bin/sh\n[ "$1" = --version ] && {{ echo jq-1.5; exit 0; }}\nexec "{shutil.which("jq")}" "$@"\n')
+    make_exe(d / "jq", f'#!/bin/sh\n[ "$1" = --version ] && {{ echo "{version}"; exit 0; }}\nexec "{shutil.which("jq")}" "$@"\n')
     r = w.run("snooze", "--off", path=f"{d}{os.pathsep}{w.env['PATH']}", check=False)
-    assert r.returncode == 1 and "jq 1.6 or newer is required, found jq-1.5" in r.stderr
+    if ok:
+        assert r.returncode == 0, r.stderr
+    else:
+        assert r.returncode == 1 and f"jq 1.6 or newer is required, found {version}" in r.stderr
 
 
 def test_notify_send_gets_title_and_text_after_a_double_dash(w, tmp_path):
@@ -1361,6 +1413,16 @@ def test_a_menu_bar_that_shows_no_item_is_stopped_not_reported_started(w):
     assert out == "", "the hung menu bar was left running"
 
 
+def test_a_menu_bar_whose_item_shows_late_within_its_bound_is_started(w):
+    started = time.time()
+    try:
+        assert w.run("menubar", env_extra={"FAKE_UI_DELAY": "6", "FAKE_SLEEP": "30"}).stdout == "started\n"
+        assert time.time() - started >= 6
+        assert w.run("menubar").stdout == "running\n"
+    finally:
+        os.kill(int((w.watch / "menubar.pid").read_text()), 9)
+
+
 def test_menubar_closes_on_request(w):
     env = {"FAKE_SLEEP": "30"}
     assert w.run("menubar", env_extra=env).stdout == "started\n"
@@ -1693,6 +1755,20 @@ def test_a_fix_now_click_while_that_fix_session_runs_opens_nothing(w):
     w.run("fix-now", "--pr", "5")
     assert w.run("wait", "--once").stdout == ""
     assert not (w.sd / "fix_now" / "5").exists(), "the dropped click stays pending and wakes every poll"
+
+
+def test_a_dropped_click_and_a_delivered_one_in_one_poll_are_told_apart(w):
+    """Each click is matched to its own PR: the one whose fix session runs is used up, the other
+    delivered once."""
+    fix_ready(w, finding(), finding(pr=6, review="71"))
+    w.run("wait", "--once")
+    w.spawn(5, extra=("--role", "fix"))
+    w.run("wait", "--once")
+    w.run("fix-now", "--pr", "5")
+    w.run("fix-now", "--pr", "6")
+    assert [(e["event"], e["pr"]) for e in w.jsonl("wait", "--once")] == [("fix_now", 6)]
+    assert not (w.sd / "fix_now" / "5").exists() and not (w.sd / "fix_now" / "6").exists()
+    assert w.run("wait", "--once").stdout == ""
 
 
 def test_a_fix_now_click_wakes_a_sleeping_wait(w):
@@ -2223,6 +2299,71 @@ def test_the_menu_is_built_as_wide_as_the_settings_panel_its_gear_opens(w):
         return JSON.stringify([m.minimumWidth, settingsPanel(x, s.quotas, '').view.frame.size.width, HEADER_W]);""", script=True)
     assert got[0] >= got[1] > got[2], got
 
+
+
+# One row per case: its state.json entry → the kind it shows, and whether the badge counts it.
+BADGE_KINDS = [
+    ({"1:review": {"last_state": "working"}}, "working", True),
+    ({"1:review": {"last_state": "question"}}, "question", True),
+    ({"1:fix": {"last_state": "working"}}, "fixing", True),
+    ({"1:fix": {"last_state": "working", "runner": "here"}}, "fixing_here", True),
+    ({"1:review": {"last_state": "posted"}}, "posted", False),
+    ({"1:review": {"last_state": "draft"}}, "draft", False),
+    ({"1:review": {"last_state": "lgtm_chat"}}, "lgtm", False),
+    ({"1:review": {"last_state": "failed"}}, "failed", False),
+    ({"1:review": {"last_state": "stopped"}}, "stopped", False),
+    ({"1:review": {"last_state": "working", "finished": True}}, "working", True),
+    ({}, None, False),
+]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("sessions, kind, counted", BADGE_KINDS)
+def test_the_badge_counts_each_kind_of_row_or_not(w, sessions, kind, counted):
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        k: dict(v, pr=int(k.split(":")[0]), role=k.split(":")[1], last_state_at=now) for k, v in sessions.items()}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """refresh();
+        var rows = scan().repos.map(function (g) { return g.watchers[0].rows.map(function (r) { return r.kind; }); });
+        return JSON.stringify([bar.title, rows]);""")
+    assert got[1] == ([[kind]] if kind else [[]])
+    assert got[0] == ("1" if counted else ""), "zero shows no number"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("n, hidden, shown", [(2, [2], 1), (10, [], 10), (11, [], 10), (12, [12], 10), (1, [1], 0)])
+def test_the_badge_counts_only_the_rows_the_menu_shows(w, n, hidden, shown):
+    """A removed PR has no row, and past ROWS rows a watcher shows none: the badge counts neither."""
+    sessions = {f"{i}:review": {"pr": i, "role": "review", "last_state": "working",
+                                "last_state_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 100 + i))}
+                for i in range(1, n + 1)}
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": sessions, "hidden": hidden})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """refresh();
+        var prs = titles().filter(function (t) { return /^#[0-9]+$/.test(t); });
+        return JSON.stringify([bar.title, prs.length, ROWS]);""")
+    assert got == [str(shown) if shown else "", shown, 10]
+
+
+# A panel wider than the default one: a typed trigger shows as an extra segment, a repo held in
+# several data dirs gets its path as a caption.
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("change", [
+    "x.conf.watch.trigger = '@' + new Array(60).join('a');",
+    "s.repos[0].settings.push({ name: x.name, repo: '/' + new Array(90).join('d') + '/r', conf: x.conf, arg: x.arg, doctor: x.doctor });",
+])
+def test_a_panel_widened_by_its_content_widens_the_menu_built_next(w, change):
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
+        var s = scan(), x = s.repos[0].settings[0], before = build(s).minimumWidth;
+        s = scan(); x = s.repos[0].settings[0]; """ + change + """
+        var widths = s.repos[0].settings.map(function (y) { return settingsPanel(y, s.quotas, caption(s.repos[0].settings, y)).view.frame.size.width; });
+        return JSON.stringify([before, build(s).minimumWidth, Math.max.apply(null, widths)]);""", script=True)
+    before, after, panel = got
+    assert panel > before, "the case does not widen the panel"
+    assert after >= panel, got
 
 
 def _rosetta():

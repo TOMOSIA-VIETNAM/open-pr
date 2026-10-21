@@ -83,6 +83,7 @@ if [ -z "${FAKE_NO_UI:-}" ]; then
         *open-pr-toast.js) for a; do last=$a; done; : > "$last" ;;
     esac
 fi
+[ -z "${FAKE_SIGNAL:-}" ] || kill -"$FAKE_SIGNAL" $$
 [ -z "${FAKE_SLEEP:-}" ] || exec sleep "$FAKE_SLEEP"
 exit "${FAKE_EXIT:-0}"
 """
@@ -179,6 +180,97 @@ def test_selftest_probes_the_jq_idioms_not_only_the_version(mac, tmp_path):
     r = run("selftest", env_extra={**base, "PATH": f"{d}{os.pathsep}{base['PATH']}"})
     assert r.returncode == 1
     assert r.stdout.splitlines()[2].startswith("fail jq: ") and "passes on empty input" in r.stdout
+
+
+def test_selftest_fails_a_jq_that_reads_malformed_json_as_valid(mac, tmp_path):
+    """The watcher reads a `claude agents` listing through `[inputs]`: a jq exiting 0 on a parse error
+    would hand a half-read listing on as if it were whole."""
+    base, _ = mac
+    real = subprocess.run(["sh", "-c", "command -v jq"], capture_output=True, text=True, check=True).stdout.strip()
+    d = tmp_path / "laxjq"
+    d.mkdir()
+    make_shim(d, "jq", f'[ "$1 $2 $3" = "-c -n [inputs]" ] && {{ echo "[]"; exit 0; }}\nexec "{real}" "$@"\n')
+    r = run("selftest", env_extra={**base, "PATH": f"{d}{os.pathsep}{base['PATH']}"})
+    assert r.returncode == 1
+    assert r.stdout.splitlines()[2].startswith("fail jq: ") and "[inputs] passes malformed JSON" in r.stdout
+
+
+def selftest(env, shell=None, *args):
+    """`selftest` under `shell` (None: the script's own shebang): every check prints exactly one
+    line, whatever fails or crashes."""
+    cmd = [shell, str(CLI)] if shell else [str(CLI)]
+    r = subprocess.run([*cmd, "selftest", *args], capture_output=True, text=True,
+                       env={**os.environ, **env}, timeout=60)
+    lines = r.stdout.splitlines()
+    assert len(lines) == 4 and all(__import__("re").match(SELFTEST_LINE, l) for l in lines), r.stdout + r.stderr
+    return r, dict(l.split(": ", 1)[0].split()[::-1] for l in lines), lines
+
+
+SHELLS = [None] + (["dash"] if shutil.which("dash") else [])
+
+
+@pytest.fixture
+def linux(tmp_path):
+    """`uname -s` says Linux: no menu bar or toast to probe."""
+    d = tmp_path / "linuxbin"
+    d.mkdir()
+    real = shutil.which("uname")
+    make_shim(d, "uname", f'[ "$1" = -s ] && {{ echo Linux; exit 0; }}\nexec "{real}" "$@"\n')
+    return {"PATH": f"{d}{os.pathsep}{os.environ['PATH']}", "TMPDIR": str(tmp_path)}
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_selftest_skips_the_menu_bar_probe_off_macos_and_still_passes(linux, shell):
+    r, st, lines = selftest(linux, shell)
+    assert r.returncode == 0 and st == {"platform": "ok", "tools": "ok", "jq": "ok", "jxa": "skip"}, lines
+    assert lines[3] == "skip jxa: not macOS" and lines[0].startswith("ok platform: Linux ")
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_selftest_on_macos_passes_every_check_under_each_shell(mac, shell):
+    env, _ = mac
+    r, st, _ = selftest(env, shell)
+    assert r.returncode == 0 and set(st.values()) == {"ok"}
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_a_probe_killed_by_a_signal_fails_its_line_and_nothing_else_prints(mac, shell):
+    """dash names the signal on stderr; the line carries the exit code only."""
+    env, _ = mac
+    r, st, lines = selftest({**env, "FAKE_SIGNAL": "SEGV"}, shell)
+    assert r.returncode == 1 and st == {"platform": "ok", "tools": "ok", "jq": "ok", "jxa": "fail"}
+    assert lines[3].startswith("fail jxa: menu bar: exit 139") and "toast: exit 139" in lines[3], lines[3]
+    assert "Segmentation" not in r.stdout
+
+
+# Each tool alone missing from PATH: git and jq fail the run, a vendor CLI is reported absent.
+@pytest.mark.parametrize("gone, fails, word", [
+    (None, set(), ""), ("git", {"tools"}, "git:MISSING"), ("jq", {"tools", "jq"}, "jq:MISSING"),
+    ("curl", set(), "curl:absent"), ("gh", set(), "gh:absent"), ("glab", set(), "glab:absent")])
+def test_selftest_names_each_missing_tool_and_fails_only_for_a_required_one(tmp_path, gone, fails, word):
+    d = tmp_path / "only"
+    d.mkdir()
+    real_uname = shutil.which("uname")
+    make_shim(d, "uname", f'[ "$1" = -s ] && {{ echo Linux; exit 0; }}\nexec "{real_uname}" "$@"\n')
+    for t in ("tr", "cat", "sh"):
+        (d / t).symlink_to(shutil.which(t))
+    for t in ("git", "curl", "gh", "glab"):
+        if t != gone:
+            make_shim(d, t, "exit 0\n")
+    if gone != "jq":
+        (d / "jq").symlink_to(shutil.which("jq"))
+    r, st, lines = selftest({"PATH": str(d)})
+    assert r.returncode == (1 if fails else 0)
+    assert {c for c, v in st.items() if v == "fail"} == fails, lines
+    tools = [l for l in lines if " tools: " in l][0]
+    assert word in tools and tools.count("MISSING") + tools.count("absent") == (1 if gone else 0), tools
+    if gone == "jq":
+        assert lines[2] == "fail jq: jq missing"
+
+
+def test_selftest_takes_no_option():
+    r = run("selftest", "--repo", "x")
+    assert r.returncode == 4 and r.stdout == "" and "takes no option" in r.stderr
 
 
 # ---------------------------------------------------------------- target ----

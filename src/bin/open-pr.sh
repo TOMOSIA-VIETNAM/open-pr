@@ -1413,6 +1413,7 @@ st_jq() {
     bad=""
     ! printf '' | jq -e -n 'input | type == "object"' >/dev/null 2>&1 || bad="$bad; -e -n input passes on empty input"
     printf '{}\n' | jq -e -n 'input | type == "object"' >/dev/null 2>&1 || bad="$bad; -e -n input fails on {}"
+    ! printf '[] notice' | jq -c -n '[inputs]' >/dev/null 2>&1 || bad="$bad; [inputs] passes malformed JSON"
     printf '[{"id":"a"}]\n' | jq -e -n --arg id a 'any(inputs | .[]?; .id == $id)' >/dev/null 2>&1 \
         || bad="$bad; any(inputs …; .id == \$id) finds nothing"
     jq -e -n '"ab12" | test("^[a-z]+[0-9]+$") and (capture("(?<n>[0-9]+)").n == "12")' >/dev/null 2>&1 \

@@ -275,7 +275,13 @@ run_bounded() {   # $1 seconds, $2 output file, rest = command (cwd = W)
     done
     wait "$p"
 }
-claude_list() { (cd "$W" && claude agents --json "$@") 2>/dev/null || printf '[]'; }
+# One JSON array, else [] (no listing, an error, a notice printed around it): every caller parses it,
+# and a jq parse error under `set -e` would end the run.
+claude_list() {
+    (cd "$W" && claude agents --json "$@") 2>/dev/null \
+        | jq -c -n '[inputs] | if length == 1 and (.[0] | type == "array") then .[0] else [] end' 2>/dev/null \
+        || printf '[]'
+}
 claude_sid() {   # id → sessionId; a fresh session may take a moment to list
     i=0
     while [ "$i" -lt 10 ]; do
@@ -1047,7 +1053,8 @@ cmd_notify() {
         # "Fix now" on a findings toast runs `fix-now` for this repo
         fx=""; [ "$E" != findings ] || [ -z "$P" ] || fx="$SELF_DIR/open-pr-watch.sh"
         # The toast creates `shown` once on screen; toast.log ends with its exit code when not 0.
-        shown="$sd/$slot/shown"
+        # A slot reused while full still holds the marker of the toast showing there.
+        shown="$sd/$slot/shown"; rm -f "$shown"
         ( trap '' HUP; rc=0
           osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
             "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" "$FOCUS" "$open" \
