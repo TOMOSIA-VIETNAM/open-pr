@@ -93,7 +93,7 @@ logs.
 
 Triggers with `backlog: true` (asked before this start, never claimed): ONE multi-select for all,
 option `owner/repo#N · <user> · <age>` — `Review them (Recommended)` · pick some · skip. Each picked ⇒
-per trigger below; the rest ⇒ `<watch> skip --comment-ids <their comment_ids, comma-joined>`.
+per trigger below; the rest ⇒ `<watch> skip --comment-ids <their comment_id and superseded ids, comma-joined>`.
 
 Per trigger `{"event":"trigger",…}` (`pr` = N):
 

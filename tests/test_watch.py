@@ -1912,7 +1912,7 @@ def test_a_skipped_backlog_trigger_is_never_delivered_again_but_a_newer_one_is(w
     backlog(w, trig("5", "2025-01-01T00:00:00Z"))
     assert w.jsonl("skip", "--comment-ids", "5,3") == [{"skipped": ["5", "3"]}]
     assert w.run("wait", "--once", "--backlog").stdout == "", "skipped: not asked again on a restart"
-    w.triggers(trig("5", "2026-01-01T00:00:05Z"), trig("6", "2026-01-01T00:00:06Z"))
+    w.triggers(trig("3", "2026-01-01T00:00:04Z"), trig("5", "2026-01-01T00:00:05Z"), trig("6", "2026-01-01T00:00:06Z"))
     w.put_state(dict(w.state(), cursor="2026-01-01T00:00:00Z", seen=[]))
     assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["6"], "a stale cursor never brings it back"
     backlog(w, trig("7", "2026-01-02T00:00:00Z"))
