@@ -367,8 +367,10 @@ function reopen(w, ps, agents) {
     if (hosts.some(function (h) { return ps === null || up.indexOf(String(h)) >= 0; })) return '';
     var attach = 'claude attach ' + w.session_id.slice(0, 8), out = hosts.length ? agents() : null, list = [];
     if (out === null) return attach;
-    try { list = JSON.parse(out); } catch (e) { list = []; }
-    var job = (Array.isArray(list) ? list : []).filter(function (a) {
+    // A listing that cannot be read may hide the job: attach only fails, a resume would copy it.
+    try { list = JSON.parse(out); } catch (e) { return attach; }
+    if (!Array.isArray(list)) return attach;
+    var job = list.filter(function (a) {
         return a && a.sessionId === w.session_id && (a.kind === undefined || a.kind === 'background');
     })[0];
     if (!job) return 'claude --resume ' + w.session_id;

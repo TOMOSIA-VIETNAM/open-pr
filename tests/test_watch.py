@@ -584,6 +584,7 @@ rows = {}
 for line in table.splitlines():
     if line.strip():
         r = dict(zip(("pid", "ppid", "tty", "comm"), line.split(None, 3)))
+        r["args"] = r.get("comm", "")
         rows[r["pid"]] = r
 r = rows.get(a[a.index("-p") + 1]) or rows.get("*")
 if r is None or any(f not in r for f in fields):
@@ -605,6 +606,10 @@ def with_ps(w, tree):
     ("* 7000003 ?? sh\n7000003 7000001 ?? node\n7000001 1 ttys007 claude", 7000001),
     ("* 7000003 ?? sh\n7000003 7000001 ttys007 claude-helper\n7000001 1 ttys007 zsh", None),
     ("* 7000003 ?? sh\n7000003 1 ttys007 zsh", None),
+    # an npm install: node running claude-code's cli.js
+    ("* 7000003 ?? sh\n7000003 7000001 ?? sh\n7000001 50 ttys007 /usr/local/bin/node "
+     "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js --resume x\n50 1 ttys007 zsh", 7000001),
+    ("* 7000003 ?? sh\n7000003 7000001 ttys007 node /srv/app/server.js\n7000001 1 ttys007 zsh", None),
 ])
 def test_wait_records_the_claude_running_the_watcher(w, tree, host):
     """Between waits only that `claude` runs: the menu bar finds the watcher's tab by it."""
@@ -2162,8 +2167,10 @@ def test_a_watcher_session_whose_tab_is_gone_is_attached_resumed_or_left_alone(w
         ([999], "[]", f"claude --resume {SID}"),              # nothing runs it
         ([999], job(sessionId="other"), f"claude --resume {SID}"),
         ([999], job(kind="interactive"), f"claude --resume {SID}"),
-        ([999], "not json", f"claude --resume {SID}"),        # a malformed listing lists nothing
-        ([999], '{"id": 1}', f"claude --resume {SID}"),
+        # a listing that cannot be read may hide the job: attach (it only fails), never a second copy
+        ([999], "not json", "claude attach 269289ac"),
+        ([999], '{"id": 1}', "claude attach 269289ac"),
+        ([999], "Update available\n[]", "claude attach 269289ac"),
         ([999], "[1, null]", f"claude --resume {SID}"),
         ([999], None, "claude attach 269289ac"),              # no listing: never resume blind
         ([], "[]", "claude attach 269289ac"),                 # no host recorded (an older record)

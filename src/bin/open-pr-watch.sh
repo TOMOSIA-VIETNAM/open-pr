@@ -952,16 +952,18 @@ EOF
         p=$pp; i=$((i + 1))
     done
 }
-# The `claude` hosting this watcher (the nearest ancestor of that name): while it runs, its tab is
-# live even between waits, and resuming its session would start a second copy.
+# The `claude` hosting this watcher (the nearest ancestor running it: the native binary, or node
+# running an npm install's cli.js): while it runs, its tab is live even between waits, and resuming
+# its session would start a second copy.
 host_pid() {
     p=$$; i=0
     while [ "$i" -lt 15 ] && [ "${p:-0}" -gt 1 ]; do
-        row=$(ps -o ppid=,comm= -p "$p" 2>/dev/null || true)
-        read -r pp cm <<EOF
+        row=$(ps -o ppid=,args= -p "$p" 2>/dev/null || true)
+        read -r pp cm rest <<EOF
 $row
 EOF
         case "${cm:-}" in claude|*/claude) fit "$p" '[0-9]{1,10}'; return 0 ;; esac
+        case "${cm:-}:${rest:-}" in node:*/claude-code/cli.js*|*/node:*/claude-code/cli.js*) fit "$p" '[0-9]{1,10}'; return 0 ;; esac
         p=${pp:-}; i=$((i + 1))
     done
 }
