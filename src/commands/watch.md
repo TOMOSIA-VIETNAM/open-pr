@@ -127,7 +127,7 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
    - a review, new session, other runner: `ROOT: <ROOT>. Read <ROOT>/../adapters/root.md, then <ROOT>/commands/review.md and obey it VERBATIM. ARGUMENTS: <url> --status-file <status_file> --hint-file <hint file> --unattended`
      — `<ROOT>` absolute.
 7. `<watch> spawn --runner <runner> --pr N --name "review <owner>/<repo>#N" --prompt-file <prompt file>
-   --url <url> --cwd <pwd>` (+ `--fresh`; + `--role fix` for a queued fix session):
+   --url <url> --cwd <pwd>` + the claim's `--comment-id`, `--kind` (+ `--thread-id`) (+ `--fresh`; + `--role fix` for a queued fix session):
    - `queued` ⇒ 1 chat line with its `reason`; `ready` brings it back.
    - started ⇒ 1 chat line with its `open`; `warning` ⇒ also in chat.
 
@@ -155,12 +155,13 @@ Report — on `posted` only (a draft once rewritten to it), no other state: `Wri
 in the claim's language: posted (commit `<op> commit-url --sha <status file commit>`): counts as
 "notify" words them, LGTM when none, + ` — <status file's `review_url`>` (empty ⇒ no link). `<op> report
 --body-file <it>` + `<request thread>`; none ⇒ no report. `reported` = done before. `<request thread>` =
-what `<op> last-claim … --pr N` prints, as `--comment-id`, `--kind`, `--thread-id` when not null.
+the event's `request`, else what `<op> last-claim … --pr N` prints, as `--comment-id`, `--kind`,
+`--thread-id` when not null.
 
 Status file `lessons` non-empty ⇒ offer each (log / skip); logged ⇒ `setup/lesson.md`.
 
-Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <roles>`; a PR printed ⇒ item 7 with the
-`role`, `prompt_file`, `name` and `url` it prints.
+Per `{"event":"ready",…}` (a queued session's turn): `<watch> next --roles <roles>`; a PR printed ⇒ item 7 with
+the fields it prints.
 
 ## User messages while watching
 

@@ -327,4 +327,7 @@ def test_a_posted_review_is_reported_to_its_request_from_what_the_session_wrote(
     for field in ("status file commit", "status file's `review_url`"):
         assert field in rule, field
     assert "`<op> report --body-file <it>` + `<request thread>`" in rule
-    assert "`<request thread>` = what `<op> last-claim … --pr N` prints" in watch
+    # the session answers the request it was spawned for; last-claim only for a record without one
+    assert "`<request thread>` = the event's `request`, else what `<op> last-claim … --pr N` prints" in watch
+    assert "--cwd <pwd>` + the claim's `--comment-id`, `--kind` (+ `--thread-id`)" in watch
+    assert "a PR printed ⇒ item 7 with the fields it prints" in watch, "a queued request keeps its request"

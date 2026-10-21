@@ -460,7 +460,7 @@ cmd_status() {
     state_json > "$TMPD/state.in"
     jq -c --slurpfile st "$TMPD/state.in" '{pr, role, runner, id, state, open}
         + ($st[0].sessions[.key].findings | if . then {findings: .} else {} end) + (if .note then {note} else {} end) + (if .finished then {finished} else {} end)
-        + (if .hidden then {hidden} else {} end)' "$TMPD/status"
+        + (if .hidden then {hidden} else {} end) + ($st[0].sessions[.key].request | if . then {request: .} else {} end)' "$TMPD/status"
 }
 
 # --------------------------------------------------------------- spawn ----
@@ -509,21 +509,32 @@ JQ_BUSY='def busy($s; $q; $now):
                   and (([$q[]? | select(.key == $r.key) | .queued_at // empty][0] // null) as $at
                        | $at == null or ($now - ($at | fromdateiso8601)) < '"$IN_USE_GRACE"')))
      | .key];'
+# --comment-id C --kind line|top [--thread-id T]: the request a spawn serves, as its claim answered it
+# → REQ, `{comment_id, kind, thread_id}` (the shape `open-pr.sh last-claim` prints), or "" when none.
+request_arg() {
+    C=$(arg comment_id); K=$(arg kind); T=$(arg thread_id); REQ=""
+    [ -n "$C$K$T" ] || return 0
+    check_ident '^[0-9]+$' "$C"; check_ident '^(line|top)$' "$K"
+    [ -z "$T" ] || check_ident '^[A-Za-z0-9_-]+$' "$T"
+    REQ=$(jq -n -c --arg c "$C" --arg k "$K" --arg t "$T" '{comment_id: $c, kind: $k, thread_id: (if $t == "" then null else $t end)}')
+}
 enqueue() {   # $1 reason
     state_update --arg key "$KEY" --argjson pr "$N" --arg role "$ROLE" --arg runner "$RUNNER" --arg name "$NAME" \
-        --arg f "$PF" --arg at "$(now_iso)" --arg cwd "$CW" --arg url "$URL" --arg fresh "$FRESH" \
+        --arg f "$PF" --arg at "$(now_iso)" --arg cwd "$CW" --arg url "$URL" --arg fresh "$FRESH" --arg req "$REQ" \
         '(([.queue[] | select(.key == $key) | .queued_at][0]) // $at) as $since
          | .queue = ([.queue[] | select(.key != $key)]
                      + [{key: $key, pr: $pr, role: $role, runner: $runner, name: $name, prompt_file: $f, queued_at: $since}
                         + (if $cwd == "" then {} else {cwd: $cwd} end)
                         + (if $url == "" then {} else {url: $url} end)
-                        + (if $fresh == "" then {} else {fresh: true} end)])'
+                        + (if $fresh == "" then {} else {fresh: true} end)
+                        + (if $req == "" then {} else $req | fromjson | {comment_id, kind} + (if .thread_id then {thread_id} else {} end) end)])'
     jq -n -c --argjson pr "$N" --arg role "$ROLE" --arg why "$1" '{pr: $pr, role: $role, queued: true, reason: $why}'
 }
 cmd_spawn() {
     parse_args "$@"
     RUNNER=$(req runner); check_runner "$RUNNER"
     N=$(pr_arg); ROLE=$(role_arg); KEY="$N:$ROLE"; NAME=$(req name); PF=$(req prompt_file); URL=$(arg url)
+    request_arg
     [ -r "$PF" ] || die 1 "open-pr-watch.sh: prompt file not readable: $PF"
     PF=$(cd "$(dirname "$PF")" && printf '%s/%s' "$(pwd)" "$(basename "$PF")")
     CW=$(arg cwd); FRESH=$(arg fresh)
@@ -594,13 +605,16 @@ unhide() {
 record_session() {
     state_update --arg key "$KEY" --argjson pr "$N" --arg role "$ROLE" --arg runner "$RUNNER" --arg id "$RID" --arg sid "$SID" \
         --arg name "$NAME" --arg pid "$PID" --arg at "$(now_iso)" --arg repo "$OWNER/$REPO" \
-        --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" --arg cwd "$W" \
+        --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" --arg cwd "$W" --arg req "${REQ:-}" --arg resumed "${resumed:-false}" \
         "$JQ_RETIRE"'def nul: if . == "" then null else . end;
          retire($key; $id | nul; $at)
          | .sessions[$key] = {pr: $pr, role: $role, runner: $runner, id: ($id | nul), session_id: ($sid | nul),
                             name: $name, repo: $repo, url: (($url | nul) // .sessions[$key].url), open: ($open | nul),
                             cwd: $cwd, pid: ($pid | nul | if . then tonumber else . end), started_at: $at,
                             last_state: "working", last_state_at: $at, finished: false}
+                           # a resume for no new request keeps answering the one it served
+                           + (if $req != "" then {request: ($req | fromjson)}
+                              elif $resumed == "true" then (.sessions[$key].request | if . then {request: .} else {} end) else {} end)
                            + (if $role == "fix" then {findings: (.findings[$pr | tostring] // .sessions[$key].findings)} else {} end)
          | del(.findings[if $role == "fix" then ($pr | tostring) else "" end])
          | .queue = [.queue[] | select(.key != $key)]'
@@ -832,7 +846,8 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     mv "$TMPD/fixev.ok" "$TMPD/fixev"
     jq -c -s --slurpfile st "$TMPD/state.in" '
         .[] | select(.state != ($st[0].sessions[.key].last_state // null))
-        | {event: "session", pr, role, state, open} + (if .note then {note} else {} end)' "$TMPD/own" > "$TMPD/sess"
+        | {event: "session", pr, role, state, open} + (if .note then {note} else {} end)
+          + ($st[0].sessions[.key].request | if . then {request: .} else {} end)' "$TMPD/own" > "$TMPD/sess"
     # `ready`: nothing else wakes the watcher to run `next`.
     max=$(setting_int max_concurrent 5)
     jq -c -s --slurpfile st "$TMPD/state.in" --argjson max "$max" --arg roles "$ROLES" "$JQ_BUSY"'
@@ -1286,7 +1301,8 @@ Subcommands:
       PR out.
       `{"event":"fix_now","repo","pr"[,"url","head_branch","review_id","counts","comment_id","thread_id","user"]}`
       per `fix-now` since (with the PR's latest findings), within 5 s while waiting.
-      `{"event":"session","repo","pr","role","state","open"}` per session of its roles whose state changed.
+      `{"event":"session","repo","pr","role","state","open"[,"request"]}` per session of its roles whose state
+      changed; `request` = the one spawn recorded.
       Once a session's result (draft|posted|lgtm_chat|nothing|answered|fixed|failed|stopped) is
       delivered the session is finished: no slot held, and no more events from it until spawn resumes
       it, except a new result its status file is rewritten to (a draft the user published there).
@@ -1308,6 +1324,7 @@ Subcommands:
       `watcher-fix.json`, `stop-fix`, `quota-fix.json`.
       `--once`: one poll, exit 0 with nothing printed when nothing happened
   spawn --runner R --pr N --name S --prompt-file F [--role review|fix] [--url U] [--cwd W] [--fresh]
+        [--comment-id C --kind line|top [--thread-id T]]
       open PR N's session for that role (default review) with the prompt read from F →
       `{"pr","role","id","open"}`; it has one ⇒ resume it (`"resumed":true`; a `"warning"` when the
       platform started a copy); all `max_concurrent` slots busy (both roles share them), or that
@@ -1315,7 +1332,9 @@ Subcommands:
       the repo dir), recorded so a resume runs there again. `--fresh`: open a new session even when
       there is one; the old one is left untouched and untracked. U (the PR URL) is kept for the menu
       bar. Takes N off the hidden list; a fix session takes over the PR's pending findings. A fix after one
-      run `here` opens a new session; exit 1 while that one is still `working`
+      run `here` opens a new session; exit 1 while that one is still `working`. C/kind/T: the request
+      it serves, as its claim answered it — recorded on the session as `"request"`, replacing the
+      one a resumed session served (none given: a resume keeps it, a new session has none)
   here --pr N [--url U]
       PR N's fix runs in the watcher's own session: recorded as fix session with runner `here` (no id,
       `open` null; the menu bar's "Open session" goes to the watcher's tab), its status file cleared,
@@ -1323,14 +1342,14 @@ Subcommands:
       until its status file (`paths --pr N --role fix`) holds a result, written by the watcher. Exit 1
       while a fix of PR N is `working`
   status [--pr N] [--role R]
-      per session `{"pr","role","runner","id","state","open"[,"findings"]}` (a fix session: the
+      per session `{"pr","role","runner","id","state","open"[,"findings"][,"request"]}` (a fix session: the
       findings it was opened for, as `findings` events carry them), state one of working|question|draft|
       posted|lgtm_chat|nothing|answered|fixed|failed|stopped (`"note"` says why when the session left
       no status file); a finished session shows its result with `"finished":true`, a hidden one
       `"hidden":true`
   next [--roles review,fix]
       a slot is free ⇒ pop the first queued session of those roles (default both) not running → `{"pr","role","runner","name",
-      "prompt_file","queued_at"[,"cwd"][,"url"][,"fresh"]}`, to pass back to spawn; else nothing
+      "prompt_file","queued_at"[,"cwd"][,"url"][,"fresh"][,"comment_id","kind"[,"thread_id"]]}`, to pass back to spawn; else nothing
   forget --pr N [--role R]
       drop that session (default review), so the next spawn opens a fresh one
   skip --comment-ids C,C…

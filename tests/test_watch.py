@@ -427,6 +427,52 @@ def test_wait_reports_a_session_state_change_once(w):
 
 
 
+def test_each_result_answers_the_request_its_session_was_spawned_for(w):
+    """Two requests on one PR: the newest claim is the second's, yet the first session's result
+    answers the first; the session resumed for the second answers the second. A resume for no new
+    request (a draft the user approved) keeps answering the one it served."""
+    first, second = ("--comment-id", "41", "--kind", "top"), ("--comment-id", "42", "--kind", "line", "--thread-id", "40")
+    sp = w.spawn(5, extra=first)
+    w.run("wait", "--once")   # a role set's first run only starts its cursor
+    assert w.spawn(5, extra=second)["queued"] is True, "the first review still runs"
+    w.claude_set(sp["id"], "done")
+    w.status_file(5, state="posted")
+    ev = w.jsonl("wait", "--once")
+    assert [e.get("request") for e in ev if e["event"] == "session"] == [{"comment_id": "41", "kind": "top", "thread_id": None}]
+    nxt = w.jsonl("next")[0]
+    assert (nxt["comment_id"], nxt["kind"], nxt["thread_id"]) == ("42", "line", "40"), "the queue keeps the request"
+    w.spawn(5, extra=("--comment-id", nxt["comment_id"], "--kind", nxt["kind"], "--thread-id", nxt["thread_id"]))
+    want = {"comment_id": "42", "kind": "line", "thread_id": "40"}
+    assert w.state()["sessions"]["5:review"]["request"] == want
+    w.claude_set(sp["id"], "done")
+    w.status_file(5, state="draft")
+    assert [e.get("request") for e in w.jsonl("wait", "--once") if e["event"] == "session"] == [want]
+    w.spawn(5, text="the user approved publishing")
+    assert w.state()["sessions"]["5:review"]["request"] == want
+    assert w.jsonl("status", "--pr", "5")[0]["request"] == want
+
+
+def test_a_session_recorded_without_a_request_reports_none(w):
+    """A record from before spawn took the request: no `request`, so the watcher falls back to last-claim."""
+    sp = w.spawn(6)
+    w.run("wait", "--once")
+    assert "request" not in w.state()["sessions"]["6:review"]
+    w.claude_set(sp["id"], "done")
+    w.status_file(6, state="posted")
+    assert [e for e in w.jsonl("wait", "--once") if e["event"] == "session"][0].keys() == \
+        {"event", "repo", "pr", "role", "state", "open"}
+
+
+@pytest.mark.parametrize("bad", [("--comment-id", "9;id", "--kind", "top"), ("--comment-id", "9", "--kind", "both"),
+                                 ("--comment-id", "9", "--kind", "line", "--thread-id", "a/../b"),
+                                 ("--kind", "top"), ("--comment-id", "9")])
+def test_spawn_refuses_a_malformed_request(w, bad):
+    r = w.run("spawn", "--runner", "claude", "--pr", "7", "--name", "review o/r#7", "--prompt-file", w.prompt("x"),
+              *bad, check=False)
+    assert r.returncode == 4 and "invalid value" in r.stderr
+    assert not (w.sd / "state.json").exists() or "7:review" not in w.state().get("sessions", {})
+
+
 def test_a_running_wait_sees_a_session_change_between_its_own_polls(w):
     """A session listing cached across polls would report `working` forever."""
     w.settings(poll_interval_seconds=1)
