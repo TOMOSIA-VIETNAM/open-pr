@@ -5,19 +5,19 @@
 //   and, on a findings toast, Fix now (run fix-now)
 // argv: title, summary, detail, event, slot (0 = top), seconds, url, snooze file (the one
 // `open-pr-watch.sh snooze` writes, one ISO-8601 UTC line), focus, open command, the
-// watcher record fields term, term_session, tty, session_id, pid, then — a findings toast only — the
+// watcher record fields term, term_session, tty, session_id, pid, host_pid, then — a findings toast only — the
 // absolute open-pr-watch.sh, the repo dir, its remote and the PR number "Fix now" passes to
 // `open-pr-watch.sh fix-now` (each "" on any other toast), then the file to create once the toast
 // is on screen (`notify` waits for it). A leading --probe (`open-pr.sh selftest`): the toast is drawn
 // fully transparent, creates that file, and quits.
 // Colours are NSBox fills and borders: a layer colour handed through the bridge crashes osascript on an Intel Mac.
-// focus: pr → open url · watcher → the watcher's terminal tab, or `claude attach` of its session
+// focus: pr → open url · watcher → the watcher's terminal tab, or its session reopened (reopen)
 // when that tab is gone · session → the open command in the watcher's terminal app (no valid
 // command ⇒ watcher). A watcher in a terminal not in TERMS and with no session ⇒ url. The focus
-// code mirrors open-pr-menubar.js (goToTab, tabId, hostTty, liveTab, openIn, FOCUS).
+// code mirrors open-pr-menubar.js (goToTab, tabId, hostTty, liveTab, reopen, openIn, FOCUS).
 // Every string arrives as argv; nothing here is spliced into source: the open command reaches a
 // .command file or osascript argv only after matching OPEN_CMD, a tab id and tty reach osascript as
-// argv only after matching TAB_ID, the pid is only compared with ps output, a session id becomes `claude attach` only after matching SESSION_ID,
+// argv only after matching TAB_ID, the pids are only compared with ps output, a session id becomes `claude attach`/`--resume` only after matching SESSION_ID,
 // the fix-now values reach /bin/sh argv only after their own checks (fixArgs).
 ObjC.import('Cocoa');
 
@@ -76,7 +76,7 @@ function run(argv) {
     var title = argv[0] || 'open-pr', summary = argv[1] || '', detail = argv[2] || '';
     var badge = BADGE[argv[3]] || BADGE.question;
     var slot = Number(argv[4] || 0), secs = Number(argv[5] || 8);
-    var snoozeFile = argv[7] || '', shown = /^\/.*\/shown$/.test(argv[19] || '') ? argv[19] : '';
+    var snoozeFile = argv[7] || '', shown = /^\/.*\/shown$/.test(argv[20] || '') ? argv[20] : '';
     var where = clickTarget(argv), fix = fixArgs(argv);
 
     var app = $.NSApplication.sharedApplication;
@@ -290,11 +290,11 @@ function polygon(pts, k) {   // SVG y grows downward, AppKit's upward
 function clickTarget(argv) {
     return { focus: argv[8] || 'pr', url: argv[6] || '', open: argv[9] || '', snoozeFile: argv[7] || '',
              term: argv[10] || '', term_session: argv[11] || '', tty: argv[12] || '', session_id: argv[13] || '',
-             pids: argv[14] ? [argv[14]] : [] };
+             pids: argv[14] ? [argv[14]] : [], hosts: argv[15] ? [argv[15]] : [] };
 }
 // `open-pr-watch.sh fix-now` argv, or null when any value is outside its shape.
 function fixArgs(argv) {
-    var sh = argv[15] || '', dir = argv[16] || '', remote = argv[17] || '', pr = argv[18] || '';
+    var sh = argv[16] || '', dir = argv[17] || '', remote = argv[18] || '', pr = argv[19] || '';
     var fm = $.NSFileManager.defaultManager, isDir = Ref();
     if (!/^\/.*\/open-pr-watch\.sh$/.test(sh) || !fm.fileExistsAtPath(sh)) return null;
     if (dir.charAt(0) !== '/' || !fm.fileExistsAtPathIsDirectory(dir, isDir) || !isDir[0]) return null;
@@ -344,30 +344,50 @@ function hostTty(ps, pid) {
     }
     return '';
 }
-// [tab id, its tty] while a watcher pid still runs on the tty of the tab recorded, else null: the
-// tab is closed, or it now runs something else — the user quit `claude` there (the session went
-// on in the background), or a background session inherited the tab of the `claude` that started it.
+// [tab id, its tty] while a watcher pid — its wait, or the `claude` running it (between waits no wait
+// runs) — still runs on the tty of the tab recorded, else null: the tab is closed, or it now runs
+// something else — the user quit `claude` there (the session went on in the background), or a
+// background session inherited the tab of the `claude` that started it.
 function liveTab(w, ps) {
-    var id = tabId(w);
+    var id = tabId(w), pids = w.pids.concat(w.hosts || []);
     if (!TAB_ID.test(id)) return null;
-    for (var i = 0; i < w.pids.length; i++) {
-        var t = hostTty(ps, w.pids[i]), tty = '/dev/' + t;
+    for (var i = 0; i < pids.length; i++) {
+        var t = hostTty(ps, pids[i]), tty = '/dev/' + t;
         if (t && TAB_ID.test(tty) && (w.term !== 'Apple_Terminal' || tty === id)) return [id, tty];
     }
     return null;
 }
+// What brings back a watcher session whose tab was not found, or '' while its `claude` runs (the session
+// is open in a tab; a resume would start a second copy). Listed by `claude agents --json` (agents():
+// its output, null when it did not run) as a background job ⇒ attach; not listed ⇒ resume. No host
+// recorded, or no listing ⇒ attach: resuming blind might start that copy.
+function reopen(w, ps, agents) {
+    var hosts = w.hosts || [], up = String(ps || '').split('\n').map(function (l) { return l.trim().split(/\s+/)[0]; });
+    if (!SESSION_ID.test(w.session_id)) return '';
+    if (hosts.some(function (h) { return ps === null || up.indexOf(String(h)) >= 0; })) return '';
+    var attach = 'claude attach ' + w.session_id.slice(0, 8), out = hosts.length ? agents() : null, list = [];
+    if (out === null) return attach;
+    try { list = JSON.parse(out); } catch (e) { list = []; }
+    var job = (Array.isArray(list) ? list : []).filter(function (a) {
+        return a && a.sessionId === w.session_id && (a.kind === undefined || a.kind === 'background');
+    })[0];
+    if (!job) return 'claude --resume ' + w.session_id;
+    return /^[0-9a-f]{8,64}$/.test(job.id) ? 'claude attach ' + job.id : attach;
+}
 // A tab that is gone (the user quit `claude`, which keeps the watcher's session running in the
-// background) is reopened with `claude attach`.
+// background) is reopened (reopen).
 function goToTab(o) {
     var t = TERMS[o.term], sid = SESSION_ID.test(o.session_id) ? o.session_id : '';
     if (!t && !sid) return false;
     // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
     // LaunchServices: an accessory app's own activate request is ignored by macOS.
     if (t) spawn('/usr/bin/open', ['-b', t]);
-    var src = FOCUS[o.term], tab = src ? liveTab(o, output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty='])) : null;
+    var ps = output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty=']);
+    var src = FOCUS[o.term], tab = src ? liveTab(o, ps) : null;
     var found = tab ? output('/usr/bin/osascript', script(src).concat(tab)) : '';
     // null: the lookup failed (no permission) — the tab may be there.
-    if (found === '' && sid) openIn(o.term, 'claude attach ' + sid.slice(0, 8), o.snoozeFile);
+    var cmd = found === '' ? reopen(o, ps, function () { return output('/usr/bin/env', ['claude', 'agents', '--json']); }) : '';
+    if (cmd) openIn(o.term, cmd, o.snoozeFile);
     return true;
 }
 function newTask(path, args) {

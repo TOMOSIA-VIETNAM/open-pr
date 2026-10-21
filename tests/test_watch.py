@@ -547,7 +547,7 @@ def test_wait_records_the_terminal_tab_it_runs_in(w):
                         TERM_SESSION_ID="other", CLAUDE_CODE_SESSION_ID="269289ac-1f2e-4d3c-9b8a-0123456789ab")
     r = w.run("wait", "--once", "--repo-dir", str(w.repo), cwd=where)
     rec = json.loads((w.sd / "watcher.json").read_text())
-    assert set(rec) == {"pid", "cwd", "term", "term_session", "tty", "session_id", "repo_dir", "remote"}
+    assert set(rec) - {"host_pid"} == {"pid", "cwd", "term", "term_session", "tty", "session_id", "repo_dir", "remote"}
     assert rec["session_id"] == "269289ac-1f2e-4d3c-9b8a-0123456789ab", "what `claude attach` reopens"
     assert (rec["repo_dir"], rec["remote"]) == (str(w.repo), ""), "what the menu bar passes to hide"
     assert rec["cwd"] == str(where), "the directory the user runs the watcher from"
@@ -569,6 +569,50 @@ def test_a_hostile_terminal_value_is_recorded_as_empty(w, hostile):
     rec = json.loads((w.sd / "watcher.json").read_text())
     assert rec["term"] == "" and rec["term_session"] == "" and rec["session_id"] == ""
     assert not (w.repo / "pwned").exists() and not (w.sd / "pwned").exists()
+
+
+# `ps -o <fields>= -p N` answered from FAKE_PS ("pid ppid tty comm" lines; `*` = any pid not listed,
+# so the wait's own); any other ps call runs the real one.
+FAKE_PS = r"""#!/usr/bin/env python3
+import os, sys
+a = sys.argv[1:]
+table = os.environ.get("FAKE_PS")
+if not table or "-o" not in a or "-p" not in a:
+    os.execv("/bin/ps", ["ps"] + a)
+fields = [f.rstrip("=") for f in a[a.index("-o") + 1].split(",")]
+rows = {}
+for line in table.splitlines():
+    if line.strip():
+        r = dict(zip(("pid", "ppid", "tty", "comm"), line.split(None, 3)))
+        rows[r["pid"]] = r
+r = rows.get(a[a.index("-p") + 1]) or rows.get("*")
+if r is None or any(f not in r for f in fields):
+    os.execv("/bin/ps", ["ps"] + a)
+print(" ".join(r[f] for f in fields))
+"""
+
+
+def with_ps(w, tree):
+    d = w.home.parent / "psbin"
+    d.mkdir(exist_ok=True)
+    make_exe(d / "ps", FAKE_PS)
+    return {"FAKE_PS": tree, "PATH": f"{d}{os.pathsep}{w.env['PATH']}"}
+
+
+@pytest.mark.parametrize("tree, host", [
+    ("* 7000003 ?? sh\n7000003 7000002 ?? node\n7000002 7000001 ttys007 /Users/x/.local/bin/claude\n"
+     "7000001 50 ttys007 claude\n50 1 ttys007 zsh", 7000002),
+    ("* 7000003 ?? sh\n7000003 7000001 ?? node\n7000001 1 ttys007 claude", 7000001),
+    ("* 7000003 ?? sh\n7000003 7000001 ttys007 claude-helper\n7000001 1 ttys007 zsh", None),
+    ("* 7000003 ?? sh\n7000003 1 ttys007 zsh", None),
+])
+def test_wait_records_the_claude_running_the_watcher(w, tree, host):
+    """Between waits only that `claude` runs: the menu bar finds the watcher's tab by it."""
+    w.env = watcher_env(w, **with_ps(w, tree))
+    w.run("wait", "--once")
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    assert rec.get("host_pid") == host, "the nearest `claude` ancestor, by its name; none ⇒ no field"
+    assert rec["tty"] == "ttys007"
 
 
 def test_a_directory_name_is_recorded_verbatim_as_data(w):
@@ -991,14 +1035,14 @@ def test_notify_focus_hands_the_toast_where_a_click_goes(w):
     sp = w.spawn(3)
     (w.sd / "watcher.json").write_text(json.dumps(
         {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p0:AB-12", "tty": "ttys004",
-         "session_id": "269289ac-1f2e"}))
+         "session_id": "269289ac-1f2e", "host_pid": 7}))
     url = "https://github.com/o/r/pull/3"
     w.run("notify", "--event", "question", "--text-file", w.prompt("PR #3 needs you", "q.txt"),
           "--pr", "3", "--url", url, "--focus", "session")
     rec = w.recorded("osascript")["argv"]
     assert rec[9] == url
-    assert rec[11:18] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e", "1"]
-    assert rec[18:22] == ["", "", "", ""], "only a findings toast carries Fix now"
+    assert rec[11:19] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e", "1", "7"]
+    assert rec[19:23] == ["", "", "", ""], "only a findings toast carries Fix now"
 
 
 # osascript argv[18:] = what the toast's "Fix now" runs: open-pr-watch.sh fix-now for that repo and PR.
@@ -1006,13 +1050,13 @@ def test_a_findings_toast_offers_fix_now_for_its_repo_and_pr(w):
     w.run("notify", "--event", "findings", "--text-file", w.prompt("#3: 2 🟠", "f.txt"), "--pr", "3",
           "--role", "fix", "--remote", "origin")
     rec = w.recorded("osascript")["argv"]
-    assert rec[18:22] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
+    assert rec[19:23] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
     assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["role"] == "fix"
 
 
 def test_notify_focus_defaults_to_the_pr_and_rejects_an_unknown_one(w):
     assert notify(w)["sent"] is True
-    assert w.recorded("osascript")["argv"][11:18] == ["pr", "", "", "", "", "", ""], "no --pr, no watcher.json"
+    assert w.recorded("osascript")["argv"][11:19] == ["pr", "", "", "", "", "", "", ""], "no --pr, no watcher.json"
     r = w.run("notify", "--event", "posted", "--text-file", w.prompt("x"), "--focus", "tab", check=False)
     assert r.returncode == 1 and "pr watcher session" in r.stderr
 
@@ -1022,9 +1066,10 @@ def test_notify_passes_no_open_command_or_tab_outside_their_shape(w):
     w.put_state({"cursor": None, "seen": [], "queue": [],
                  "sessions": {"3:review": {"pr": 3, "role": "review", "runner": "claude", "open": "claude attach x; touch pwned"}}})
     (w.sd / "watcher.json").write_text(json.dumps(
-        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude", "pid": "1; id"}))
+        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude", "pid": "1; id",
+         "host_pid": "2; id"}))
     w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--pr", "3", "--focus", "session")
-    assert w.recorded("osascript")["argv"][11:18] == ["session", "", "", "", "", "", ""]
+    assert w.recorded("osascript")["argv"][11:19] == ["session", "", "", "", "", "", "", ""]
 
 
 def _minimal_path(w, tmp_path, with_notify_send):
@@ -2087,10 +2132,78 @@ def test_a_click_focuses_the_watchers_tab_only_while_its_wait_still_runs_there(w
                    None]
 
 
+# A watcher between waits: its `claude` (200) runs in the tab (ttys007), no wait. 610: a `claude` on ttys002.
+PS_HOST = "1 0 ??\n200 1 ttys007\n600 1 ttys002\n610 600 ttys002\n"
+SID = "269289ac-1f2e-4d3c-9b8a-0123456789ab"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_watcher_between_waits_keeps_its_tab_live_by_its_claude(w):
+    it = lambda hosts: {"term": "iTerm.app", "term_session": "w0t1p2:AB-12", "tty": "ttys007", "pids": [400], "hosts": hosts}
+    ap = lambda hosts: {"term": "Apple_Terminal", "term_session": "", "tty": "ttys007", "pids": [400], "hosts": hosts}
+    cases = [it([200]), it([610]), it([999]), it([]), ap([200]), ap([610])]
+    got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(function (c) {{ return liveTab(c, {json.dumps(PS_HOST)}); }}));")
+    assert got == [["AB-12", "/dev/ttys007"],
+                   ["AB-12", "/dev/ttys002"],   # iTerm answers with tab AB-12's own tty: not ttys002 ⇒ not found
+                   None, None,
+                   ["/dev/ttys007", "/dev/ttys007"],
+                   None]                        # its `claude` runs in another tab: not this one
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_watcher_session_whose_tab_is_gone_is_attached_resumed_or_left_alone(w):
+    """Never `--resume` while the watcher's `claude` runs: that would be a second copy of its session."""
+    job = lambda **k: json.dumps([dict({"id": "269289ac", "sessionId": SID, "kind": "background"}, **k)])
+    cases = [
+        ([200], job(), ""),                                   # its claude runs (in some tab)
+        ([999], job(), "claude attach 269289ac"),             # gone from the tab, a background job now
+        ([999], job(id="abcdef12"), "claude attach abcdef12"),
+        ([999], job(id="x; id"), "claude attach 269289ac"),
+        ([999], "[]", f"claude --resume {SID}"),              # nothing runs it
+        ([999], job(sessionId="other"), f"claude --resume {SID}"),
+        ([999], job(kind="interactive"), f"claude --resume {SID}"),
+        ([999], "not json", f"claude --resume {SID}"),        # a malformed listing lists nothing
+        ([999], '{"id": 1}', f"claude --resume {SID}"),
+        ([999], "[1, null]", f"claude --resume {SID}"),
+        ([999], None, "claude attach 269289ac"),              # no listing: never resume blind
+        ([], "[]", "claude attach 269289ac"),                 # no host recorded (an older record)
+    ]
+    got = _menubar_js(w, "var calls = 0; return JSON.stringify(" + json.dumps(cases) + ".map(function (c) {"
+                         " return reopen({ session_id: " + json.dumps(SID) + ", hosts: c[0] }, " + json.dumps(PS_HOST) + ","
+                         " function () { calls++; return c[1]; }); }).concat([calls,"
+                         " reopen({ session_id: 'ABC; id', hosts: [999] }, '', function () { return '[]'; }),"
+                         " reopen({ session_id: " + json.dumps(SID) + ", hosts: [999] }, null, function () { return '[]'; })]));")
+    assert got[:len(cases)] == [c[2] for c in cases]
+    assert got[len(cases)] == len(cases) - 2, "no listing read while the host runs or when none is recorded"
+    assert got[len(cases) + 1:] == ["", ""], "a session id outside its shape; ps unreadable ⇒ the host may run"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_click_on_a_watcher_between_waits_focuses_its_tab_and_starts_nothing(w):
+    go = {"term": "iTerm.app", "term_session": "w0t1p2:AB-12", "tty": "ttys007", "session_id": SID, "pids": [400], "hosts": [200]}
+    run = lambda answer, hosts, agents: _menubar_js(w, """var log = [];
+        spawn = function (p, a) { log.push(['spawn', p]); return true; };
+        openIn = function (t, c) { log.push(['openIn', c]); return true; };
+        output = function (p, a) { log.push(['output', p, a[0]]);
+            return p === '/bin/ps' ? """ + json.dumps(PS_HOST) + """ : p === '/usr/bin/osascript' ? """ + json.dumps(answer) +
+            """ : """ + json.dumps(agents) + """; };
+        goToTab(""" + json.dumps(dict(go, hosts=hosts)) + """);
+        return JSON.stringify(log);""")
+    found = run("found", [200], "[]")
+    assert ["output", "/usr/bin/osascript", "-e"] in found and not [x for x in found if x[0] == "openIn"]
+    refused = run(None, [200], "[]")
+    assert not [x for x in refused if x[0] == "openIn"], "a lookup still waiting on permission: the tab may be there"
+    closed = run("", [200], "[]")
+    assert not [x for x in closed if x[0] == "openIn"], "its claude still runs: no second copy"
+    gone = run("", [999], "[]")
+    assert ["openIn", f"claude --resume {SID}"] in gone
+    assert ["output", "/usr/bin/env", "claude"] in gone
+
+
 def test_the_toast_and_the_menu_bar_find_a_watchers_tab_the_same_way():
     toast = (REPO / "src" / "bin" / "open-pr-toast.js").read_text()
     body = lambda src, name: re.search(rf"^function {name}\(.*?^\}}$", src, re.S | re.M).group(0)
-    for name in ("tabId", "hostTty", "liveTab"):
+    for name in ("tabId", "hostTty", "liveTab", "reopen"):
         assert body(toast, name) == body(MENUBAR.read_text(), name), name
     for src in (toast, MENUBAR.read_text()):
         assert "'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',\n" \
@@ -2533,6 +2646,6 @@ def test_the_menu_bar_and_a_toast_reach_the_screen_on_each_architecture(tmp_path
     shown.parent.mkdir()
     toast = subprocess.run(["arch", f"-{arch}", "/usr/bin/osascript", "-l", "JavaScript",
                             str(REPO / "src" / "bin" / "open-pr-toast.js"), f"open-pr test ({arch})", "smoke test", "",
-                            "findings", "0", "1", "", "", "pr", "", "", "", "", "", "", "", "", "", "", str(shown)],
+                            "findings", "0", "1", "", "", "pr", "", "", "", "", "", "", "", "", "", "", "", str(shown)],
                            capture_output=True, text=True, timeout=30)
     assert toast.returncode == 0 and shown.exists(), toast.stderr

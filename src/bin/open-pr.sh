@@ -1467,7 +1467,7 @@ st_jxa() {
         > "$d/menubar.log" 2>&1 < /dev/null &
     mp=$!
     osascript -l JavaScript "$b/open-pr-toast.js" --probe open-pr selftest probe findings 0 0 "" "$d/snooze" pr \
-        "" "" "" "" "" "" "" "" "" "" "$d/shown" > "$d/toast.log" 2>&1 < /dev/null &
+        "" "" "" "" "" "" "" "" "" "" "" "$d/shown" > "$d/toast.log" 2>&1 < /dev/null &
     tp=$!
     i=0   # 10 s, as `menubar` gives its item
     while { kill -0 "$mp" || kill -0 "$tp"; } 2>/dev/null && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done

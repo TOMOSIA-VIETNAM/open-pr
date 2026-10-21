@@ -9,8 +9,8 @@
 //   <data>/<repo>/watch/feed.jsonl   notifications; a PR role's latest one, when newer than its
 //                                           session's state, is its row's text; a question's `focus`
 //                                           (watcher | session) is where its row's click goes
-//   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pid of
-//                                           its wait (liveTab), and the repo_dir/remote "Remove from list"
+//   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pids of
+//                                           its wait and of its `claude` (liveTab), and the repo_dir/remote "Remove from list"
 //                                           passes to `hide` and "Fix now" to `fix-now`
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
@@ -26,7 +26,7 @@
 // the pid file written, then it quits.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, written into a .command file or passed to osascript as argv after matching OPEN_CMD,
-// passed to osascript as argv after matching TAB_ID, turned into `claude attach` after matching
+// passed to osascript as argv after matching TAB_ID, turned into `claude attach`/`--resume` after matching
 // SESSION_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits or a
 // SETTINGS key and one of its values — never spliced into source.
 ObjC.import('Cocoa');
@@ -305,7 +305,7 @@ function watcherOf(w, set) {
     return { key: tab ? tab + set.sfx : '',
              cwdName: cwd ? basename(cwd) : '', termName: term ? (t ? t[0] : term) : '',
              role: set.sfx.replace('-', ''), start: 0, beat: Infinity, poll: 0, only: true,
-             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx, pids: [],
+             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx, pids: [], hosts: [],
              dirs: [], rows: [] };
 }
 
@@ -335,6 +335,7 @@ function scan() {
             // when this wait started: the watcher record is written at each start
             e.start = Math.max(e.start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
             if (j && typeof j === 'object' && typeof j.pid === 'number') e.pids.push(j.pid);
+            if (j && typeof j === 'object' && typeof j.host_pid === 'number') e.hosts.push(j.host_pid);
             e.beat = Math.min(e.beat, ageSeconds(dir + '/heartbeat' + set.sfx));
             e.poll = Math.max(e.poll, repoPoll(data + '/' + name));
             e.dirs.push(dir);
@@ -981,7 +982,7 @@ function build(s) {
 function watcherItems(m, w) {
     // A record from before watcher.json existed has no tab to show.
     var go = w.key && (TERMS[w.term] || SESSION_ID.test(w.session_id))
-        ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id, pids: w.pids } : null;
+        ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id, pids: w.pids, hosts: w.hosts } : null;
     if (w.key) {
         var parts = watcherLine(w), wt = parts.map(function (x) { return x[0]; }).join('');
         var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
@@ -1201,32 +1202,52 @@ function hostTty(ps, pid) {
     }
     return '';
 }
-// [tab id, its tty] while a watcher pid still runs on the tty of the tab recorded, else null: the
-// tab is closed, or it now runs something else — the user quit `claude` there (the session went
-// on in the background), or a background session inherited the tab of the `claude` that started it.
+// [tab id, its tty] while a watcher pid — its wait, or the `claude` running it (between waits no wait
+// runs) — still runs on the tty of the tab recorded, else null: the tab is closed, or it now runs
+// something else — the user quit `claude` there (the session went on in the background), or a
+// background session inherited the tab of the `claude` that started it.
 function liveTab(w, ps) {
-    var id = tabId(w);
+    var id = tabId(w), pids = w.pids.concat(w.hosts || []);
     if (!TAB_ID.test(id)) return null;
-    for (var i = 0; i < w.pids.length; i++) {
-        var t = hostTty(ps, w.pids[i]), tty = '/dev/' + t;
+    for (var i = 0; i < pids.length; i++) {
+        var t = hostTty(ps, pids[i]), tty = '/dev/' + t;
         if (t && TAB_ID.test(tty) && (w.term !== 'Apple_Terminal' || tty === id)) return [id, tty];
     }
     return null;
 }
+// What brings back a watcher session whose tab was not found, or '' while its `claude` runs (the session
+// is open in a tab; a resume would start a second copy). Listed by `claude agents --json` (agents():
+// its output, null when it did not run) as a background job ⇒ attach; not listed ⇒ resume. No host
+// recorded, or no listing ⇒ attach: resuming blind might start that copy.
+function reopen(w, ps, agents) {
+    var hosts = w.hosts || [], up = String(ps || '').split('\n').map(function (l) { return l.trim().split(/\s+/)[0]; });
+    if (!SESSION_ID.test(w.session_id)) return '';
+    if (hosts.some(function (h) { return ps === null || up.indexOf(String(h)) >= 0; })) return '';
+    var attach = 'claude attach ' + w.session_id.slice(0, 8), out = hosts.length ? agents() : null, list = [];
+    if (out === null) return attach;
+    try { list = JSON.parse(out); } catch (e) { list = []; }
+    var job = (Array.isArray(list) ? list : []).filter(function (a) {
+        return a && a.sessionId === w.session_id && (a.kind === undefined || a.kind === 'background');
+    })[0];
+    if (!job) return 'claude --resume ' + w.session_id;
+    return /^[0-9a-f]{8,64}$/.test(job.id) ? 'claude attach ' + job.id : attach;
+}
 // A tab that is gone (the user quit `claude`, which keeps the watcher's session running in the
-// background) is reopened with `claude attach`; each watcher names its own session.
+// background) is reopened (reopen); each watcher names its own session.
 function goToTab(w) {
     if (!w || typeof w !== 'object') return;
     w = { term: str(w.term), term_session: str(w.term_session), tty: str(w.tty), session_id: str(w.session_id),
-          pids: Array.isArray(w.pids) ? w.pids : [] };
+          pids: Array.isArray(w.pids) ? w.pids : [], hosts: Array.isArray(w.hosts) ? w.hosts : [] };
     var t = TERMS[w.term];
     // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
     // LaunchServices: an accessory app's own activate request is ignored by macOS.
     if (t) spawn('/usr/bin/open', ['-b', t[1]]);
-    var src = FOCUS[w.term], tab = src ? liveTab(w, output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty='])) : null;
+    var ps = output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty=']);
+    var src = FOCUS[w.term], tab = src ? liveTab(w, ps) : null;
     var found = tab ? output('/usr/bin/osascript', script(src).concat(tab)) : '';
     // null: the lookup failed or is still waiting on a permission prompt — the tab may be there.
-    if (found === '' && SESSION_ID.test(w.session_id)) openIn(w.term, 'claude attach ' + w.session_id.slice(0, 8), snoozeFile);
+    var cmd = found === '' ? reopen(w, ps, function () { return output('/usr/bin/env', ['claude', 'agents', '--json']); }) : '';
+    if (cmd) openIn(w.term, cmd, snoozeFile);
 }
 function newTask(path, args) {
     var task = $.NSTask.alloc.init;

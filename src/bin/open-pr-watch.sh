@@ -952,6 +952,19 @@ EOF
         p=$pp; i=$((i + 1))
     done
 }
+# The `claude` hosting this watcher (the nearest ancestor of that name): while it runs, its tab is
+# live even between waits, and resuming its session would start a second copy.
+host_pid() {
+    p=$$; i=0
+    while [ "$i" -lt 15 ] && [ "${p:-0}" -gt 1 ]; do
+        row=$(ps -o ppid=,comm= -p "$p" 2>/dev/null || true)
+        read -r pp cm <<EOF
+$row
+EOF
+        case "${cm:-}" in claude|*/claude) fit "$p" '[0-9]{1,10}'; return 0 ;; esac
+        p=${pp:-}; i=$((i + 1))
+    done
+}
 # A watcher session that went to the background has no terminal env: its next wait keeps the
 # terminal app recorded before (not the tab id or tty — that tab is gone).
 write_watcher() {
@@ -962,8 +975,9 @@ write_watcher() {
     jq -n -c --argjson pid "$$" --arg cwd "$cwd" --arg rd "$rd" --arg rm "$(fit "$RM" '[A-Za-z0-9._-]{1,128}')" \
         --arg term "$(t=$(fit "${TERM_PROGRAM:-}" "$TERM_RE"); [ -n "$t" ] || t=$(watcher_field term "$TERM_RE"); printf '%s' "$t")" \
         --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
-        --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" \
-        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}' > "$WF.tmp"
+        --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" --arg hp "$(host_pid)" \
+        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}
+         + (if $hp == "" then {} else {host_pid: ($hp | tonumber)} end)' > "$WF.tmp"
     mv "$WF.tmp" "$WF"
 }
 watcher_field() {   # $1 key of the watcher record WF, $2 ERE → its value, or "" when it does not match
@@ -1107,7 +1121,7 @@ cmd_notify() {
             "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" "$FOCUS" "$open" \
             "$(watcher_field term "$TERM_RE")" "$(watcher_field term_session "$TERM_SESSION_RE")" \
             "$(watcher_field tty "$TTY_RE")" "$(watcher_field session_id "$SESSION_ID_RE")" \
-            "$(jq -r '.pid // "" | numbers' "$WF" 2>/dev/null || true)" "$fx" "${fx:+$D}" "${fx:+$(fit "$RM" '[A-Za-z0-9._-]{1,128}')}" "${fx:+$P}" \
+            "$(jq -r '.pid // "" | numbers' "$WF" 2>/dev/null || true)" "$(jq -r '.host_pid // "" | numbers' "$WF" 2>/dev/null || true)" "$fx" "${fx:+$D}" "${fx:+$(fit "$RM" '[A-Za-z0-9._-]{1,128}')}" "${fx:+$P}" \
             "$shown" || rc=$?
           [ "$rc" = 0 ] || printf 'open-pr-toast.js exited %s\n' "$rc"
         ) > "$WD/toast.log" 2>&1 < /dev/null &
@@ -1286,7 +1300,8 @@ Subcommands:
       open (merged or closed) is hidden and its sessions marked closed, then stopped once not in use;
       a failed check prints one stderr line and waits for the next. Every poll touches `heartbeat`;
       each start writes `watcher.json` {pid, cwd, term, term_session, tty, session_id, repo_dir,
-      remote} (the terminal tab it runs in, its Claude Code session, and the repo, for the menu bar).
+      remote[, host_pid]} (the terminal tab it runs in, its Claude Code session and the pid of the
+      `claude` running it, and the repo, for the menu bar).
       A wait serving one role names these and `stop` with a suffix: `heartbeat-fix`,
       `watcher-fix.json`, `stop-fix`, `quota-fix.json`.
       `--once`: one poll, exit 0 with nothing printed when nothing happened
