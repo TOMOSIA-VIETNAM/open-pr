@@ -509,7 +509,9 @@ def test_post_github_creates_a_pending_review(shims, tmp_path):
     assert "pwned" not in calls, "payload text reached an argv — shell saw attacker content"
 
 
-@pytest.mark.parametrize("text", ["  \n", "{}"])
+@pytest.mark.parametrize("text", ["  \n", "{}", "{broken", "[]", '"body"', "null",
+                                  '{"body": "b", "commit_id": "c", "comments": {}}',
+                                  '{"body": "b", "comments": []}'])
 def test_post_refuses_a_payload_without_a_review_in_it(shims, tmp_path, text):
     f = tmp_path / "p.json"
     f.write_text(text)
@@ -519,8 +521,15 @@ def test_post_refuses_a_payload_without_a_review_in_it(shims, tmp_path, text):
     assert not shims["log"].exists() or "pulls/5/reviews" not in shims["log"].read_text()
 
 
-@pytest.mark.parametrize("version, ok", [("jq-1.5", False), ("jq-1.5rc2", False), ("jq version 1.3", False),
-                                         ("jq-1.6", True), ("jq-1.10", True), ("jq-1.7.1", True)])
+# `jq --version` as each release prints it (1.3 and older: "jq version …"); the floor is 1.6. An
+# output no release prints is left to the idioms the scripts run, never refused on its spelling.
+JQ_VERSIONS = [("jq-1.5", False), ("jq-1.5rc2", False), ("jq-1.0", False), ("jq version 1.4", False),
+               ("jq version 1.3", False), ("jq-1.6", True), ("jq-1.6-159-apple-gcff5336-dirty", True),
+               ("jq-1.7.1", True), ("jq-1.8.0", True), ("jq-1.10", True), ("jq-1.15", True),
+               ("", True), ("garbage", True)]
+
+
+@pytest.mark.parametrize("version, ok", JQ_VERSIONS)
 def test_a_jq_older_than_1_6_is_refused_with_the_install_hint(tmp_path, version, ok):
     real = subprocess.run(["sh", "-c", "command -v jq"], capture_output=True, text=True, check=True).stdout.strip()
     d = tmp_path / "jqbin"
@@ -628,7 +637,7 @@ def test_data_dir_is_set_once_and_read_everywhere(tmp_path, monkeypatch):
     assert rel == str(home / "rel-data"), "a relative path is stored absolute, never cwd-relative"
 
 
-@pytest.mark.parametrize("text", ["{broken", "  \n"])
+@pytest.mark.parametrize("text", ["{broken", "  \n", "[]", '"data_dir"', "1", "null", '[{"data_dir": "/x"}]'])
 def test_a_config_that_is_not_a_json_object_stops_instead_of_reading_as_unset(tmp_path, monkeypatch, text):
     """jq 1.6 exits 0 on a parse error, and `jq -e` there exits 0 on a file holding no value at
     all, so a broken config would read as "unset" and the --set that follows would overwrite
@@ -642,6 +651,34 @@ def test_a_config_that_is_not_a_json_object_stops_instead_of_reading_as_unset(tm
     assert run("data-dir", "--set", str(target)).returncode == 1
     assert conf.read_text() == text, "--set overwrote a config it could not read"
     assert not target.exists(), "--set created the directory before checking the config"
+
+
+def test_an_empty_config_file_reads_as_unset_and_set_fills_it(tmp_path, monkeypatch):
+    conf = tmp_path / "empty-xdg" / "open-pr" / "config.json"
+    conf.parent.mkdir(parents=True)
+    conf.write_text("")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-xdg"))
+    assert run("data-dir").returncode == 7
+    target = tmp_path / "d"
+    assert run("data-dir", "--set", str(target), check=True).stdout.strip() == str(target)
+    assert json.loads(conf.read_text())["data_dir"] == str(target)
+
+
+@pytest.mark.parametrize("sig, code", [("SEGV", 139), ("KILL", 137), ("ABRT", 134)])
+def test_a_jq_killed_reading_the_config_never_says_delete_it(tmp_path, sig, code):
+    """The config is intact; only the jq that read it died. --set must not overwrite it either."""
+    d = tmp_path / "sigjq"
+    d.mkdir()
+    real = shutil.which("jq")
+    make_shim(d, "jq", f'[ "$1" = --version ] && exec "{real}" "$@"\nkill -{sig} $$\n')
+    env = {"PATH": f"{d}{os.pathsep}{os.environ['PATH']}"}
+    conf = Path(os.environ["XDG_CONFIG_HOME"]) / "open-pr" / "config.json"
+    before = conf.read_text()
+    for args in (("data-dir",), ("data-dir", "--set", str(tmp_path / "never"))):
+        r = run(*args, env_extra=env)
+        assert r.returncode == code and f"jq exited {code} (killed by a signal)" in r.stderr, r.stderr
+        assert "delete it" not in r.stderr
+    assert conf.read_text() == before and not (tmp_path / "never").exists()
 
 
 def _conf(tmp_path, monkeypatch, **body):
@@ -1412,6 +1449,17 @@ def test_quota_github_without_headers_keeps_the_documented_limit_and_drops_hosti
     etag_gh(shims, ETAG_PAGES, headers="X-RateLimit-Remaining: 5; touch /tmp/pwned\\r\\n")
     q, _ = quota(shims, tmp_path, "github", "--cache-dir", str(tmp_path / "etags"))
     assert (q["measured"], q["limit"], q["remaining"], q["reset"]) == (False, 5000, None, None)
+    assert not Path("/tmp/pwned").exists()
+
+
+@pytest.mark.parametrize("value, limit", [("0", 0), ("1", 1), ("999999999999", 999999999999),
+                                          ("9999999999999", 5000), ("abc", 5000), ("-1", 5000), ("1e3", 5000),
+                                          ("50 00", 5000), ("5000; touch /tmp/pwned", 5000), ("", 5000)])
+def test_quota_limit_header_kept_only_as_a_bounded_whole_number(shims, tmp_path, value, limit):
+    """A header outside 1-12 digits falls back to the vendor's documented limit, as no header does."""
+    etag_gh(shims, ETAG_PAGES, headers=f"X-RateLimit-Limit: {value}\\r\\n")
+    q, _ = quota(shims, tmp_path, "github", "--cache-dir", str(tmp_path / "etags"))
+    assert (q["limit"], q["measured"]) == (limit, limit != 5000 or value == "5000")
     assert not Path("/tmp/pwned").exists()
 
 

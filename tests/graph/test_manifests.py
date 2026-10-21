@@ -356,3 +356,17 @@ def test_manifest_descriptions_name_every_vendor():
         if absent:
             missing[where] = absent
     assert not missing, f"description does not mention every supported vendor: {missing}"
+
+
+def test_ci_runs_the_script_tests_under_the_pinned_upstream_jq_1_6():
+    """1.6 is the floor the scripts promise; the runner's own jq is newer. The binary is checked
+    against its hash before it runs, and both script suites run with it first on PATH."""
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text()
+    step = ci[ci.index("- name: Scripts under jq 1.6"):]
+    step = step[:step.index("\n      - name:")]
+    assert re.search(r"JQ16_SHA256: [0-9a-f]{64}\n", step), "the jq 1.6 binary is pinned by sha256"
+    assert "releases/download/jq-1.6/jq-linux64" in step
+    fetch, check, run = (step.index("curl -sfL -o /tmp/jq16/jq"), step.index('sha256sum -c -'),
+                         step.index('PATH="/tmp/jq16:$PATH" python3 -m pytest tests/test_cli.py tests/test_watch.py'))
+    assert fetch < check < run, "the hash is checked before the binary runs"
+    assert 'echo "$JQ16_SHA256  /tmp/jq16/jq"' in step

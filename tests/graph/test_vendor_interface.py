@@ -139,3 +139,18 @@ def test_self_repair_never_patches_a_guard_posts_or_acts_mid_publish():
     assert "ONE CHOICE: `Apply it (Recommended)`" in flat and "`cp <file> <file>.open-pr-bak`" in flat
     assert "the patch is temporary" in flat and "`mv` each backup back" in flat
     assert "`Read` `commands/feedback.md` and follow it" in flat and "nothing is posted before that" in flat
+
+
+def test_every_exit_a_script_chooses_is_in_its_exit_table():
+    """The self-repair trigger fires on an exit code no table lists, or one above 128 but 130: a
+    documented failure must never match it. Every literal `die N` / `exit N` is in the script's own
+    `Exit codes:` table, at or below 128; above it only the signal traps (130 INT, 143 TERM)."""
+    for name in ("open-pr.sh", "open-pr-watch.sh"):
+        body = text(SRC / "bin" / name)
+        table = body[body.index("\nExit codes:\n"):]
+        table = table[:table.index("\nEOF")]
+        listed = {int(c) for c in re.findall(r"^  (\d+)\s", table, re.M)}
+        chosen = {int(c) for c in re.findall(r"\b(?:die|exit) (\d+)\b", body)}
+        assert chosen - listed <= {130, 143}, f"{name}: exits no table lists: {chosen - listed - {130, 143}}"
+        assert max(listed) <= 128, f"{name}: a documented exit reads as a crash"
+        assert set(re.findall(r"trap '[^']*exit (\d+)' (\w+)", body)) == {("130", "INT"), ("143", "TERM")}, name
