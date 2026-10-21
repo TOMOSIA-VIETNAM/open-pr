@@ -1261,7 +1261,7 @@ def test_triggers_token_picks_the_trigger_and_a_mention_ignores_case(shims):
         ("pulls?state=open", [{"number": 5, "html_url": "https://github.com/o/r/pull/5"}]),
         ("issues/comments", [at(1, "@reviewer please look"), at(2, "@REVIEWER"), at(3, "@reviewer2 no"),
                              at(4, "cc @reviewer mid-body"), at(5, "/open-pr"), at(6, "/Review x"),
-                             at(7, "/review"), at(8, "@reviewer claimed\n\n<!-- bot-claim:1 -->")]),
+                             at(7, "/review"), at(8, "@reviewer claimed\n\n<!-- bot-claim:99 -->")]),
     ])
     rows = triggers(shims, "github", "--token", "@Reviewer")
     assert [r["comment_id"] for r in rows] == ["1", "2"], \
@@ -1282,9 +1282,9 @@ def test_triggers_drop_claim_replies_in_either_marker_form(shims):
         "pullrequests/7/comments": {"values": [
             {"id": 31, "content": {"raw": "/open-pr go"}, "user": {"nickname": "dev"}, "inline": None,
              "created_on": "2026-01-01T00:00:01+00:00", "deleted": False},
-            {"id": 32, "content": {"raw": "/open-pr go\n\n[bot-claim:31]: #"}, "user": {"nickname": "bot"},
+            {"id": 32, "content": {"raw": "/open-pr go\n\n[bot-claim:99]: #"}, "user": {"nickname": "bot"},
              "inline": None, "created_on": "2026-01-01T00:00:02+00:00", "deleted": False},
-            {"id": 33, "content": {"raw": "/open-pr go <!-- bot-claim:31 -->"}, "user": {"nickname": "bot"},
+            {"id": 33, "content": {"raw": "/open-pr go <!-- bot-claim:98 -->"}, "user": {"nickname": "bot"},
              "inline": None, "created_on": "2026-01-01T00:00:03+00:00", "deleted": False},
         ], "next": None},
     }
@@ -1292,6 +1292,130 @@ def test_triggers_drop_claim_replies_in_either_marker_form(shims):
     rows = triggers(shims, "bitbucket")
     assert [(r["comment_id"], r["thread_id"]) for r in rows] == [("31", None)]
 
+
+
+def gh_issue(cid, pr, login, at, body):
+    return {"id": cid, "issue_url": f"https://api.github.com/repos/o/r/issues/{pr}", "user": {"login": login},
+            "created_at": at, "body": body}
+
+
+def gh_line(cid, pr, login, at, body, reply_to=None):
+    return {"id": cid, "pull_request_url": f"https://api.github.com/repos/o/r/pulls/{pr}", "user": {"login": login},
+            "created_at": at, "body": body, "in_reply_to_id": reply_to}
+
+
+GH_PERMS = [("collaborators/dev/permission", {"permission": "write"}),
+            ("collaborators/col/permission", {"permission": "write"}),
+            ("collaborators/stranger/permission", {"permission": "read"})]
+
+
+def test_triggers_github_drops_a_claimed_trigger_top_level_or_in_its_thread(shims):
+    """The poll after a stale cursor: every trigger answered by a claim reply stays answered."""
+    t = lambda s: f"2026-01-01T00:00:{s:02d}Z"
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "u5"}, {"number": 6, "html_url": "u6"}]),
+        ("issues/comments", [
+            gh_issue(10, 5, "dev", t(0), "/open-pr old, never claimed"),
+            gh_issue(11, 5, "dev", t(1), "/open-pr review"),
+            gh_issue(12, 5, "bot", t(2), "> /open-pr review\n\nTaking a look\n\n<!-- bot-claim:11 -->"),
+            gh_issue(13, 5, "dev", t(5), "/open-pr again"),
+            gh_issue(14, 5, "dev", t(6), "an unrelated lock <!-- bot-claim:777 -->"),
+            gh_issue(20, 6, "dev", t(0), "/open-pr on another PR")]),
+        ("pulls/comments", [
+            gh_line(90, 5, "col", t(3), "/open-pr this hunk"),
+            gh_line(91, 5, "bot", t(4), "Đang xem\n\n<!-- bot-claim:90 -->", reply_to=90)]),
+    ] + GH_PERMS)
+    rows = triggers(shims, "github")
+    assert [r["comment_id"] for r in rows] == ["20", "13"], \
+        "11 and 90 are claimed; 10 predates the PR's newest claimed trigger; 13 is new; a marker for " \
+        "another id and another PR's claims leave a trigger alone"
+
+
+def test_triggers_count_a_claim_marker_whoever_posted_it(shims):
+    """The same rule as `claim`: any comment carrying bot-claim:<C> locks C, so a quoted marker does too."""
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "u5"}]),
+        ("issues/comments", [gh_issue(13, 5, "dev", "2026-01-01T00:00:05Z", "/open-pr"),
+                             gh_issue(14, 5, "stranger", "2026-01-01T00:00:06Z", "quoting <!-- bot-claim:13 -->")]),
+    ] + GH_PERMS)
+    assert triggers(shims, "github") == []
+
+
+def test_triggers_gitlab_drops_a_claimed_note_top_level_or_in_its_discussion(shims):
+    note = lambda i, at, body, diff=False: {"id": i, "system": False, "type": "DiffNote" if diff else None,
+                                            "author": {"username": "dev", "id": 7},
+                                            "created_at": f"2026-01-01T00:00:0{at}.000Z", "body": body}
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": 9, "web_url": "u9"}]),
+        ("merge_requests/9/discussions", [
+            {"id": "d1", "notes": [note(11, 1, "/open-pr"), note(12, 2, "Taking a look\n\n<!-- bot-claim:11 -->")]},
+            {"id": "d2", "notes": [note(13, 3, "/open-pr hunk", True), note(14, 4, "<!-- bot-claim:13 -->", True)]},
+            {"id": "d3", "notes": [note(15, 5, "/open-pr new")]},
+            {"id": "d4", "notes": [note(16, 6, "<!-- bot-claim:500 -->")]}]),
+        ("members/all/7", {"access_level": 30}),
+        ("user", {"username": "bot"}),
+    ])
+    assert [r["comment_id"] for r in triggers(shims, "gitlab")] == ["15"]
+
+
+def test_triggers_bitbucket_drops_a_claimed_comment_top_level_or_inline(shims):
+    c = lambda i, at, raw, parent=None, inline=None: {
+        "id": i, "content": {"raw": raw}, "user": {"nickname": "dev"}, "inline": inline, "deleted": False,
+        "created_on": f"2026-01-01T00:00:0{at}+00:00", "parent": {"id": parent} if parent else None}
+    serve(shims, "curl", list({
+        "pullrequests?state=OPEN": {"values": [{"id": 7, "links": {"html": {"href": "u7"}}}], "next": None},
+        "pullrequests/7/comments": {"values": [
+            c(31, 1, "/open-pr"), c(32, 2, "Taking a look\n\n[bot-claim:31]: #", parent=31),
+            c(33, 3, "/open-pr line", inline={"path": "a", "to": 1}),
+            c(34, 4, "[bot-claim:33]: #", parent=33, inline={"path": "a", "to": 1}),
+            c(35, 5, "/open-pr new"), c(36, 6, "[bot-claim:500]: #")], "next": None},
+    }.items()))
+    assert [r["comment_id"] for r in triggers(shims, "bitbucket")] == ["35"]
+
+
+def test_triggers_backlog_github_reads_each_open_prs_comments_and_keeps_one_request_per_pr(shims):
+    """A request made before the watcher ever ran is still pending: the PR, not the clock, says so."""
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "u5"}, {"number": 6, "html_url": "u6"}]),
+        ("issues/5/comments", [gh_issue(1, 5, "dev", "2025-01-01T00:00:00Z", "/open-pr first"),
+                               gh_issue(2, 5, "dev", "2025-02-01T00:00:00Z", "/open-pr second"),
+                               gh_issue(7, 5, "stranger", "2025-03-01T00:00:00Z", "/open-pr no write access")]),
+        ("pulls/5/comments", [gh_line(8, 5, "col", "2025-01-15T00:00:00Z", "/open-pr hunk")]),
+        ("issues/6/comments", [gh_issue(3, 6, "dev", "2025-01-01T00:00:00Z", "/open-pr"),
+                               gh_issue(4, 6, "bot", "2025-01-02T00:00:00Z", "<!-- bot-claim:3 -->")]),
+    ] + GH_PERMS)
+    rows = triggers(shims, "github", "--backlog")
+    assert [(r["comment_id"], r["backlog"], r["superseded"], r["created_at"]) for r in rows] == \
+        [("2", True, ["1", "8"], "2025-02-01T00:00:00Z")], \
+        "PR 5: its newest trigger by a writer, the older ones superseded; PR 6: claimed"
+    log = shims["log"].read_text()
+    assert "repos/o/r/issues/comments" not in log and "since=" not in log, "never the repo-wide listing"
+    assert "issues/8/" not in log, "a closed PR is not fetched"
+    r = triggers(shims, "github", "--backlog", "--since", "2026-01-01T00:00:00Z", check=False)
+    assert r.returncode == 1 and "--backlog" in r.stderr
+
+
+def test_triggers_backlog_gitlab_and_bitbucket_list_every_open_pr_whatever_its_age(shims):
+    note = lambda i, body, at: {"id": i, "system": False, "author": {"username": "dev", "id": 7},
+                                "created_at": at, "body": body}
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": 9, "web_url": "u9"}]),
+        ("merge_requests/9/discussions", [{"id": "d1", "notes": [note(11, "/open-pr a", "2025-01-01T00:00:00Z")]},
+                                          {"id": "d2", "notes": [note(12, "/open-pr b", "2025-01-02T00:00:00Z")]}]),
+        ("members/all/7", {"access_level": 30}),
+    ])
+    rows = triggers(shims, "gitlab", "--backlog")
+    assert [(r["comment_id"], r["thread_id"], r["superseded"]) for r in rows] == [("12", "d2", ["11"])]
+    assert "updated_after" not in shims["log"].read_text()
+    serve(shims, "curl", list({
+        "pullrequests?state=OPEN": {"values": [{"id": 7, "links": {"html": {"href": "u7"}}}], "next": None},
+        "pullrequests/7/comments": {"values": [
+            {"id": 31, "content": {"raw": "/open-pr"}, "user": {"nickname": "dev"}, "inline": None,
+             "created_on": "2025-01-01T00:00:00+00:00", "deleted": False}], "next": None},
+    }.items()))
+    rows = triggers(shims, "bitbucket", "--backlog")
+    assert [(r["comment_id"], r["backlog"], r["superseded"]) for r in rows] == [("31", True, [])]
+    assert "q=updated_on" not in shims["log"].read_text()
 
 RATE_LIMITS = [
     ("github", "gh", [("pulls?state=open", (1, "gh: API rate limit exceeded for user ID 1. (HTTP 403)"))]),

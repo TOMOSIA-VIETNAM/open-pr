@@ -30,6 +30,7 @@ need() {
 parse_args() {
     while [ $# -gt 0 ]; do
         case "$1" in
+            --backlog) ARG_backlog=1; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
                 [ $# -ge 2 ] || die 1 "open-pr.sh: $1 needs a value"
@@ -725,11 +726,12 @@ claim_rows() {
                 ".values[] | select(.deleted != true) | $(claim_norm) | @json" ;;
     esac
 }
-# claim_first <rows file>: "<id> <login>" of the earliest comment carrying bot-claim:$CID
-# in either vendor form, or nothing.
+# claims: the trigger ids a body's claim markers name, in either vendor form.
+JQ_CLAIMS='def claims: [match("bot-claim:([0-9]+)(\\s*-->|\\]:)"; "g") | .captures[0].string];'
+# claim_first <rows file>: "<id> <login>" of the earliest comment carrying bot-claim:$CID, or nothing.
 claim_first() {
-    jq -r -s --arg c "$CID" "$JQ_EPOCH"'
-        map(select(.body | test("bot-claim:" + $c + "(\\s*-->|\\]:)")))
+    jq -r -s --arg c "$CID" "$JQ_EPOCH$JQ_CLAIMS"'
+        map(select(.body | claims | index([$c])))
         | sort_by([(.created_at | epoch), (.id | tonumber)]) | .[0] // empty | "\(.id) \(.user)"' "$1"
 }
 claim_delete() {   # $1 = our comment id
@@ -782,9 +784,8 @@ cmd_claim() {
 cmd_last_claim() {
     parse_args "$@"; post_init
     claim_rows > "$TMPD/claim.rows"
-    jq -c -s "$JQ_EPOCH"'
-        map(. as $r | (.body | capture("bot-claim:(?<c>[0-9]+)(\\s*-->|\\]:)")?) as $m
-            | select($m != null) | $r + {trigger: $m.c})
+    jq -c -s "$JQ_EPOCH$JQ_CLAIMS"'
+        map(. as $r | (.body | claims | first) as $c | select($c != null) | $r + {trigger: $c})
         | sort_by([(.created_at | epoch), (.id | tonumber)]) | last // empty
         | {comment_id: .trigger, kind, thread_id: .thread}' "$TMPD/claim.rows"
 }
@@ -895,6 +896,8 @@ gl_get() {
     [ "$rc" = 0 ] || return "$rc"
     tr -d '\r' < "$TMPD/gl.resp" | awk '/^HTTP\/[0-9.]+ [0-9]+/ { h = 1; next } h && /^$/ { h = 0; next } !h'
 }
+GH_TOP='.[] | select(.issue_url | test("/issues/[0-9]+$")) | {pr: (.issue_url | split("/") | last | tonumber), comment_id: (.id | tostring), kind: "top", thread_id: null, user: .user.login, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .user.login, in_reply_to: null, review_id: null}'
+GH_LINE='.[] | {pr: (.pull_request_url | split("/") | last | tonumber), comment_id: (.id | tostring), kind: "line", thread_id: (.in_reply_to_id // null | if . then tostring else . end), user: .user.login, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .user.login, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}'
 # Open PRs -> $TMPD/tr.prs ({pr, url, title, author, head_branch, updated_at} lines); their comments -> stdout as
 # {pr, comment_id, kind, thread_id, user, created_at, body, authorized, uid, in_reply_to, review_id}.
 # $SINCE_Z only narrows the fetch: vendors filter on update time (a superset), and a new comment
@@ -904,11 +907,22 @@ trg_fetch() {
         github)
             gh_get "repos/$OWNER/$REPO/pulls?state=open&per_page=100" > "$TMPD/tr.page"
             jq -c '.[] | {pr: .number, url: .html_url, title: (.title // null), author: .user.login, head_branch: (.head.ref // null), updated_at}' "$TMPD/tr.page" > "$TMPD/tr.prs"
+            # --backlog: each open PR's own comments, every age; else the repo's, narrowed by --since
+            if [ -n "$BACKLOG" ]; then
+                jq -r '.pr' "$TMPD/tr.prs" | while IFS= read -r n; do
+                    check_ident '^[0-9]+$' "$n"
+                    gh_get "repos/$OWNER/$REPO/issues/$n/comments?per_page=100" > "$TMPD/tr.page"
+                    jq -c "$GH_TOP" "$TMPD/tr.page"
+                    gh_get "repos/$OWNER/$REPO/pulls/$n/comments?per_page=100" > "$TMPD/tr.page"
+                    jq -c "$GH_LINE" "$TMPD/tr.page"
+                done
+                return
+            fi
             q="per_page=100"; [ -z "$SINCE_Z" ] || q="$q&since=$SINCE_Z"
             gh_get "repos/$OWNER/$REPO/issues/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | select(.issue_url | test(\"/issues/[0-9]+\$\")) | {pr: (.issue_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"top\", thread_id: null, user: .user.login, created_at, body: (.body // \"\"), authorized: \"UNKNOWN\", uid: .user.login, in_reply_to: null, review_id: null}" "$TMPD/tr.page"
+            jq -c "$GH_TOP" "$TMPD/tr.page"
             gh_get "repos/$OWNER/$REPO/pulls/comments?$q" > "$TMPD/tr.page"
-            jq -c ".[] | {pr: (.pull_request_url | split(\"/\") | last | tonumber), comment_id: (.id | tostring), kind: \"line\", thread_id: (.in_reply_to_id // null | if . then tostring else . end), user: .user.login, created_at, body: (.body // \"\"), authorized: \"UNKNOWN\", uid: .user.login, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}" "$TMPD/tr.page" ;;
+            jq -c "$GH_LINE" "$TMPD/tr.page" ;;
         gitlab)
             q="state=opened&per_page=100"; [ -z "$SINCE_Z" ] || q="$q&updated_after=$SINCE_Z"
             gl_get "projects/$GL_PROJ/merge_requests?$q" > "$TMPD/tr.page"
@@ -984,7 +998,8 @@ trg_findings() {
 }
 cmd_triggers() {
     parse_args "$@"
-    vendor_init; SINCE=$(arg since); MARK=$(arg mark_file)
+    vendor_init; SINCE=$(arg since); MARK=$(arg mark_file); BACKLOG=$(arg backlog)
+    [ -z "$BACKLOG" ] || [ -z "$SINCE" ] || die 1 "open-pr.sh triggers: --backlog reads every age; it takes no --since"
     CACHE=""; [ "$V" != github ] || CACHE=$(arg cache_dir)
     [ -z "$CACHE" ] || mkdir -p "$CACHE"
     QF=$(arg quota_file)
@@ -1008,15 +1023,22 @@ cmd_triggers() {
     # Marker-carrying (plugin-authored) comments are excluded, so a posted review never triggers
     # the next. The watcher's own account may ask: one person can be developer and reviewer.
     # An @login token matches case-insensitively, as logins do.
+    # Handled: a trigger a claim marker names (by anyone — the claim is the cross-machine lock), or
+    # one older than the newest claimed trigger on its PR (that claim answered the PR as it stood).
     jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" \
-        --arg tok "$TOKEN" "$JQ_EPOCH"'
+        --arg tok "$TOKEN" "$JQ_EPOCH$JQ_CLAIMS"'
         ($prs | map({key: (.pr | tostring), value: .}) | from_entries) as $open
+        | ([.[].body | claims[]] | unique) as $claimed
+        | (map(select(.comment_id as $c | $claimed | index([$c]))) | group_by(.pr)
+           | map({key: (.[0].pr | tostring), value: (map(.created_at | epoch) | max)}) | from_entries) as $last
         | ($since | if . == "" then null else epoch end) as $after
         | ("\\A\\s*" + ($tok | gsub("(?<c>[^A-Za-z0-9_])"; "\\\(.c)")) + "(\\s|\\z)") as $re
         | (if ($tok | startswith("@")) then "i" else "" end) as $fl
         | [ .[] | select($open[.pr | tostring] != null)
             | select(.body | test($re; $fl))
             | select((.body | contains($mf)) or (.body | contains($mr)) or (.body | contains("bot-claim:")) | not)
+            | select(.comment_id as $c | $claimed | index([$c]) | not)
+            | select(($last[.pr | tostring] // null) as $l | $l == null or (.created_at | epoch) > $l)
             | select($after == null or (.created_at | epoch) > $after)
             | . + {url: $open[.pr | tostring].url, title: $open[.pr | tostring].title, pr_author: $open[.pr | tostring].author} ]
         | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
@@ -1066,9 +1088,16 @@ cmd_triggers() {
         jq -s 'add // {}' "$TMPD/tr.auth.l" > "$TMPD/tr.auth" ;;
     esac
     quota_write
-    jq -c --slurpfile a "$TMPD/tr.auth" '
-        (if .uid != null then ($a[0][.uid | tostring] // "no") else .authorized end) as $auth
-        | {pr, url, title, pr_author, comment_id, kind, thread_id, user, created_at, body, authorized: $auth}' "$TMPD/tr.cand"
+    # --backlog: one request per PR, its newest trigger by someone allowed; `superseded` = the
+    # older ones it answers for.
+    jq -c -s --slurpfile a "$TMPD/tr.auth" --arg bl "$BACKLOG" "$JQ_EPOCH"'
+        map((if .uid != null then ($a[0][.uid | tostring] // "no") else .authorized end) as $auth
+            | {pr, url, title, pr_author, comment_id, kind, thread_id, user, created_at, body, authorized: $auth})
+        | if $bl == "" then .[] else
+              map(select(.authorized != "no")) | group_by(.pr)
+              | map(sort_by(.created_at | epoch) | .[-1] + {backlog: true, superseded: [.[:-1][].comment_id]})
+              | sort_by(.created_at | epoch) | .[]
+          end' "$TMPD/tr.cand"
 }
 
 # One open PR/MR number per line, every page: the watcher drops the rows of merged/closed ones.
@@ -1565,8 +1594,10 @@ Diagnostic subcommands (cases/self-repair.md, commands/watch.md and commands/men
 Internal subcommands (open-pr-watch.sh's own; no prompt calls them):
   repo-target --repo-dir D [--remote R]
       D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines; no common option
-  triggers [--since T] [--mark-file F] [--token K] [--cache-dir C] [--quota-file Q] [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
-      the poll, no `--pr`: comments on open PRs opening with K (default `/open-pr`), JSONL; F2 gets
+  triggers [--since T | --backlog] [--mark-file F] [--token K] [--cache-dir C] [--quota-file Q] [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
+      the poll, no `--pr`: comments on open PRs opening with K (default `/open-pr`), not yet claimed,
+      JSONL; `--backlog`: every age, one per PR (its newest, `"backlog":true`, `"superseded"` = the older
+      ids), none by a user without write access; F2 gets
       the reviews this plugin posted on A's PRs or the listed ones; GitHub GETs are conditional on the
       ETags kept in C; Q gets the host's rate limit; exit 9 on the vendor rate limit; contract in
       reference/vendor-interface.md

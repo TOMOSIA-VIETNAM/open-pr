@@ -23,7 +23,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | claim: delete (lost race) | `line`: DELETE `pulls/comments/:id`; `top`: DELETE `issues/comments/:id` | DELETE `merge_requests/:iid/notes/:id` | DELETE `pullrequests/:id/comments/:id` |
 | last-claim | the claims `claim` lists; `line` = a review comment, its `in_reply_to_id` the thread | the claim note's discussion | `parent` = C, no thread id |
 | repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
-| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time; `--backlog`: each open PR's `issues/:n/comments` + `pulls/:n/comments`, conditional with `--cache-dir` | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |
 | triggers: rate limit ⇒ exit 9 | HTTP 403/429 naming a rate limit (primary or secondary), or `X-RateLimit-Remaining: 0`, the permission lookup included | HTTP 429, the membership lookup included | HTTP 429 |
 | triggers: `thread_id` | a review-comment reply: its thread's root comment id (no reply to a reply there), else null | the note's discussion id — what `reply`/`claim --thread-id` take | null |
 | triggers: `authorized` | `collaborators/:login/permission` `permission` ∈ admin/write (maintain and a custom role on write count as write), one call per author of a trigger, conditional with `--cache-dir`; 404 or a login outside `^[A-Za-z0-9][A-Za-z0-9-]*$` = `no`; any other failure = exit 1 | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |
@@ -40,7 +40,12 @@ is strict; `--mark-file` gets the newest `created_at` among every comment fetche
 trigger is a body whose first word is the `--token` (default `/open-pr`): `/open-pr:review` and
 `/open-prx` are not `/open-pr`; an `@login` token ignores case. It drops, on every vendor, any comment
 carrying a finding or reply marker, or a claim marker in either form — the plugin's own posts. The
-logged-in account's plain comments count: one person may be both developer and reviewer.
+logged-in account's plain comments count: one person may be both developer and reviewer. A trigger is
+handled, and dropped, when any fetched comment carries its claim marker (whoever wrote it — the same rule
+`claim` locks by) or when it is older than the newest claimed trigger on its PR. A claim always follows
+its trigger, so every vendor's fetch window that holds a trigger holds its claim. `--backlog` reads every
+age (no `--since`) and prints one row per PR — its newest trigger by a user not judged `no`, plus
+`"backlog":true` and `"superseded"` (the ids of the older ones).
 `--findings-file` rows, same on every vendor: `{"pr","url","head_branch","review_id","comment_id","thread_id","kind",
 "user","created_at","counts"}` — `head_branch` = the PR's source branch from the open-PR listing already
 fetched (GitHub `head.ref`, GitLab `source_branch`, Bitbucket `source.branch.name`; null when absent); one per review the plugin posted after `--since` on a PR whose author
