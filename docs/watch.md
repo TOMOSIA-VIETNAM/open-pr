@@ -2,16 +2,21 @@
 
 [← README](../README.md)
 
-`/open-pr:watch` turns the terminal you run it in into a watcher for one or more repositories, in two
-roles at once:
+`/open-pr:watch` turns the terminal you run it in into a watcher for one or more repositories, in one
+or both of two roles:
 
 - **review** — a developer asks for a review by commenting on the pull request; your machine opens a
   separate review session for it.
 - **fix** — a new review on one of your own pull requests toasts its findings with "Fix now"; one click
   opens a separate fix session for it.
 
-It tells you whenever something needs you. `/open-pr:watch review` or `/open-pr:watch fix` keeps one
-role only.
+It tells you whenever something needs you. `/open-pr:watch review`, `/open-pr:watch fix` or
+`/open-pr:watch review fix` picks the roles; with neither word, it asks which each time it starts.
+
+Each time it starts, it reads the open pull requests for review requests still waiting: a `/open-pr`
+comment with no "taking a look" reply yet, however old. It asks you once about all of them: review
+them, pick some, or skip. A skipped request is not asked about again; a newer request on that pull
+request still comes through.
 
 ## Before the first run
 

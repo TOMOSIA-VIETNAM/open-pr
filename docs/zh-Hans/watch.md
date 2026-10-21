@@ -2,13 +2,18 @@
 
 [← README](../../README.zh-Hans.md)
 
-`/open-pr:watch` 会把你运行它的终端变成一个或多个仓库的 watcher，同时承担两个角色：
+`/open-pr:watch` 会把你运行它的终端变成一个或多个仓库的 watcher，承担两个角色中的一个或两个：
 
 - **review** —— 开发者在 pull request 上评论来请求评审；你的机器会为该 pull request 打开一个单独的评审会话。
 - **fix** —— 你自己的 pull request 收到新的评审时，toast 会列出发现的问题并附带 "Fix now"；点一下就为该
   pull request 打开一个单独的修复会话。
 
-需要你处理时它会通知你。`/open-pr:watch review` 或 `/open-pr:watch fix` 只保留一个角色。
+需要你处理时它会通知你。`/open-pr:watch review`、`/open-pr:watch fix` 或 `/open-pr:watch review fix`
+选择角色；两个都不写时，每次启动都会询问。
+
+每次启动时，它会读取打开的 pull request 中仍在等待的评审请求：还没有"正在查看"回复的 `/open-pr` 评论，
+无论多旧。它会就这些请求一次性询问你：全部评审、选择部分或跳过。已跳过的请求不会再被询问；该 pull request
+上更新的请求照常处理。
 
 ## 首次运行之前
 

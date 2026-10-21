@@ -2,16 +2,20 @@
 
 [← README](../../README.vi-VN.md)
 
-`/open-pr:watch` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo, đảm nhận cùng lúc
-hai vai:
+`/open-pr:watch` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo, đảm nhận một hoặc
+cả hai vai:
 
 - **review** — developer yêu cầu review bằng cách comment trên pull request; máy bạn mở một session review
   riêng cho pull request đó.
 - **fix** — một review mới trên pull request của chính bạn hiện toast các finding kèm nút "Fix now"; một
   click mở một session fix riêng cho pull request đó.
 
-Watcher báo bạn mỗi khi có việc cần bạn. `/open-pr:watch review` hoặc `/open-pr:watch fix` chỉ giữ một
-vai.
+Watcher báo bạn mỗi khi có việc cần bạn. `/open-pr:watch review`, `/open-pr:watch fix` hoặc
+`/open-pr:watch review fix` chọn vai; không ghi vai nào thì mỗi lần khởi động watcher sẽ hỏi.
+
+Mỗi lần khởi động, watcher đọc các pull request đang mở để tìm yêu cầu review còn chờ: comment `/open-pr`
+chưa có reply "đang xem qua", dù cũ bao lâu. Watcher hỏi bạn một lần cho tất cả: review hết, chọn một số,
+hay bỏ qua. Yêu cầu đã bỏ qua không bị hỏi lại; yêu cầu mới hơn trên pull request đó vẫn được nhận.
 
 ## Trước lần chạy đầu tiên
 
