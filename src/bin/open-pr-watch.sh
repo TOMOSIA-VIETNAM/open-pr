@@ -1140,9 +1140,9 @@ feed_add() {
     lock
     { tail -n $((FEED_MAX - 1)) "$SD/feed.jsonl" 2>/dev/null || true
       jq -n -c --arg at "$(now_iso)" --arg repo "$OWNER/$REPO" --arg pr "$P" --arg e "$E" \
-          --arg s "$summary" --arg d "$detail" --arg u "$(arg url)" --arg role "$ROLE" \
+          --arg s "$summary" --arg d "$detail" --arg u "$(arg url)" --arg role "$ROLE" --arg f "$FOCUS" \
           '{at: $at, repo: $repo, pr: (if $pr == "" then null else ($pr | tonumber) end), role: $role, event: $e,
-            summary: $s, detail: $d, url: (if $u == "" then null else $u end)}'
+            summary: $s, detail: $d, url: (if $u == "" then null else $u end), focus: $f}'
     } > "$SD/feed.jsonl.tmp"
     mv "$SD/feed.jsonl.tmp" "$SD/feed.jsonl"
     unlock

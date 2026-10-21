@@ -1377,9 +1377,22 @@ def test_notify_feeds_the_last_fifty_notifications_sent_or_snoozed(w):
     at = rows[-2].pop("at")
     assert datetime.fromisoformat(at.replace("Z", "+00:00")).tzinfo is not None
     assert rows[-2] == {"repo": "o/r", "pr": 3, "role": "review", "event": "posted", "summary": "PR #3 posted",
-                        "detail": "claude attach 1", "url": "https://h/o/r/pull/3"}
+                        "detail": "claude attach 1", "url": "https://h/o/r/pull/3", "focus": "pr"}
     assert (rows[-1]["event"], rows[-1]["pr"], rows[-1]["url"], rows[-1]["detail"]) == \
         ("review_started", None, None, ""), "a snoozed notification is still recent history"
+
+
+@pytest.mark.parametrize("focus", ["pr", "watcher", "session", None])
+def test_a_feed_line_keeps_where_its_click_goes(w, focus):
+    """The menu bar sends a question's row where the user answers it, as the toast does."""
+    extra = ("--focus", focus) if focus else ()
+    w.run("notify", "--event", "question", "--text-file", w.prompt("5 old /open-pr triggers"), "--pr", "3", "--quiet", *extra)
+    assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["focus"] == (focus or "pr")
+
+
+def test_a_feed_line_is_never_written_for_an_unknown_focus(w):
+    r = w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--focus", "tab", "--quiet", check=False)
+    assert r.returncode == 1 and not (w.sd / "feed.jsonl").exists()
 
 
 def test_notify_rejects_a_pr_that_is_not_a_number(w):
@@ -2309,6 +2322,50 @@ def test_a_fix_run_here_shows_as_fixing_here_and_opens_the_watchers_tab(w):
     go = [x for x in got[2] if x[0] == "Open session in iTerm"]
     assert go and go[0][1] and json.loads(go[0][2])["term_session"] == "w0t0p1:AA"
     assert not [x for x in got[2] if x[0].startswith("Copy command")], "no session command to copy"
+
+
+def _question_row(w, feed, state_at="2026-01-01T00:00:00Z"):
+    """The #5 row's click (its represented object) and submenu titles, its newest feed line `feed`."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "5:review": {"pr": 5, "role": "review", "runner": "claude", "repo": "o/r", "url": "https://github.com/o/r/pull/5",
+                     "open": "claude attach abc12345", "last_state": "working", "last_state_at": state_at}}})
+    (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p1:AA"}))
+    (w.sd / "heartbeat").write_text("")
+    (w.sd / "feed.jsonl").write_text(json.dumps(dict({"at": "2026-01-01T00:01:00Z", "repo": "o/r", "pr": 5, "role": "review",
+                                                      "event": "question", "summary": "#5 needs you"}, **feed)) + "\n")
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
+        var m = build(scan()), mi = m.itemArray.js.filter(function (x) { return ObjC.unwrap(x.title) === '#5'; })[0], sub = [];
+        for (var i = 0; i < mi.submenu.numberOfItems; i++) sub.push(ObjC.unwrap(mi.submenu.itemAtIndex(i).title));
+        return JSON.stringify([unwrapString(mi.representedObject), !mi.target.isNil(), sub]);""")
+    return (json.loads(got[0]) if got[0].startswith("{") else got[0]), got[1], got[2]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_row_for_the_watchers_own_question_answers_in_the_watchers_tab(w):
+    click, live, sub = _question_row(w, {"focus": "watcher"})
+    assert live and click["term_session"] == "w0t0p1:AA", "the row's click goes to the watcher's tab"
+    assert sub[:2] == ["Answer in iTerm", "Open pull request"]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_row_for_a_sessions_question_opens_that_session(w):
+    click, live, sub = _question_row(w, {"focus": "session"})
+    assert live and click == {"open": "claude attach abc12345", "term": "iTerm.app"}
+    assert "Answer in iTerm" not in sub and "Open session in iTerm" in sub
+
+
+@pytest.mark.parametrize("feed", [{}, {"focus": "pr"}, {"focus": "tab"}, {"focus": 3}])
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_question_row_without_a_known_focus_keeps_the_pull_request_click(w, feed):
+    """An older feed line has no focus: its row stays as it was."""
+    click, _, sub = _question_row(w, feed)
+    assert click == "https://github.com/o/r/pull/5" and sub[0] == "Open pull request"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_question_the_session_moved_past_offers_no_answer(w):
+    click, _, sub = _question_row(w, {"focus": "watcher"}, state_at="2026-01-01T00:02:00Z")
+    assert click == "https://github.com/o/r/pull/5" and "Answer in iTerm" not in sub
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")

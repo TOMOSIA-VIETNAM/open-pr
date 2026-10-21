@@ -7,7 +7,8 @@
 //                                           runner `here`: fixed in the watcher's own session (its tab)
 //                                           `titles`: each PR's title, its row's title after #N
 //   <data>/<repo>/watch/feed.jsonl   notifications; a PR role's latest one, when newer than its
-//                                           session's state, is its row's text
+//                                           session's state, is its row's text; a question's `focus`
+//                                           (watcher | session) is where its row's click goes
 //   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pid of
 //                                           its wait (liveTab), and the repo_dir/remote "Remove from list"
 //                                           passes to `hide` and "Fix now" to `fix-now`
@@ -537,6 +538,8 @@ function finish(r) {
     }
     // Counted and listed first like an active session: it waits on the user.
     if (f && kind === 'question') r.active = true;
+    // where the user answers it: the watcher's tab, or the session (as the toast's click)
+    r.focus = f && kind === 'question' && (f.focus === 'watcher' || f.focus === 'session') ? f.focus : '';
     var at = Math.max(r.stateAt, fat);
     r.kind = kind;
     r.at = at;
@@ -995,15 +998,21 @@ function watcherItems(m, w) {
     w.rows.forEach(function (x) {
         var spec = KIND[x.kind];
         if (BUSY[x.kind]) busy++;
-        var mi = add(m, x.title, isURL(x.url) ? openURL : null, x.url);
+        // A click goes where the user acts: a question's answer, else the pull request.
+        var session = OPEN_CMD.test(x.open) ? JSON.stringify({ open: x.open, term: w.term }) : '';
+        var answer = x.focus === 'watcher' && go ? JSON.stringify(go) : '';
+        var mi = answer ? add(m, x.title, json(goToTab), answer)
+            : x.focus === 'session' && session ? add(m, x.title, json(openTerminal), session)
+            : add(m, x.title, isURL(x.url) ? openURL : null, x.url);
         mi.setIndentationLevel(PR_INDENT);
         subtitle(mi, x.text, x.time);
         mi.setImage(spec ? symbol(spec) : blank());
         // Offered in every state: `open` also reopens a finished or stopped session.
         var sub = newMenu(x.title);
+        if (answer) add(sub, 'Answer in ' + w.app, json(goToTab), answer);
         if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', json(fixNow), x.fix);
         if (isURL(x.url)) add(sub, 'Open pull request', openURL, x.url);
-        if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, json(openTerminal), JSON.stringify({ open: x.open, term: w.term }));
+        if (session) add(sub, 'Open session in ' + w.app, json(openTerminal), session);
         if (x.here && go) add(sub, 'Open session in ' + w.app, json(goToTab), JSON.stringify(go));
         if (x.open) add(sub, 'Copy command  ' + x.open, copyText, x.open);
         if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', json(hide), x.hide);
