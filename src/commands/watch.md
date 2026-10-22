@@ -144,6 +144,7 @@ Per `{"event":"session",…}` (it carries `open`; `role: fix` ⇒ `cases/watch-f
 | `state` | do |
 |---|---|
 | `question`, `claude` runner | notify `question`: the user answers inside that session via `open` |
+| `working` (after a `question`) | answered: notify `re_review` with `--quiet` (the menu bar drops the question); nothing in chat |
 | `question`, other runner | ask the status file's `question`, prefixed `[owner/repo#N]`; `Write` the answer as the new prompt file; `<watch> spawn` again (it resumes that session) |
 | `draft` | notify `draft_ready`; chat: link + counts. To publish: the user does it in the session, or you `spawn` again with a prompt file saying the user approved publishing |
 | `posted` | notify `posted`; 1 chat line; review role ⇒ report it (below) |
