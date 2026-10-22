@@ -902,6 +902,18 @@ def test_a_blocked_claude_session_reads_as_the_result_this_run_wrote(w, status_b
     assert [e["state"] for e in w.jsonl("wait", "--once")] == [want]
 
 
+def test_a_session_whose_run_ended_in_a_result_takes_a_new_request_at_once(w):
+    """Blocked at its prompt after writing a final result: nothing waits on it, so a new request on
+    the PR resumes it now instead of holding for the in-use grace."""
+    sp = w.spawn(12)
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "blocked")
+    w.status_file(12, **FAILED_422)
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["failed"]
+    again = w.spawn(12, text="review again")
+    assert again.get("resumed") is True and "queued" not in again, again
+
+
 @pytest.mark.parametrize("status, status_body, want", [
     ("idle", {"state": "posted"}, "posted"),
     ("idle", None, "failed"),

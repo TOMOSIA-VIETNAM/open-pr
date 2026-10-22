@@ -374,6 +374,14 @@ run_result() {   # $1 session key, $2 started_at
     [ -z "$m" ] || [ -z "$s" ] || [ "$m" -ge "$s" ] || return 0
     jq -r '.state // empty' "$f" 2>/dev/null || true
 }
+# Claude state $1 of session $2 (started $3): blocked after its run wrote a final result reads as
+# done — the prompt it waits at asks nothing, so no request waits on it; a question still does.
+settled() {
+    [ "$1" = blocked ] || { printf '%s' "$1"; return 0; }
+    fs=$(run_result "$2" "$3")
+    case " $REPORTED " in *" $fs "*) [ -z "$fs" ] || [ "$fs" = question ] || { printf done; return 0; } ;; esac
+    printf blocked
+}
 CLAUDE_AGENTS=""
 # `claude agents` state of the entry with id $1. A resumed or attached session that finished its
 # turn stays "working" with status "idle" (waiting at its prompt), never "done": read as done.
@@ -402,7 +410,7 @@ EOF
         # The user may still be talking in it: a new request waits rather than stops it.
         if [ "$runner" = claude ]; then
             [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
-            cs=$(claude_state "$id")
+            cs=$(settled "$(claude_state "$id")" "$key" "$started")
             case "$cs" in working|blocked) inuse=$cs ;; esac
         elif pid_alive "$pid"; then inuse=working; fi
     elif [ "$runner" = here ]; then
@@ -413,13 +421,7 @@ EOF
         [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
         entry=$(printf '%s' "$CLAUDE_AGENTS" | jq -c --arg id "$id" '[.[]? | select(.id == $id)][0] // empty')
         [ -n "$sid" ] || sid=$(printf '%s' "$entry" | jq -r '.sessionId // empty' 2>/dev/null || true)
-        cs=$(claude_state "$id")
-        # A session that wrote this run's result, then ended its turn at its prompt, lists as
-        # blocked: that result is the outcome, unless it is the question the prompt holds.
-        if [ "$cs" = blocked ]; then
-            fs=$(run_result "$key" "$started")
-            case " $REPORTED " in *" $fs "*) [ -z "$fs" ] || [ "$fs" = question ] || cs=done ;; esac
-        fi
+        cs=$(settled "$(claude_state "$id")" "$key" "$started")
         case "$cs" in
             working) st=working ;;
             blocked) st=question ;;
