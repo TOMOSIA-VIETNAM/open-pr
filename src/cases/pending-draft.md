@@ -15,6 +15,7 @@ nothing of this run was posted. Its stdout: `draft_id=<I>`, `commit=<C>` (`UNKNO
   | other `<C>`, `UNKNOWN` | `Discard it and post this review` | `Publish the existing draft` |
 
   - Publish → `<op> publish --review-id <I>`, then `<op> post-verify --review-id <I>`; its `url=` line
-    is the link. This run's payload is never posted. Report: the earlier draft (at `<C>`) was
-    published + the link, no counts; watch session: `commit` = `<C>`, `counts` = `null`, `note` = that.
+    is the link, its `counts=` line the counts. This run's payload is never posted. Report: the earlier
+    draft (at `<C>`) was published + the link + counts; watch session: `commit` = `<C>`, `counts` = that
+    JSON — no `counts=` line ⇒ `null`, `note` saying they could not be counted.
   - Discard → `<op> discard --draft-id <I>`, then `<op> post` again and go on with Step 9.

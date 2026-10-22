@@ -616,7 +616,7 @@ def test_post_verify_finds_the_stamped_overview(shims, tmp_path):
             {"id": 11, "body": PAYLOAD["body"] + "\n\n<!-- bot-review -->", "position": None, "system": False}]),
         ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"}),
     ])
-    assert pv("gitlab", "--payload", str(f)) == ["PUBLISHED", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+    assert pv("gitlab", "--payload", str(f)) == ["PUBLISHED", "counts={}", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
     serve(shims, "curl", [("pullrequests/5/comments?pagelen=100", {"values": [
         {"id": 41, "content": {"raw": PAYLOAD["body"] + "\n\n[bot-review]: #"}, "inline": None, "deleted": False,
          "links": {"html": {"href": "https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-41"}}}], "next": None})])
@@ -688,7 +688,63 @@ def test_post_verify_gitlab_without_a_payload_links_the_newest_plugin_overview(s
             {"id": 10, "body": "older\n\n<!-- bot-review -->", "position": None, "system": False}]),
         ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
     r = run("post-verify", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", env_extra=env_for(shims), check=True)
-    assert r.stdout.splitlines() == ["PUBLISHED", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+    assert r.stdout.splitlines() == ["PUBLISHED", "counts={}", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+
+
+FINDING = lambda emoji: f"{emoji} x\n**Fix** y\n\n<!-- bot-finding -->"
+MIXED_OVERVIEW = ("### 🤖【AI REVIEW】Overview\nThanks 🙏\n\n#### 🟠 SHOULD FIX\n" + FINDING("🟠")
+                  + "\n\n#### 📝 NOTE\n" + FINDING("📝") + "\n\n<!-- bot-review -->")
+PV = lambda shims, vendor: run("post-verify", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", "--review-id", "77",
+                               env_extra=env_for(shims), check=True).stdout.splitlines()
+
+
+@pytest.mark.parametrize("comments, overview, counts", [
+    ([FINDING("🔴"), FINDING("🔴"), "- " + FINDING("🔵"), "🔴 a person's line comment, no marker"], MIXED_OVERVIEW,
+     '{"🔴 MUST FIX":2,"🟠 SHOULD FIX":1,"🔵 SUGGESTION":1,"📝 NOTE":1}'),
+    ([], "**LGTM 🌟** (commit x)\n\n<!-- bot-review -->", "{}")])
+def test_post_verify_github_counts_the_published_reviews_own_findings(shims, comments, overview, counts):
+    """An earlier draft published as it was: its counts come from what the PR holds, by severity label."""
+    serve(shims, "gh", [("reviews/77/comments", [{"id": i, "body": b} for i, b in enumerate(comments)]),
+                        ("repos/o/r/pulls/5/reviews/77", {"id": 77, "state": "COMMENTED", "body": overview,
+                                                           "html_url": "https://github.com/o/r/pull/5#pullrequestreview-77"})])
+    assert PV(shims, "github")[1:] == ["counts=" + counts, "url=https://github.com/o/r/pull/5#pullrequestreview-77"]
+    assert "reviews/77/comments?per_page=100" in shims["log"].read_text()
+
+
+def test_post_verify_github_without_its_comments_prints_no_counts(shims):
+    """Counts read part-way would understate the review: none, so the caller records null."""
+    serve(shims, "gh", [("reviews/77/comments", (1, "HTTP 502")),
+                        ("repos/o/r/pulls/5/reviews/77", {"id": 77, "state": "COMMENTED", "body": MIXED_OVERVIEW,
+                                                           "html_url": "https://github.com/o/r/pull/5#pullrequestreview-77"})])
+    assert PV(shims, "github") == ['{"id":77,"state":"COMMENTED"}', "url=https://github.com/o/r/pull/5#pullrequestreview-77"]
+
+
+GL_NOTE = lambda i, body, line=None: {"id": i, "body": body, "position": {"new_line": line} if line else None, "system": False}
+
+
+@pytest.mark.parametrize("published, counts", [
+    ([GL_NOTE(24, MIXED_OVERVIEW), GL_NOTE(23, FINDING("🔵"), 3), GL_NOTE(22, FINDING("🔴"), 2),
+      GL_NOTE(21, "🔴 a person's note, no marker", 2)],
+     '{"🔴 MUST FIX":1,"🟠 SHOULD FIX":1,"🔵 SUGGESTION":1,"📝 NOTE":1}'),
+    ([GL_NOTE(24, "**LGTM 🌟** (commit x)\n\n<!-- bot-review -->")], "{}")])
+def test_post_verify_gitlab_counts_the_notes_the_draft_published(shims, published, counts):
+    """The published set = the notes after the plugin's previous overview, up to the one just published;
+    an older review's findings and a later reply stay out."""
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [GL_NOTE(25, "reply\n\n<!-- bot-reply -->", 2)] + published + [
+            GL_NOTE(11, "older\n\n<!-- bot-review -->"), GL_NOTE(10, FINDING("🔴"), 9)]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
+    assert PV(shims, "gitlab") == ["PUBLISHED", "counts=" + counts, "url=https://gitlab.com/o/r/-/merge_requests/5#note_24"]
+
+
+def test_post_verify_gitlab_without_the_previous_overview_in_a_full_page_prints_no_counts(shims):
+    """A full page that stops before the previous overview cannot say where this review's notes begin."""
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [GL_NOTE(200, MIXED_OVERVIEW)] + [GL_NOTE(199 - i, FINDING("🔵"), 2) for i in range(99)]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
+    assert PV(shims, "gitlab") == ["PUBLISHED", "url=https://gitlab.com/o/r/-/merge_requests/5#note_200"]
 
 
 def test_post_without_a_pending_draft_posts_as_before(shims, tmp_path):
@@ -2477,9 +2533,10 @@ def test_post_verify_names_the_published_reviews_url_on_each_vendor(shims, tmp_p
     f.write_text(json.dumps(PAYLOAD))
     pv = lambda vendor, *extra: run("post-verify", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", *extra,
                                     env_extra=env_for(shims), check=True).stdout.splitlines()
-    serve(shims, "gh", [("repos/o/r/pulls/5/reviews/77", {"id": 77, "state": "COMMENTED",
+    serve(shims, "gh", [("reviews/77/comments", []),
+                        ("repos/o/r/pulls/5/reviews/77", {"id": 77, "state": "COMMENTED",
                                                            "html_url": "https://github.com/o/r/pull/5#pullrequestreview-77"})])
-    assert pv("github", "--review-id", "77") == ['{"id":77,"state":"COMMENTED"}', "url=https://github.com/o/r/pull/5#pullrequestreview-77"]
+    assert pv("github", "--review-id", "77") == ['{"id":77,"state":"COMMENTED"}', "counts={}", "url=https://github.com/o/r/pull/5#pullrequestreview-77"]
     serve(shims, "gh", [("repos/o/r/pulls/5/reviews/77", {"id": 77, "state": "PENDING", "html_url": "https://x/y"})])
     assert pv("github", "--review-id", "77") == ['{"id":77,"state":"PENDING"}'], "a draft has no review to link"
     serve(shims, "glab", [
@@ -2490,7 +2547,7 @@ def test_post_verify_names_the_published_reviews_url_on_each_vendor(shims, tmp_p
             {"id": 10, "body": PAYLOAD["body"], "position": None, "system": False}]),
         ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"}),
     ])
-    assert pv("gitlab", "--payload", str(f)) == ["PUBLISHED", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+    assert pv("gitlab", "--payload", str(f)) == ["PUBLISHED", "counts={}", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
     serve(shims, "curl", [("pullrequests/5/comments?pagelen=100", {"values": [
         {"id": 41, "content": {"raw": PAYLOAD["body"]}, "inline": None, "deleted": False,
          "links": {"html": {"href": "https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-41"}}},

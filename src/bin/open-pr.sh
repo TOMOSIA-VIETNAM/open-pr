@@ -664,7 +664,9 @@ cmd_publish() {
     esac
 }
 # Last line `url=<the review overview>` once it is on the PR: GitHub's review, else the newest
-# overview-level comment whose body is the payload's (--payload).
+# overview-level comment whose body is the payload's (--payload). Before it, once published,
+# `counts=<json>` (labelled): that review's own findings, its line comments plus its overview body;
+# no line when they cannot be read.
 cmd_post_verify() {
     parse_args "$@"; post_init
     P=$(arg payload); [ -z "$P" ] || [ -s "$P" ] || die 1 "open-pr.sh post-verify: payload file missing/empty"
@@ -673,7 +675,11 @@ cmd_post_verify() {
             RID=$(req review_id); check_ident '^[0-9]+$' "$RID"
             gh api "repos/$OWNER/$REPO/pulls/$N/reviews/$RID" > "$TMPD/pv.json"
             jq -c '{id, state}' "$TMPD/pv.json"
-            jq -r 'select(.state != "PENDING") | .html_url // empty' "$TMPD/pv.json" > "$TMPD/pv.url" ;;
+            jq -r 'select(.state != "PENDING") | .html_url // empty' "$TMPD/pv.json" > "$TMPD/pv.url"
+            if [ -s "$TMPD/pv.url" ] && gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews/$RID/comments?per_page=100" > "$TMPD/pv.cm" 2>/dev/null; then
+                jq -r -c -s --slurpfile r "$TMPD/pv.json" "$JQ_FINDINGS"'[.[][] | .body // ""] + [$r[0].body // ""] | labelled
+                    | "counts=" + tojson' "$TMPD/pv.cm" || true
+            fi ;;
         gitlab)
             left=$(glab api "projects/$GL_PROJ/merge_requests/$N/draft_notes" | jq 'length')
             if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi
@@ -688,6 +694,13 @@ cmd_post_verify() {
                     id=$(jq -r "$JQ_MARKED"'[.[] | select(.system != true and .position == null and ((.body // "") | marked("review")))][0].id // empty' "$TMPD/pv.notes")
                 fi
                 [ -z "$id" ] || { check_ident '^[0-9]+$' "$id"; gl_mr_cached "$N" | jq -r --arg id "$id" '.web_url // empty | . + "#note_" + $id' > "$TMPD/pv.url"; }
+                # a publish posts the drafts in the order post wrote them, overview last: its notes are the ones
+                # after the plugin's previous overview. That one past this 100-note page ⇒ the window is unknown, no count.
+                [ -z "$id" ] || jq -r --argjson id "$id" "$JQ_MARKED$JQ_FINDINGS"'
+                    [.[] | select(.system != true and .position == null and .id < $id and ((.body // "") | marked("review"))) | .id] as $older
+                    | select($older != [] or length < 100) | ($older | max // 0) as $prev
+                    | [.[] | select(.system != true and .id > $prev and .id <= $id) | .body // ""] | labelled
+                    | "counts=" + tojson' "$TMPD/pv.notes" || true
             fi ;;
         bitbucket)
             M=$(req marker)
@@ -1059,7 +1072,12 @@ JQ_FINDINGS='def sev_of: [splits("\n") | sub("^[\\s>*_-]+"; "") | select(startsw
         | (if startswith("🔴") then "🔴" elif startswith("🟠") then "🟠" elif startswith("🔵") then "🔵"
            elif startswith("📝") then "📝" else empty end)][0] // empty;
     def counts: [splits("bot-finding(\\s*-->|\\]:\\s*#)")] | .[:-1] | map(sev_of)
-        | reduce .[] as $e ({}; .[$e] += 1);'
+        | reduce .[] as $e ({}; .[$e] += 1);
+    def summed: map(to_entries[]) | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries;
+    # bodies -> their findings per severity, keyed by the heading a review gives it, in severity order ({} = LGTM)
+    def labelled: (map(counts) | summed) as $c
+        | reduce (["🔴", "MUST FIX"], ["🟠", "SHOULD FIX"], ["🔵", "SUGGESTION"], ["📝", "NOTE"]) as [$e, $l]
+            ({}; if $c[$e] then .["\($e) \($l)"] = $c[$e] else . end);'
 trg_findings() {
     jq -c --arg a "$FIX_AUTHOR" --arg l ",$FIX_PRS," '
         (.pr | tostring) as $n
@@ -1098,7 +1116,7 @@ trg_findings() {
               | {pr: $h.pr, url: $h.url, title: $h.title, head_branch: $h.head_branch, review_id: ($h.review_id // ("c" + $h.comment_id)),
                  comment_id: $h.comment_id, thread_id: $h.thread_id, kind: $h.kind, user: $h.user,
                  created_at: (map(.created_at) | max),
-                 counts: ([.[].counts | to_entries[]] | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries)}
+                 counts: (map(.counts) | summed)}
               | select(.counts != {}))
         | .[]' > "$FINDINGS"
 }
@@ -1684,7 +1702,7 @@ Subcommands:
   post-verify [--review-id I] [--marker M] [--payload F]
       what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line
       `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else
-      GitLab's newest plugin one)
+      GitLab's newest plugin one), after its `counts=<json>` (GitHub, GitLab)
   reply --comment-id C --body-file F [--kind line|top] [--thread-id T]
       reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the
       thread holding C

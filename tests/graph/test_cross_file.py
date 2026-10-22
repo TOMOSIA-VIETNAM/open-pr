@@ -346,7 +346,10 @@ def test_a_pending_draft_post_is_routed_to_its_case_before_any_other_post_error(
         assert call in case
     assert "`ours=false` — a person's own pending review. FORBIDDEN: publishing or discarding it" in case
     assert "| `overview=false` | `Discard it and post this review` |" in case, "a part-way post is never published"
-    # a published earlier draft has no counts this run read: the watcher words its note, never LGTM
-    assert "`counts` = `null`" in case and "this run's" not in case
+    # a published earlier draft reports what post-verify counted on it, never this run's findings;
+    # only an uncountable one is null, which the watcher words by its note, never as LGTM
+    assert "`<op> post-verify --review-id <I>`; its `url=` line is the link, its `counts=` line the counts" in case
+    assert "`counts` = that JSON — no `counts=` line ⇒ `null`, `note` saying they could not be counted" in case
+    assert "counts=<json>" in cli_text()
     watch = " ".join(text(SRC / "commands" / "watch.md").split())
     assert "LGTM when `{}`, its `note` when `null`" in watch
