@@ -570,6 +570,60 @@ def test_post_bitbucket_stages_nothing_and_publish_sends_overview_first(shims, t
     assert parsed[2]["inline"] == {"path": "a.txt", "from": 1}, "LEFT maps to inline.from"
 
 
+# Every overview shape the review template makes, in any output language: the LGTM line, the LINE-only
+# opening line, the full structure.
+OVERVIEWS = ["**LGTM 🌟** (commit [aaaaaaa](https://x/c/a))",
+             "Cảm ơn 🙏 — toàn bộ thay đổi đã được review tại commit [aaaaaaa](https://x/c/a).",
+             "### 🤖【AI REVIEW】Overview\nThanks 🙏\n\n#### 🔴 MUST FIX\n🔴 x\n\n<!-- bot-finding -->"]
+
+
+@pytest.mark.parametrize("overview", OVERVIEWS)
+def test_post_and_publish_stamp_the_review_marker_on_every_overview(shims, tmp_path, overview):
+    """The marker tells this plugin's review from anyone's, an LGTM line included; the prompt never writes it."""
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps({**PAYLOAD, "body": overview}))
+    log = shims["tmp"] / "calls.log.bodies"
+    sent_bodies = lambda: [json.loads(b) for b in log.read_text().splitlines() if b.strip()]
+    go = lambda op, vendor, pr: run(op, "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", pr,
+                                    "--payload", str(f), env_extra=env_for(shims), check=True)
+    serve(shims, "gh", [("pulls/5/reviews", {"id": 777})])
+    go("post", "github", "5")
+    sent = sent_bodies()[0]
+    assert sent["body"] == overview + "\n\n<!-- bot-review -->" and sent["comments"] == PAYLOAD["comments"]
+    log.unlink()
+    serve(shims, "glab", [("draft_notes", {}),
+                          ("merge_requests/9", {"iid": 9, "diff_refs": {"base_sha": "b", "start_sha": "s", "head_sha": "h"}})])
+    go("post", "gitlab", "9")
+    notes = [b["note"] for b in sent_bodies()]
+    assert notes[-1] == overview + "\n\n<!-- bot-review -->", "the overview note, not a LINE note"
+    assert all("bot-review" not in n for n in notes[:-1])
+    log.unlink()
+    serve(shims, "curl", [("comments", {"id": 42})])
+    go("publish", "bitbucket", "7")
+    parts = [b["content"]["raw"] for b in sent_bodies()]
+    assert parts[0] == overview + "\n\n[bot-review]: #" and all("bot-review" not in p for p in parts[1:])
+    assert json.loads(f.read_text())["body"] == overview, "the payload file stays as the review wrote it"
+
+
+def test_post_verify_finds_the_stamped_overview(shims, tmp_path):
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps(PAYLOAD))
+    pv = lambda vendor, *extra: run("post-verify", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", *extra,
+                                    env_extra=env_for(shims), check=True).stdout.splitlines()
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [
+            {"id": 11, "body": PAYLOAD["body"] + "\n\n<!-- bot-review -->", "position": None, "system": False}]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"}),
+    ])
+    assert pv("gitlab", "--payload", str(f)) == ["PUBLISHED", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+    serve(shims, "curl", [("pullrequests/5/comments?pagelen=100", {"values": [
+        {"id": 41, "content": {"raw": PAYLOAD["body"] + "\n\n[bot-review]: #"}, "inline": None, "deleted": False,
+         "links": {"html": {"href": "https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-41"}}}], "next": None})])
+    assert pv("bitbucket", "--marker", "[bot-finding]: #", "--payload", str(f))[-1] == \
+        "url=https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-41"
+
+
 def test_reply_bodies_travel_by_file_never_argv(shims, tmp_path):
     body = tmp_path / "b.md"
     body.write_text("thanks `$(reboot)`")
@@ -1513,6 +1567,14 @@ def test_triggers_github_a_plugin_review_after_a_trigger_answers_it(shims):
     assert "/reviews" not in shims["log"].read_text(), "a poll with no new request spends no reviews call"
 
 
+def test_triggers_github_reads_a_prs_reviews_once_for_both_findings_and_the_answered_check(shims, tmp_path):
+    serve(shims, "gh", GH_ANSWERED)
+    triggers(shims, "github", "--findings-file", str(tmp_path / "f.jsonl"), "--fix-prs", "5,11")
+    log = shims["log"].read_text()
+    assert log.count("pulls/5/reviews") == 1, "the fix role and the answered check share one fetch"
+    assert log.count("pulls/11/reviews") == 1, "a fix-role PR without a request: the findings fetch only"
+
+
 def test_triggers_backlog_github_skips_a_pr_a_manual_review_already_answered(shims):
     serve(shims, "gh", [
         ("pulls?state=open", [{"number": 5, "html_url": "u5"}, {"number": 6, "html_url": "u6"}]),
@@ -1569,6 +1631,70 @@ def test_triggers_bitbucket_a_plugin_review_after_a_trigger_answers_it(shims, mo
                                                 c(142, 3, "🔵 x" + mk, "bot", inline={"path": "a", "to": 1})], "next": None},
     }.items()))
     assert sorted(r["comment_id"] for r in triggers(shims, "bitbucket", *mode)) == ["121", "131", "82"]
+
+
+# Reviews posted before the overview carried the review marker: the template's fixed opening (its
+# heading, or the LGTM line) in a body posted AS the overview. A comment quoting it is no review.
+LGTM_OLD = "**LGTM 🌟** (commit [aaaaaaa](https://x/c/a))"
+HEADING_OLD = "### 🤖【AI REVIEW】Overview\nCảm ơn 🙏 — đã review toàn bộ tại commit [aaaaaaa](https://x/c/a)."
+QUOTES = ["> **LGTM 🌟** (commit [aaaaaaa](https://x/c/a))\n\nagreed", "the bot said ### 🤖【AI REVIEW】Overview"]
+
+
+def test_triggers_github_an_overview_by_its_marker_or_template_opening_answers_a_trigger(shims):
+    prs = (5, 6, 7, 8, 9)
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": n, "html_url": f"u{n}"} for n in prs]),
+        ("issues/comments", [gh_issue(n * 10, n, "dev", T(1), "/open-pr") for n in prs]
+         + [gh_issue(91, 9, "rev", T(3), LGTM_OLD)]),
+        ("pulls/5/reviews", [gh_review(501, T(3), "**LGTM 🌟** (commit x)\n\n<!-- bot-review -->")]),
+        ("pulls/6/reviews", [gh_review(601, T(3), LGTM_OLD)]),
+        ("pulls/7/reviews", [gh_review(701, T(3), HEADING_OLD)]),
+        ("pulls/8/reviews", [gh_review(801, T(3), QUOTES[0]), gh_review(802, T(3), QUOTES[1])]),
+    ] + GH_PERMS)
+    assert [r["comment_id"] for r in triggers(shims, "github")] == ["80", "90"], \
+        "5: the stamped marker; 6, 7: an older review's fixed opening; 8: a review quoting it; " \
+        "9: an issue comment is never a review"
+
+
+@pytest.mark.parametrize("mode", [[], ["--backlog"]])
+def test_triggers_gitlab_an_overview_by_its_marker_or_template_opening_answers_a_trigger(shims, mode):
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": n, "web_url": f"u{n}"} for n in (5, 6, 7, 8, 9)]),
+        ("merge_requests/5/discussions", [{"id": "a", "notes": [gl_note(51, 1, "/open-pr")]},
+                                          {"id": "b", "notes": [gl_note(52, 3, "**LGTM 🌟** x\n\n<!-- bot-review -->", "bot", 1)]}]),
+        ("merge_requests/6/discussions", [{"id": "a", "notes": [gl_note(61, 1, "/open-pr")]},
+                                          {"id": "b", "notes": [gl_note(62, 3, LGTM_OLD, "bot", 1)]}]),
+        ("merge_requests/7/discussions", [{"id": "a", "notes": [gl_note(71, 1, "/open-pr")]},
+                                          {"id": "b", "notes": [gl_note(72, 3, HEADING_OLD, "bot", 1)]}]),
+        ("merge_requests/8/discussions", [{"id": "a", "notes": [gl_note(81, 1, "/open-pr")]},
+                                          {"id": "b", "notes": [gl_note(82, 3, QUOTES[0], "rev", 8)]},
+                                          {"id": "c", "notes": [gl_note(83, 3, QUOTES[1], "rev", 8)]}]),
+        ("merge_requests/9/discussions", [{"id": "a", "notes": [gl_note(91, 1, "/open-pr"),
+                                                                gl_note(92, 3, LGTM_OLD, "rev", 8)]}]),
+        ("members/all/7", {"access_level": 30}),
+    ])
+    assert sorted(r["comment_id"] for r in triggers(shims, "gitlab", *mode)) == ["81", "91"], \
+        "5: the stamped marker; 6, 7: an older overview's fixed opening; 8: a note quoting it; " \
+        "9: a reply inside a discussion is no overview"
+
+
+@pytest.mark.parametrize("mode", [[], ["--backlog"]])
+def test_triggers_bitbucket_an_overview_by_its_marker_or_template_opening_answers_a_trigger(shims, mode):
+    c = lambda i, at, raw, nick="dev", parent=None: {
+        "id": i, "content": {"raw": raw}, "user": {"nickname": nick}, "inline": None, "deleted": False,
+        "created_on": f"2026-01-01T00:00:0{at}+00:00", "parent": {"id": parent} if parent else None}
+    serve(shims, "curl", list({
+        "pullrequests?state=OPEN": {"values": [{"id": n, "links": {"html": {"href": f"u{n}"}}} for n in (5, 6, 7, 8, 9)],
+                                    "next": None},
+        "pullrequests/5/comments": {"values": [c(51, 1, "/open-pr"), c(52, 3, "**LGTM 🌟** x\n\n[bot-review]: #", "bot")],
+                                    "next": None},
+        "pullrequests/6/comments": {"values": [c(61, 1, "/open-pr"), c(62, 3, LGTM_OLD, "bot")], "next": None},
+        "pullrequests/7/comments": {"values": [c(71, 1, "/open-pr"), c(72, 3, HEADING_OLD, "bot")], "next": None},
+        "pullrequests/8/comments": {"values": [c(81, 1, "/open-pr"), c(82, 3, QUOTES[0], "rev"), c(83, 3, QUOTES[1], "rev")],
+                                    "next": None},
+        "pullrequests/9/comments": {"values": [c(91, 1, "/open-pr"), c(92, 3, LGTM_OLD, "rev", parent=91)], "next": None},
+    }.items()))
+    assert sorted(r["comment_id"] for r in triggers(shims, "bitbucket", *mode)) == ["81", "91"]
 
 
 # ------------------------------------------------------- triggers: ETags ----

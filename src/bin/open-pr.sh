@@ -552,14 +552,18 @@ post_error_hint() {
         bitbucket) err "hint: a 400 naming inline is a bad anchor — a path this PR did not change, or a to/from line the diff never touches. Re-post only the parts verify shows missing; a duplicate has no bulk undo." ;;
     esac
 }
+# The suffix post/publish append to the overview body: a blank line, then the review marker.
+review_stamp() { printf '\n\n%s' "$(marker_text review)"; }
 cmd_post() {
     parse_args "$@"; post_init
     F=$(req payload); [ -s "$F" ] || die 1 "open-pr.sh post: payload file missing/empty"
     jq -e -n 'input | .body and .commit_id and (.comments | type == "array")' "$F" >/dev/null 2>&1 \
         || die 1 "open-pr.sh post: payload must carry body, commit_id, comments[]"
+    RM=$(review_stamp)
     case "$V" in
         github)
-            id=$(gh api -X POST "repos/$OWNER/$REPO/pulls/$N/reviews" --input "$F" --jq '.id') \
+            jq -c --arg m "$RM" '.body = (.body + $m)' "$F" > "$TMPD/gh.review.json"
+            id=$(gh api -X POST "repos/$OWNER/$REPO/pulls/$N/reviews" --input "$TMPD/gh.review.json" --jq '.id') \
                 || { post_error_hint; exit 1; }
             printf 'review_id=%s\nstate=PENDING\n' "$id" ;;
         gitlab)
@@ -575,7 +579,7 @@ cmd_post() {
                     || { post_error_hint; exit 1; }
                 i=$((i + 1))
             done
-            jq -c '{note: .body}' "$F" > "$TMPD/gl.note.json"
+            jq -c --arg m "$RM" '{note: (.body + $m)}' "$F" > "$TMPD/gl.note.json"
             glab api -X POST -H "Content-Type: application/json" \
                 "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null \
                 || { post_error_hint; exit 1; }
@@ -587,7 +591,7 @@ cmd_post() {
     esac
 }
 cmd_publish() {
-    parse_args "$@"; post_init
+    parse_args "$@"; post_init; RM=$(review_stamp)
     case "$V" in
         github)
             RID=$(req review_id); check_ident '^[0-9]+$' "$RID"
@@ -596,7 +600,7 @@ cmd_publish() {
             glab api -X POST "projects/$GL_PROJ/merge_requests/$N/draft_notes/bulk_publish" >/dev/null && printf 'PUBLISHED\n' ;;
         bitbucket)
             F=$(req payload)
-            jq -c '{content: {raw: .body}}' "$F" > "$TMPD/bb.part.json"
+            jq -c --arg m "$RM" '{content: {raw: (.body + $m)}}' "$F" > "$TMPD/bb.part.json"
             bb_curl -X POST -H "Content-Type: application/json" \
                 "$BB_API/pullrequests/$N/comments" --data @"$TMPD/bb.part.json" | jq -r '"posted overview id=\(.id)"' \
                 || { post_error_hint; exit 1; }
@@ -629,8 +633,9 @@ cmd_post_verify() {
             if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi
             if [ "$left" = 0 ] && [ -n "$P" ]; then
                 glab api "projects/$GL_PROJ/merge_requests/$N/notes?sort=desc&order_by=created_at&per_page=100" > "$TMPD/pv.notes"
-                id=$(jq -r --slurpfile p "$P" '($p[0].body | sub("\\s+$"; "")) as $b
-                    | [.[] | select(.system != true and .position == null and ((.body // "") | sub("\\s+$"; "")) == $b)][0].id // empty' "$TMPD/pv.notes")
+                id=$(jq -r --slurpfile p "$P" --arg m "$(marker_text review)" '($p[0].body | sub("\\s+$"; "")) as $b
+                    | [.[] | select(.system != true and .position == null
+                                    and ((.body // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "")) == $b)][0].id // empty' "$TMPD/pv.notes")
                 [ -z "$id" ] || { check_ident '^[0-9]+$' "$id"; gl_mr_cached "$N" | jq -r --arg id "$id" '.web_url // empty | . + "#note_" + $id' > "$TMPD/pv.url"; }
             fi ;;
         bitbucket)
@@ -639,8 +644,10 @@ cmd_post_verify() {
                 ".values[] | select(.deleted != true) | @json" > "$TMPD/pv.rows"
             found=$(jq -c --arg m "$M" 'select(.content.raw | contains($m)) | {id, path: .inline.path, line: .inline.to}' "$TMPD/pv.rows")
             if [ -n "$found" ]; then printf '%s\n' "$found"; else printf 'NOTHING-POSTED (no comment carries the marker)\n'; fi
-            [ -z "$P" ] || jq -r -s --slurpfile p "$P" '($p[0].body | sub("\\s+$"; "")) as $b
-                | [.[] | select(.inline == null and ((.content.raw // "") | sub("\\s+$"; "")) == $b)] | last | .links.html.href // empty' \
+            [ -z "$P" ] || jq -r -s --slurpfile p "$P" --arg m "$(marker_text review)" '($p[0].body | sub("\\s+$"; "")) as $b
+                | [.[] | select(.inline == null
+                                and ((.content.raw // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "")) == $b)]
+                | last | .links.html.href // empty' \
                 "$TMPD/pv.rows" > "$TMPD/pv.url" ;;
     esac
     u=$(head -n 1 "$TMPD/pv.url" 2>/dev/null || true)
@@ -932,6 +939,13 @@ gl_get() {
     [ "$rc" = 0 ] || return "$rc"
     tr -d '\r' < "$TMPD/gl.resp" | awk '/^HTTP\/[0-9.]+ [0-9]+/ { h = 1; next } h && /^$/ { h = 0; next } !h'
 }
+# A GitHub PR's reviews, fetched once per run by whichever check needs them first (the fix role's
+# findings, the answered check). $1 = PR number, stdout = the body.
+gh_reviews() {
+    [ -f "$TMPD/rv.$1" ] || gh_get "repos/$OWNER/$REPO/pulls/$1/reviews?per_page=100" > "$TMPD/rv.$1" \
+        || { rm -f "$TMPD/rv.$1"; return 1; }
+    cat "$TMPD/rv.$1"
+}
 GH_TOP='.[] | select(.issue_url | test("/issues/[0-9]+$")) | {pr: (.issue_url | split("/") | last | tonumber), comment_id: (.id | tostring), kind: "top", thread_id: null, user: .user.login, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .user.login, in_reply_to: null, review_id: null}'
 GH_LINE='.[] | {pr: (.pull_request_url | split("/") | last | tonumber), comment_id: (.id | tostring), kind: "line", thread_id: (.in_reply_to_id // null | if . then tostring else . end), user: .user.login, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .user.login, in_reply_to: (.in_reply_to_id // null | if . then tostring else . end), review_id: (.pull_request_review_id // null | if . then tostring else . end)}'
 # Open PRs -> $TMPD/tr.prs ({pr, url, title, author, head_branch, updated_at} lines); their comments -> stdout as
@@ -967,7 +981,7 @@ trg_fetch() {
                 check_ident '^[0-9]+$' "$iid"
                 # discussions, not notes: each note needs its discussion id to be replied to
                 gl_get "projects/$GL_PROJ/merge_requests/$iid/discussions?per_page=100" > "$TMPD/tr.page"
-                jq -c --argjson pr "$iid" '.[] | .id as $tid | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id, in_reply_to: null, review_id: null}' "$TMPD/tr.page"
+                jq -c --argjson pr "$iid" '.[] | .id as $tid | (.notes[0].id // null) as $first | .notes[]? | select(.system != true) | {pr: $pr, comment_id: (.id | tostring), kind: (if .type == "DiffNote" or .position != null then "line" else "top" end), thread_id: $tid, user: .author.username, created_at, body: (.body // ""), authorized: "UNKNOWN", uid: .author.id, in_reply_to: (if .id == $first then null else ($first | tostring) end), review_id: null}' "$TMPD/tr.page"
             done ;;
         bitbucket)
             # BBQL: `updated_on > <instant>`, URL-encoded; the offset form, not Z
@@ -987,6 +1001,9 @@ trg_fetch() {
 # in a review body: `pulls/N/reviews`, only for those PRs updated since.
 # marked("finding"|"reply"): the body carries that marker in either form (a long-lived PR spans both).
 JQ_MARKED='def marked($k): test("bot-" + $k + "(\\s*-->|\\]:\\s*#)");'
+# An overview body this plugin posted: the review marker post/publish stamp, or, lacking it, the
+# opening the review template fixes in every language (its heading, or the LGTM line).
+JQ_OVERVIEW='def our_overview: marked("review") or test("\\A\\s*(### 🤖【AI REVIEW】Overview|\\*\\*LGTM 🌟\\*\\*)");'
 JQ_FINDINGS='def sev_of: [splits("\n") | sub("^[\\s>*_-]+"; "") | select(startswith("#") | not)
         | (if startswith("🔴") then "🔴" elif startswith("🟠") then "🟠" elif startswith("🔵") then "🔵"
            elif startswith("📝") then "📝" else empty end)][0] // empty;
@@ -1001,7 +1018,7 @@ trg_findings() {
     if [ "$V" = github ]; then
         jq -r --arg s "$SINCE_Z" 'select($s == "" or .updated_at > $s) | .pr' "$TMPD/fx.prs" | while IFS= read -r n; do
             check_ident '^[0-9]+$' "$n"
-            api_call; rl gh api --paginate "repos/$OWNER/$REPO/pulls/$n/reviews?per_page=100" > "$TMPD/fx.page"
+            gh_reviews "$n" > "$TMPD/fx.page"
             jq -c --argjson pr "$n" '.[] | select(.state != "PENDING")
                 | {pr: $pr, comment_id: (.id | tostring), kind: "review", thread_id: null, user: .user.login,
                    created_at: .submitted_at, body: (.body // ""), in_reply_to: null, review_id: (.id | tostring)}' "$TMPD/fx.page"
@@ -1065,20 +1082,24 @@ cmd_triggers() {
     # - a trigger a claim marker names (by anyone — the claim is the cross-machine lock), or one
     #   older than the newest claimed trigger on its PR (that claim answered the PR as it stood);
     # - one older than a review this plugin published on its PR, by a watcher or a manual run.
-    #   Plugin review = a finding marker (whoever posted it, as a claim marker): GitHub, a
-    #   submitted review whose body carries one or whose line comments do (review_id), never an
-    #   issue comment; GitLab and Bitbucket, a note/comment carrying one. Strictly after: GitHub stamps whole seconds, so a
-    #   same-second review is unordered against the trigger — asking again beats dropping a request.
+    #   Plugin review: GitHub, a submitted review whose body is our_overview or carries a finding
+    #   marker, or whose line comments carry one (review_id) — never an issue comment; GitLab and
+    #   Bitbucket, any note/comment carrying a finding marker, or a top-level one, not a reply, that
+    #   is our_overview. A finding marker counts whoever posted it, as a claim marker does.
+    #   Strictly after: GitHub stamps whole seconds, so a same-second review is unordered against the
+    #   trigger — asking again beats dropping a request.
     trg_pending() {
         jq -c -s --slurpfile prs "$TMPD/tr.prs" --slurpfile rev "$TMPD/tr.reviews" --arg since "$SINCE" \
-            --arg mf "$mf" --arg mr "$mr" --arg tok "$TOKEN" --arg v "$V" "$JQ_EPOCH$JQ_CLAIMS$JQ_MARKED"'
+            --arg mf "$mf" --arg mr "$mr" --arg tok "$TOKEN" --arg v "$V" "$JQ_EPOCH$JQ_CLAIMS$JQ_MARKED$JQ_OVERVIEW"'
         ($prs | map({key: (.pr | tostring), value: .}) | from_entries) as $open
         | ([.[].body | claims[]] | unique) as $claimed
         | (map(select(.comment_id as $c | $claimed | index([$c]))) | group_by(.pr)
            | map({key: (.[0].pr | tostring), value: (map(.created_at | epoch) | max)}) | from_entries) as $last
         | ([.[] | select(.review_id != null and (.body | marked("finding"))) | .review_id] | unique) as $rids
-        | ([.[] | select($v != "github" and (.body | marked("finding")))]
-           + [$rev[] | select((.body | marked("finding")) or (.review_id as $r | $rids | index([$r])))]
+        | ([.[] | select($v != "github" and ((.body | marked("finding"))
+                                             or (.kind == "top" and .in_reply_to == null and (.body | our_overview))))]
+           + [$rev[] | select((.body | marked("finding")) or (.body | our_overview)
+                              or (.review_id as $r | $rids | index([$r])))]
            | group_by(.pr) | map({key: (.[0].pr | tostring), value: (map(.created_at | epoch) | max)})
            | from_entries) as $reviewed
         | ($since | if . == "" then null else epoch end) as $after
@@ -1102,7 +1123,7 @@ cmd_triggers() {
     if [ "$V" = github ] && [ -s "$TMPD/tr.cand" ]; then
         jq -r '.pr' "$TMPD/tr.cand" | sort -u | while IFS= read -r n; do
             check_ident '^[0-9]+$' "$n"
-            gh_get "repos/$OWNER/$REPO/pulls/$n/reviews?per_page=100" > "$TMPD/tr.page"
+            gh_reviews "$n" > "$TMPD/tr.page"
             jq -c --argjson pr "$n" '.[] | select(.state != "PENDING" and .submitted_at != null)
                 | {pr: $pr, review_id: (.id | tostring), created_at: .submitted_at, body: (.body // "")}' "$TMPD/tr.page"
         done > "$TMPD/tr.reviews"
@@ -1194,12 +1215,19 @@ cmd_marker() {
     # claim markers name the trigger comment they lock: bot-claim:<comment id>
     # a report marker names the trigger whose review result it carries: bot-report:<comment id>
     case "$K" in claim|report) C=$(req comment_id); check_ident '^[0-9]+$' "$C"; K="$K:$C" ;; esac
-    case "$V/$K" in
-        github/finding|github/reply|github/claim:*|github/report:*|gitlab/finding|gitlab/reply|gitlab/claim:*|gitlab/report:*)
-            printf '<!-- bot-%s -->\n' "$K" ;;
-        bitbucket/finding|bitbucket/reply|bitbucket/claim:*|bitbucket/report:*)
-            printf '[bot-%s]: #\n' "$K" ;;
+    case "$K" in
+        finding|reply|claim:*|report:*) marker_text "$K" ;;
         *) die 1 "open-pr.sh marker: --kind finding|reply|claim|report (claim and report take --comment-id)" ;;
+    esac
+}
+# The marker literal of kind $1 in vendor $V's form: an HTML comment, or on Bitbucket (which escapes
+# raw HTML) a link reference definition. `review` is stamped by post/publish on every overview, so a
+# review of any shape (an LGTM line included) is known as this plugin's; prompts never write it.
+marker_text() {
+    case "$V" in
+        github|gitlab) printf '<!-- bot-%s -->\n' "$1" ;;
+        bitbucket) printf '[bot-%s]: #\n' "$1" ;;
+        *) die 1 "open-pr.sh marker: --vendor github|gitlab|bitbucket" ;;
     esac
 }
 

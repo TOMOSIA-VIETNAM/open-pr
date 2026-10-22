@@ -32,6 +32,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | triggers: `--quota-file` | `X-RateLimit-Limit/Remaining/Reset` from `gh api -i` (the conditional GETs; a 304 carries them too); window 1 h, default 5000 | `RateLimit-Limit/Remaining/Reset` from `glab api -i`, every page; window 1 min, no default (self-managed may send none) | `X-RateLimit-Limit/Remaining/NearLimit` from `curl -D`, every page; window 1 h, default 1000 |
 | open-prs (rate limit ⇒ exit 9, as triggers) | `pulls?state=open`, paginated | `merge_requests?state=opened`, paginated | `pullrequests?state=OPEN`, every `next` |
 | markers | HTML comments | HTML comments | link reference definitions (raw HTML is escaped there) |
+| review marker | `post` appends `<!-- bot-review -->` to the review body | `post` appends `<!-- bot-review -->` to the overview draft note | `publish` appends `[bot-review]: #` to the overview comment |
 
 `triggers` prints 1 JSON per line, identical on every vendor:
 `{"pr","url","pr_author","comment_id","kind","thread_id","user","created_at","body","authorized"}` — `kind` =
@@ -46,7 +47,12 @@ handled, and dropped, when any fetched comment carries its claim marker (whoever
 its trigger, so every vendor's fetch window that holds a trigger holds its claim. It is answered, and
 dropped, too when a review this plugin published on its PR came strictly after it — a watcher's or a
 manual run's alike: on GitHub a submitted (not PENDING) review whose body or line comments carry a
-finding marker, timed by `submitted_at`; on GitLab and Bitbucket a note/comment carrying one. A review in
+finding marker, or whose body is a plugin overview, timed by `submitted_at`; on GitLab and Bitbucket a
+note/comment carrying a finding marker, or a top-level one (not a reply) that is a plugin overview. A
+plugin overview carries the review marker `post`/`publish` append after a blank line to every overview
+body — the payload file is left as written, and `post-verify` matches a body with or without it — or,
+lacking it, opens with the review template's fixed `### 🤖【AI REVIEW】Overview`
+or `**LGTM 🌟**`. A review in
 the same second does not count (GitHub stamps whole seconds, so the order is unknown). `--backlog` reads every
 age (no `--since`) and prints one row per PR — its newest trigger by a user not judged `no`, plus
 `"backlog":true` and `"superseded"` (the ids of the older ones).
