@@ -27,7 +27,8 @@
 // the pid file written, then it quits.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, written into a .command file or passed to osascript as argv after matching OPEN_CMD,
-// passed to osascript as argv after matching TAB_ID, turned into `claude attach`/`--resume` after matching
+// passed to osascript as argv after matching TAB_ID (a tty `ps` lists among them), compared with `ps` args
+// after matching OPEN_CMD, turned into `claude attach`/`--resume` after matching
 // SESSION_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits or a
 // SETTINGS key and one of its values — never spliced into source.
 ObjC.import('Cocoa');
@@ -108,9 +109,9 @@ var TERMS = {
 // `on run argv`: the tab id or command arrives as an argument, never as source. Automation
 // permission is asked once; without it the app was already brought forward (goToTab).
 // FOCUS returns "found" so a closed tab can be told apart from a found one. argv: the tab id and
-// the tty the watcher runs on (liveTab). w, t and s are positional references ("item 1 of every
-// window"): `select w` moves the window to the front, so it comes last or t and s resolve in
-// another window.
+// the tty the watcher runs on (liveTab), or a session's tty (attachedTab; iTerm: id ""). w, t and s
+// are positional references ("item 1 of every window"): `select w` moves the window to the front, so
+// it comes last or t and s resolve in another window.
 var FOCUS = {
     'iTerm.app': [
         'on run argv',
@@ -118,7 +119,7 @@ var FOCUS = {
         'repeat with w in windows',
         'repeat with t in tabs of w',
         'repeat with s in sessions of t',
-        'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',
+        'if ((item 1 of argv) is "" or (unique id of s) is (item 1 of argv)) and (tty of s) is (item 2 of argv) then',
         'select t', 'select s', 'select w', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
     'Apple_Terminal': [
@@ -1241,16 +1242,45 @@ function copyText(t) {
     pb.clearContents;
     pb.setStringForType($(t), $.NSPasteboardTypeString);
 }
-function openTerminal(o) { if (o) openIn(str(o.term), str(o.open), snoozeFile); }
-// Runs cmd in a new tab of the terminal `term` names. iTerm does not run a .command file handed to
-// it (LaunchServices then falls back to Terminal), so it gets the command over AppleScript;
+function openTerminal(o) { if (o) openSession(str(o.term), str(o.open), snoozeFile); }
+// The terminal app openIn runs a command in, by TERM_PROGRAM: none recorded ⇒ iTerm while it runs
+// (the user then works in it); one openIn cannot drive ⇒ Terminal.
+function termApp(term) {
+    if (term === 'iTerm.app' || term === 'ghostty' || term === 'WezTerm') return term;
+    if (!term && $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.googlecode.iterm2').count > 0) return 'iTerm.app';
+    return 'Apple_Terminal';
+}
+function bundleId(term) { return TERMS[term][1]; }   // differs from the toast: its TERMS hold the id alone
+// FOCUS argv for the tab of app (a termApp value) where cmd already runs: the process on a tty whose
+// args are exactly cmd, the newest (highest pid) of several; null when none or app has no FOCUS.
+// ps: the output of `ps -A -o pid=,ppid=,tty=,args=`.
+function attachedTab(app, cmd, ps) {
+    var pid = -1, tty = '';
+    if (!FOCUS[app] || !OPEN_CMD.test(cmd)) return null;
+    String(ps || '').split('\n').forEach(function (l) {
+        var f = /^\s*(\d+)\s+\d+\s+(\S+)\s+(.*)$/.exec(l);
+        if (f && f[3].trim() === cmd && !/^(\?\??|-)$/.test(f[2]) && +f[1] > pid) { pid = +f[1]; tty = '/dev/' + f[2]; }
+    });
+    if (!TAB_ID.test(tty)) return null;
+    return app === 'iTerm.app' ? ['', tty] : [tty, tty];
+}
+// Brings forward the tab where cmd already runs (attachedTab), else runs cmd in a new one (openIn): a
+// second `attach` shows one session in two tabs. Tab not found ('') ⇒ a new one. A lookup that failed
+// or still waits on its permission prompt (null) opens nothing, as in goToTab: ps saw the session on a
+// tty, so its tab is there and a new one would be the duplicate; its app was brought forward.
+function openSession(term, cmd, snooze) {
+    var app = termApp(term), tab = attachedTab(app, cmd, output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty=,args=']));
+    if (!tab) return openIn(term, cmd, snooze);
+    spawn('/usr/bin/open', ['-b', bundleId(app)]);
+    return output('/usr/bin/osascript', script(FOCUS[app]).concat(tab)) !== '' || openIn(term, cmd, snooze);
+}
+// Runs cmd in a new tab of the terminal app termApp(term) names. iTerm does not run a .command file
+// handed to it (LaunchServices then falls back to Terminal), so it gets the command over AppleScript;
 // Terminal opens the file via LaunchServices, which needs no Automation permission; Ghostty and
-// WezTerm take it as a program; any other terminal ⇒ Terminal. The .command file sits next to
-// the snooze file.
+// WezTerm take it as a program. The .command file sits next to the snooze file.
 function openIn(term, cmd, snooze) {
     if (!OPEN_CMD.test(cmd)) return false;
-    // no terminal recorded: prefer iTerm when it runs, as the user then works in it
-    if (!term && $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.googlecode.iterm2').count > 0) term = 'iTerm.app';
+    term = termApp(term);
     if (term === 'iTerm.app') return spawn('/usr/bin/osascript', script(ITERM_NEW_TAB).concat([cmd]));
     if (!snooze) return false;
     var dir = snooze.replace(/\/[^\/]*$/, '') + '/sessions', fm = $.NSFileManager.defaultManager;
@@ -1328,7 +1358,7 @@ function goToTab(w) {
     var found = tab ? output('/usr/bin/osascript', script(src).concat(tab)) : '';
     // null: the lookup failed or is still waiting on a permission prompt — the tab may be there.
     var cmd = found === '' ? reopen(w, ps, function () { return output('/usr/bin/env', ['claude', 'agents', '--json']); }) : '';
-    if (cmd) openIn(w.term, cmd, snoozeFile);
+    if (cmd) openSession(w.term, cmd, snoozeFile);
 }
 function newTask(path, args) {
     var task = $.NSTask.alloc.init;

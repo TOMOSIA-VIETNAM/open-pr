@@ -2320,13 +2320,51 @@ def test_a_click_on_a_watcher_between_waits_focuses_its_tab_and_starts_nothing(w
     assert ["output", "/usr/bin/env", "claude"] in gone
 
 
+# `ps -A -o pid=,ppid=,tty=,args=`: two tabs attached to session 269289ac (ttys004, then ttys009 newer),
+# another session's attach (ttys005), the same command with no tty (a daemon), a resumed session (ttys006).
+PS_ARGS = ("1 0 ?? /sbin/launchd\n700 1 ttys004 claude attach 269289ac\n930 1 ttys009 claude attach 269289ac\n"
+           "800 1 ttys005 claude attach abcdef12\n990 1 ?? claude attach 269289ac\n"
+           f"810 1 ttys006 claude --resume {SID}\n820 1 ttys007 -zsh\n")
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_opening_a_session_already_attached_in_a_tab_brings_that_tab_forward(w):
+    """A second `attach` would show one session in two tabs: the newest tab running the command is focused."""
+    def run(term, cmd, answer="found", ps=PS_ARGS):
+        return _menubar_js(w, """var log = [];
+            spawn = function (p, a) { log.push(['spawn', p].concat(a)); return true; };
+            openIn = function (t, c) { log.push(['openIn', t, c]); return true; };
+            output = function (p, a) { log.push(['output', p].concat(p === '/bin/ps' ? a : a.slice(-2)));
+                return p === '/bin/ps' ? """ + json.dumps(ps) + """ : """ + json.dumps(answer) + """; };
+            openTerminal(""" + json.dumps({"term": term, "open": cmd}) + """);
+            return JSON.stringify(log);""")
+    ps = ["output", "/bin/ps", "-A", "-o", "pid=,ppid=,tty=,args="]
+    assert run("iTerm.app", "claude attach 269289ac") == [
+        ps, ["spawn", "/usr/bin/open", "-b", "com.googlecode.iterm2"], ["output", "/usr/bin/osascript", "", "/dev/ttys009"]]
+    assert run("Apple_Terminal", "claude attach 269289ac") == [
+        ps, ["spawn", "/usr/bin/open", "-b", "com.apple.Terminal"], ["output", "/usr/bin/osascript", "/dev/ttys009", "/dev/ttys009"]]
+    assert run("WarpTerminal", f"claude --resume {SID}")[-1] == ["output", "/usr/bin/osascript", "/dev/ttys006", "/dev/ttys006"], \
+        "a terminal openIn cannot drive opens in Terminal: the tab is looked for there"
+    assert run("iTerm.app", "claude attach 1234abcd") == [ps, ["openIn", "iTerm.app", "claude attach 1234abcd"]], "none attached"
+    assert run("iTerm.app", "claude attach 269289ac", answer="")[-1] == ["openIn", "iTerm.app", "claude attach 269289ac"], \
+        "its tab not found: a new one"
+    assert not [x for x in run("iTerm.app", "claude attach 269289ac", answer=None) if x[0] == "openIn"], \
+        "a lookup refused or still waiting on permission: the tab ps saw is there"
+    assert run("iTerm.app", "claude attach 269289ac", ps=None)[-1] == ["openIn", "iTerm.app", "claude attach 269289ac"]
+    assert run("ghostty", "claude attach 269289ac") == [ps, ["openIn", "ghostty", "claude attach 269289ac"]], "no FOCUS for it"
+    got = _menubar_js(w, "return JSON.stringify(" + json.dumps(["claude attach abcdef12", "claude attach 269289a",
+                                                               "claude attach 269289ac; id", "-zsh", ""]) +
+                         ".map(function (c) { return attachedTab('iTerm.app', c, " + json.dumps(PS_ARGS + "830 1 ttys008 claude attach 269289ac; id\n840 1 ttys003 -zsh\n") + "); }));")
+    assert got == [["", "/dev/ttys005"], None, None, None, None], "only the exact command, only in its shape"
+
+
 def test_the_toast_and_the_menu_bar_find_a_tab_and_draw_severity_marks_the_same_way():
     toast = (REPO / "src" / "bin" / "open-pr-toast.js").read_text()
     body = lambda src, name: re.search(rf"^function {name}\(.*?^\}}$", src, re.S | re.M).group(0)
-    for name in ("tabId", "hostTty", "liveTab", "reopen", "smallMarks"):
+    for name in ("tabId", "hostTty", "liveTab", "reopen", "termApp", "attachedTab", "openSession", "openIn", "smallMarks"):
         assert body(toast, name) == body(MENUBAR.read_text(), name), name
     for src in (toast, MENUBAR.read_text()):
-        assert "'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',\n" \
+        assert "'if ((item 1 of argv) is \"\" or (unique id of s) is (item 1 of argv)) and (tty of s) is (item 2 of argv) then',\n" \
                "        'select t', 'select s', 'select w', 'activate', 'return \"found\"'," in src
 
 
