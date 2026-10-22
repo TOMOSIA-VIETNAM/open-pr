@@ -1352,9 +1352,11 @@ def test_a_new_request_never_cuts_a_conversation_in_a_finished_session(w):
 
 
 def test_a_question_left_unanswered_holds_a_new_request_only_for_a_while(w):
-    """After the grace period a new request goes ahead (stop + resume), not queued forever."""
+    """After the grace period a new request goes ahead (stop + resume), not queued forever. Only a
+    question holds it: a session blocked after its run's final result holds nothing."""
     sp = finish(w)
     w.claude_set(sp["id"], "blocked")
+    w.status_file(5, state="question", question="Publish the draft?")
     assert w.spawn(5, text="again")["reason"] == "session in use"
     assert w.run("wait", "--once").stdout == "", "within the grace period"
     st = w.state()
