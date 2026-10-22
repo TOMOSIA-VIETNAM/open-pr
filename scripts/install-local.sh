@@ -358,6 +358,13 @@ install_one() {
   if [ "$kind" = marketplace ]; then
     claude_or_skip || return 0
     claude plugin marketplace add "$MARKETPLACE" || { claude_failed "marketplace add"; return 0; }
+    # `plugin install` leaves an installed copy as it is: an install already there is updated to
+    # this checkout instead, as the symlinked platforms already are.
+    if is_installed "$member"; then
+      claude plugin update "open-pr@open-pr" || { claude_failed update; return 0; }
+      say '\nUpdated open-pr in Claude Code. Restart Claude Code to load it.\n'
+      return 0
+    fi
     claude plugin install "open-pr@open-pr" || { claude_failed install; return 0; }
     say '\nInstalled into Claude Code. Commands: /open-pr:review /open-pr:fix /open-pr:upgrade /open-pr:clean /open-pr:feedback\n'
     say 'Update:    claude plugin update open-pr@open-pr\n'
