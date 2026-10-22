@@ -1086,13 +1086,14 @@ def test_commit_url_gitlab_without_a_host_fails_and_prints_no_link():
 
 
 def test_req_runs_only_where_its_failure_stops_the_script():
-    """`set -e` stops on a failing `$(...)` only when it is (part of) an assignment's value; as a
-    command's argument its exit is lost and the empty value flows on."""
+    """`set -e` stops on a failing `$(...)` only when it is (part of) a plain assignment's value; as a
+    command's argument, or under `export`/`readonly`/`local`, its exit is lost and the empty value flows on."""
     bad = [f"{p.name}:{i}: {line.strip()}"
            for p in sorted((REPO / "src" / "bin").glob("*.sh"))
            for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
            for m in re.finditer(r"\$\(req ", line)
-           if not re.search(r"(?:^|[\s;({])[A-Za-z_][A-Za-z0-9_]*=\"?[^\s\"]*$", line[:m.start()])]
+           if not re.search(r"(?:^|[\s;({])[A-Za-z_][A-Za-z0-9_]*=\"?[^\s\"]*$", line[:m.start()])
+           or re.search(r"\b(?:export|readonly|local)\s+[A-Za-z_][A-Za-z0-9_]*=\S*$", line[:m.start()])]
     assert not bad, bad
 
 
