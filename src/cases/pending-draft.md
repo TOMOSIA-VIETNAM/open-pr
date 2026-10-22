@@ -15,5 +15,5 @@ nothing of this run was posted. Its stdout: `draft_id=<I>`, `commit=<C>` (`UNKNO
 
   - Publish → `<op> publish --review-id <I>`, then `<op> post-verify --review-id <I>`. This run's
     payload is never posted. Report it as Step 9 does, saying the published review is the earlier
-    draft at `<C>`; watch session: `commit` = `<C>`.
+    draft at `<C>`; watch session: `commit` = `<C>`, `counts` = this run's (the draft's are not read).
   - Discard → `<op> discard --draft-id <I>`, then `<op> post` again and go on with Step 9.

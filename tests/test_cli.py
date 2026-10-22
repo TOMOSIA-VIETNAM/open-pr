@@ -688,6 +688,11 @@ def test_discard_removes_only_the_plugins_own_draft_it_was_named(shims, tmp_path
     r = _discard(shims, "github", "5", "900")
     assert (r.returncode, r.stdout) == (0, "DISCARDED\n"), r.stderr
     assert "gh api -X DELETE repos/o/r/pulls/5/reviews/900" in shims["log"].read_text()
+    serve(shims, "gh", [("reviews/900/events", "COMMENTED\n")])
+    r = run("publish", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5", "--review-id", "900",
+            env_extra=env_for(shims))
+    assert r.stdout == "COMMENTED\n", "publishing the draft as it is: the case's other answer"
+    assert "-X POST repos/o/r/pulls/5/reviews/900/events -f event=COMMENT" in shims["log"].read_text()
     serve(shims, "glab", GL_PENDING(GL_LINE, GL_OVERVIEW))
     assert _discard(shims, "gitlab", "9", "31,32").stdout == "DISCARDED\n"
     calls = shims["log"].read_text()

@@ -13,6 +13,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | PR checkout | `refs/pull/<n>/head` | `refs/merge-requests/<n>/head` | fetch source branch, detach at the PR's commit hash; unreachable hash = force-push, exit 3 |
 | unpublished stage | PENDING review object | draft notes | none — the payload file is the stage; publish POSTs one comment per part, overview first |
 | publish | review event COMMENT | `bulk_publish` | per-part POST |
+| pending draft (`post` exit 8, `discard`) | the PENDING review, listed to its author alone; DELETE it | the caller's draft notes, listed to them alone; DELETE each | NO-EQUIVALENT — nothing is staged on the PR |
 | post-verify | review state by id | draft_notes emptied ⇔ published | marker-filtered comment scan (`--marker`) |
 | FILE-level reviews | review objects | NO-EQUIVALENT | NO-EQUIVALENT |
 | account | login | username | nickname, or UNKNOWN under a workspace token (401 on /user is BY DESIGN) |
