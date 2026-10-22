@@ -658,7 +658,7 @@ def test_post_github_stops_on_the_callers_pending_review_and_names_it(shims, tmp
     serve(shims, "gh", GH_PENDING(body))
     r = _post(shims, tmp_path, "github", "5")
     assert r.returncode == 8, r.stderr
-    assert r.stdout.splitlines() == ["draft_id=900", "commit=" + "b" * 40, f"ours={ours}"]
+    assert r.stdout.splitlines() == ["draft_id=900", "commit=" + "b" * 40, f"ours={ours}", f"overview={ours}"]
     assert "-X POST" not in shims["log"].read_text(), "nothing posted beside the draft"
 
 
@@ -666,12 +666,29 @@ def test_post_gitlab_never_sends_leftover_draft_notes_out_with_a_new_review(shim
     serve(shims, "glab", GL_PENDING(GL_LINE, GL_OVERVIEW))
     r = _post(shims, tmp_path, "gitlab", "9")
     assert r.returncode == 8, r.stderr
-    assert r.stdout.splitlines() == ["draft_id=31,32", "commit=" + "d" * 40, "ours=true"]
+    assert r.stdout.splitlines() == ["draft_id=31,32", "commit=" + "d" * 40, "ours=true", "overview=true"]
     calls = shims["log"].read_text()
     assert "-X POST" not in calls and "bulk_publish" not in calls
     serve(shims, "glab", GL_PENDING(GL_LINE, GL_HUMAN))
-    assert _post(shims, tmp_path, "gitlab", "9").stdout.splitlines()[-1] == "ours=false", \
+    assert _post(shims, tmp_path, "gitlab", "9").stdout.splitlines()[2] == "ours=false", \
         "one note the plugin did not write makes the set a person's"
+    serve(shims, "glab", GL_PENDING(GL_LINE))
+    assert _post(shims, tmp_path, "gitlab", "9").stdout.splitlines()[2:] == ["ours=true", "overview=false"], \
+        "a post that failed part-way left findings without their overview"
+
+
+def test_post_verify_gitlab_without_a_payload_links_the_newest_plugin_overview(shims):
+    """Publishing an earlier draft leaves no payload to match: its overview is the newest marked one."""
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [
+            {"id": 13, "body": "a person's comment", "position": None, "system": False},
+            {"id": 12, "body": "🔵 x\n\n<!-- bot-finding -->", "position": {"new_line": 2}, "system": False},
+            {"id": 11, "body": "**LGTM 🌟** (commit x)\n\n<!-- bot-review -->", "position": None, "system": False},
+            {"id": 10, "body": "older\n\n<!-- bot-review -->", "position": None, "system": False}]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
+    r = run("post-verify", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", env_extra=env_for(shims), check=True)
+    assert r.stdout.splitlines() == ["PUBLISHED", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
 
 
 def test_post_without_a_pending_draft_posts_as_before(shims, tmp_path):

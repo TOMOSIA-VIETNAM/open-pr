@@ -133,7 +133,7 @@ Per trigger `{"event":"trigger",…}` (`pr` = N):
    - started ⇒ 1 chat line with its `open`; `warning` ⇒ also in chat.
 
 "notify E" = `Write` `<F>` — line 1 a short summary in `chat_language` with `#N` (reviewing, posted
-with the per-severity counts, LGTM when none, draft waiting, needs an answer, failed); line 2 the PR
+with the per-severity counts, LGTM when `{}`, its `note` when `null`, draft waiting, needs an answer, failed); line 2 the PR
 title, or the `open` command when the user must act (a question, a draft) — then `<watch> notify
 --event E --text-file <F> --pr N --url <PR url>` + where a click takes the user: `--focus session` for
 a question inside a review session, `--focus watcher` for your own question or an error, else nothing
@@ -154,7 +154,7 @@ Per `{"event":"session",…}` (it carries `open`; `role: fix` ⇒ `cases/watch-f
 
 Report — on `posted` only (a draft once rewritten to it), no other state: `Write` `<prompts>/pr-N.report.md`
 in the claim's language: posted (commit `<op> commit-url --sha <status file commit>`): counts as
-"notify" words them, LGTM when none, + ` — <status file's `review_url`>` (empty ⇒ no link). `<op> report
+"notify" words them + ` — <status file's `review_url`>` (empty ⇒ no link). `<op> report
 --body-file <it>` + `<request thread>`; none ⇒ no report. `reported` = done before. `<request thread>` =
 the event's `request`, else what `<op> last-claim … --pr N` prints, as `--comment-id`, `--kind`,
 `--thread-id` when not null.

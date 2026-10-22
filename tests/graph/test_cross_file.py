@@ -345,3 +345,8 @@ def test_a_pending_draft_post_is_routed_to_its_case_before_any_other_post_error(
     for call in ("`<op> discard --draft-id <I>`", "`<op> publish --review-id <I>`"):
         assert call in case
     assert "`ours=false` — a person's own pending review. FORBIDDEN: publishing or discarding it" in case
+    assert "| `overview=false` | `Discard it and post this review` |" in case, "a part-way post is never published"
+    # a published earlier draft has no counts this run read: the watcher words its note, never LGTM
+    assert "`counts` = `null`" in case and "this run's" not in case
+    watch = " ".join(text(SRC / "commands" / "watch.md").split())
+    assert "LGTM when `{}`, its `note` when `null`" in watch

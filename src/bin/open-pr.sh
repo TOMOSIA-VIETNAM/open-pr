@@ -563,13 +563,15 @@ pending_draft() {
         github)
             gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews?per_page=100" \
                 | jq -c -s "$JQ_MARKED$JQ_OVERVIEW"'[.[] | .[]? | objects | select(.state == "PENDING")][0] // empty
-                    | {id: (.id | tostring), commit: (.commit_id // "UNKNOWN"), ours: ((.body // "") | our_overview)}' ;;
+                    | {id: (.id | tostring), commit: (.commit_id // "UNKNOWN"), ours: ((.body // "") | our_overview)}
+                    | .overview = .ours' ;;
         gitlab)
             glab api --paginate "projects/$GL_PROJ/merge_requests/$N/draft_notes?per_page=100" \
                 | jq -c -s "$JQ_MARKED$JQ_OVERVIEW"'[.[] | .[]? | objects] | select(length > 0)
                     | {id: (map(.id | tostring) | join(",")),
                        commit: ([.[] | .commit_id // .position.head_sha // empty][0] // "UNKNOWN"),
-                       ours: all(.[]; (.note // "") | our_overview or marked("finding"))}' ;;
+                       ours: all(.[]; (.note // "") | our_overview or marked("finding")),
+                       overview: any(.[]; (.note // "") | our_overview)}' ;;
         bitbucket) ;;
     esac
 }
@@ -581,7 +583,7 @@ cmd_post() {
     # GitHub refuses a second pending review; GitLab's publish would send old draft notes out too.
     pending_draft > "$TMPD/pending.json"
     if [ -s "$TMPD/pending.json" ]; then
-        jq -r '"draft_id=\(.id)", "commit=\(.commit)", "ours=\(.ours)"' "$TMPD/pending.json"
+        jq -r '"draft_id=\(.id)", "commit=\(.commit)", "ours=\(.ours)", "overview=\(.overview)"' "$TMPD/pending.json"
         die 8 "open-pr.sh post: an unpublished review of yours already sits on PR $N; nothing was posted"
     fi
     RM=$(review_stamp)
@@ -675,11 +677,16 @@ cmd_post_verify() {
         gitlab)
             left=$(glab api "projects/$GL_PROJ/merge_requests/$N/draft_notes" | jq 'length')
             if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi
-            if [ "$left" = 0 ] && [ -n "$P" ]; then
+            if [ "$left" = 0 ]; then
                 glab api "projects/$GL_PROJ/merge_requests/$N/notes?sort=desc&order_by=created_at&per_page=100" > "$TMPD/pv.notes"
-                id=$(jq -r --slurpfile p "$P" --arg m "$(marker_text review)" '($p[0].body | sub("\\s+$"; "")) as $b
-                    | [.[] | select(.system != true and .position == null
-                                    and ((.body // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "")) == $b)][0].id // empty' "$TMPD/pv.notes")
+                # no payload (an earlier draft published as it was): the newest overview this plugin stamped
+                if [ -n "$P" ]; then
+                    id=$(jq -r --slurpfile p "$P" --arg m "$(marker_text review)" '($p[0].body | sub("\\s+$"; "")) as $b
+                        | [.[] | select(.system != true and .position == null
+                                        and ((.body // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "")) == $b)][0].id // empty' "$TMPD/pv.notes")
+                else
+                    id=$(jq -r "$JQ_MARKED"'[.[] | select(.system != true and .position == null and ((.body // "") | marked("review")))][0].id // empty' "$TMPD/pv.notes")
+                fi
                 [ -z "$id" ] || { check_ident '^[0-9]+$' "$id"; gl_mr_cached "$N" | jq -r --arg id "$id" '.web_url // empty | . + "#note_" + $id' > "$TMPD/pv.url"; }
             fi ;;
         bitbucket)
@@ -1676,7 +1683,8 @@ Subcommands:
       first)
   post-verify [--review-id I] [--marker M] [--payload F]
       what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line
-      `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body)
+      `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else
+      GitLab's newest plugin one)
   reply --comment-id C --body-file F [--kind line|top] [--thread-id T]
       reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the
       thread holding C

@@ -28,7 +28,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
 | `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |
 | `publish [--review-id I] [--payload F]` | make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview first) |
-| `post-verify [--review-id I] [--marker M] [--payload F]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body) |
+| `post-verify [--review-id I] [--marker M] [--payload F]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else GitLab's newest plugin one) |
 | `reply --comment-id C --body-file F [--kind line\|top] [--thread-id T]` | reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the thread holding C |
 | `resolve --thread-id T` | resolve a review thread |
 | `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
