@@ -1274,7 +1274,7 @@ cmd_commit_url() {
     short=$(printf '%.7s' "$SHA")
     case "$V" in
         github)    printf '[%s](https://github.com/%s/%s/commit/%s)\n' "$short" "$OWNER" "$REPO" "$SHA" ;;
-        gitlab)    printf '[%s](https://%s/%s/%s/-/commit/%s)\n' "$short" "$(req host)" "$OWNER" "$REPO" "$SHA" ;;
+        gitlab)    H=$(req host); printf '[%s](https://%s/%s/%s/-/commit/%s)\n' "$short" "$H" "$OWNER" "$REPO" "$SHA" ;;
         bitbucket) printf '[%s](https://bitbucket.org/%s/%s/commits/%s)\n' "$short" "$OWNER" "$REPO" "$SHA" ;;
     esac
 }

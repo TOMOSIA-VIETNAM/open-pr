@@ -1080,6 +1080,22 @@ def test_markers_and_commit_urls_stay_vendor_true():
     assert "/commits/" in url, "bitbucket's commit path is /commits/ plural — /commit/ 404s"
 
 
+def test_commit_url_gitlab_without_a_host_fails_and_prints_no_link():
+    r = run("commit-url", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--sha", "a" * 40)
+    assert r.returncode != 0 and r.stdout == "", "a hostless link https:///o/r/... reads as a real one"
+
+
+def test_req_runs_only_where_its_failure_stops_the_script():
+    """`set -e` stops on a failing `$(...)` only when it is (part of) an assignment's value; as a
+    command's argument its exit is lost and the empty value flows on."""
+    bad = [f"{p.name}:{i}: {line.strip()}"
+           for p in sorted((REPO / "src" / "bin").glob("*.sh"))
+           for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+           for m in re.finditer(r"\$\(req ", line)
+           if not re.search(r"(?:^|[\s;({])[A-Za-z_][A-Za-z0-9_]*=\"?[^\s\"]*$", line[:m.start()])]
+    assert not bad, bad
+
+
 def test_bitbucket_threads_group_replies_under_their_root(shims, tmp_path):
     """The first shipped jq iterated the ELEMENT inside map(f), indexing numbers with
     "parent" — exit 5 on any PR with one comment, which broke fix.md Step 3 and
