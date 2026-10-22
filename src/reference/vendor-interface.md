@@ -23,7 +23,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | claim: delete (lost race) | `line`: DELETE `pulls/comments/:id`; `top`: DELETE `issues/comments/:id` | DELETE `merge_requests/:iid/notes/:id` | DELETE `pullrequests/:id/comments/:id` |
 | last-claim | the claims `claim` lists; `line` = a review comment, its `in_reply_to_id` the thread | the claim note's discussion | `parent` = C, no thread id |
 | repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
-| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time; `--backlog`: each open PR's `issues/:n/comments` + `pulls/:n/comments`, conditional with `--cache-dir` | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time; `--backlog`: each open PR's `issues/:n/comments` + `pulls/:n/comments`, conditional with `--cache-dir`; then `pulls/:n/reviews` (conditional too) for each PR still holding a trigger, poll and `--backlog` alike | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |
 | triggers: rate limit ⇒ exit 9 | HTTP 403/429 naming a rate limit (primary or secondary), or `X-RateLimit-Remaining: 0`, the permission lookup included | HTTP 429, the membership lookup included | HTTP 429 |
 | triggers: `thread_id` | a review-comment reply: its thread's root comment id (no reply to a reply there), else null | the note's discussion id — what `reply`/`claim --thread-id` take | null |
 | triggers: `authorized` | `collaborators/:login/permission` `permission` ∈ admin/write (maintain and a custom role on write count as write), one call per author of a trigger, conditional with `--cache-dir`; 404 or a login outside `^[A-Za-z0-9][A-Za-z0-9-]*$` = `no`; any other failure = exit 1 | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |
@@ -43,7 +43,11 @@ carrying a finding or reply marker, or a claim marker in either form — the plu
 logged-in account's plain comments count: one person may be both developer and reviewer. A trigger is
 handled, and dropped, when any fetched comment carries its claim marker (whoever wrote it — the same rule
 `claim` locks by) or when it is older than the newest claimed trigger on its PR. A claim always follows
-its trigger, so every vendor's fetch window that holds a trigger holds its claim. `--backlog` reads every
+its trigger, so every vendor's fetch window that holds a trigger holds its claim. It is answered, and
+dropped, too when a review this plugin published on its PR came strictly after it — a watcher's or a
+manual run's alike: on GitHub a submitted (not PENDING) review whose body or line comments carry a
+finding marker, timed by `submitted_at`; on GitLab and Bitbucket a note/comment carrying one. A review in
+the same second does not count (GitHub stamps whole seconds, so the order is unknown). `--backlog` reads every
 age (no `--since`) and prints one row per PR — its newest trigger by a user not judged `no`, plus
 `"backlog":true` and `"superseded"` (the ids of the older ones).
 `--findings-file` rows, same on every vendor: `{"pr","url","head_branch","review_id","comment_id","thread_id","kind",

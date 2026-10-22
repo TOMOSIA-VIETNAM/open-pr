@@ -985,6 +985,8 @@ trg_fetch() {
 # --fix-author, or listed in --fix-prs): {pr, url, title, head_branch, review_id, comment_id, thread_id, kind, user,
 # created_at, counts}; counts = unreplied findings per severity emoji. GitHub keeps FILE findings
 # in a review body: `pulls/N/reviews`, only for those PRs updated since.
+# marked("finding"|"reply"): the body carries that marker in either form (a long-lived PR spans both).
+JQ_MARKED='def marked($k): test("bot-" + $k + "(\\s*-->|\\]:\\s*#)");'
 JQ_FINDINGS='def sev_of: [splits("\n") | sub("^[\\s>*_-]+"; "") | select(startswith("#") | not)
         | (if startswith("🔴") then "🔴" elif startswith("🟠") then "🟠" elif startswith("🔵") then "🔵"
            elif startswith("📝") then "📝" else empty end)][0] // empty;
@@ -1006,19 +1008,19 @@ trg_findings() {
         done > "$TMPD/fx.reviews"
     fi
     cat "$TMPD/tr.all" "$TMPD/fx.reviews" | jq -c -s --slurpfile prs "$TMPD/fx.prs" --arg since "$SINCE" \
-        "$JQ_EPOCH$JQ_FINDINGS"'
+        "$JQ_EPOCH$JQ_MARKED$JQ_FINDINGS"'
         ($prs | map({key: (.pr | tostring), value: .}) | from_entries) as $fix
         | ($since | if . == "" then null else epoch end) as $after
         | . as $all
         # a review left as a draft and published later: its line comments keep their creation time
         | [.[] | select(.kind == "review" and .created_at != null and ($after == null or (.created_at | epoch) > $after))
            | .review_id] as $published
-        | [.[] | select($fix[.pr | tostring] != null and (.body | test("bot-finding(\\s*-->|\\]:\\s*#)"))
+        | [.[] | select($fix[.pr | tostring] != null and (.body | marked("finding"))
                          and .created_at != null
                          and ($after == null or (.created_at | epoch) > $after
                               or (.review_id as $r | $r != null and ($published | index([$r]) != null)))) | . as $f
            | select(.kind == "review"
-                    or ([$all[] | select(.comment_id != $f.comment_id and (.body | test("bot-reply(\\s*-->|\\]:\\s*#)"))
+                    or ([$all[] | select(.comment_id != $f.comment_id and (.body | marked("reply"))
                                          and ((.in_reply_to != null and .in_reply_to == $f.comment_id)
                                               or ($f.thread_id != null and .thread_id == $f.thread_id)))] | length) == 0)
            | . + {counts: (.body | counts), url: $fix[.pr | tostring].url, title: $fix[.pr | tostring].title, head_branch: $fix[.pr | tostring].head_branch}]
@@ -1059,14 +1061,26 @@ cmd_triggers() {
     # Marker-carrying (plugin-authored) comments are excluded, so a posted review never triggers
     # the next. The watcher's own account may ask: one person can be developer and reviewer.
     # An @login token matches case-insensitively, as logins do.
-    # Handled: a trigger a claim marker names (by anyone — the claim is the cross-machine lock), or
-    # one older than the newest claimed trigger on its PR (that claim answered the PR as it stood).
-    jq -c -s --slurpfile prs "$TMPD/tr.prs" --arg since "$SINCE" --arg mf "$mf" --arg mr "$mr" \
-        --arg tok "$TOKEN" "$JQ_EPOCH$JQ_CLAIMS"'
+    # Answered, so dropped:
+    # - a trigger a claim marker names (by anyone — the claim is the cross-machine lock), or one
+    #   older than the newest claimed trigger on its PR (that claim answered the PR as it stood);
+    # - one older than a review this plugin published on its PR, by a watcher or a manual run.
+    #   Plugin review = a finding marker (whoever posted it, as a claim marker): GitHub, a
+    #   submitted review whose body carries one or whose line comments do (review_id), never an
+    #   issue comment; GitLab and Bitbucket, a note/comment carrying one. Strictly after: GitHub stamps whole seconds, so a
+    #   same-second review is unordered against the trigger — asking again beats dropping a request.
+    trg_pending() {
+        jq -c -s --slurpfile prs "$TMPD/tr.prs" --slurpfile rev "$TMPD/tr.reviews" --arg since "$SINCE" \
+            --arg mf "$mf" --arg mr "$mr" --arg tok "$TOKEN" --arg v "$V" "$JQ_EPOCH$JQ_CLAIMS$JQ_MARKED"'
         ($prs | map({key: (.pr | tostring), value: .}) | from_entries) as $open
         | ([.[].body | claims[]] | unique) as $claimed
         | (map(select(.comment_id as $c | $claimed | index([$c]))) | group_by(.pr)
            | map({key: (.[0].pr | tostring), value: (map(.created_at | epoch) | max)}) | from_entries) as $last
+        | ([.[] | select(.review_id != null and (.body | marked("finding"))) | .review_id] | unique) as $rids
+        | ([.[] | select($v != "github" and (.body | marked("finding")))]
+           + [$rev[] | select((.body | marked("finding")) or (.review_id as $r | $rids | index([$r])))]
+           | group_by(.pr) | map({key: (.[0].pr | tostring), value: (map(.created_at | epoch) | max)})
+           | from_entries) as $reviewed
         | ($since | if . == "" then null else epoch end) as $after
         | ("\\A\\s*" + ($tok | gsub("(?<c>[^A-Za-z0-9_])"; "\\\(.c)")) + "(\\s|\\z)") as $re
         | (if ($tok | startswith("@")) then "i" else "" end) as $fl
@@ -1075,9 +1089,25 @@ cmd_triggers() {
             | select((.body | contains($mf)) or (.body | contains($mr)) or (.body | contains("bot-claim:")) or (.body | contains("bot-report:")) | not)
             | select(.comment_id as $c | $claimed | index([$c]) | not)
             | select(($last[.pr | tostring] // null) as $l | $l == null or (.created_at | epoch) > $l)
+            | select(($reviewed[.pr | tostring] // null) as $r | $r == null or (.created_at | epoch) >= $r)
             | select($after == null or (.created_at | epoch) > $after)
             | . + {url: $open[.pr | tostring].url, title: $open[.pr | tostring].title, pr_author: $open[.pr | tostring].author} ]
-        | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all" > "$TMPD/tr.cand"
+        | sort_by(.created_at | epoch) | .[]' "$TMPD/tr.all"
+    }
+    : > "$TMPD/tr.reviews"
+    trg_pending > "$TMPD/tr.cand"
+    # GitHub keeps a review apart from its comments: `pulls/N/reviews`, only for a PR that still has
+    # a pending trigger, so a poll spends no call on a PR nobody asked about. A draft (PENDING) has
+    # no submitted_at and is no answer.
+    if [ "$V" = github ] && [ -s "$TMPD/tr.cand" ]; then
+        jq -r '.pr' "$TMPD/tr.cand" | sort -u | while IFS= read -r n; do
+            check_ident '^[0-9]+$' "$n"
+            gh_get "repos/$OWNER/$REPO/pulls/$n/reviews?per_page=100" > "$TMPD/tr.page"
+            jq -c --argjson pr "$n" '.[] | select(.state != "PENDING" and .submitted_at != null)
+                | {pr: $pr, review_id: (.id | tostring), created_at: .submitted_at, body: (.body // "")}' "$TMPD/tr.page"
+        done > "$TMPD/tr.reviews"
+        trg_pending > "$TMPD/tr.cand"
+    fi
     printf '{}\n' > "$TMPD/tr.auth"
     case "$V" in
     # Only comments that already match the trigger get a lookup, once per distinct author.
@@ -1636,7 +1666,7 @@ Internal subcommands (open-pr-watch.sh's own; no prompt calls them):
   repo-target --repo-dir D [--remote R]
       D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines; no common option
   triggers [--since T | --backlog] [--mark-file F] [--token K] [--cache-dir C] [--quota-file Q] [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
-      the poll, no `--pr`: comments on open PRs opening with K (default `/open-pr`), not yet claimed,
+      the poll, no `--pr`: comments on open PRs opening with K (default `/open-pr`), not yet claimed or reviewed,
       JSONL; `--backlog`: every age, one per PR (its newest, `"backlog":true`, `"superseded"` = the older
       ids), none by a user without write access; F2 gets
       the reviews this plugin posted on A's PRs or the listed ones; GitHub GETs are conditional on the

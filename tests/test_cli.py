@@ -10,6 +10,7 @@ vendor_lint.py covers what shims cannot: that a flag exists on the real gh/glab.
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -1299,9 +1300,9 @@ def gh_issue(cid, pr, login, at, body):
             "created_at": at, "body": body}
 
 
-def gh_line(cid, pr, login, at, body, reply_to=None):
+def gh_line(cid, pr, login, at, body, reply_to=None, review=None):
     return {"id": cid, "pull_request_url": f"https://api.github.com/repos/o/r/pulls/{pr}", "user": {"login": login},
-            "created_at": at, "body": body, "in_reply_to_id": reply_to}
+            "created_at": at, "body": body, "in_reply_to_id": reply_to, "pull_request_review_id": review}
 
 
 GH_PERMS = [("collaborators/dev/permission", {"permission": "write"}),
@@ -1464,6 +1465,112 @@ def test_triggers_bitbucket_lists_only_the_prs_updated_since(shims):
     assert "q=updated_on" not in shims["log"].read_text()
 
 
+# --------------------------------------------- triggers: answered by a review ----
+# A review this plugin published after a trigger answers it, whether a watcher or a manual
+# `/open-pr:review` posted it: the person who reviewed by hand and then starts a watcher is not asked again.
+
+def gh_review(rid, at, body, state="COMMENTED"):
+    return {"id": rid, "state": state, "submitted_at": at, "body": body, "user": {"login": "bot"}}
+
+
+T = lambda s: f"2026-01-01T00:00:{s:02d}Z"
+MARK_GH = "\n\n<!-- bot-finding -->"
+GH_ANSWERED = [
+    ("pulls?state=open", [{"number": n, "html_url": f"u{n}"} for n in (5, 6, 7, 8, 9, 10, 11)]),
+    ("issues/comments", [
+        gh_issue(50, 5, "dev", T(1), "/open-pr"),
+        gh_issue(60, 6, "dev", T(1), "/open-pr"),
+        gh_issue(70, 7, "dev", T(0), "/open-pr before the review"),
+        gh_issue(71, 7, "dev", T(3), "/open-pr after the review"),
+        gh_issue(80, 8, "dev", T(1), "/open-pr"),
+        gh_issue(90, 9, "dev", T(1), "/open-pr"),
+        gh_issue(100, 10, "dev", T(2), "/open-pr"),
+        gh_issue(110, 11, "dev", T(1), "no request here")]),
+    # a LINE-only review: its body says nothing, its line comment keeps the draft's creation time
+    ("pulls/comments", [gh_line(61, 6, "bot", T(0), "🔵 x" + MARK_GH, review=601)]),
+    ("pulls/5/reviews", [gh_review(501, T(3), "### Overview\n🔴 x" + MARK_GH)]),
+    ("pulls/6/reviews", [gh_review(601, T(3), "")]),
+    ("pulls/7/reviews", [gh_review(701, T(2), "🔴 x" + MARK_GH)]),
+    ("pulls/8/reviews", [gh_review(801, None, "🔴 x" + MARK_GH, state="PENDING")]),
+    ("pulls/9/reviews", [gh_review(901, T(3), "LGTM, a human's review")]),
+    ("pulls/10/reviews", [gh_review(1001, T(2), "🔴 x" + MARK_GH)]),
+    ("pulls/11/reviews", [gh_review(1101, T(3), "🔴 x" + MARK_GH)]),
+] + GH_PERMS
+
+
+def test_triggers_github_a_plugin_review_after_a_trigger_answers_it(shims):
+    serve(shims, "gh", GH_ANSWERED)
+    rows = triggers(shims, "github")
+    assert [r["comment_id"] for r in rows] == ["80", "90", "100", "71"], \
+        "5: a marked review body after it; 6: a review whose line comment is marked (submitted_at, not the " \
+        "draft's time); 7: only the trigger older than the review; 8: a draft answers nothing; 9: a human's " \
+        "review; 10: the same second is no proof the review saw the request"
+    log = shims["log"].read_text()
+    assert sorted(re.findall(r"pulls/(\d+)/reviews", log), key=int) == ["5", "6", "7", "8", "9", "10"], \
+        "one reviews call per PR with a candidate trigger, none for PR 11 that has no request"
+    shims["log"].write_text("")
+    triggers(shims, "github", "--since", T(9))
+    assert "/reviews" not in shims["log"].read_text(), "a poll with no new request spends no reviews call"
+
+
+def test_triggers_backlog_github_skips_a_pr_a_manual_review_already_answered(shims):
+    serve(shims, "gh", [
+        ("pulls?state=open", [{"number": 5, "html_url": "u5"}, {"number": 6, "html_url": "u6"}]),
+        ("issues/5/comments", [gh_issue(50, 5, "dev", T(1), "/open-pr")]),
+        ("issues/6/comments", [gh_issue(60, 6, "dev", T(1), "/open-pr")]),
+        ("pulls/5/reviews", [gh_review(501, T(3), "**LGTM 🌟**" + MARK_GH)]),
+        ("pulls/6/reviews", [gh_review(601, T(0), "🔴 x" + MARK_GH)]),
+    ] + GH_PERMS)
+    rows = triggers(shims, "github", "--backlog")
+    assert [(r["comment_id"], r["superseded"]) for r in rows] == [("60", [])]
+
+
+def gl_note(i, at, body, author="dev", uid=7, diff=False):
+    return {"id": i, "system": False, "type": "DiffNote" if diff else None, "author": {"username": author, "id": uid},
+            "created_at": f"2026-01-01T00:00:0{at}.000Z", "body": body}
+
+
+@pytest.mark.parametrize("mode", [[], ["--backlog"]])
+def test_triggers_gitlab_a_plugin_review_after_a_trigger_answers_it(shims, mode):
+    mk = "\n\n<!-- bot-finding -->"
+    serve(shims, "glab", [
+        ("merge_requests?state=opened", [{"iid": n, "web_url": f"u{n}"} for n in (9, 10, 12, 13, 14)]),
+        ("merge_requests/9/discussions", [{"id": "a", "notes": [gl_note(91, 1, "/open-pr")]},
+                                          {"id": "b", "notes": [gl_note(92, 3, "Overview\n🔴 x" + mk, "bot", 1)]}]),
+        ("merge_requests/10/discussions", [{"id": "a", "notes": [gl_note(101, 1, "🔴 x" + mk, "bot", 1)]},
+                                           {"id": "b", "notes": [gl_note(102, 3, "/open-pr")]}]),
+        ("merge_requests/12/discussions", [{"id": "a", "notes": [gl_note(121, 2, "/open-pr")]},
+                                           {"id": "b", "notes": [gl_note(122, 2, "🔴 x" + mk, "bot", 1)]}]),
+        ("merge_requests/13/discussions", [{"id": "a", "notes": [gl_note(131, 1, "/open-pr")]},
+                                           {"id": "b", "notes": [gl_note(132, 3, "LGTM, a human's note", "rev", 8)]}]),
+        ("merge_requests/14/discussions", [{"id": "a", "notes": [gl_note(141, 1, "/open-pr")]},
+                                           {"id": "b", "notes": [gl_note(142, 3, "🔵 x" + mk, "bot", 1, diff=True)]}]),
+        ("members/all/7", {"access_level": 30}),
+    ])
+    assert sorted(r["comment_id"] for r in triggers(shims, "gitlab", *mode)) == ["102", "121", "131"], \
+        "9: a marked overview after it; 14: a marked line note after it (a LINE-only review); 10: the review " \
+        "predates it; 12: the same instant; 13: a human's note"
+
+
+@pytest.mark.parametrize("mode", [[], ["--backlog"]])
+def test_triggers_bitbucket_a_plugin_review_after_a_trigger_answers_it(shims, mode):
+    mk = "\n\n[bot-finding]: #"
+    c = lambda i, at, raw, nick="dev", inline=None: {
+        "id": i, "content": {"raw": raw}, "user": {"nickname": nick}, "inline": inline, "deleted": False,
+        "created_on": f"2026-01-01T00:00:0{at}+00:00", "parent": None}
+    serve(shims, "curl", list({
+        "pullrequests?state=OPEN": {"values": [{"id": n, "links": {"html": {"href": f"u{n}"}}} for n in (7, 8, 12, 13, 14)],
+                                    "next": None},
+        "pullrequests/7/comments": {"values": [c(71, 1, "/open-pr"), c(72, 3, "Overview\n🔴 x" + mk, "bot")], "next": None},
+        "pullrequests/8/comments": {"values": [c(81, 1, "🔴 x" + mk, "bot"), c(82, 3, "/open-pr")], "next": None},
+        "pullrequests/12/comments": {"values": [c(121, 2, "/open-pr"), c(122, 2, "🔴 x" + mk, "bot")], "next": None},
+        "pullrequests/13/comments": {"values": [c(131, 1, "/open-pr"), c(132, 3, "LGTM, a human's", "rev")], "next": None},
+        "pullrequests/14/comments": {"values": [c(141, 1, "/open-pr"),
+                                                c(142, 3, "🔵 x" + mk, "bot", inline={"path": "a", "to": 1})], "next": None},
+    }.items()))
+    assert sorted(r["comment_id"] for r in triggers(shims, "bitbucket", *mode)) == ["121", "131", "82"]
+
+
 # ------------------------------------------------------- triggers: ETags ----
 
 def etag_gh(shims, pages, etag='W/"e1"', not_modified=True, headers="X-Ratelimit-Remaining: 4999\\r\\n"):
@@ -1498,6 +1605,7 @@ ETAG_PAGES = [
     ("issues/comments", [{"id": 1, "issue_url": "https://api.github.com/repos/o/r/issues/5", "user": {"login": "dev"},
                           "created_at": "2026-01-01T00:00:03Z", "body": "/open-pr"}]),
     ("pulls/comments", []),
+    ("pulls/5/reviews", []),
     ("collaborators/dev/permission", {"permission": "write", "role_name": "write"}),
 ]
 
@@ -1512,8 +1620,9 @@ def test_triggers_github_sends_the_kept_etag_and_a_304_serves_the_cached_body(sh
     again = triggers(shims, "github", "--cache-dir", str(cache))
     assert again == first and [r["comment_id"] for r in again] == ["1"]
     assert again[0]["pr_author"] == "dev"
-    assert shims["log"].read_text().count('If-None-Match: W/"e1"') == 4, \
-        "every poll GET is conditional, the permission lookup of a trigger's author included"
+    assert shims["log"].read_text().count('If-None-Match: W/"e1"') == 5, \
+        "every poll GET is conditional, the reviews of a PR with a trigger and the permission lookup of " \
+        "its author included"
 
 
 def test_triggers_github_never_sends_a_cached_etag_outside_its_shape(shims, tmp_path):
@@ -1563,8 +1672,10 @@ def test_quota_github_reads_the_headers_of_the_polls_own_requests(shims, tmp_pat
     cache = str(tmp_path / "etags")
     q, _ = quota(shims, tmp_path, "github", "--cache-dir", cache)
     assert q == {"vendor": "github", "window": 3600, "measured": True, "limit": 5000, "remaining": 4812,
-                 "reset": "2026-01-01T00:00:00Z", "near_limit": None, "calls": 4}
-    assert shims["log"].read_text().count("gh ") == 4, "no request is added to read the quota"
+                 "reset": "2026-01-01T00:00:00Z", "near_limit": None, "calls": 5}
+    assert shims["log"].read_text().count("gh ") == 5, \
+        "no request is added to read the quota: PRs, 2 comment listings, the reviews of the PR with a " \
+        "trigger, its author's permission"
     q, _ = quota(shims, tmp_path, "github", "--cache-dir", cache)
     assert q["remaining"] == 4812 and q["calls"] == 0, "a 304 carries the headers and costs nothing"
 
