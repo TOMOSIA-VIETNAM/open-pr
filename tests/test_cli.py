@@ -624,6 +624,93 @@ def test_post_verify_finds_the_stamped_overview(shims, tmp_path):
         "url=https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-41"
 
 
+# ------------------------------------------------- post: a pending draft ----
+# GitHub keeps one pending review per user per PR (a second POST is a 422); GitLab's bulk publish
+# would send a leftover draft note out with the new review. Either way `post` stops first.
+
+OUR_DRAFT = "### 🤖【AI REVIEW】Overview\nThanks 🙏\n\n<!-- bot-review -->"
+GH_PENDING = lambda body: [("reviews?per_page", [
+    {"id": 1, "state": "COMMENTED", "commit_id": "c" * 40, "body": "LGTM", "user": {"login": "bot"}},
+    {"id": 900, "state": "PENDING", "commit_id": "b" * 40, "body": body, "user": {"login": "bot"}}])]
+GL_PENDING = lambda *notes: [
+    ("draft_notes?per_page", list(notes)),
+    ("merge_requests/9", {"iid": 9, "diff_refs": {"base_sha": "b", "start_sha": "s", "head_sha": "h"}})]
+GL_LINE = {"id": 31, "note": "🔵 x\n\n<!-- bot-finding -->", "commit_id": None, "position": {"head_sha": "d" * 40}}
+GL_OVERVIEW = {"id": 32, "note": "**LGTM 🌟** (commit x)", "commit_id": None, "position": None}
+GL_HUMAN = {"id": 33, "note": "my own note, not sent yet", "commit_id": None, "position": None}
+
+
+def _post(shims, tmp_path, vendor, pr):
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps(PAYLOAD))
+    return run("post", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", pr, "--payload", str(f),
+               env_extra=env_for(shims))
+
+
+def _discard(shims, vendor, pr, draft_id):
+    return run("discard", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", pr, "--draft-id", draft_id,
+               env_extra=env_for(shims))
+
+
+@pytest.mark.parametrize("body, ours", [(OUR_DRAFT, "true"), ("**LGTM 🌟** (commit x)", "true"),
+                                        ("Half-written notes of my own", "false")])
+def test_post_github_stops_on_the_callers_pending_review_and_names_it(shims, tmp_path, body, ours):
+    serve(shims, "gh", GH_PENDING(body))
+    r = _post(shims, tmp_path, "github", "5")
+    assert r.returncode == 8, r.stderr
+    assert r.stdout.splitlines() == ["draft_id=900", "commit=" + "b" * 40, f"ours={ours}"]
+    assert "-X POST" not in shims["log"].read_text(), "nothing posted beside the draft"
+
+
+def test_post_gitlab_never_sends_leftover_draft_notes_out_with_a_new_review(shims, tmp_path):
+    serve(shims, "glab", GL_PENDING(GL_LINE, GL_OVERVIEW))
+    r = _post(shims, tmp_path, "gitlab", "9")
+    assert r.returncode == 8, r.stderr
+    assert r.stdout.splitlines() == ["draft_id=31,32", "commit=" + "d" * 40, "ours=true"]
+    calls = shims["log"].read_text()
+    assert "-X POST" not in calls and "bulk_publish" not in calls
+    serve(shims, "glab", GL_PENDING(GL_LINE, GL_HUMAN))
+    assert _post(shims, tmp_path, "gitlab", "9").stdout.splitlines()[-1] == "ours=false", \
+        "one note the plugin did not write makes the set a person's"
+
+
+def test_post_without_a_pending_draft_posts_as_before(shims, tmp_path):
+    serve(shims, "gh", [("reviews?per_page", [{"id": 1, "state": "COMMENTED", "body": "x", "user": {"login": "bot"}}]),
+                        ("-X POST repos/o/r/pulls/5/reviews", "777\n")])
+    r = _post(shims, tmp_path, "github", "5")
+    assert r.returncode == 0 and r.stdout.startswith("review_id=777"), r.stderr
+    serve(shims, "glab", GL_PENDING())
+    assert _post(shims, tmp_path, "gitlab", "9").returncode == 0
+
+
+def test_discard_removes_only_the_plugins_own_draft_it_was_named(shims, tmp_path):
+    serve(shims, "gh", GH_PENDING(OUR_DRAFT))
+    r = _discard(shims, "github", "5", "900")
+    assert (r.returncode, r.stdout) == (0, "DISCARDED\n"), r.stderr
+    assert "gh api -X DELETE repos/o/r/pulls/5/reviews/900" in shims["log"].read_text()
+    serve(shims, "glab", GL_PENDING(GL_LINE, GL_OVERVIEW))
+    assert _discard(shims, "gitlab", "9", "31,32").stdout == "DISCARDED\n"
+    calls = shims["log"].read_text()
+    assert "-X DELETE projects/o%2Fr/merge_requests/9/draft_notes/31" in calls
+    assert "-X DELETE projects/o%2Fr/merge_requests/9/draft_notes/32" in calls
+    assert _discard(shims, "bitbucket", "7", "1").stdout == "NO-EQUIVALENT\n"
+
+
+@pytest.mark.parametrize("vendor, pr, routes, draft_id", [
+    ("github", "5", GH_PENDING("Half-written notes of my own"), "900"),
+    ("github", "5", GH_PENDING(OUR_DRAFT), "901"),
+    ("gitlab", "9", GL_PENDING(GL_LINE, GL_HUMAN), "31,33"),
+    ("gitlab", "9", GL_PENDING(GL_LINE, GL_OVERVIEW, GL_HUMAN), "31,32"),
+])
+def test_discard_refuses_a_persons_draft_or_one_it_was_not_shown(shims, vendor, pr, routes, draft_id):
+    serve(shims, {"github": "gh", "gitlab": "glab"}[vendor], routes)
+    r = _discard(shims, vendor, pr, draft_id)
+    assert r.returncode == 1 and r.stdout == ""
+    calls = shims["log"].read_text()
+    assert "per_page" in calls, "read the draft again before acting on it"
+    assert "DELETE" not in calls, "a person's pending review stays untouched"
+
+
 def test_reply_bodies_travel_by_file_never_argv(shims, tmp_path):
     body = tmp_path / "b.md"
     body.write_text("thanks `$(reboot)`")

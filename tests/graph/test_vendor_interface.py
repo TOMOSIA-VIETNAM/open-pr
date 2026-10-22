@@ -12,7 +12,7 @@ def test_cli_contract_names_only_real_subcommands():
     dead weight, a documented ghost sends the agent into exit 1."""
     sec = cli_doc.sections(cli_doc.help_text())
     subcommands = (sec["Subcommands"] + sec["Watch subcommands"] + sec["Internal subcommands"]
-                   + sec["Diagnostic subcommands"])
+                   + sec["Diagnostic subcommands"] + sec["Case subcommands"])
     documented = {l.split()[0] for l in subcommands if not l.startswith("      ")}
     dispatched = set(re.findall(r"^    ([a-z-]+)\)\s+(?:shift; )?cmd_", cli_text(), re.M))
     assert documented == dispatched, (
@@ -38,7 +38,8 @@ def test_watch_only_subcommands_stay_out_of_cli_md():
         == cli_doc.render_watch(), "watch.md drifted from `open-pr.sh --help` — run scripts/cli_doc.py --write"
     core = text(SRC / "core" / "cli.md")
     prompts = "\n".join(t for f, t in all_text().items() if f not in NEVER_LOADED)
-    for line in sec["Watch subcommands"] + sec["Internal subcommands"] + sec["Diagnostic subcommands"]:
+    for line in (sec["Watch subcommands"] + sec["Internal subcommands"] + sec["Diagnostic subcommands"]
+                 + sec["Case subcommands"]):
         if line.startswith("      "):
             continue
         name = line.split()[0]
@@ -56,7 +57,7 @@ def test_every_vendor_branches_in_every_api_subcommand():
     body = cli_text()
     for fn in ("ctx_info", "ctx_head", "ctx_files", "ctx_sizes", "ctx_diff", "ctx_commits",
                "ctx_comments", "ctx_ci", "ctx_reviews", "ctx_account", "ctx_threads",
-               "vendor_checkout", "cmd_post", "cmd_publish", "cmd_post_verify", "cmd_reply",
+               "vendor_checkout", "cmd_post", "pending_draft", "cmd_discard", "cmd_publish", "cmd_post_verify", "cmd_reply",
                "cmd_resolve", "cmd_react", "cmd_marker", "cmd_commit_url", "post_error_hint",
                "trg_fetch", "cmd_triggers", "reply_post", "claim_norm", "claim_rows", "claim_delete"):
         m = re.search(rf"^{fn}\(\)" + r" \{[^\n]*\n(.*?)^\}", body, re.M | re.S)

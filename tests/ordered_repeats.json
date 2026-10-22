@@ -96,6 +96,12 @@
       "file": "cases/self-repair.md",
       "claim": "not-a-repeat",
       "reason": "Names the re-run's outcome as a field of the report handed to feedback; nothing is looked up again there."
+    },
+    {
+      "sha": "c5d4c59112e3",
+      "file": "cases/pending-draft.md",
+      "claim": "not-a-repeat",
+      "reason": "The second `post` follows a `discard` that removed the draft the first one stopped on: it is a write, never a re-read of anything the run holds."
     }
   ]
 }

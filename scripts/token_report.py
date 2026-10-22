@@ -78,6 +78,7 @@ ROLES = {
     "case-watch-fix": ["cases/watch-fix.md"],
     "menubar-cmd": ["commands/menubar.md"],
     "case-post-error": ["cases/post-review.md"],
+    "case-pending-draft": ["cases/pending-draft.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
     # whichever file currently holds the "is this our own finding" logic
@@ -138,6 +139,11 @@ SCENARIOS = {
     "review/post-error-github": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "case-post-error", "criteria", "always-rule", "tpl-rails",
+    ],
+    # `post` met the caller's own pending draft (a manual run with auto_submit_review off left it)
+    "review/pending-draft-github": [
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "gh-worktree", "gh-post", "case-pending-draft", "criteria", "always-rule", "tpl-rails",
     ],
     "chat/reconfigure-review": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings",

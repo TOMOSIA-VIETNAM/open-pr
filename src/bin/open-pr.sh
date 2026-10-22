@@ -554,11 +554,36 @@ post_error_hint() {
 }
 # The suffix post/publish append to the overview body: a blank line, then the review marker.
 review_stamp() { printf '\n\n%s' "$(marker_text review)"; }
+# The caller's own unpublished review on PR N as `{id, commit, ours}`, or nothing. A pending GitHub
+# review and a GitLab draft note are listed to their author alone: whatever is listed is the
+# caller's. ours = this plugin wrote it — GitHub: the overview; GitLab: every note, an overview or a
+# finding (a post that failed part-way leaves findings alone). Bitbucket: post stages nothing on the PR.
+pending_draft() {
+    case "$V" in
+        github)
+            gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews?per_page=100" \
+                | jq -c -s "$JQ_MARKED$JQ_OVERVIEW"'[.[] | .[]? | objects | select(.state == "PENDING")][0] // empty
+                    | {id: (.id | tostring), commit: (.commit_id // "UNKNOWN"), ours: ((.body // "") | our_overview)}' ;;
+        gitlab)
+            glab api --paginate "projects/$GL_PROJ/merge_requests/$N/draft_notes?per_page=100" \
+                | jq -c -s "$JQ_MARKED$JQ_OVERVIEW"'[.[] | .[]? | objects] | select(length > 0)
+                    | {id: (map(.id | tostring) | join(",")),
+                       commit: ([.[] | .commit_id // .position.head_sha // empty][0] // "UNKNOWN"),
+                       ours: all(.[]; (.note // "") | our_overview or marked("finding"))}' ;;
+        bitbucket) ;;
+    esac
+}
 cmd_post() {
     parse_args "$@"; post_init
     F=$(req payload); [ -s "$F" ] || die 1 "open-pr.sh post: payload file missing/empty"
     jq -e -n 'input | .body and .commit_id and (.comments | type == "array")' "$F" >/dev/null 2>&1 \
         || die 1 "open-pr.sh post: payload must carry body, commit_id, comments[]"
+    # GitHub refuses a second pending review; GitLab's publish would send old draft notes out too.
+    pending_draft > "$TMPD/pending.json"
+    if [ -s "$TMPD/pending.json" ]; then
+        jq -r '"draft_id=\(.id)", "commit=\(.commit)", "ours=\(.ours)"' "$TMPD/pending.json"
+        die 8 "open-pr.sh post: an unpublished review of yours already sits on PR $N; nothing was posted"
+    fi
     RM=$(review_stamp)
     case "$V" in
         github)
@@ -589,6 +614,25 @@ cmd_post() {
             # file is the unpublished review; publish sends it.
             printf 'state=UNPUBLISHED_LOCAL\n' ;;
     esac
+}
+# Deletes the draft `post` exit 8 named, while it is still that one and this plugin's.
+cmd_discard() {
+    parse_args "$@"; post_init
+    I=$(req draft_id); check_ident '^[0-9]+(,[0-9]+)*$' "$I"
+    case "$V" in bitbucket) printf 'NO-EQUIVALENT\n'; return 0 ;; esac
+    pending_draft > "$TMPD/pending.json"
+    [ "$(jq -r '.id' "$TMPD/pending.json")" = "$I" ] \
+        || die 1 "open-pr.sh discard: PR $N no longer holds draft $I; run post again to see what it holds"
+    [ "$(jq -r '.ours' "$TMPD/pending.json")" = true ] \
+        || die 1 "open-pr.sh discard: draft $I is not this plugin's; only its author publishes or discards it"
+    case "$V" in
+        github) gh api -X DELETE "repos/$OWNER/$REPO/pulls/$N/reviews/$I" > /dev/null ;;
+        gitlab)
+            for d in $(printf '%s' "$I" | tr ',' ' '); do
+                glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/draft_notes/$d" > /dev/null
+            done ;;
+    esac
+    printf 'DISCARDED\n'
 }
 cmd_publish() {
     parse_args "$@"; post_init; RM=$(review_stamp)
@@ -1690,6 +1734,11 @@ Diagnostic subcommands (cases/self-repair.md, commands/watch.md and commands/men
       <detail>`; exit 1 when any fails. Posts nothing, touches no watcher state, leaves no process,
       runs before the jq gate; no option
 
+Case subcommands (each called by one cases/ file, which names the call; rendered nowhere):
+  discard --draft-id I
+      delete the pending draft `post` exit 8 named, only while it is still that one and this
+      plugin's; `DISCARDED`. `NO-EQUIVALENT` on Bitbucket
+
 Internal subcommands (open-pr-watch.sh's own; no prompt calls them):
   repo-target --repo-dir D [--remote R]
       D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines; no common option
@@ -1712,6 +1761,7 @@ Exit codes:
   5  repo dir unresolvable
   6  missing credentials
   7  `<data>` not set for that location
+  8  `post`: a pending review of yours is already on the PR; nothing posted
   9  vendor rate limit (the watcher's poll)
 EOF
 }
@@ -1742,6 +1792,7 @@ case "$sub" in
     verify-line)  cmd_verify_line "$@" ;;
     post)         cmd_post "$@" ;;
     publish)      cmd_publish "$@" ;;
+    discard)      cmd_discard "$@" ;;
     post-verify)  cmd_post_verify "$@" ;;
     push)         cmd_push "$@" ;;
     reply)        cmd_reply "$@" ;;

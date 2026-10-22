@@ -270,7 +270,8 @@ stop at whatever `post` left unpublished — a server-side draft, or (Bitbucket,
 payload file itself with nothing on the PR — and say it isn't published. FORBIDDEN: publishing on the
 user's behalf.
 
-Post/publish error || post-verify mismatch → `Read` `cases/post-review.md`.
+`post` exit 8 → `Read` `cases/pending-draft.md`. Any other post/publish error || post-verify mismatch →
+`Read` `cases/post-review.md`.
 Happy path → skip that file.
 
 **Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, plus

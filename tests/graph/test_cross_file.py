@@ -331,3 +331,17 @@ def test_a_posted_review_is_reported_to_its_request_from_what_the_session_wrote(
     assert "`<request thread>` = the event's `request`, else what `<op> last-claim … --pr N` prints" in watch
     assert "--cwd <pwd>` + the claim's `--comment-id`, `--kind` (+ `--thread-id`)" in watch
     assert "a PR printed ⇒ item 7 with the fields it prints" in watch, "a queued request keeps its request"
+
+
+def test_a_pending_draft_post_is_routed_to_its_case_before_any_other_post_error():
+    """`post` exit 8 = the caller's own unpublished review already on the PR. review.md hands it to
+    the one case that asks before touching it; the generic post-error file must not catch it too."""
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    route = review.find("`post` exit 8 → `Read` `cases/pending-draft.md`")
+    assert route >= 0
+    assert route < review.find("Any other post/publish error || post-verify mismatch → `Read` `cases/post-review.md`")
+    assert "8  `post`:" in cli_text(), "the exit is documented where every exit code is"
+    case = " ".join(text(SRC / "cases" / "pending-draft.md").split())
+    for call in ("`<op> discard --draft-id <I>`", "`<op> publish --review-id <I>`"):
+        assert call in case
+    assert "`ours=false` — a person's own pending review. FORBIDDEN: publishing or discarding it" in case

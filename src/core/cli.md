@@ -41,7 +41,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `settings --repo <repo> [--repo-dir D] [--set K --value V]` | `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`, `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: writes that one key first (menu bar, watch chat; keys in reference/settings-schema.md), exit 4 on a refused key or value |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 
-Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL or value · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set for that location · 9 = vendor rate limit (the watcher's poll).
+Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL or value · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set for that location · 8 = `post`: a pending review of yours is already on the PR; nothing posted · 9 = vendor rate limit (the watcher's poll).
 <!-- /open-pr.sh --help -->
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line
