@@ -363,6 +363,17 @@ status_note() {   # why from_status_file said failed without the file saying so
     case " $REPORTED " in *" $s "*) [ -n "$s" ] && return 0 ;; esac
     printf 'status file holds no known state'
 }
+# The state of the status file $1 when this run wrote it: not older than $2, the run's started_at
+# (spawn and resume remove the file first, then record that time). An unreadable mtime reads as
+# this run's, for the removal stands.
+run_result() {   # $1 session key, $2 started_at
+    f=$(status_file "$1")
+    [ -s "$f" ] || return 0
+    m=$(date -u -r "$f" +%Y%m%d%H%M%S 2>/dev/null || true)
+    s=$(printf '%s' "$2" | tr -cd '0-9')
+    [ -z "$m" ] || [ -z "$s" ] || [ "$m" -ge "$s" ] || return 0
+    jq -r '.state // empty' "$f" 2>/dev/null || true
+}
 CLAUDE_AGENTS=""
 # `claude agents` state of the entry with id $1. A resumed or attached session that finished its
 # turn stays "working" with status "idle" (waiting at its prompt), never "done": read as done.
@@ -373,11 +384,11 @@ claude_state() {
 status_one() {   # $1 session key
     key="$1"; pr=${key%%:*}; role=${key#*:}
     row=$(state_json | jq -r --arg key "$key" --argjson pr "$pr" '(.hidden // []) as $h | .sessions[$key]
-        | [.runner, .id, .session_id, .pid, (.finished == true), .last_state, ($h | index([$pr]) != null)]
+        | [.runner, .id, .session_id, .pid, (.finished == true), .last_state, ($h | index([$pr]) != null), .started_at]
         | map(. // "" | tostring) | join("\u001f")')
     # not whitespace: IFS whitespace would merge the empty fields
     us=$(printf '\037')
-    IFS="$us" read -r runner id sid pid fin last hid <<EOF
+    IFS="$us" read -r runner id sid pid fin last hid started <<EOF
 $row
 EOF
     note=""; inuse=""
@@ -403,6 +414,12 @@ EOF
         entry=$(printf '%s' "$CLAUDE_AGENTS" | jq -c --arg id "$id" '[.[]? | select(.id == $id)][0] // empty')
         [ -n "$sid" ] || sid=$(printf '%s' "$entry" | jq -r '.sessionId // empty' 2>/dev/null || true)
         cs=$(claude_state "$id")
+        # A session that wrote this run's result, then ended its turn at its prompt, lists as
+        # blocked: that result is the outcome, unless it is the question the prompt holds.
+        if [ "$cs" = blocked ]; then
+            fs=$(run_result "$key" "$started")
+            case " $REPORTED " in *" $fs "*) [ -z "$fs" ] || [ "$fs" = question ] || cs=done ;; esac
+        fi
         case "$cs" in
             working) st=working ;;
             blocked) st=question ;;

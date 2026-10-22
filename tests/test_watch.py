@@ -878,6 +878,30 @@ def test_status_maps_each_claude_state(w, claude_state, status_body, want):
     assert ("note" in row) == (claude_state == "done" and status_body is None)
 
 
+FAILED_422 = {"state": "failed", "note": "Post rejected (HTTP 422): a pending draft review exists on this PR.", "question": ""}
+
+
+@pytest.mark.parametrize("status_body, age, want", [
+    (FAILED_422, 0, "failed"),
+    ({"state": "posted"}, 0, "posted"),
+    ({"state": "question", "question": "Discard it?"}, 0, "question"),
+    (FAILED_422, 3600, "question"),
+    (None, 0, "question"),
+])
+def test_a_blocked_claude_session_reads_as_the_result_this_run_wrote(w, status_body, age, want):
+    """A session that wrote its result, then ended its turn waiting at its prompt, lists as blocked:
+    that result is the outcome. Only a file from before this run's start, none, or a question asks."""
+    sp = w.spawn(12)
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "blocked")
+    if status_body:
+        w.status_file(12, **status_body)
+        t = time.time() - age
+        os.utime(w.sd / "pr-12.status.json", (t, t))
+    assert w.jsonl("status", "--pr", "12")[0]["state"] == want
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == [want]
+
+
 @pytest.mark.parametrize("status, status_body, want", [
     ("idle", {"state": "posted"}, "posted"),
     ("idle", None, "failed"),
