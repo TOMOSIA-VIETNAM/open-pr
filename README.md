@@ -147,6 +147,8 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:menubar [close]` | macOS: the reviews and fixes in progress, "Fix now", settings and snooze in the menu bar; `close` removes it. [Details](./docs/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |
 
+In Claude Code, `review` and `fix` name the session after the PRs given (`review api #12, web !7`), and a later run of the same command adds its PRs; a name you chose stays.
+
 > [!WARNING]
 > `fix` edits **real code** in the repo (or the review worktree). Run it only when you deliberately want it to handle the comments.
 

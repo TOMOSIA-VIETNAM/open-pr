@@ -110,10 +110,13 @@ gl_discussions_cached() {
 }
 
 # -------------------------------------------------------------- target ----
+# A PR URL without its query, fragment, `/files` or `/changes` tab and trailing slash.
+pr_url_strip() { printf '%s' "$1" | sed -E 's~[?#].*$~~; s~/(files|changes)/?$~~; s~/$~~'; }
+
 # target <url> -> vendor/owner/repo/pull_number/host, or exit 4.
 cmd_target() {
     url="${1:-}"; [ -n "$url" ] || die 4 "open-pr.sh target: no URL"
-    stripped=$(printf '%s' "$url" | sed -E 's~[?#].*$~~; s~/(files|changes)/?$~~; s~/$~~')
+    stripped=$(pr_url_strip "$url")
     vendor=""; owner=""; repo=""; n=""
     if printf '%s' "$stripped" | grep -Eq '^https://github\.com/[^/]+/[^/]+/pull/[0-9]+$'; then
         vendor=github
@@ -134,6 +137,20 @@ cmd_target() {
     check_ident '^[0-9]+$' "$n"
     host=$(printf '%s' "$stripped" | cut -d/ -f3)
     printf 'vendor=%s\nowner=%s\nrepo=%s\npull_number=%s\nhost=%s\n' "$vendor" "$owner" "$repo" "$n" "$host"
+}
+
+# pr-ref <url> -> `<namespace>/<repo> !<n>` (GitLab) or `<namespace>/<repo> #<n>`, or exit 4.
+# A label only, never an API target: unlike `target` it takes any host, GitLab subgroups
+# (namespace `group/sub`), Bitbucket Server (namespace = project or user key) and any PR tab.
+cmd_pr_ref() {
+    url="${1:-}"; [ -n "$url" ] || die 4 "open-pr.sh pr-ref: no URL"
+    ref=$(pr_url_strip "$url" | sed -nE \
+        -e 's~^https?://[^/]+/(.+)/-/merge_requests/([0-9]+)(/.*)?$~\1 !\2~p' -e t \
+        -e 's~^https?://[^/]+(/[^/]+)*/(projects|users)/([^/]+)/repos/([^/]+)/pull-requests/([0-9]+)(/.*)?$~\3/\4 #\5~p' -e t \
+        -e 's~^https?://[^/]+/([^/]+/[^/]+)/pull(-requests)?/([0-9]+)(/.*)?$~\1 #\3~p')
+    [ -n "$ref" ] || die 4 "open-pr.sh pr-ref: not a recognized PR/MR URL"
+    check_ident '^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+ [!#][0-9]+$' "$ref"
+    printf '%s\n' "$ref"
 }
 
 # ------------------------------------------------------------- context ----
@@ -1768,7 +1785,10 @@ Case subcommands (each called by one cases/ file, which names the call; rendered
       delete the pending draft `post` exit 8 named, only while it is still that one and this
       plugin's; `DISCARDED`. `NO-EQUIVALENT` on Bitbucket
 
-Internal subcommands (open-pr-watch.sh's own; no prompt calls them):
+Internal subcommands (open-pr-watch.sh's and the session-title hook's own; no prompt calls them):
+  pr-ref <url>
+      no network: `<namespace>/<repo> !<n>` (GitLab) or `<namespace>/<repo> #<n>`; takes any host,
+      GitLab subgroups and Bitbucket Server, which `target` refuses; exit 4 on a URL it cannot read
   repo-target --repo-dir D [--remote R]
       D's remote R (default origin, else the only one) → `vendor/owner/repo/host` lines; no common option
   triggers [--since T | --backlog] [--mark-file F] [--token K] [--cache-dir C] [--quota-file Q] [--findings-file F2 [--fix-author A] [--fix-prs N,N…]]
@@ -1811,6 +1831,7 @@ trap 'cleanup; exit 143' TERM
 sub="${1:-}"; [ -n "$sub" ] && shift || die 1 "open-pr.sh: no subcommand (see --help)"
 case "$sub" in
     target)       cmd_target "$@" ;;
+    pr-ref)       cmd_pr_ref "$@" ;;
     context)      cmd_context "$@" ;;
     locate-repo)  cmd_locate_repo "$@" ;;
     repo-target)  cmd_repo_target "$@" ;;

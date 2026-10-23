@@ -300,6 +300,34 @@ def test_target_rejects_what_it_cannot_prove(url):
     assert run("target", url).returncode == 4
 
 
+# ---------------------------------------------------------------- pr-ref ----
+
+@pytest.mark.parametrize("url,ref", [
+    ("https://github.com/o/r/pull/12", "o/r #12"),
+    ("https://github.example.com/o/r/pull/12/commits?x=1#top", "o/r #12"),
+    ("https://gitlab.com/g/p/-/merge_requests/3", "g/p !3"),
+    ("https://gitlab.example.co.jp/g/sub/p/-/merge_requests/3/diffs", "g/sub/p !3"),
+    ("https://bitbucket.org/w/r/pull-requests/7", "w/r #7"),
+    ("https://bb.example.com/projects/PRJ/repos/core/pull-requests/45/overview", "PRJ/core #45"),
+    ("https://bb.example.com/ctx/users/jo/repos/dots/pull-requests/2", "jo/dots #2"),
+])
+def test_pr_ref_labels_every_vendor_shape_without_network(url, ref):
+    assert run("pr-ref", url, check=True).stdout == ref + "\n"
+
+
+@pytest.mark.parametrize("url", [
+    "https://example.com/x/pull",
+    "https://github.com/o/r/pull/abc",
+    "https://github.com/o/$(id)/pull/1",
+    "https://github.com/o/r\x1b[31m/pull/1",
+    "not a url",
+    "",
+])
+def test_pr_ref_rejects_what_it_cannot_read(url):
+    r = run("pr-ref", url)
+    assert r.returncode == 4 and r.stdout == ""
+
+
 # ------------------------------------------------------- git fixtures ----
 
 @pytest.fixture

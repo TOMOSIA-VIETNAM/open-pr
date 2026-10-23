@@ -21,7 +21,8 @@ Vendors: GitHub, GitLab, Bitbucket.
 ## Layout
 
 ```
-src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar; code, never `Read` into context except by `cases/self-repair.md`
+src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar · open-pr-session-title.sh — names the session; code, never `Read` into context except by `cases/self-repair.md`
+src/hooks/        hooks.json — Claude Code hooks, auto-loaded from the plugin root
 src/commands/     entry points; only these have frontmatter
 src/core/         shared procedure
 src/setup/        bootstrap, doctor, template, lesson
