@@ -61,6 +61,9 @@ parse_args() {
             --backlog) ARG_backlog=1; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
+                # the name becomes a variable name inside eval: anything else would run as code
+                printf '%s' "$key" | grep -Eqx '[a-z][a-z0-9_]{0,40}' \
+                    || die 4 "open-pr: invalid option: $(printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177' | cut -c1-60)"
                 printf '%s' "$key" | grep -Eq '^[a-z_]+$' || die 1 "open-pr-watch.sh: bad option $1"
                 [ $# -ge 2 ] || die 1 "open-pr-watch.sh: $1 needs a value"
                 eval "ARG_${key}=\$2"

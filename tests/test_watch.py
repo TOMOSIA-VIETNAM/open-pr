@@ -2976,3 +2976,11 @@ def test_the_menu_bar_and_a_toast_reach_the_screen_on_each_architecture(tmp_path
                             "findings", "0", "1", "", "", "pr", "", "", "", "", "", "", "", "", "", "", "", str(shown)],
                            capture_output=True, text=True, timeout=30)
     assert toast.returncode == 0 and shown.exists(), toast.stderr
+
+
+@pytest.mark.parametrize("opt", ["--a=1;touch pwned;b", "--roles review --once", "--x$(touch pwned)"])
+def test_a_watch_option_name_outside_its_shape_is_refused_and_never_run(tmp_path, opt):
+    """open-pr-watch.sh parses options the same way: the name never reaches eval as code."""
+    r = subprocess.run(["sh", str(WATCH), "status", opt, "x"], capture_output=True, text=True, cwd=tmp_path, timeout=30)
+    assert r.returncode == 4 and "invalid option" in r.stderr
+    assert not (tmp_path / "pwned").exists()

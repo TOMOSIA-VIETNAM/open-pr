@@ -2791,3 +2791,13 @@ def test_settings_says_when_the_doctor_is_next_due(data_dir, review, next_at, du
     out = json.loads(run("settings", "--repo", "demo", check=True).stdout)
     assert (out["doctor_next_at"], out["doctor_due"]) == (next_at, due), \
         "doctored_at is read in its own zone, not the machine's"
+
+
+@pytest.mark.parametrize("opt", ["--a=1;touch pwned;b", "--vendor github --kind finding", "--x$(touch pwned)",
+                                 "--Vendor", "--1x", "--a`touch pwned`"])
+def test_an_option_name_outside_its_shape_is_refused_and_never_run(tmp_path, opt):
+    """parse_args puts the option name inside eval: a name carrying code must never reach it."""
+    r = subprocess.run(["sh", str(CLI), "marker", opt, "x", "--vendor", "github", "--kind", "finding"],
+                       capture_output=True, text=True, cwd=tmp_path, timeout=30)
+    assert r.returncode == 4 and "invalid option" in r.stderr and r.stdout == ""
+    assert not (tmp_path / "pwned").exists()
