@@ -17,7 +17,9 @@ BASE="${1:-main}"
 PR="${2:-}"
 
 echo "== tests =="
-python3 -m pytest tests/ -q
+# in parallel when pytest-xdist is installed (requirements-dev.txt): the suite runs its scripts in
+# subprocesses and is mostly waiting, not computing
+if python3 -c 'import xdist' 2>/dev/null; then python3 -m pytest tests/ -q -n auto; else python3 -m pytest tests/ -q; fi
 
 echo
 echo "== duplication (near-verbatim only; a reworded restatement still needs a human) =="
