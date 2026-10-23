@@ -745,7 +745,9 @@ def test_post_verify_gitlab_without_a_payload_links_the_newest_plugin_overview(s
             {"id": 10, "body": "older\n\n<!-- bot-review -->", "position": None, "system": False}]),
         ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
     r = run("post-verify", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", env_extra=env_for(shims), check=True)
-    assert r.stdout.splitlines() == ["PUBLISHED", "counts={}", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+    # 12, a finding after the overview, is that review's: publish's one-by-one recovery posts it after
+    assert r.stdout.splitlines() == ["PUBLISHED", 'counts={"🔵 SUGGESTION":1}',
+                                     "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
 
 
 def test_post_verify_gitlab_links_an_overview_post_added_a_moved_finding_to(shims, tmp_path):
@@ -890,7 +892,7 @@ def test_publish_gitlab_reconciles_a_500_that_published_part_of_the_review(shims
     drafts, 32 alone is published, and nothing posts twice."""
     r, calls = _gl_publish(shims, [[D31, D32, D33], [D31, D32, D33], []],
                            [GL_OLD, [GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD],
-                            [GL_PUB(103, D33), GL_PUB(102, D32), GL_PUB(101, D31), *GL_OLD]])
+                            [GL_PUB(104, D32), GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]])
     assert r.returncode == 0, r.stderr
     assert r.stdout.splitlines() == ["published_now=32", "duplicates_dropped=31,33", "remaining=", "lost=", "PUBLISHED"]
     assert calls.count("bulk_publish") == 1
@@ -904,9 +906,24 @@ def test_publish_gitlab_retried_after_a_partial_publish_never_posts_a_note_twice
     """The retry the issue saw: the drafts still listed, two of them already on the MR. No bulk_publish."""
     r, calls = _gl_publish(shims, [[D31, D32, D33], []],
                            [[GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD],
-                            [GL_PUB(103, D33), GL_PUB(102, D32), GL_PUB(101, D31), *GL_OLD]])
+                            [GL_PUB(104, D32), GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]])
     assert r.returncode == 0 and r.stdout.splitlines()[-1] == "PUBLISHED", r.stderr
     assert "bulk_publish" not in calls and calls.count("/publish") == 1
+
+
+def test_post_verify_gitlab_counts_a_finding_published_after_its_overview(shims, tmp_path):
+    """The partial publish above posted the overview (103) first; the finding published alone after it (104)
+    is still that review's."""
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps({**PAYLOAD, "body": D33["note"].removesuffix("\n\n<!-- bot-review -->")}))
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [GL_PUB(104, D32), GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
+    r = run("post-verify", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", "--payload", str(f),
+            env_extra=env_for(shims), check=True)
+    assert r.stdout.splitlines() == ["PUBLISHED", 'counts={"🟠 SHOULD FIX":1,"🔵 SUGGESTION":1}',
+                                     "url=https://gitlab.com/o/r/-/merge_requests/5#note_103"]
 
 
 def test_publish_gitlab_reports_a_draft_gitlab_dropped_without_a_note(shims):

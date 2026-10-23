@@ -792,12 +792,13 @@ cmd_post_verify() {
                     id=$(jq -r "$JQ_MARKED"'[.[] | select(.system != true and .position == null and ((.body // "") | marked("review")))][0].id // empty' "$TMPD/pv.notes")
                 fi
                 [ -z "$id" ] || { check_ident '^[0-9]+$' "$id"; gl_mr_cached "$N" | jq -r --arg id "$id" '.web_url // empty | . + "#note_" + $id' > "$TMPD/pv.url"; }
-                # a publish posts the drafts in the order post wrote them, overview last: its notes are the ones
-                # after the plugin's previous overview. That one past this 100-note page ⇒ the window is unknown, no count.
+                # its notes: every one after the plugin's previous overview — a bulk publish posts the drafts in the
+                # order post wrote them, overview last, but publish's one-by-one recovery posts findings after it.
+                # That previous overview past this 100-note page ⇒ the window is unknown, no count.
                 [ -z "$id" ] || jq -r --argjson id "$id" "$JQ_MARKED$JQ_FINDINGS"'
                     [.[] | select(.system != true and .position == null and .id < $id and ((.body // "") | marked("review"))) | .id] as $older
                     | select($older != [] or length < 100) | ($older | max // 0) as $prev
-                    | [.[] | select(.system != true and .id > $prev and .id <= $id) | .body // ""] | labelled
+                    | [.[] | select(.system != true and .id > $prev) | .body // ""] | labelled
                     | "counts=" + tojson' "$TMPD/pv.notes" || true
             fi ;;
         bitbucket)
