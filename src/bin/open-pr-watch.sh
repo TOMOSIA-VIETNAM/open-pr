@@ -1103,7 +1103,7 @@ cmd_wait() {
         waited=0; slice=5; [ "$delay" -ge "$slice" ] || slice=$delay
         while [ "$waited" -lt "$delay" ]; do
             if [ "$POLL_SECOND" = 1 ]; then sleep "$slice"
-            else sleep "$(awk -v s="$slice" -v k="$POLL_SECOND" 'BEGIN { print s * k }')"; fi
+            else sleep "$(LC_ALL=C awk -v s="$slice" -v k="$POLL_SECOND" 'BEGIN { print s * k }')"; fi
             waited=$((waited + slice))
             stop_requested
             ! fix_now_pending || break
