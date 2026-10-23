@@ -160,6 +160,7 @@ the output language:
 
 ```
 <emoji> <short description>.
+
 **<Fix>** — <the fix in words>
 <why, 1 sentence, only when it adds to the description>
 <marker>
