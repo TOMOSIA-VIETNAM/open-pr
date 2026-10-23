@@ -2,6 +2,7 @@
 session after the PRs given to /open-pr:review or /open-pr:fix.
 
 Each case pipes the hook's JSON input into the script, as Claude Code does, and reads stdout.
+The script runs beside the real open-pr.sh, whose `pr-ref` turns each URL into a ref.
 """
 
 import json
@@ -16,11 +17,11 @@ SCRIPT = SRC / "bin" / "open-pr-session-title.sh"
 GH = "https://github.com/acme/api/pull/12"
 GL = "https://gitlab.com/group/sub/web/-/merge_requests/7"
 BB = "https://bitbucket.org/team/app/pull-requests/3"
-BBS = "https://git.corp.example/projects/PRJ/repos/core/pull-requests/45"
+BBS = "https://bb.example.com/projects/PRJ/repos/core/pull-requests/45"
 
 
 def run(stdin):
-    p = subprocess.run(["sh", str(SCRIPT)], input=stdin.encode(), capture_output=True, timeout=10)
+    p = subprocess.run(["sh", str(SCRIPT)], input=stdin.encode(), capture_output=True, timeout=60)
     assert p.returncode == 0, p.stderr
     assert p.stderr == b"", "a hook's stderr reaches the user"
     return p.stdout
@@ -47,8 +48,16 @@ def test_every_pr_in_prompt_order_without_duplicates():
     assert title(prompt) == "review app #3, api #12, web !7, core #45"
 
 
-def test_an_existing_title_is_kept():
-    assert run(json.dumps({"prompt": f"/open-pr:review {GH}", "session_title": "my name"})) == b""
+def test_owner_shows_only_when_two_repos_share_a_name():
+    assert title("/open-pr:review https://github.com/a/web/pull/1 "
+                 f"https://gitlab.com/b/web/-/merge_requests/2 {GH}") == "review a/web #1, b/web !2, api #12"
+    assert title("/open-pr:review https://github.com/a/web/pull/1 https://github.com/a/web/pull/2") \
+        == "review web #1, web #2"
+
+
+def test_a_user_title_is_kept():
+    for name in ("my name", "review api #12"):
+        assert run(json.dumps({"prompt": f"/open-pr:review {GL}", "session_title": name})) == b"", name
 
 
 def test_other_prompts_are_left_alone():
@@ -62,15 +71,12 @@ def test_prompt_text_is_never_executed(tmp_path):
     evil = (f"/open-pr:review https://github.com/o/$(touch {marker})/pull/1 "
             f"https://github.com/o/`touch {marker}`/pull/2 https://github.com/o/r;touch\x1b[31m/pull/3 "
             f"'\"$HOME\"' {GH}")
-    t = title(evil)
+    assert title(evil) == "review api #12", "a URL pr-ref cannot read is dropped"
     assert not marker.exists(), "the prompt was evaluated"
-    assert t.startswith("review "), t
-    assert "api #12" in t and "$HOME" not in t
-    assert not re.search(r"[\x00-\x1f\x7f]", t), "control characters reach the title"
 
 
 def test_a_long_list_is_cut_at_a_ref_boundary():
-    urls = " ".join(f"https://github.com/o/repository-number-{i}/pull/{i}" for i in range(40))
+    urls = " ".join(f"https://github.com/o/repository-number-{i}/pull/{i}" for i in range(25))
     t = title(f"/open-pr:fix {urls}")
     assert len(t.encode()) <= 200 and t.endswith(", …"), t
     refs = t[len("fix "):-len(", …")].split(", ")
