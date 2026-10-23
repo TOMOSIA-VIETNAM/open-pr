@@ -61,7 +61,7 @@ flowchart LR
 /open-pr:fix    https://github.com/org/repo/pull/123 [附加说明]
 ```
 
-把多个 PR URL 交给同一条命令，每一个都会完整跑完再轮到下一个。彼此之间不传递任何东西：各自的 worktree、各自的评论。`/open-pr:fix` 还会把 submodule 的 PR 排在 bump 它的主 PR 之前，并按每个 PR 各提交一次。在 Claude Code 中，会话会按传入的所有 PR 命名，例如 `review api #12, web !7`；之后再次运行同一命令会追加其 PR；你自己起的名称保持不变。
+把多个 PR URL 交给同一条命令，每一个都会完整跑完再轮到下一个。彼此之间不传递任何东西：各自的 worktree、各自的评论。`/open-pr:fix` 还会把 submodule 的 PR 排在 bump 它的主 PR 之前，并按每个 PR 各提交一次。在 Claude Code 中，会话会按传入的所有 PR 命名，例如 `review api #12, web !7`；你已命名的会话保持不变。
 
 仓库第一次运行时会问一小批问题 —— 发布到 PR 上用什么语言、立即发布还是先留草稿、修好的 thread 要不要自动 resolve、隔多久重读一次文档、PR / 文件多大算过大 —— 然后读取已有的规范：README、CLAUDE.md、AGENTS.md、docs、wiki。
 

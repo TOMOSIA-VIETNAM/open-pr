@@ -5,9 +5,8 @@
 # vendor's URL shape); refs keep prompt order, duplicates dropped, and show the bare repo
 # name unless two refs in one title share it under different owners.
 #
-# A session that already has a title keeps it, except one this hook gave for the same role:
-# that one gets the new refs appended. A hook cannot ask, so a name the user chose, or one
-# for the other role, is never touched.
+# A session that already has a custom title (--name, /rename, an earlier run of this hook)
+# keeps it: a hook cannot ask, and a name the user chose is never overwritten.
 #
 # The prompt is data: parsed with jq/grep/awk only, never evaluated. Every failure path exits
 # 0 with no output — on this event, stdout is added to the user's context and a non-zero exit
@@ -23,13 +22,7 @@ existing=$(printf '%s' "$input" | jq -r '.session_title // empty') || exit 0
 role=$(printf '%s\n' "$prompt" | sed -nE '1s#^/open-pr:(review|fix)([[:space:]].*)?$#\1#p')
 [ -n "$role" ] || exit 0
 
-# The refs of a title this hook gave for $role, one per line; any other title ends the run.
-REF='[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)* [!#][0-9]+'
-old=""
-if [ -n "$existing" ]; then
-    old=$(printf '%s\n' "$existing" | grep -xE "$role $REF(, $REF)*(, …)?") || exit 0
-    old=$(printf '%s\n' "${old#"$role "}" | sed 's/, …$//' | tr ',' '\n' | sed 's/^ //')
-fi
+[ -z "$existing" ] || exit 0
 
 # ponytail: 20 URLs at ~60 ms each (one open-pr.sh start per URL) stays well inside the 5 s
 # hook timeout, which the prompt waits on; a 200-byte title rarely shows more refs than that.
@@ -37,14 +30,10 @@ new=$(printf '%s\n' "$prompt" | grep -oE 'https?://[^[:space:]]+' | awk '!seen[$
     | while IFS= read -r url; do sh "$OPR" pr-ref "$url"; done)
 [ -n "$new" ] || exit 0
 
-# Input: "O <old ref>" lines, then "N <namespace>/<repo> <!|#n>" lines. At most 200 bytes: cut
+# Input: "N <namespace>/<repo> <!|#n>" lines. At most 200 bytes: cut
 # at a ref boundary, ", …" (5 bytes) marking the refs left out.
-# ponytail: an old bare ref carries no owner, so it counts as the same PR as a new ref with
-# that repo and number, and never makes a new ref show its owner; keeping the namespace in
-# every title would lift that, at the cost of longer titles.
-title=$( { printf '%s\n' "$old" | sed '/^$/d; s/^/O /'; printf '%s\n' "$new" | sed 's/^/N /'; } \
+title=$(printf '%s\n' "$new" | sed 's/^/N /' \
     | LC_ALL=C awk -v role="$role" -v max=200 '
-        $1 == "O" { r = substr($0, 3); if (!(r in has)) { has[r] = 1; out[++k] = r }; next }
         {
             path = $2; num = $3; if (seen[path " " num]++) next
             repo = path; sub(/.*\//, "", repo)
@@ -54,12 +43,8 @@ title=$( { printf '%s\n' "$old" | sed '/^$/d; s/^/O /'; printf '%s\n' "$new" | s
         }
         END {
             for (i = 1; i <= np; i++) {
-                bare = rp[i] " " n[i]; full = p[i] " " n[i]
-                if ((bare in has) || (full in has)) continue
-                r = (rp[i] in clash) ? full : bare
-                has[r] = 1; out[++k] = r; added++
+                out[++k] = (rp[i] in clash) ? p[i] " " n[i] : rp[i] " " n[i]
             }
-            if (!added) exit
             for (i = 1; i <= k; i++) {
                 nt = (t == "") ? role " " out[i] : t ", " out[i]
                 if (t != "" && length(nt) > max - 5) { cut = ", \342\200\246"; break }

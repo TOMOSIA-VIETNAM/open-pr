@@ -147,7 +147,7 @@ flowchart LR
 | `/open-pr:menubar [close]` | macOS: 進行中のレビューと修正、"Fix now"、設定、スヌーズをメニューバーに表示。`close` で消す。[詳細](./docs/ja-JP/watch.md#メニューバーmacos) |
 | `/open-pr:feedback` | **このプラグイン自体**の問題を issue tracker に報告。あなたのリポジトリを特定できる情報は取り除き、送信前に本文を確認してもらう |
 
-Claude Code では、`review` と `fix` が渡された PR からセッション名を付けます（`review api #12, web !7`）。同じコマンドを再度実行すると PR が追加されます。自分で付けた名前はそのままです。
+Claude Code では、`review` と `fix` が渡された PR からセッション名を付けます（`review api #12, web !7`）。すでに名前があるセッションはそのままです。
 
 > [!WARNING]
 > `fix` はリポジトリ（またはレビュー worktree）の **実コード** を編集します。コメントを処理させたいと自分で決めたときだけ実行してください。
