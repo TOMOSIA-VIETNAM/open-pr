@@ -56,8 +56,22 @@ def test_owner_shows_only_when_two_repos_share_a_name():
 
 
 def test_a_user_title_is_kept():
-    for name in ("my name", "review api #12"):
+    for name in ("my name", "review my name", f"review api #12 {GH}", "fix api #12, …x"):
         assert run(json.dumps({"prompt": f"/open-pr:review {GL}", "session_title": name})) == b"", name
+
+
+def test_a_title_this_hook_gave_for_the_other_role_is_kept():
+    assert run(json.dumps({"prompt": f"/open-pr:review {GL}", "session_title": "fix api #12"})) == b""
+
+
+def test_a_title_this_hook_gave_for_the_same_role_takes_the_new_prs():
+    assert title(f"/open-pr:review {GL} {GH}", session_title="review api #12") == "review api #12, web !7"
+    assert title(f"/open-pr:fix {BB}", session_title="fix a/web #1, b/web !2, …") \
+        == "fix a/web #1, b/web !2, app #3"
+    assert run(json.dumps({"prompt": f"/open-pr:review {GH}", "session_title": "review api #12"})) == b"", \
+        "nothing new: the title stays as it is"
+    old = "review " + ", ".join(f"repository-number-{i} #{i}" for i in range(7))
+    assert title(f"/open-pr:review {GH} {GL} {BB}", session_title=old) == old + ", api #12, web !7, …"
 
 
 def test_other_prompts_are_left_alone():
