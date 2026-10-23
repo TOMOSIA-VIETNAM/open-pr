@@ -128,10 +128,10 @@ Write "reconfirm this requirement/spec".
 
 Criteria + precedence: Step 5.
 
-**FILE vs LINE** = contextual judgment, no enum, BOUNDED by the diff: LINE only where the target line
-sits INSIDE a hunk — an unchanged region of a touched file is FILE by force. LINE:
-`-` line ⇒ `side: "LEFT"` (base), `+`/context line ⇒ `side: "RIGHT"` (head). FILE → Step 8 body; LINE →
-Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
+**FILE vs LINE** = contextual judgment, no enum: LINE = the finding points at ONE line, in any file —
+`-` line ⇒ `side: "LEFT"` (base), else `side: "RIGHT"` (head); `post` places it (its diff line, else its
+file, else the overview). FILE = no single line → Step 8 body; LINE → Step 9 `comments[]`. FORBIDDEN: a
+FILE finding inside `comments[]`.
 
 **Scope:**
 
@@ -264,7 +264,7 @@ Then `<op> post`. Invariants on every vendor:
 
 - exactly 1 review / 1 batch for the main PR, never split. A submodule post is a separate result for a
   DIFFERENT PR and doesn't count here.
-- every LINE finding attached to its correct diff line + side
+- every LINE finding carries its real line + side
 
 `auto_submit_review`: `true` → `<op> publish`, then `<op> post-verify --payload <it>` confirms it landed; `false` →
 stop at whatever `post` left unpublished — a server-side draft, or (Bitbucket, which has no draft) the
@@ -275,7 +275,8 @@ user's behalf.
 `Read` `cases/post-review.md`.
 Happy path → skip that file.
 
-**Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, plus
+**Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, each
+`moved_to_*` line `post`/`publish` printed (`path:line` → its file or the overview), plus
 the worktree path and that `/open-pr:clean` removes it. FORBIDDEN: repeating a finding's description or
 its Fix — the PR carries that text; removing the worktree, or asking to — the user's later call.
 

@@ -212,15 +212,15 @@ ctx_commits() {
         bitbucket) bb_paged "$BB_API/pullrequests/$N/commits?pagelen=100&fields=next,values.message" '.values[].message | split("\n")[0]' ;;
     esac
 }
-# One line of JSON per LINE-level comment, the same shape on every vendor:
-# {id, body, user, path, line, side, in_reply_to}
+# One line of JSON per diff comment, the same shape on every vendor:
+# {id, body, user, path, line, side, in_reply_to}; line and side null = a comment on the whole file.
 ctx_comments() {
     case "$V" in
         github) gh api --paginate "repos/$OWNER/$REPO/pulls/$N/comments" \
-                  | jq -c '.[] | {id, body, user: .user.login, path, line: (.line // .original_line), side: (.side // "RIGHT"), in_reply_to: (.in_reply_to_id // null)}' ;;
-        gitlab) gl_discussions_cached "$N" | jq -c '.[] | .notes as $ns | $ns[0].id as $root | $ns[] | select(.position != null) | {id, body, user: .author.username, path: (.position.new_path // .position.old_path), line: (.position.new_line // .position.old_line), side: (if .position.new_line then "RIGHT" else "LEFT" end), in_reply_to: (if .id == $root then null else $root end)}' ;;
+                  | jq -c '.[] | (.line // .original_line) as $l | {id, body, user: .user.login, path, line: $l, side: (if $l then .side // "RIGHT" else null end), in_reply_to: (.in_reply_to_id // null)}' ;;
+        gitlab) gl_discussions_cached "$N" | jq -c '.[] | .notes as $ns | $ns[0].id as $root | $ns[] | select(.position != null) | {id, body, user: .author.username, path: (.position.new_path // .position.old_path), line: (.position.new_line // .position.old_line), side: (if .position.new_line then "RIGHT" elif .position.old_line then "LEFT" else null end), in_reply_to: (if .id == $root then null else $root end)}' ;;
         bitbucket) bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.user.nickname,values.inline,values.parent.id,values.deleted" \
-                  '.values[] | select(.deleted != true and .inline != null) | {id, body: .content.raw, user: .user.nickname, path: .inline.path, line: (.inline.to // .inline.from), side: (if .inline.to then "RIGHT" else "LEFT" end), in_reply_to: (.parent.id // null)} | @json' ;;
+                  '.values[] | select(.deleted != true and .inline != null) | {id, body: .content.raw, user: .user.nickname, path: .inline.path, line: (.inline.to // .inline.from), side: (if .inline.to then "RIGHT" elif .inline.from then "LEFT" else null end), in_reply_to: (.parent.id // null)} | @json' ;;
     esac
 }
 ctx_ci() {
@@ -567,9 +567,9 @@ vendor_init() {
 post_init() { vendor_init; N=$(req pr); check_ident '^[0-9]+$' "$N"; }
 post_error_hint() {
     case "$V" in
-        github) err "hint: 422 = a comments[] entry off the diff (missing line, line outside every hunk, or wrong side). commit_id rejected = force-pushed since the diff was read — no payload fix exists, the run must be called again." ;;
-        gitlab) err "hint: a rejected draft note is usually a bad position (wrong sha triple, or a new_line/old_line the diff never touches)." ;;
-        bitbucket) err "hint: a 400 naming inline is a bad anchor — a path this PR did not change, or a to/from line the diff never touches. Re-post only the parts verify shows missing; a duplicate has no bulk undo." ;;
+        github) err "hint: 422 = a comments[] entry off the diff (the PR changed since post read its files). commit_id rejected = force-pushed since the diff was read — no payload fix exists, the run must be called again." ;;
+        gitlab) err "hint: a rejected draft note is usually a bad position (wrong sha triple, or the diff changed since post read it)." ;;
+        bitbucket) err "hint: a 400 naming inline is a bad anchor — the diff changed since publish read it. Re-post only the parts verify shows missing; a duplicate has no bulk undo." ;;
     esac
 }
 # The suffix post/publish append to the overview body: a blank line, then the review marker.
@@ -595,15 +595,34 @@ pending_draft() {
         bitbucket) ;;
     esac
 }
-# gl_pos(changes): a payload comment's GitLab diff position, from the MR's own hunks — an added line
-# takes new_line, a removed one old_line, an unchanged line inside a hunk BOTH (new_line alone there
-# drafts fine but fails the publish with a 500). null: the file has no diff here or the line sits in no
-# hunk — no position GitLab accepts exists.
-JQ_GL_POS='def gl_pos($changes): . as $c
+# pr_changes: every file of the PR as [{old_path, new_path, diff}]; diff = its hunks, "" when the
+# vendor sent none (too large, binary, collapsed) — the file is still in the PR.
+pr_changes() {
+    case "$V" in
+        github) gh api --paginate "repos/$OWNER/$REPO/pulls/$N/files?per_page=100" \
+                  | jq -s '[.[][] | {old_path: (.previous_filename // .filename), new_path: .filename, diff: (.patch // "")}]' ;;
+        gitlab) gl_changes_cached "$N" | jq '[.changes[] | {old_path, new_path, diff: (.diff // "")}]' ;;
+        bitbucket)
+            # the whole diff cut at `diff --git a/O b/N`; a diffstat path with no chunk joins with no hunks
+            ctx_files > "$TMPD/bb.files"
+            bb_diff_cached "$N" | jq -Rs --rawfile f "$TMPD/bb.files" '
+                [("\n" + .) | split("\ndiff --git ")[1:][] | split("\n") as $ls
+                 | ($ls[0] | capture("^a/(?<o>.*) b/(?<n>.*)$")) | {old_path: .o, new_path: .n, diff: ($ls[1:] | join("\n"))}] as $c
+                | $c + [$f | split("\n")[] | select(. != "") | select(. as $p | $c | any(.old_path == $p or .new_path == $p) | not)
+                        | {old_path: ., new_path: ., diff: ""}]' ;;
+    esac
+}
+# place($changes): where a payload comment {path, line, side, body} lands, one rule on every vendor:
+#   {kind: "line"} + old_path, new_path, and the line as the diff numbers it — an added line new_line,
+#     a removed one old_line, an unchanged one inside a hunk BOTH (GitLab: new_line alone there drafts
+#     fine but fails the publish with a 500);
+#   {kind: "file"} + old_path, new_path: the file is in the PR, the line in none of its hunks;
+#   {kind: "overview"}: the file is not in the PR.
+# anchored: the body of a comment off its line, opening with the `path:line` it was about.
+JQ_PLACE='def place($changes): . as $c
     | first($changes[] | select(.new_path == $c.path or .old_path == $c.path)) // null
-    | if . == null then null else
-        .old_path as $op | .new_path as $np
-        | reduce ((.diff // "") | split("\n")[]) as $l ({o: 0, n: 0, in: false, hit: null};
+    | if . == null then {kind: "overview"} else
+        {old_path, new_path} + (reduce (.diff | split("\n")[]) as $l ({o: 0, n: 0, in: false, hit: null};
             if .hit then .
             elif ($l | startswith("@@")) then
                 ([$l | capture("^@@ -(?<o>[0-9]+)(,[0-9]+)? \\+(?<n>[0-9]+)(,[0-9]+)? @@")][0]) as $h
@@ -617,8 +636,44 @@ JQ_GL_POS='def gl_pos($changes): . as $c
             elif ($l | startswith("-")) then
                 (if $c.side == "LEFT" and .o == $c.line then .hit = {old_line: .o} else . end) | .o += 1
             else . end)
-        | .hit | if . then {old_path: $op, new_path: $np} + . else null end
-      end;'
+          | .hit | if . then {kind: "line"} + . else {kind: "file"} end)
+      end;
+    def anchored: "`\(.path):\(.line)`\n\(.body)";'
+# with_moved($m): the overview body with each finding in $m under its severity heading — the heading
+# added in severity order when missing, before any other `#### ` heading (the skipped-files list); a
+# finding without a severity goes last.
+JQ_WITH_MOVED='def ov_sev: ["🔴", "🟠", "🔵", "📝"];
+    def ov_rank: sub("^####\\s*"; "") as $t | first(range(4) as $i | select($t | startswith(ov_sev[$i])) | $i) // 4;
+    def ov_put($at; $add): (.[:$at] | until(length == 0 or .[-1] != ""; .[:-1])) + [""] + $add
+        + (if $at < length then [""] + .[$at:] else [] end);
+    def with_moved($m): if $m == [] then . else
+        reduce range(5) as $r (split("\n"); . as $L
+            | [$m[] | ([.body | sev_of][0] // "") as $s | select((ov_sev | index($s) // 4) == $r) | anchored] as $its
+            | if $its == [] then .
+              else ($its | join("\n\n") | split("\n")) as $add
+                | (first(range(length) | select($r < 4 and ($L[.] | startswith("#### ") and ov_rank == $r))) // null) as $h
+                | if $h != null then ov_put(first(range($h + 1; length) | select($L[.] | test("^#{1,4} "))) // length; $add)
+                  elif $r == 4 then ov_put(length; $add)
+                  else ov_put(first(range(length) | select($L[.] | startswith("#### ") and ov_rank > $r)) // length;
+                              ["#### " + (["🔴 MUST FIX", "🟠 SHOULD FIX", "🔵 SUGGESTION", "📝 NOTE"] | .[$r]), ""] + $add) end end)
+        | join("\n") end;'
+# place_all: each payload comment {i, c, p}: its index, itself, its placement — one per line in
+# $TMPD/placed. A file comment the vendor refuses is appended to $TMPD/refused with kind "overview".
+place_all() {
+    pr_changes > "$TMPD/changes.json" || { err "open-pr.sh: could not read the PR's files to place its comments"; exit 1; }
+    jq -c --slurpfile ch "$TMPD/changes.json" "$JQ_PLACE"'.comments | to_entries[] | {i: .key, c: .value, p: (.value | place($ch[0]))}' \
+        "$F" > "$TMPD/placed"
+    : > "$TMPD/refused"
+}
+refuse() { printf '%s\n' "$1" | jq -c '.p = {kind: "overview"}' >> "$TMPD/refused"; }
+placed_now() { cat "$TMPD/placed" "$TMPD/refused" | jq -c -s 'group_by(.i) | map(last) | .[]'; }
+# One line per comment `post` could not anchor on its line: `moved_to_file=` / `moved_to_overview=` `path:line`.
+moves() { placed_now | jq -r 'select(.p.kind != "line") | "moved_to_\(.p.kind)=\(.c.path):\(.c.line)"'; }
+# ov_json <key>: {<key>: the payload's overview + the comments placed in it, + the review marker}.
+ov_json() {
+    placed_now | jq -c -s --slurpfile p "$F" --arg k "$1" --arg m "$RM" "$JQ_FINDINGS$JQ_PLACE$JQ_WITH_MOVED"'
+        [.[] | select(.p.kind == "overview") | .c] as $mv | {($k): (($p[0].body | with_moved($mv)) + $m)}'
+}
 cmd_post() {
     parse_args "$@"; post_init
     F=$(req payload); [ -s "$F" ] || die 1 "open-pr.sh post: payload file missing/empty"
@@ -631,40 +686,65 @@ cmd_post() {
         die 8 "open-pr.sh post: an unpublished review of yours already sits on PR $N; nothing was posted"
     fi
     RM=$(review_stamp)
+    place_all
     case "$V" in
         github)
-            jq -c --arg m "$RM" '.body = (.body + $m)' "$F" > "$TMPD/gh.review.json"
-            id=$(gh api -X POST "repos/$OWNER/$REPO/pulls/$N/reviews" --input "$TMPD/gh.review.json" --jq '.id') \
+            # The review carries the line comments; a file comment is a thread GraphQL adds to that
+            # pending review (REST takes `subject_type: "file"` on a standalone comment only).
+            ov_json body > "$TMPD/gh.body.json"
+            jq -c -s --slurpfile p "$F" --slurpfile b "$TMPD/gh.body.json" '$p[0] + $b[0]
+                + {comments: [.[] | select(.p.kind == "line") | .c + {path: .p.new_path}]}' "$TMPD/placed" > "$TMPD/gh.review.json"
+            gh api -X POST "repos/$OWNER/$REPO/pulls/$N/reviews" --input "$TMPD/gh.review.json" > "$TMPD/gh.review.out" \
                 || { post_error_hint; exit 1; }
+            id=$(jq -r '.id' "$TMPD/gh.review.out"); check_ident '^[0-9]+$' "$id"
+            jq -c 'select(.p.kind == "file")' "$TMPD/placed" > "$TMPD/files"
+            while IFS= read -r line; do
+                printf '%s\n' "$line" | jq -c --slurpfile r "$TMPD/gh.review.out" "$JQ_PLACE"'{query: "mutation($r:ID!,$p:String!,$b:String!){addPullRequestReviewThread(input:{pullRequestReviewId:$r,path:$p,body:$b,subjectType:FILE}){thread{comments(first:1){nodes{pullRequestReview{databaseId}}}}}}",
+                    variables: {r: $r[0].node_id, p: .p.new_path, b: (.c | anchored)}}' > "$TMPD/gh.thread.json"
+                if gh api -X POST graphql --input "$TMPD/gh.thread.json" > "$TMPD/gh.thread.out" < /dev/null; then
+                    jq -e --argjson id "$id" '.data.addPullRequestReviewThread.thread.comments.nodes[0].pullRequestReview.databaseId == $id' \
+                        "$TMPD/gh.thread.out" >/dev/null \
+                        || die 1 "open-pr.sh post: GitHub put a file comment on $(printf '%s' "$line" | jq -r '.c.path') outside pending review $id"
+                else
+                    refuse "$line"
+                fi
+            done < "$TMPD/files"
+            if [ -s "$TMPD/refused" ]; then
+                ov_json body > "$TMPD/gh.body.json"
+                gh api -X PUT "repos/$OWNER/$REPO/pulls/$N/reviews/$id" --input "$TMPD/gh.body.json" >/dev/null \
+                    || die 1 "open-pr.sh post: GitHub refused a file comment and the overview could not take it; pending review $id lacks: $(jq -r '"\(.c.path):\(.c.line)"' "$TMPD/refused" | tr '\n' ' ')"
+            fi
+            moves
             printf 'review_id=%s\nstate=PENDING\n' "$id" ;;
         gitlab)
             gl_mr_cached "$N" | jq '.diff_refs' > "$TMPD/gl.refs"
-            gl_changes_cached "$N" > "$TMPD/gl.changes.json"
-            # One draft per line; a finding no position can be built for becomes {moved: <its comment>}.
-            jq -c --slurpfile refs "$TMPD/gl.refs" --slurpfile ch "$TMPD/gl.changes.json" "$JQ_GL_POS"'
-                .comments[] | . as $c | gl_pos($ch[0].changes // [])
-                | if . == null then {moved: $c}
-                  else {note: $c.body, position: ({position_type: "text", base_sha: $refs[0].base_sha,
-                        start_sha: $refs[0].start_sha, head_sha: $refs[0].head_sha} + .)} end' "$F" > "$TMPD/gl.all"
-            jq -c 'select(.moved == null)' "$TMPD/gl.all" > "$TMPD/gl.drafts"
-            while IFS= read -r line; do
-                printf '%s\n' "$line" > "$TMPD/gl.note.json"
-                glab api -X POST -H "Content-Type: application/json" \
-                    "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null < /dev/null \
-                    || { post_error_hint; exit 1; }
-            done < "$TMPD/gl.drafts"
-            jq -r 'select(.moved) | "moved_to_overview=\(.moved.path):\(.moved.line)"' "$TMPD/gl.all"
-            # a moved finding joins the overview as a FILE-style item, `path:line` above its own text
-            jq -c -s --slurpfile p "$F" --arg m "$RM" '{note: ([$p[0].body]
-                + map(select(.moved) | .moved | "`\(.path):\(.line)`\n\(.body)") | join("\n\n") + $m)}' \
-                "$TMPD/gl.all" > "$TMPD/gl.note.json"
+            # One draft per line comment, then per file comment, then the overview. A file position
+            # GitLab refuses (older than file-level comments) moves that finding into the overview.
+            jq -c --slurpfile refs "$TMPD/gl.refs" "$JQ_PLACE"'select(.p.kind != "overview")
+                | {kind: .p.kind, rec: ., note: (if .p.kind == "line" then .c.body else .c | anchored end),
+                   position: ({position_type: (if .p.kind == "line" then "text" else "file" end), base_sha: $refs[0].base_sha,
+                               start_sha: $refs[0].start_sha, head_sha: $refs[0].head_sha} + (.p | del(.kind)))}' \
+                "$TMPD/placed" > "$TMPD/gl.all"
+            for k in line file; do
+                jq -c --arg k "$k" 'select(.kind == $k)' "$TMPD/gl.all" | while IFS= read -r line; do
+                    printf '%s\n' "$line" | jq -c '{note, position}' > "$TMPD/gl.note.json"
+                    if ! glab api -X POST -H "Content-Type: application/json" \
+                        "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null < /dev/null; then
+                        [ "$k" = file ] || { post_error_hint; exit 1; }
+                        refuse "$(printf '%s\n' "$line" | jq -c '.rec')"
+                    fi
+                done || exit 1
+            done
+            ov_json note > "$TMPD/gl.note.json"
             glab api -X POST -H "Content-Type: application/json" \
                 "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null \
                 || { post_error_hint; exit 1; }
+            moves
             printf 'state=DRAFT_NOTES\n' ;;
         bitbucket)
             # No draft stage exists: nothing reaches the PR here. The payload
-            # file is the unpublished review; publish sends it.
+            # file is the unpublished review; publish places and sends it.
+            moves
             printf 'state=UNPUBLISHED_LOCAL\n' ;;
     esac
 }
@@ -761,20 +841,36 @@ cmd_publish() {
         gitlab) gl_publish ;;
         bitbucket)
             F=$(req payload)
-            jq -c --arg m "$RM" '{content: {raw: (.body + $m)}}' "$F" > "$TMPD/bb.part.json"
+            place_all
+            ov_json raw | jq -c '{content: {raw: .raw}}' > "$TMPD/bb.part.json"
             bb_curl -X POST -H "Content-Type: application/json" \
-                "$BB_API/pullrequests/$N/comments" --data @"$TMPD/bb.part.json" | jq -r '"posted overview id=\(.id)"' \
+                "$BB_API/pullrequests/$N/comments" --data @"$TMPD/bb.part.json" > "$TMPD/bb.out" \
                 || { post_error_hint; exit 1; }
-            total=$(jq '.comments | length' "$F")
-            i=0
-            while [ "$i" -lt "$total" ]; do
-                jq -c --argjson i "$i" '.comments[$i] | {content: {raw: .body}, inline: ({path: .path} + (if .side == "RIGHT" then {to: .line} else {from: .line} end))}' \
-                   "$F" > "$TMPD/bb.part.json"
-                bb_curl -X POST -H "Content-Type: application/json" \
-                    "$BB_API/pullrequests/$N/comments" --data @"$TMPD/bb.part.json" | jq -r '"posted line-comment id=\(.id)"' \
-                    || { post_error_hint; err "publishing is one request per part and failed part-way: run verify, re-post only what is missing."; exit 1; }
-                i=$((i + 1))
-            done
+            ov=$(jq -r '.id' "$TMPD/bb.out"); check_ident '^[0-9]+$' "$ov"
+            printf 'posted overview id=%s\n' "$ov"
+            # A path-only inline comment Bitbucket refuses joins the overview, edited in place.
+            jq -c 'select(.p.kind != "overview")' "$TMPD/placed" > "$TMPD/bb.parts"
+            while IFS= read -r line; do
+                printf '%s\n' "$line" | jq -c "$JQ_PLACE"'if .p.kind == "line"
+                    then {content: {raw: .c.body}, inline: ({path: .p.new_path} + (if .c.side == "RIGHT" then {to: .c.line} else {from: .c.line} end))}
+                    else {content: {raw: (.c | anchored)}, inline: {path: .p.new_path}} end' > "$TMPD/bb.part.json"
+                k=$(printf '%s\n' "$line" | jq -r '.p.kind')
+                if bb_curl -X POST -H "Content-Type: application/json" \
+                    "$BB_API/pullrequests/$N/comments" --data @"$TMPD/bb.part.json" > "$TMPD/bb.out" < /dev/null; then
+                    jq -r --arg k "$k" '"posted \($k)-comment id=\(.id)"' "$TMPD/bb.out"
+                elif [ "$k" = file ]; then
+                    refuse "$line"
+                else
+                    post_error_hint; err "publishing is one request per part and failed part-way: run verify, re-post only what is missing."; exit 1
+                fi
+            done < "$TMPD/bb.parts"
+            if [ -s "$TMPD/refused" ]; then
+                ov_json raw | jq -c '{content: {raw: .raw}}' > "$TMPD/bb.part.json"
+                bb_curl -X PUT -H "Content-Type: application/json" \
+                    "$BB_API/pullrequests/$N/comments/$ov" --data @"$TMPD/bb.part.json" > /dev/null \
+                    || die 1 "open-pr.sh publish: Bitbucket refused a file comment and the overview could not take it; missing: $(jq -r '"\(.c.path):\(.c.line)"' "$TMPD/refused" | tr '\n' ' ')"
+                jq -r '"moved_to_overview=\(.c.path):\(.c.line)"' "$TMPD/refused"
+            fi
             printf 'PUBLISHED\n' ;;
     esac
 }
@@ -825,12 +921,14 @@ cmd_post_verify() {
             M=$(req marker)
             bb_paged "$BB_API/pullrequests/$N/comments?pagelen=100&fields=next,values.id,values.content.raw,values.inline,values.deleted,values.links.html.href" \
                 ".values[] | select(.deleted != true) | @json" > "$TMPD/pv.rows"
-            found=$(jq -c --arg m "$M" 'select(.content.raw | contains($m)) | {id, path: .inline.path, line: .inline.to}' "$TMPD/pv.rows")
+            found=$(jq -c --arg m "$M" 'select(.content.raw | contains($m)) | {id, path: .inline.path, line: (.inline.to // .inline.from)}' "$TMPD/pv.rows")
             if [ -n "$found" ]; then printf '%s\n' "$found"; else printf 'NOTHING-POSTED (no comment carries the marker)\n'; fi
-            [ -z "$P" ] || jq -r -s --slurpfile p "$P" --arg m "$(marker_text review)" '($p[0].body | sub("\\s+$"; "")) as $b
-                | [.[] | select(.inline == null
-                                and ((.content.raw // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "")) == $b)]
-                | last | .links.html.href // empty' \
+            # an overview publish added a finding to no longer equals the payload's: the newest stamped one
+            [ -z "$P" ] || jq -r -s --slurpfile p "$P" --arg m "$(marker_text review)" "$JQ_MARKED"'($p[0].body | sub("\\s+$"; "")) as $b
+                | [.[] | select(.inline == null)] as $top
+                | ([$top[] | select((.content.raw // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "") == $b)] | last)
+                  // ([$top[] | select((.content.raw // "") | marked("review"))] | last)
+                | .links.html.href // empty' \
                 "$TMPD/pv.rows" > "$TMPD/pv.url" ;;
     esac
     u=$(head -n 1 "$TMPD/pv.url" 2>/dev/null || true)
@@ -1900,14 +1998,16 @@ Subcommands:
       caller judges the match
   post --payload F
       create the vendor's unpublished stage. Payload, ONE shape everywhere:
-      `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…`
+      `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…`.
+      A comment off every hunk goes on its file, `moved_to_file=<path:line>`; outside the PR's files
+      (or refused there) into the overview, `moved_to_overview=<path:line>`
   publish [--review-id I] [--payload F]
       make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview
       first). GitLab exit 1: part landed; a re-run never posts twice
   post-verify [--review-id I] [--marker M] [--payload F]
       what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line
       `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else
-      GitLab's newest plugin one), after its `counts=<json>` (GitHub, GitLab)
+      the newest plugin one), after its `counts=<json>` (GitHub, GitLab)
   reply --comment-id C --body-file F [--kind line|top] [--thread-id T]
       reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the
       thread holding C
