@@ -671,7 +671,7 @@ cmd_discard() {
 # them listed, so a blind retry posts the published ones twice. A draft is "already published" when the
 # caller's notes after their newest overview that is not itself a draft (an earlier review's) hold one
 # with its body (GitLab strips \r and trailing whitespace) at its path and line.
-# ponytail: two identical drafts on one line count as one twin; count matches if that ever happens.
+# Two identical drafts on one line share one twin: counting matches per key would tell them apart.
 JQ_GL_TWINS='def norm: (. // "") | gsub("\r"; "") | sub("\\s+$"; "");
     def at: [(.position.new_path // null), (.position.new_line // .position.old_line // null)];
     ($d[0] | map([(.note | norm)] + at)) as $dk
