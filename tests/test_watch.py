@@ -181,8 +181,10 @@ class Watch:
         self.repo.mkdir()
         self.sd = self.home / "data" / "r" / "watch"
         self.watch = tmp / "xdg" / "open-pr" / "watch"
+        # COLUMNS=80: procps (Linux) then cuts a `ps` command line there unless told -ww, as it
+        # does whenever it finds no terminal. TMPDIR: toast slots, private to the test.
         self.env = dict(os.environ, FAKE_HOME=str(self.home), XDG_CONFIG_HOME=str(tmp / "xdg"),
-                        PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}")
+                        PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}", COLUMNS="80", TMPDIR=str(tmp))
         self.children = []
 
     def run(self, *args, env_extra=None, path=None, check=True, cwd=None):
@@ -1060,7 +1062,7 @@ def test_osascript_gets_the_text_as_argv_never_as_source(w):
 def test_a_toast_that_never_reaches_the_screen_is_not_reported_sent(w, tmp_path, env, log):
     """A crash (SIGSEGV) or a hang before the toast is drawn: the hung one is stopped."""
     started = time.time()
-    out = notify(w, env_extra=dict(env, TMPDIR=str(tmp_path)))
+    out = notify(w, env_extra=env)
     assert time.time() - started < 15
     assert out == {"event": "posted", "sent": False, "reason": "toast not shown", "log": str(w.watch / "toast.log")}
     deadline = time.time() + 5
@@ -1071,7 +1073,7 @@ def test_a_toast_that_never_reaches_the_screen_is_not_reported_sent(w, tmp_path,
 
 
 def test_a_toast_that_crashes_after_it_showed_leaves_its_exit_code_in_the_log(w, tmp_path):
-    assert notify(w, env_extra={"FAKE_EXIT": "139", "TMPDIR": str(tmp_path)})["via"] == "toast"
+    assert notify(w, env_extra={"FAKE_EXIT": "139"})["via"] == "toast"
     deadline = time.time() + 5
     while (w.watch / "toast.log").read_text() == "" and time.time() < deadline:
         time.sleep(0.1)
@@ -1080,7 +1082,7 @@ def test_a_toast_that_crashes_after_it_showed_leaves_its_exit_code_in_the_log(w,
 
 def test_a_toast_on_screen_late_within_its_bound_is_sent_and_logs_nothing(w, tmp_path):
     started = time.time()
-    out = notify(w, env_extra={"FAKE_UI_DELAY": "3", "TMPDIR": str(tmp_path)})
+    out = notify(w, env_extra={"FAKE_UI_DELAY": "3"})
     assert out == {"event": "posted", "sent": True, "via": "toast"} and time.time() - started >= 3
     w.wait_dead(int((tmp_path / "open-pr-toast" / "0" / "pid").read_text()))
     assert (w.watch / "toast.log").read_text() == "", "a toast that exits 0 appends nothing"
@@ -1094,13 +1096,13 @@ def test_a_toast_in_a_reused_slot_is_judged_by_its_own_marker(w, tmp_path):
         (tmp_path / "open-pr-toast" / str(n)).mkdir(parents=True)
         (tmp_path / "open-pr-toast" / str(n) / "pid").write_text(me + "\n")
     (tmp_path / "open-pr-toast" / "0" / "shown").write_text("")
-    out = notify(w, env_extra={"FAKE_NO_UI": "1", "FAKE_EXIT": "139", "TMPDIR": str(tmp_path)})
+    out = notify(w, env_extra={"FAKE_NO_UI": "1", "FAKE_EXIT": "139"})
     assert (out["sent"], out.get("reason")) == (False, "toast not shown"), out
 
 
 def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
     """A new toast takes the first free slot; a slot frees when its toast exits."""
-    env = {"TMPDIR": str(tmp_path), "FAKE_SLEEP": "30"}
+    env = {"FAKE_SLEEP": "30"}
     f = w.prompt("Reviewing #3\nfix: x", "t.txt")
     for _ in range(2):
         w.run("notify", "--event", "review_started", "--text-file", f, "--url", "https://h/o/r/pull/3",

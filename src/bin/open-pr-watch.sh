@@ -996,7 +996,7 @@ EOF
 host_pid() {
     p=$$; i=0
     while [ "$i" -lt 15 ] && [ "${p:-0}" -gt 1 ]; do
-        row=$(ps -o ppid=,args= -p "$p" 2>/dev/null || true)
+        row=$(ps -ww -o ppid=,args= -p "$p" 2>/dev/null || true)
         read -r pp cm rest <<EOF
 $row
 EOF
@@ -1057,7 +1057,7 @@ cmd_wait() {
         has_role "$r" || continue
         old=$(cat "$SD/wait-$r.pid" 2>/dev/null || true)
         if [ -n "$old" ] && [ "$old" != "$$" ] && kill -0 "$old" 2>/dev/null \
-            && ps -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
+            && ps -ww -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
             die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched for $r on this machine (wait pid $old) — stop that watcher first"
         fi
     done
@@ -1240,10 +1240,11 @@ cmd_menubar() {
     lock "$WD/.lock"
     pf="$WD/menubar.pid"
     pid=$(cat "$pf" 2>/dev/null || true)
-    # pids get reused
+    # pids get reused. -ww here and at every `ps` read of a command line: without a terminal,
+    # procps (Linux) cuts it at 80 columns, often before the script name.
     live=""
     if printf '%s' "$pid" | grep -Eq '^[0-9]+$' && kill -0 "$pid" 2>/dev/null \
-        && ps -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then live=1; fi
+        && ps -ww -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then live=1; fi
     if [ -n "$(arg close)" ]; then
         [ -n "$live" ] || { rm -f "$pf"; printf 'not running\n'; return 0; }
         kill "$pid" 2>/dev/null || true; rm -f "$pf"; printf 'closed\n'; return 0
