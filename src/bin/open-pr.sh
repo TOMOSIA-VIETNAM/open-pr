@@ -879,6 +879,92 @@ cmd_react() {
         bitbucket) printf 'NO-EQUIVALENT\n' ;;
     esac
 }
+# ------------------------------------------------------- edit / delete ----
+# Only a comment this plugin posted, from the caller's account: its last non-blank line, outside a
+# quote and a code fence, ends with one of the markers `marker`/`post` write, in either vendor form. A
+# person's own comment quoting a finding (`> …<!-- bot-finding -->`) is not one, though the plugin
+# posts under that person's account.
+JQ_OURS='def ours: (reduce (split("\n")[] | sub("\r$"; "")) as $l ({f: false, last: null};
+        if ($l | test("^\\s*(```|~~~)")) then .f = (.f | not) | .last = null
+        elif ($l | test("^\\s*$")) then .
+        else .last = (if .f then null else $l end) end)).last
+    | . != null and (test("^\\s*>") | not)
+      and test("(<!--\\s*bot-|^ {0,3}\\[bot-)(finding|review|reply|claim:[0-9]+|report:[0-9]+)(\\s*-->|\\]:\\s*#)\\s*$");'
+# cm_get: comment $CID as {pr, user, body, state} in $TMPD/cm.json. GitHub ids span the repo: pr names
+# the PR it is on. A GitLab draft note is listed to its author alone: its user is the caller.
+cm_get() {
+    case "$V/$KIND" in
+        github/line) gh api "repos/$OWNER/$REPO/pulls/comments/$CID" \
+                       | jq '{pr: (.pull_request_url // "" | split("/") | last), user: .user.login, body: (.body // ""), state: null}' ;;
+        github/top) gh api "repos/$OWNER/$REPO/issues/comments/$CID" \
+                       | jq '{pr: (.issue_url // "" | split("/") | last), user: .user.login, body: (.body // ""), state: null}' ;;
+        github/review) gh api "repos/$OWNER/$REPO/pulls/$N/reviews/$CID" \
+                       | jq --arg n "$N" '{pr: $n, user: .user.login, body: (.body // ""), state}' ;;
+        gitlab/draft) glab api "projects/$GL_PROJ/merge_requests/$N/draft_notes/$CID" \
+                       | jq --arg n "$N" --arg me "$ME" '{pr: $n, user: $me, body: (.note // ""), state: null}' ;;
+        gitlab/*) glab api "projects/$GL_PROJ/merge_requests/$N/notes/$CID" \
+                       | jq --arg n "$N" '{pr: (if .system then null else $n end), user: .author.username, body: (.body // ""), state: null}' ;;
+        bitbucket/*) bb_curl "$BB_API/pullrequests/$N/comments/$CID?fields=user.nickname,content.raw,deleted" \
+                       | jq --arg n "$N" '{pr: (if .deleted then null else $n end), user: .user.nickname, body: (.content.raw // ""), state: null}' ;;
+    esac > "$TMPD/cm.json"
+}
+# cm_init <op>: validates, then refuses (exit 1, nothing sent) unless comment C is the caller's and this plugin's.
+cm_init() {
+    post_init
+    CID=$(req comment_id); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
+    check_ident '^[0-9]+$' "$CID"; check_ident '^(line|top|review|draft)$' "$KIND"
+    case "$V/$KIND" in
+        github/draft) die 1 "open-pr.sh $1: a pending GitHub review's line comments are not covered; --kind review edits its body, discard deletes it" ;;
+        bitbucket/draft) printf 'NO-EQUIVALENT\n'; exit 0 ;;
+    esac
+    ME=$(ctx_account)
+    [ "$ME" != UNKNOWN ] || die 1 "open-pr.sh $1: the account is UNKNOWN (a workspace token), so no comment can be shown to be yours; nothing was sent"
+    cm_get || die 1 "open-pr.sh $1: could not read $KIND comment $CID on PR $N; nothing was sent"
+    jq -e --arg n "$N" --arg me "$ME" "$JQ_OURS"'.pr == $n and .user == $me and (.body | ours)' "$TMPD/cm.json" >/dev/null \
+        || die 1 "open-pr.sh $1: comment $CID is not this plugin's own on PR $N (another account's, or no marker of its own); nothing was sent"
+}
+# edit: F replaces the body. F not ending with a marker of its own keeps the old body's marker line, so
+# the comment stays known as this plugin's.
+cmd_edit() {
+    parse_args "$@"
+    F=$(req body_file); [ -s "$F" ] || die 1 "open-pr.sh edit: body file missing/empty"
+    cm_init edit
+    jq -n --rawfile new "$F" --slurpfile old "$TMPD/cm.json" "$JQ_OURS"'
+        ($new | sub("\\s+$"; "")) as $b
+        | if ($b | ours) then $b
+          else $b + "\n\n" + ($old[0].body | sub("\\s+$"; "") | split("\n") | last | sub("\r$"; "")) end' > "$TMPD/cm.body"
+    case "$V/$KIND" in
+        github/*) jq -c '{body: .}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+        gitlab/draft) jq -c '{note: .}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+        gitlab/*) jq -c '{body: .}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+        bitbucket/*) jq -c '{content: {raw: .}}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+    esac
+    case "$V/$KIND" in
+        github/line) gh api -X PATCH "repos/$OWNER/$REPO/pulls/comments/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        github/top) gh api -X PATCH "repos/$OWNER/$REPO/issues/comments/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        github/review) gh api -X PUT "repos/$OWNER/$REPO/pulls/$N/reviews/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        gitlab/draft) glab api -X PUT -H "Content-Type: application/json" "projects/$GL_PROJ/merge_requests/$N/draft_notes/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        gitlab/*) glab api -X PUT -H "Content-Type: application/json" "projects/$GL_PROJ/merge_requests/$N/notes/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        bitbucket/*) bb_curl -X PUT -H "Content-Type: application/json" "$BB_API/pullrequests/$N/comments/$CID" --data @"$TMPD/cm.req" > /dev/null ;;
+    esac
+    printf 'EDITED %s\n' "$CID"
+}
+cmd_delete() {
+    parse_args "$@"
+    cm_init delete
+    case "$V/$KIND" in
+        github/line) gh api -X DELETE "repos/$OWNER/$REPO/pulls/comments/$CID" > /dev/null ;;
+        github/top) gh api -X DELETE "repos/$OWNER/$REPO/issues/comments/$CID" > /dev/null ;;
+        github/review)
+            # a submitted review stays: GitHub deletes only a pending one
+            [ "$(jq -r '.state' "$TMPD/cm.json")" = PENDING ] || { printf 'NO-EQUIVALENT\n'; return 0; }
+            gh api -X DELETE "repos/$OWNER/$REPO/pulls/$N/reviews/$CID" > /dev/null ;;
+        gitlab/draft) glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/draft_notes/$CID" > /dev/null ;;
+        gitlab/*) glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/notes/$CID" > /dev/null ;;
+        bitbucket/*) bb_curl -X DELETE "$BB_API/pullrequests/$N/comments/$CID" > /dev/null ;;
+    esac
+    printf 'DELETED %s\n' "$CID"
+}
 # ---------------------------------------------------------------- claim ----
 # Several machines may watch one repo: a reply carrying the claim marker for the trigger comment
 # is the lock. The EARLIEST (created_at, then id) wins — an order every machine computes alike.
@@ -1858,10 +1944,21 @@ Diagnostic subcommands (cases/self-repair.md, commands/watch.md and commands/men
       <detail>`; exit 1 when any fails. Posts nothing, touches no watcher state, leaves no process,
       runs before the jq gate; no option
 
-Case subcommands (each called by one cases/ file, which names the call; rendered nowhere):
+Case subcommands (rendered nowhere; a cases/ file that calls one names the call there):
   discard --draft-id I
       delete the pending draft `post` exit 8 named, only while it is still that one and this
       plugin's; `DISCARDED`. `NO-EQUIVALENT` on Bitbucket
+  edit --comment-id C --body-file F [--kind line|top|review|draft]
+      replace comment C's body with F; `EDITED <C>`. Refused (exit 1, nothing sent) unless C is on
+      this PR, by the caller's account (`UNKNOWN` ⇒ refused), and its last non-blank line, outside a
+      quote or code fence, ends with one of this plugin's markers. F without a marker of its own keeps
+      C's marker line. `--kind` (default `line`): GitHub `line` = review comment, `top` = conversation
+      comment, `review` = a review's body (pending or submitted); GitLab `draft` = a draft note, any
+      other = a note; Bitbucket one kind, `draft` ⇒ `NO-EQUIVALENT`. A pending GitHub review's line
+      comments are not covered
+  delete --comment-id C [--kind line|top|review|draft]
+      remove comment C under `edit`'s refusal rule and kinds; `DELETED <C>`. A submitted GitHub review
+      ⇒ `NO-EQUIVALENT` (GitHub deletes only a pending one)
 
 Internal subcommands (open-pr-watch.sh's own; no prompt calls them):
   repo-target --repo-dir D [--remote R]
@@ -1917,6 +2014,8 @@ case "$sub" in
     post)         cmd_post "$@" ;;
     publish)      cmd_publish "$@" ;;
     discard)      cmd_discard "$@" ;;
+    edit)         cmd_edit "$@" ;;
+    delete)       cmd_delete "$@" ;;
     post-verify)  cmd_post_verify "$@" ;;
     push)         cmd_push "$@" ;;
     reply)        cmd_reply "$@" ;;

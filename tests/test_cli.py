@@ -936,6 +936,141 @@ def test_publish_gitlab_never_reads_an_unreadable_draft_list_as_published(shims)
     assert r.returncode != 0 and "PUBLISHED" not in r.stdout and "bulk_publish" not in calls
 
 
+# ------------------------------------------------------- edit / delete ----
+# Per vendor: the CLI the script calls, how it answers the account lookup, the GET of comment 70 for a
+# kind, and that comment's JSON for a given author and body.
+CM = {
+    "github": ("gh", ("api user", "bot\n"),
+               {"line": "repos/o/r/pulls/comments/70", "top": "repos/o/r/issues/comments/70", "review": "pulls/5/reviews/70"},
+               lambda user, body, kind: {"user": {"login": user}, "body": body, "state": "COMMENTED",
+                                         "pull_request_url": "https://api.github.com/repos/o/r/pulls/5",
+                                         "issue_url": "https://api.github.com/repos/o/r/issues/5"}),
+    "gitlab": ("glab", ("api user", {"username": "bot"}),
+               {"line": "merge_requests/5/notes/70", "top": "merge_requests/5/notes/70", "draft": "merge_requests/5/draft_notes/70"},
+               lambda user, body, kind: ({"note": body, "author_id": 1} if kind == "draft"
+                                         else {"author": {"username": user}, "body": body, "system": False})),
+    "bitbucket": ("curl", ("2.0/user?fields", {"nickname": "bot"}),
+                  {"line": "pullrequests/5/comments/70?fields", "top": "pullrequests/5/comments/70?fields"},
+                  lambda user, body, kind: {"user": {"nickname": user}, "content": {"raw": body}, "deleted": False}),
+}
+MARK = {"github": "<!-- bot-{} -->", "gitlab": "<!-- bot-{} -->", "bitbucket": "[bot-{}]: #"}
+CM_CASES = [(v, k) for v in CM for k in CM[v][2]]
+
+
+def _cm(shims, vendor, kind, op, user="bot", body=None, new=None, extra=()):
+    cli, account, gets, shape = CM[vendor]
+    body = body if body is not None else "🔵 x\n\n" + MARK[vendor].format("finding")
+    serve(shims, cli, [*extra, ("-X PATCH", {}), ("-X PUT", {}), ("-X DELETE", {}), account,
+                       (gets[kind], shape(user, body, kind))])
+    args = ["--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70", "--kind", kind]
+    if op == "edit":
+        f = shims["tmp"] / "new.md"
+        f.write_text(new if new is not None else "🔵 reworded $(id) `id`\n\n" + MARK[vendor].format("finding"))
+        args += ["--body-file", str(f)]
+    r = run(op, *args, env_extra={**env_for(shims), "BITBUCKET_EMAIL": "me@x", "BITBUCKET_API_TOKEN": "t"})
+    log = shims["log"].read_text()
+    bodies = shims["tmp"] / "calls.log.bodies"
+    return r, log, [json.loads(b) for b in bodies.read_text().splitlines() if b.strip()] if bodies.exists() else []
+
+
+def _sent_text(vendor, kind, b):
+    return b["content"]["raw"] if vendor == "bitbucket" else b["note"] if kind == "draft" else b["body"]
+
+
+@pytest.mark.parametrize("vendor, kind", CM_CASES)
+def test_edit_replaces_the_plugins_own_comment_with_the_body_file(shims, vendor, kind):
+    r, log, bodies = _cm(shims, vendor, kind, "edit")
+    assert r.returncode == 0 and r.stdout == "EDITED 70\n", r.stderr
+    assert re.search(r"-X (PATCH|PUT)\b.*\b70\b", log), log
+    assert _sent_text(vendor, kind, bodies[-1]) == "🔵 reworded $(id) `id`\n\n" + MARK[vendor].format("finding")
+    assert "reworded" not in log, "the body travels by file, never argv"
+
+
+@pytest.mark.parametrize("vendor, kind", [c for c in CM_CASES if c != ("github", "review")])   # its own test below
+def test_delete_removes_the_plugins_own_comment(shims, vendor, kind):
+    r, log, _ = _cm(shims, vendor, kind, "delete")
+    assert r.returncode == 0 and r.stdout == "DELETED 70\n", r.stderr
+    assert re.search(r"-X DELETE\b.*\b70\b", log), log
+
+
+@pytest.mark.parametrize("vendor, kind", CM_CASES)
+@pytest.mark.parametrize("op", ["edit", "delete"])
+@pytest.mark.parametrize("why, user, body", [
+    ("no marker", "bot", "a person's own note"),
+    ("another account's", "alice", None),
+    ("a marker quoted by a person", "bot", "I disagree with this:\n> 🔵 x\n> {m}"),
+    ("a marker inside a code fence", "bot", "pasted:\n```\n{m}\n```"),
+    ("a marker that is not the last line", "bot", "{m}\nand then my own words"),
+])
+def test_edit_and_delete_refuse_a_comment_that_is_not_the_plugins_own(shims, vendor, kind, op, why, user, body):
+    if body is not None:
+        body = body.format(m=MARK[vendor].format("finding"))
+    if kind == "draft" and user != "bot":
+        pytest.skip("a GitLab draft note is listed to its author alone")
+    r, log, bodies = _cm(shims, vendor, kind, op, user=user, body=body)
+    assert r.returncode == 1 and r.stdout == "" and "nothing was sent" in r.stderr, why
+    assert not re.search(r"-X (PATCH|PUT|DELETE)", log) and not bodies, f"{why}: a write went out"
+
+
+@pytest.mark.parametrize("kind", ["review", "reply", "claim:12", "report:12"])
+@pytest.mark.parametrize("vendor", list(CM))
+def test_edit_accepts_every_marker_the_plugin_writes(shims, vendor, kind):
+    r, _, _ = _cm(shims, vendor, "top", "edit", body="text\n\n" + MARK[vendor].format(kind) + "\n")
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.parametrize("vendor, kind", CM_CASES)
+def test_edit_keeps_the_marker_when_the_new_body_has_none(shims, vendor, kind):
+    """Without it the comment would stop being known as this plugin's: no later run could find it."""
+    old = "### Overview\n\n" + MARK[vendor].format("review")
+    r, _, bodies = _cm(shims, vendor, kind, "edit", body=old, new="### Overview, corrected\n")
+    assert r.returncode == 0, r.stderr
+    assert _sent_text(vendor, kind, bodies[-1]) == "### Overview, corrected\n\n" + MARK[vendor].format("review")
+
+
+def test_edit_and_delete_refuse_a_github_comment_on_another_pr(shims):
+    """GitHub comment ids span the repo: a review comment of PR 6 is not PR 5's to change."""
+    for kind, url in (("line", "pull_request_url"), ("top", "issue_url")):
+        c = CM["github"][3]("bot", "x\n\n<!-- bot-finding -->", kind)
+        c[url] = c[url].replace("/5", "/6")
+        serve(shims, "gh", [("-X", {}), ("api user", "bot\n"), (CM["github"][2][kind], c)])
+        r = run("delete", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70",
+                "--kind", kind, env_extra=env_for(shims))
+        assert r.returncode == 1 and "-X DELETE" not in shims["log"].read_text()
+
+
+def test_delete_leaves_a_submitted_github_review_and_removes_a_pending_one(shims):
+    body = "x\n\n<!-- bot-review -->"
+    r, log, _ = _cm(shims, "github", "review", "delete", body=body)
+    assert r.stdout == "NO-EQUIVALENT\n" and "-X DELETE" not in log
+    shims["log"].unlink()
+    r, log, _ = _cm(shims, "github", "review", "delete", body=body,
+                    extra=[("pulls/5/reviews/70", {"user": {"login": "bot"}, "body": body, "state": "PENDING"})])
+    assert r.stdout == "DELETED 70\n" and "-X DELETE repos/o/r/pulls/5/reviews/70" in log
+
+
+def test_edit_refuses_under_a_bitbucket_token_with_no_account(shims):
+    serve(shims, "curl", [("-X PUT", {}), ("comments/70?fields", CM["bitbucket"][3]("bot", "x\n\n[bot-finding]: #", "top"))])
+    f = shims["tmp"] / "new.md"
+    f.write_text("y\n\n[bot-finding]: #")
+    r = run("edit", "--vendor", "bitbucket", "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70",
+            "--body-file", str(f), env_extra={**env_for(shims), "BITBUCKET_EMAIL": "", "BITBUCKET_API_TOKEN": ""})
+    assert r.returncode == 1 and "UNKNOWN" in r.stderr and not shims["log"].exists(), "refused before any call"
+
+
+@pytest.mark.parametrize("vendor, out, code", [("bitbucket", "NO-EQUIVALENT\n", 0), ("github", "", 1)])
+def test_the_draft_kind_outside_gitlab_sends_nothing(shims, vendor, out, code):
+    r = run("delete", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70",
+            "--kind", "draft", env_extra={**env_for(shims), "BITBUCKET_EMAIL": "me@x", "BITBUCKET_API_TOKEN": "t"})
+    assert r.returncode == code and r.stdout == out and not shims["log"].exists(), "nothing read, nothing sent"
+
+
+@pytest.mark.parametrize("args", [["--comment-id", "7 0"], ["--comment-id", "70", "--kind", "issue"]])
+def test_edit_and_delete_validate_their_values_before_any_call(shims, args):
+    r = run("delete", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", *args, env_extra=env_for(shims))
+    assert r.returncode == 4 and not shims["log"].exists()
+
+
 def test_reply_bodies_travel_by_file_never_argv(shims, tmp_path):
     body = tmp_path / "b.md"
     body.write_text("thanks `$(reboot)`")
