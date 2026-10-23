@@ -215,7 +215,7 @@ language-neutral already — FORBIDDEN: an English connective like "as of" insid
 | FILE | LINE | overview-exclusive¹ | body |
 |---|---|---|---|
 | – | – | – | EXACTLY 1 line: **LGTM 🌟** (commit `<link>`). No `### 🤖【AI REVIEW】Overview` heading, no thanks, no assessment — only a non-empty skipped-files list may follow it |
-| – | ≥1 | – | the opening line ONLY. DROP every severity heading. A normal outcome ⇒ FORBIDDEN: filler like "good PR"/"reviewed thoroughly"; the LINE comments suffice |
+| – | ≥1 | – | `### 🤖【AI REVIEW】Overview` + the opening line ONLY. DROP every severity heading. A normal outcome ⇒ FORBIDDEN: filler like "good PR"/"reviewed thoroughly"; the LINE comments suffice |
 
 ¹ an Overview item from Step 7, or a non-empty skipped-files list.
 
