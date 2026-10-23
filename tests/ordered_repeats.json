@@ -2,6 +2,12 @@
   "_note": "Every place under src/ where a Step orders, or bans, a second lookup. The stall rule in core/guardrails.md enumerates the only repeats that stay allowed, and each site here says which claim it makes — so dropping an exemption from the rule reddens the sites that leaned on it, and a new repeat has to be argued for here instead of appended to the rule as one more clause. `claim`: the CAPS word the rule exempts (`changed`, `written`), `forbidden` where the site bans the repeat, `not-a-repeat` where the run does not already hold the material. A sha covers the matched phrase plus 45 characters either side; edit a site and the suite prints the new entry to paste.",
   "sites": [
     {
+      "sha": "9886cb2192a4",
+      "file": "cases/post-review.md",
+      "claim": "not-a-repeat",
+      "reason": "A second publish call after a partial GitLab publish is a write, not a lookup: it publishes only the drafts the first call left, which the run does not already hold as published."
+    },
+    {
       "sha": "5c98462967f9",
       "file": "cases/post-review.md",
       "claim": "not-a-repeat",

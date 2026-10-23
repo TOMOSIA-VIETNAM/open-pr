@@ -27,7 +27,7 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per repo at a time: waits `--lock-timeout` s (120), then exit 1 |
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
 | `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |
-| `publish [--review-id I] [--payload F]` | make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview first) |
+| `publish [--review-id I] [--payload F]` | make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview first). GitLab exit 1: part landed; a re-run never posts twice |
 | `post-verify [--review-id I] [--marker M] [--payload F]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else GitLab's newest plugin one), after its `counts=<json>` (GitHub, GitLab) |
 | `reply --comment-id C --body-file F [--kind line\|top] [--thread-id T]` | reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the thread holding C |
 | `resolve --thread-id T` | resolve a review thread |

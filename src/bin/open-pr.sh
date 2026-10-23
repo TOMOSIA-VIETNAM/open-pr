@@ -575,6 +575,30 @@ pending_draft() {
         bitbucket) ;;
     esac
 }
+# gl_pos(changes): a payload comment's GitLab diff position, from the MR's own hunks — an added line
+# takes new_line, a removed one old_line, an unchanged line inside a hunk BOTH (new_line alone there
+# drafts fine but fails the publish with a 500). null: the file has no diff here or the line sits in no
+# hunk — no position GitLab accepts exists.
+JQ_GL_POS='def gl_pos($changes): . as $c
+    | first($changes[] | select(.new_path == $c.path or .old_path == $c.path)) // null
+    | if . == null then null else
+        .old_path as $op | .new_path as $np
+        | reduce ((.diff // "") | split("\n")[]) as $l ({o: 0, n: 0, in: false, hit: null};
+            if .hit then .
+            elif ($l | startswith("@@")) then
+                ([$l | capture("^@@ -(?<o>[0-9]+)(,[0-9]+)? \\+(?<n>[0-9]+)(,[0-9]+)? @@")][0]) as $h
+                | if $h then .o = ($h.o | tonumber) | .n = ($h.n | tonumber) | .in = true else .in = false end
+            elif .in | not then .
+            elif ($l | startswith(" ")) then
+                (if ($c.side == "RIGHT" and .n == $c.line) or ($c.side == "LEFT" and .o == $c.line)
+                 then .hit = {old_line: .o, new_line: .n} else . end) | .o += 1 | .n += 1
+            elif ($l | startswith("+")) then
+                (if $c.side == "RIGHT" and .n == $c.line then .hit = {new_line: .n} else . end) | .n += 1
+            elif ($l | startswith("-")) then
+                (if $c.side == "LEFT" and .o == $c.line then .hit = {old_line: .o} else . end) | .o += 1
+            else . end)
+        | .hit | if . then {old_path: $op, new_path: $np} + . else null end
+      end;'
 cmd_post() {
     parse_args "$@"; post_init
     F=$(req payload); [ -s "$F" ] || die 1 "open-pr.sh post: payload file missing/empty"
@@ -594,19 +618,26 @@ cmd_post() {
                 || { post_error_hint; exit 1; }
             printf 'review_id=%s\nstate=PENDING\n' "$id" ;;
         gitlab)
-            refs=$(gl_mr_cached "$N" | jq '.diff_refs')
-            total=$(jq '.comments | length' "$F")
-            i=0
-            while [ "$i" -lt "$total" ]; do
-                jq -c --argjson i "$i" --argjson refs "$refs" \
-                   '.comments[$i] | {note: .body, position: ({position_type: "text", base_sha: $refs.base_sha, start_sha: $refs.start_sha, head_sha: $refs.head_sha, new_path: .path, old_path: .path} + (if .side == "RIGHT" then {new_line: .line} else {old_line: .line} end))}' \
-                   "$F" > "$TMPD/gl.note.json"
+            gl_mr_cached "$N" | jq '.diff_refs' > "$TMPD/gl.refs"
+            gl_changes_cached "$N" > "$TMPD/gl.changes.json"
+            # One draft per line; a finding no position can be built for becomes {moved: <its comment>}.
+            jq -c --slurpfile refs "$TMPD/gl.refs" --slurpfile ch "$TMPD/gl.changes.json" "$JQ_GL_POS"'
+                .comments[] | . as $c | gl_pos($ch[0].changes // [])
+                | if . == null then {moved: $c}
+                  else {note: $c.body, position: ({position_type: "text", base_sha: $refs[0].base_sha,
+                        start_sha: $refs[0].start_sha, head_sha: $refs[0].head_sha} + .)} end' "$F" > "$TMPD/gl.all"
+            jq -c 'select(.moved == null)' "$TMPD/gl.all" > "$TMPD/gl.drafts"
+            while IFS= read -r line; do
+                printf '%s\n' "$line" > "$TMPD/gl.note.json"
                 glab api -X POST -H "Content-Type: application/json" \
-                    "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null \
+                    "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null < /dev/null \
                     || { post_error_hint; exit 1; }
-                i=$((i + 1))
-            done
-            jq -c --arg m "$RM" '{note: (.body + $m)}' "$F" > "$TMPD/gl.note.json"
+            done < "$TMPD/gl.drafts"
+            jq -r 'select(.moved) | "moved_to_overview=\(.moved.path):\(.moved.line)"' "$TMPD/gl.all"
+            # a moved finding joins the overview as a FILE-style item, `path:line` above its own text
+            jq -c -s --slurpfile p "$F" --arg m "$RM" '{note: ([$p[0].body]
+                + map(select(.moved) | .moved | "`\(.path):\(.line)`\n\(.body)") | join("\n\n") + $m)}' \
+                "$TMPD/gl.all" > "$TMPD/gl.note.json"
             glab api -X POST -H "Content-Type: application/json" \
                 "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null \
                 || { post_error_hint; exit 1; }
@@ -636,14 +667,78 @@ cmd_discard() {
     esac
     printf 'DISCARDED\n'
 }
+# GitLab's bulk_publish can fail (HTTP 500) after publishing part of the drafts and leave every one of
+# them listed, so a blind retry posts the published ones twice. A draft is "already published" when the
+# caller's notes after their newest overview that is not itself a draft (an earlier review's) hold one
+# with its body (GitLab strips \r and trailing whitespace) at its path and line.
+# ponytail: two identical drafts on one line count as one twin; count matches if that ever happens.
+JQ_GL_TWINS='def norm: (. // "") | gsub("\r"; "") | sub("\\s+$"; "");
+    def at: [(.position.new_path // null), (.position.new_line // .position.old_line // null)];
+    ($d[0] | map([(.note | norm)] + at)) as $dk
+    | [.[] | select(.system != true and .author.username == $me) | {id, body, k: ([(.body | norm)] + at)}] as $mine
+    | ([$mine[] | select((.body // "") | marked("review")) | select(.k as $k | $dk | index([$k]) | not) | .id] | max // 0) as $prev
+    | [$mine[] | select(.id > $prev) | .k] as $ck
+    | [$d[0][] | select(([(.note | norm)] + at) as $k | $ck | index([$k])) | .id]'
+# A listing that fails fails the call: read as empty, it would say every draft is published.
+gl_list() {
+    glab api --paginate "projects/$GL_PROJ/merge_requests/$N/$1?per_page=100" > "$TMPD/gl.list" \
+        && jq -c -s '[.[] | .[]? | objects]' "$TMPD/gl.list"
+}
+# $1 = drafts file, $2 = notes file -> the ids of those drafts already published, one per line
+gl_twins() { jq -r --slurpfile d "$1" --arg me "$ME" "$JQ_MARKED$JQ_GL_TWINS"' | .[]' "$2"; }
+gl_publish() {
+    ME=$(ctx_account)
+    gl_list draft_notes > "$TMPD/pub.drafts"
+    [ "$(jq 'length' "$TMPD/pub.drafts")" != 0 ] || { printf 'PUBLISHED\n'; return 0; }
+    cp "$TMPD/pub.drafts" "$TMPD/pub.first"
+    gl_list notes > "$TMPD/pub.notes"
+    if [ -z "$(gl_twins "$TMPD/pub.drafts" "$TMPD/pub.notes")" ]; then
+        rc=0; glab api -X POST "projects/$GL_PROJ/merge_requests/$N/draft_notes/bulk_publish" >/dev/null || rc=$?
+        gl_list draft_notes > "$TMPD/pub.drafts"
+        if [ "$rc" = 0 ] && [ "$(jq 'length' "$TMPD/pub.drafts")" = 0 ]; then printf 'PUBLISHED\n'; return 0; fi
+        err "open-pr.sh publish: bulk_publish failed or left drafts behind; publishing what is missing one by one"
+        gl_list notes > "$TMPD/pub.notes"
+    fi
+    # Reconcile, in the order post wrote the drafts: a published one's draft is deleted, the rest
+    # published alone. A failed call is left to the listing after the loop to report.
+    gl_twins "$TMPD/pub.drafts" "$TMPD/pub.notes" > "$TMPD/pub.twins"
+    : > "$TMPD/pub.now"; : > "$TMPD/pub.dropped"
+    for d in $(jq -r 'sort_by(.id) | .[].id' "$TMPD/pub.drafts"); do
+        check_ident '^[0-9]+$' "$d"
+        if grep -qx "$d" "$TMPD/pub.twins"; then
+            glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/draft_notes/$d" >/dev/null && echo "$d" >> "$TMPD/pub.dropped" || :
+        else
+            glab api -X PUT "projects/$GL_PROJ/merge_requests/$N/draft_notes/$d/publish" >/dev/null && echo "$d" >> "$TMPD/pub.now" || :
+        fi
+    done
+    gl_list draft_notes > "$TMPD/pub.left"
+    gl_list notes > "$TMPD/pub.notes"
+    # lost: a draft gone with no note of its own — GitLab answered its publish but showed nothing
+    jq -c --slurpfile left "$TMPD/pub.left" '[.[] | select(.id as $i | $left[0] | map(.id) | index($i) | not)]' \
+        "$TMPD/pub.first" > "$TMPD/pub.gone"
+    gl_twins "$TMPD/pub.gone" "$TMPD/pub.notes" > "$TMPD/pub.landed"
+    jq -r --rawfile now "$TMPD/pub.now" --rawfile dropped "$TMPD/pub.dropped" --rawfile landed "$TMPD/pub.landed" \
+        --slurpfile left "$TMPD/pub.left" '
+        def ids($s): $s | split("\n") | map(select(. != ""));
+        def lst: map(tostring) | join(",");
+        ($landed | ids(.)) as $ok
+        | "published_now=\(ids($now) | lst)", "duplicates_dropped=\(ids($dropped) | lst)",
+          "remaining=\($left[0] | map(.id) | lst)",
+          "lost=\([.[] | select((.id | tostring) as $i | ids($dropped) + $ok | index([$i]) | not)
+                     | "\(.id)@\(.position.new_path // "overview"):\(.position.new_line // .position.old_line // "")"] | join(","))"' \
+        "$TMPD/pub.gone" > "$TMPD/pub.report"
+    cat "$TMPD/pub.report"
+    if grep -qx 'remaining=' "$TMPD/pub.report" && grep -qx 'lost=' "$TMPD/pub.report"; then printf 'PUBLISHED\n'; return 0; fi
+    err "hint: publish is incomplete — remaining = drafts still unpublished (a re-run publishes only those, never a note twice); lost = drafts GitLab dropped without a note."
+    exit 1
+}
 cmd_publish() {
     parse_args "$@"; post_init; RM=$(review_stamp)
     case "$V" in
         github)
             RID=$(req review_id); check_ident '^[0-9]+$' "$RID"
             gh api -X POST "repos/$OWNER/$REPO/pulls/$N/reviews/$RID/events" -f event="COMMENT" --jq '.state' ;;
-        gitlab)
-            glab api -X POST "projects/$GL_PROJ/merge_requests/$N/draft_notes/bulk_publish" >/dev/null && printf 'PUBLISHED\n' ;;
+        gitlab) gl_publish ;;
         bitbucket)
             F=$(req payload)
             jq -c --arg m "$RM" '{content: {raw: (.body + $m)}}' "$F" > "$TMPD/bb.part.json"
@@ -685,12 +780,15 @@ cmd_post_verify() {
             if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi
             if [ "$left" = 0 ]; then
                 glab api "projects/$GL_PROJ/merge_requests/$N/notes?sort=desc&order_by=created_at&per_page=100" > "$TMPD/pv.notes"
-                # no payload (an earlier draft published as it was): the newest overview this plugin stamped
+                # no payload (an earlier draft published as it was), or an overview `post` added moved
+                # findings to: the newest overview this plugin stamped
+                id=""
                 if [ -n "$P" ]; then
                     id=$(jq -r --slurpfile p "$P" --arg m "$(marker_text review)" '($p[0].body | sub("\\s+$"; "")) as $b
                         | [.[] | select(.system != true and .position == null
                                         and ((.body // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "")) == $b)][0].id // empty' "$TMPD/pv.notes")
-                else
+                fi
+                if [ -z "$id" ]; then
                     id=$(jq -r "$JQ_MARKED"'[.[] | select(.system != true and .position == null and ((.body // "") | marked("review")))][0].id // empty' "$TMPD/pv.notes")
                 fi
                 [ -z "$id" ] || { check_ident '^[0-9]+$' "$id"; gl_mr_cached "$N" | jq -r --arg id "$id" '.web_url // empty | . + "#note_" + $id' > "$TMPD/pv.url"; }
@@ -1698,7 +1796,7 @@ Subcommands:
       `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…`
   publish [--review-id I] [--payload F]
       make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview
-      first)
+      first). GitLab exit 1: part landed; a re-run never posts twice
   post-verify [--review-id I] [--marker M] [--payload F]
       what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line
       `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else

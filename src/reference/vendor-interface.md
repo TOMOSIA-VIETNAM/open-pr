@@ -12,7 +12,8 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | head SHA | `headRefOid` (40 chars) | `diff_refs.head_sha` | `source.commit.hash` (12 chars — prefix-matched, never equality) |
 | PR checkout | `refs/pull/<n>/head` | `refs/merge-requests/<n>/head` | fetch source branch, detach at the PR's commit hash; unreachable hash = force-push, exit 3 |
 | unpublished stage | PENDING review object | draft notes | none — the payload file is the stage; publish POSTs one comment per part, overview first |
-| publish | review event COMMENT | `bulk_publish` | per-part POST |
+| post: LINE position | `line` + `side` | from the MR's `/changes` hunks: added line `new_line`, removed `old_line`, unchanged BOTH (`new_line` alone drafts, then fails `bulk_publish` with a 500); `old_path` from the diff (renames). No hunk holds the line ⇒ the comment joins the overview note as `` `path:line` `` + its body, printed `moved_to_overview=` | `inline.to` / `inline.from` |
+| publish | review event COMMENT | `bulk_publish` when no listed draft is already on the MR (same body, path, line among the caller's notes after their newest overview that is no draft); else, or when it fails or leaves drafts: a draft already published is DELETEd, the rest `PUT draft_notes/:id/publish` one by one; a draft gone with no note = `lost` | per-part POST |
 | pending draft (`post` exit 8, `discard`) | the PENDING review, listed to its author alone; DELETE it | the caller's draft notes, listed to them alone; DELETE each | NO-EQUIVALENT — nothing is staged on the PR |
 | post-verify | review state by id | draft_notes emptied ⇔ published | marker-filtered comment scan (`--marker`) |
 | FILE-level reviews | review objects | NO-EQUIVALENT | NO-EQUIVALENT |
