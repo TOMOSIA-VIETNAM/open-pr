@@ -494,6 +494,11 @@ PAYLOAD = {
 }
 
 
+# a.txt as GitLab's /changes returns it: old 1 one · 2 two · 3 three; new 1 one · 2 TWO · 3 extra · 4 three.
+GL_A_DIFF = "@@ -1,3 +1,4 @@\n one\n-two\n+TWO\n+extra\n three\n"
+GL_CHANGES = {"changes": [{"old_path": "a.txt", "new_path": "a.txt", "diff": GL_A_DIFF}]}
+
+
 @pytest.fixture
 def shims(tmp_path):
     d = tmp_path / "bin"
@@ -510,6 +515,7 @@ esac
     make_shim(d, "glab", f'''printf '%s\\n' "glab $*" >> "{log}"
 case "$*" in
   *merge_requests/9\\ *|*merge_requests/9) printf '{{"iid": 9, "diff_refs": {{"base_sha": "b1", "start_sha": "s1", "head_sha": "h1"}}}}\\n' ;;
+  *merge_requests/9/changes*) cat "{tmp_path}/gl-changes.json" ;;
   *draft_notes*) cat > /dev/null; printf '{{}}\\n' ;;
   *discussions/*) cat > /dev/null; printf '{{"id": 55}}\\n' ;;
   *) printf '[]\\n' ;;
@@ -519,6 +525,7 @@ esac
 for a in "$@"; do case "$a" in @*) cat "${{a#@}}" >> "{log}.bodies";; esac; done
 printf '{{"id": 42, "values": [], "next": null}}\\n'
 ''')
+    (tmp_path / "gl-changes.json").write_text(json.dumps(GL_CHANGES))
     return {"path": str(d), "log": log, "tmp": tmp_path}
 
 
@@ -581,6 +588,56 @@ def test_post_gitlab_converts_each_comment_to_a_positioned_draft_note(shims, tmp
     assert calls.count("draft_notes --input") == 3, "2 LINE notes + 1 overview note"
 
 
+def _gl_post(shims, tmp_path, comments, changes=GL_CHANGES):
+    serve(shims, "glab", [("draft_notes?per_page", []), ("draft_notes", {}),
+                          ("merge_requests/9/changes", changes),
+                          ("merge_requests/9", {"iid": 9, "diff_refs": {"base_sha": "b", "start_sha": "s", "head_sha": "h"}})])
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps({**PAYLOAD, "body": "overview", "comments": comments}))
+    r = run("post", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "9", "--payload", str(f),
+            env_extra=env_for(shims), check=True)
+    bodies = [json.loads(b) for b in (shims["tmp"] / "calls.log.bodies").read_text().splitlines() if b.strip()]
+    return r.stdout.splitlines(), bodies
+
+
+@pytest.mark.parametrize("line, side, want", [
+    (2, "RIGHT", {"new_line": 2}),                    # an added line
+    (4, "RIGHT", {"old_line": 3, "new_line": 4}),     # unchanged, inside the hunk, shifted by the edit above it
+    (1, "LEFT", {"old_line": 1, "new_line": 1}),      # unchanged, read from the old side
+    (2, "LEFT", {"old_line": 2}),                     # a removed line
+])
+def test_post_gitlab_positions_each_line_the_way_gitlab_publishes_it(shims, tmp_path, line, side, want):
+    """An unchanged line drafted with new_line alone is accepted, then fails bulk_publish with a 500."""
+    out, bodies = _gl_post(shims, tmp_path, [{"path": "a.txt", "line": line, "side": side, "body": "🔵 x\n\n<!-- bot-finding -->"}])
+    pos = bodies[0]["position"]
+    assert {k: v for k, v in pos.items() if k.endswith("_line")} == want
+    assert pos["old_path"] == pos["new_path"] == "a.txt" and pos["head_sha"] == "h"
+    assert out == ["state=DRAFT_NOTES"] and len(bodies) == 2
+
+
+def test_post_gitlab_takes_a_renamed_files_old_path_from_the_diff(shims, tmp_path):
+    changes = {"changes": [{**GL_CHANGES["changes"][0], "old_path": "old.txt"}]}
+    _, bodies = _gl_post(shims, tmp_path, [{"path": "a.txt", "line": 4, "side": "RIGHT", "body": "b"}], changes)
+    assert bodies[0]["position"]["old_path"] == "old.txt" and bodies[0]["position"]["new_path"] == "a.txt"
+
+
+@pytest.mark.parametrize("comment, changes", [
+    ({"path": "a.txt", "line": 9, "side": "RIGHT"}, GL_CHANGES),                       # past every hunk
+    ({"path": "b.txt", "line": 1, "side": "RIGHT"}, GL_CHANGES),                       # a file the MR does not change
+    ({"path": "a.txt", "line": 2, "side": "RIGHT"}, {"changes": [{**GL_CHANGES["changes"][0], "diff": ""}]}),  # collapsed
+])
+def test_post_gitlab_moves_a_finding_without_a_position_into_the_overview(shims, tmp_path, comment, changes):
+    finding = "🟠 off the diff\n\n<!-- bot-finding -->"
+    kept = {"path": "c.txt", "line": 1, "side": "RIGHT", "body": "🔵 kept\n\n<!-- bot-finding -->"}
+    changes = {"changes": changes["changes"] + [{"old_path": "c.txt", "new_path": "c.txt", "diff": "@@ -1 +1 @@\n-x\n+y\n"}]}
+    out, bodies = _gl_post(shims, tmp_path, [{**comment, "body": finding}, kept], changes)
+    moved = f"{comment['path']}:{comment['line']}"
+    assert out == [f"moved_to_overview={moved}", "state=DRAFT_NOTES"]
+    assert [b.get("position") is not None for b in bodies] == [True, False], "the kept LINE note, then the overview"
+    assert bodies[0]["note"] == kept["body"]
+    assert bodies[1]["note"] == f"overview\n\n`{moved}`\n{finding}\n\n<!-- bot-review -->"
+
+
 def test_post_bitbucket_stages_nothing_and_publish_sends_overview_first(shims, tmp_path):
     f = tmp_path / "p.json"
     f.write_text(json.dumps(PAYLOAD))
@@ -620,7 +677,7 @@ def test_post_and_publish_stamp_the_review_marker_on_every_overview(shims, tmp_p
     assert sent["body"] == overview + "\n\n<!-- bot-review -->" and sent["comments"] == PAYLOAD["comments"]
     log.unlink()
     serve(shims, "glab", [("draft_notes", {}),
-                          ("merge_requests/9", {"iid": 9, "diff_refs": {"base_sha": "b", "start_sha": "s", "head_sha": "h"}})])
+                          ("merge_requests/9/changes", GL_CHANGES), ("merge_requests/9", {"iid": 9, "diff_refs": {"base_sha": "b", "start_sha": "s", "head_sha": "h"}})])
     go("post", "gitlab", "9")
     notes = [b["note"] for b in sent_bodies()]
     assert notes[-1] == overview + "\n\n<!-- bot-review -->", "the overview note, not a LINE note"
@@ -716,7 +773,26 @@ def test_post_verify_gitlab_without_a_payload_links_the_newest_plugin_overview(s
             {"id": 10, "body": "older\n\n<!-- bot-review -->", "position": None, "system": False}]),
         ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
     r = run("post-verify", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", env_extra=env_for(shims), check=True)
-    assert r.stdout.splitlines() == ["PUBLISHED", "counts={}", "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+    # 12, a finding after the overview, is that review's: publish's one-by-one recovery posts it after
+    assert r.stdout.splitlines() == ["PUBLISHED", 'counts={"🔵 SUGGESTION":1}',
+                                     "url=https://gitlab.com/o/r/-/merge_requests/5#note_11"]
+
+
+def test_post_verify_gitlab_links_an_overview_post_added_a_moved_finding_to(shims, tmp_path):
+    """The note no longer equals the payload's body once a finding moved into it: the newest stamped one is it."""
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps({**PAYLOAD, "body": "overview"}))
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [
+            {"id": 12, "body": "overview\n\n`a.txt:9`\n🟠 x\n\n<!-- bot-finding -->\n\n<!-- bot-review -->",
+             "position": None, "system": False},
+            {"id": 10, "body": "older\n\n<!-- bot-review -->", "position": None, "system": False}]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
+    r = run("post-verify", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", "--payload", str(f),
+            env_extra=env_for(shims), check=True)
+    assert r.stdout.splitlines() == ["PUBLISHED", 'counts={"🟠 SHOULD FIX":1}',
+                                     "url=https://gitlab.com/o/r/-/merge_requests/5#note_12"]
 
 
 FINDING = lambda emoji: f"{emoji} x\n**Fix** y\n\n<!-- bot-finding -->"
@@ -815,6 +891,230 @@ def test_discard_refuses_a_persons_draft_or_one_it_was_not_shown(shims, vendor, 
     calls = shims["log"].read_text()
     assert "per_page" in calls, "read the draft again before acting on it"
     assert "DELETE" not in calls, "a person's pending review stays untouched"
+
+
+# ------------------------------------------- publish: a partial GitLab bulk publish ----
+# The three drafts `post` wrote (LINE findings first, overview last) and the notes each becomes once
+# published. A note by the caller's previous review sits before its own overview (80, 90): the same
+# finding text on the same line there is that review's, never a twin of today's draft.
+GL_DRAFT = lambda i, body, pos: {"id": i, "note": body, "position": pos}
+GL_POS = lambda line, old=None: {"new_path": "a.txt", "old_path": "a.txt", "new_line": line, "old_line": old}
+D31 = GL_DRAFT(31, "🔵 added\n\n<!-- bot-finding -->", GL_POS(2))
+D32 = GL_DRAFT(32, "🟠 context\n\n<!-- bot-finding -->", GL_POS(4, 3))
+D33 = GL_DRAFT(33, "### 🤖【AI REVIEW】Overview\nThanks 🙏\n\n<!-- bot-review -->", None)
+GL_PUB = lambda i, d, user="bot": {"id": i, "body": d["note"] + "\n", "position": d["position"], "system": False,
+                                   "author": {"username": user}}
+GL_OLD = [GL_PUB(90, {"note": "older\n\n<!-- bot-review -->", "position": None}), GL_PUB(80, D32)]
+
+
+def _gl_publish(shims, drafts, notes, extra=()):
+    serve(shims, "glab", [*extra, ("bulk_publish", (1, "glab: 500 Internal Server Error")),
+                          ("draft_notes?per_page", Seq(drafts)), ("9/notes?per_page", Seq(notes)),
+                          ("api user", {"username": "bot"})])
+    r = run("publish", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "9", env_extra=env_for(shims))
+    return r, shims["log"].read_text()
+
+
+def test_publish_gitlab_reconciles_a_500_that_published_part_of_the_review(shims):
+    """bulk_publish answers 500 after posting 31 and 33 and leaving all three listed: 31 and 33 drop their
+    drafts, 32 alone is published, and nothing posts twice."""
+    r, calls = _gl_publish(shims, [[D31, D32, D33], [D31, D32, D33], []],
+                           [GL_OLD, [GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD],
+                            [GL_PUB(104, D32), GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]])
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines() == ["published_now=32", "duplicates_dropped=31,33", "remaining=", "lost=", "PUBLISHED"]
+    assert calls.count("bulk_publish") == 1
+    assert "-X PUT projects/o%2Fr/merge_requests/9/draft_notes/32/publish" in calls
+    for d in ("31", "33"):
+        assert f"draft_notes/{d}/publish" not in calls and f"-X DELETE projects/o%2Fr/merge_requests/9/draft_notes/{d}" in calls
+    assert "-X DELETE projects/o%2Fr/merge_requests/9/draft_notes/32" not in calls
+
+
+def test_publish_gitlab_retried_after_a_partial_publish_never_posts_a_note_twice(shims):
+    """The retry the issue saw: the drafts still listed, two of them already on the MR. No bulk_publish."""
+    r, calls = _gl_publish(shims, [[D31, D32, D33], []],
+                           [[GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD],
+                            [GL_PUB(104, D32), GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]])
+    assert r.returncode == 0 and r.stdout.splitlines()[-1] == "PUBLISHED", r.stderr
+    assert "bulk_publish" not in calls and calls.count("/publish") == 1
+
+
+def test_post_verify_gitlab_counts_a_finding_published_after_its_overview(shims, tmp_path):
+    """The partial publish above posted the overview (103) first; the finding published alone after it (104)
+    is still that review's."""
+    f = tmp_path / "p.json"
+    f.write_text(json.dumps({**PAYLOAD, "body": D33["note"].removesuffix("\n\n<!-- bot-review -->")}))
+    serve(shims, "glab", [
+        ("merge_requests/5/draft_notes", []),
+        ("merge_requests/5/notes?sort=desc", [GL_PUB(104, D32), GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]),
+        ("merge_requests/5", {"web_url": "https://gitlab.com/o/r/-/merge_requests/5"})])
+    r = run("post-verify", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", "--payload", str(f),
+            env_extra=env_for(shims), check=True)
+    assert r.stdout.splitlines() == ["PUBLISHED", 'counts={"🟠 SHOULD FIX":1,"🔵 SUGGESTION":1}',
+                                     "url=https://gitlab.com/o/r/-/merge_requests/5#note_103"]
+
+
+def test_publish_gitlab_reports_a_draft_gitlab_dropped_without_a_note(shims):
+    """Publishing 32 alone answers 2xx yet no note appears: named as lost, never PUBLISHED."""
+    r, _ = _gl_publish(shims, [[D31, D32, D33], [D31, D32, D33], []],
+                       [GL_OLD, [GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]])
+    assert r.returncode == 1 and "PUBLISHED" not in r.stdout
+    assert "lost=32@a.txt:4" in r.stdout.splitlines() and "hint:" in r.stderr
+
+
+def test_publish_gitlab_names_the_drafts_a_failed_single_publish_left(shims):
+    r, calls = _gl_publish(shims, [[D31, D32, D33], [D31, D32, D33], [D32]],
+                           [GL_OLD, [GL_PUB(103, D33), GL_PUB(101, D31), *GL_OLD]],
+                           extra=[("draft_notes/32/publish", (1, "glab: 500"))])
+    assert r.returncode == 1 and "remaining=32" in r.stdout.splitlines() and "lost=" in r.stdout.splitlines()
+    assert "published_now=" in r.stdout.splitlines()
+
+
+def test_publish_gitlab_happy_path_is_one_bulk_publish(shims):
+    r, calls = _gl_publish(shims, [[D31, D32, D33], []], [GL_OLD], extra=[("bulk_publish", {})])
+    assert r.returncode == 0 and r.stdout == "PUBLISHED\n", r.stderr
+    assert "/publish" not in calls.replace("bulk_publish", "") and "DELETE" not in calls
+
+
+def test_publish_gitlab_never_reads_an_unreadable_draft_list_as_published(shims):
+    r, calls = _gl_publish(shims, [], [], extra=[("draft_notes?per_page", (1, "glab: 502 Bad Gateway"))])
+    assert r.returncode != 0 and "PUBLISHED" not in r.stdout and "bulk_publish" not in calls
+
+
+# ------------------------------------------------------- edit / delete ----
+# Per vendor: the CLI the script calls, how it answers the account lookup, the GET of comment 70 for a
+# kind, and that comment's JSON for a given author and body.
+CM = {
+    "github": ("gh", ("api user", "bot\n"),
+               {"line": "repos/o/r/pulls/comments/70", "top": "repos/o/r/issues/comments/70", "review": "pulls/5/reviews/70"},
+               lambda user, body, kind: {"user": {"login": user}, "body": body, "state": "COMMENTED",
+                                         "pull_request_url": "https://api.github.com/repos/o/r/pulls/5",
+                                         "issue_url": "https://api.github.com/repos/o/r/issues/5"}),
+    "gitlab": ("glab", ("api user", {"username": "bot"}),
+               {"line": "merge_requests/5/notes/70", "top": "merge_requests/5/notes/70", "draft": "merge_requests/5/draft_notes/70"},
+               lambda user, body, kind: ({"note": body, "author_id": 1} if kind == "draft"
+                                         else {"author": {"username": user}, "body": body, "system": False})),
+    "bitbucket": ("curl", ("2.0/user?fields", {"nickname": "bot"}),
+                  {"line": "pullrequests/5/comments/70?fields", "top": "pullrequests/5/comments/70?fields"},
+                  lambda user, body, kind: {"user": {"nickname": user}, "content": {"raw": body}, "deleted": False}),
+}
+MARK = {"github": "<!-- bot-{} -->", "gitlab": "<!-- bot-{} -->", "bitbucket": "[bot-{}]: #"}
+CM_CASES = [(v, k) for v in CM for k in CM[v][2]]
+
+
+def _cm(shims, vendor, kind, op, user="bot", body=None, new=None, extra=()):
+    cli, account, gets, shape = CM[vendor]
+    body = body if body is not None else "🔵 x\n\n" + MARK[vendor].format("finding")
+    serve(shims, cli, [*extra, ("-X PATCH", {}), ("-X PUT", {}), ("-X DELETE", {}), account,
+                       (gets[kind], shape(user, body, kind))])
+    args = ["--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70", "--kind", kind]
+    if op == "edit":
+        f = shims["tmp"] / "new.md"
+        f.write_text(new if new is not None else "🔵 reworded $(id) `id`\n\n" + MARK[vendor].format("finding"))
+        args += ["--body-file", str(f)]
+    r = run(op, *args, env_extra={**env_for(shims), "BITBUCKET_EMAIL": "me@x", "BITBUCKET_API_TOKEN": "t"})
+    log = shims["log"].read_text()
+    bodies = shims["tmp"] / "calls.log.bodies"
+    return r, log, [json.loads(b) for b in bodies.read_text().splitlines() if b.strip()] if bodies.exists() else []
+
+
+def _sent_text(vendor, kind, b):
+    return b["content"]["raw"] if vendor == "bitbucket" else b["note"] if kind == "draft" else b["body"]
+
+
+@pytest.mark.parametrize("vendor, kind", CM_CASES)
+def test_edit_replaces_the_plugins_own_comment_with_the_body_file(shims, vendor, kind):
+    r, log, bodies = _cm(shims, vendor, kind, "edit")
+    assert r.returncode == 0 and r.stdout == "EDITED 70\n", r.stderr
+    assert re.search(r"-X (PATCH|PUT)\b.*\b70\b", log), log
+    assert _sent_text(vendor, kind, bodies[-1]) == "🔵 reworded $(id) `id`\n\n" + MARK[vendor].format("finding")
+    assert "reworded" not in log, "the body travels by file, never argv"
+
+
+@pytest.mark.parametrize("vendor, kind", [c for c in CM_CASES if c != ("github", "review")])   # its own test below
+def test_delete_removes_the_plugins_own_comment(shims, vendor, kind):
+    r, log, _ = _cm(shims, vendor, kind, "delete")
+    assert r.returncode == 0 and r.stdout == "DELETED 70\n", r.stderr
+    assert re.search(r"-X DELETE\b.*\b70\b", log), log
+
+
+@pytest.mark.parametrize("vendor, kind", CM_CASES)
+@pytest.mark.parametrize("op", ["edit", "delete"])
+@pytest.mark.parametrize("why, user, body", [
+    ("no marker", "bot", "a person's own note"),
+    ("another account's", "alice", None),
+    ("a marker quoted by a person", "bot", "I disagree with this:\n> 🔵 x\n> {m}"),
+    ("a marker inside a code fence", "bot", "pasted:\n```\n{m}\n```"),
+    ("a marker inside a fence left open", "bot", "pasted:\n~~~\n{m}\n"),   # rendered as code to the end
+    ("a marker that is not the last line", "bot", "{m}\nand then my own words"),
+])
+def test_edit_and_delete_refuse_a_comment_that_is_not_the_plugins_own(shims, vendor, kind, op, why, user, body):
+    if body is not None:
+        body = body.format(m=MARK[vendor].format("finding"))
+    if kind == "draft" and user != "bot":
+        pytest.skip("a GitLab draft note is listed to its author alone")
+    r, log, bodies = _cm(shims, vendor, kind, op, user=user, body=body)
+    assert r.returncode == 1 and r.stdout == "" and "nothing was sent" in r.stderr, why
+    assert not re.search(r"-X (PATCH|PUT|DELETE)", log) and not bodies, f"{why}: a write went out"
+
+
+@pytest.mark.parametrize("kind", ["review", "reply", "claim:12", "report:12"])
+@pytest.mark.parametrize("vendor", list(CM))
+def test_edit_accepts_every_marker_the_plugin_writes(shims, vendor, kind):
+    r, _, _ = _cm(shims, vendor, "top", "edit", body="text\n\n" + MARK[vendor].format(kind) + "\n")
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.parametrize("vendor, kind", CM_CASES)
+def test_edit_keeps_the_marker_when_the_new_body_has_none(shims, vendor, kind):
+    """Without it the comment would stop being known as this plugin's: no later run could find it."""
+    old = "### Overview\n\n" + MARK[vendor].format("review")
+    r, _, bodies = _cm(shims, vendor, kind, "edit", body=old, new="### Overview, corrected\n")
+    assert r.returncode == 0, r.stderr
+    assert _sent_text(vendor, kind, bodies[-1]) == "### Overview, corrected\n\n" + MARK[vendor].format("review")
+
+
+def test_edit_and_delete_refuse_a_github_comment_on_another_pr(shims):
+    """GitHub comment ids span the repo: a review comment of PR 6 is not PR 5's to change."""
+    for kind, url in (("line", "pull_request_url"), ("top", "issue_url")):
+        c = CM["github"][3]("bot", "x\n\n<!-- bot-finding -->", kind)
+        c[url] = c[url].replace("/5", "/6")
+        serve(shims, "gh", [("-X", {}), ("api user", "bot\n"), (CM["github"][2][kind], c)])
+        r = run("delete", "--vendor", "github", "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70",
+                "--kind", kind, env_extra=env_for(shims))
+        assert r.returncode == 1 and "-X DELETE" not in shims["log"].read_text()
+
+
+def test_delete_leaves_a_submitted_github_review_and_removes_a_pending_one(shims):
+    body = "x\n\n<!-- bot-review -->"
+    r, log, _ = _cm(shims, "github", "review", "delete", body=body)
+    assert r.stdout == "NO-EQUIVALENT\n" and "-X DELETE" not in log
+    shims["log"].unlink()
+    r, log, _ = _cm(shims, "github", "review", "delete", body=body,
+                    extra=[("pulls/5/reviews/70", {"user": {"login": "bot"}, "body": body, "state": "PENDING"})])
+    assert r.stdout == "DELETED 70\n" and "-X DELETE repos/o/r/pulls/5/reviews/70" in log
+
+
+def test_edit_refuses_under_a_bitbucket_token_with_no_account(shims):
+    serve(shims, "curl", [("-X PUT", {}), ("comments/70?fields", CM["bitbucket"][3]("bot", "x\n\n[bot-finding]: #", "top"))])
+    f = shims["tmp"] / "new.md"
+    f.write_text("y\n\n[bot-finding]: #")
+    r = run("edit", "--vendor", "bitbucket", "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70",
+            "--body-file", str(f), env_extra={**env_for(shims), "BITBUCKET_EMAIL": "", "BITBUCKET_API_TOKEN": ""})
+    assert r.returncode == 1 and "UNKNOWN" in r.stderr and not shims["log"].exists(), "refused before any call"
+
+
+@pytest.mark.parametrize("vendor, out, code", [("bitbucket", "NO-EQUIVALENT\n", 0), ("github", "", 1)])
+def test_the_draft_kind_outside_gitlab_sends_nothing(shims, vendor, out, code):
+    r = run("delete", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", "5", "--comment-id", "70",
+            "--kind", "draft", env_extra={**env_for(shims), "BITBUCKET_EMAIL": "me@x", "BITBUCKET_API_TOKEN": "t"})
+    assert r.returncode == code and r.stdout == out and not shims["log"].exists(), "nothing read, nothing sent"
+
+
+@pytest.mark.parametrize("args", [["--comment-id", "7 0"], ["--comment-id", "70", "--kind", "issue"]])
+def test_edit_and_delete_validate_their_values_before_any_call(shims, args):
+    r = run("delete", "--vendor", "gitlab", "--owner", "o", "--repo", "r", "--pr", "5", *args, env_extra=env_for(shims))
+    assert r.returncode == 4 and not shims["log"].exists()
 
 
 def test_reply_bodies_travel_by_file_never_argv(shims, tmp_path):

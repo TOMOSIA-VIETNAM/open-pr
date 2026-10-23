@@ -595,6 +595,30 @@ pending_draft() {
         bitbucket) ;;
     esac
 }
+# gl_pos(changes): a payload comment's GitLab diff position, from the MR's own hunks — an added line
+# takes new_line, a removed one old_line, an unchanged line inside a hunk BOTH (new_line alone there
+# drafts fine but fails the publish with a 500). null: the file has no diff here or the line sits in no
+# hunk — no position GitLab accepts exists.
+JQ_GL_POS='def gl_pos($changes): . as $c
+    | first($changes[] | select(.new_path == $c.path or .old_path == $c.path)) // null
+    | if . == null then null else
+        .old_path as $op | .new_path as $np
+        | reduce ((.diff // "") | split("\n")[]) as $l ({o: 0, n: 0, in: false, hit: null};
+            if .hit then .
+            elif ($l | startswith("@@")) then
+                ([$l | capture("^@@ -(?<o>[0-9]+)(,[0-9]+)? \\+(?<n>[0-9]+)(,[0-9]+)? @@")][0]) as $h
+                | if $h then .o = ($h.o | tonumber) | .n = ($h.n | tonumber) | .in = true else .in = false end
+            elif .in | not then .
+            elif ($l | startswith(" ")) then
+                (if ($c.side == "RIGHT" and .n == $c.line) or ($c.side == "LEFT" and .o == $c.line)
+                 then .hit = {old_line: .o, new_line: .n} else . end) | .o += 1 | .n += 1
+            elif ($l | startswith("+")) then
+                (if $c.side == "RIGHT" and .n == $c.line then .hit = {new_line: .n} else . end) | .n += 1
+            elif ($l | startswith("-")) then
+                (if $c.side == "LEFT" and .o == $c.line then .hit = {old_line: .o} else . end) | .o += 1
+            else . end)
+        | .hit | if . then {old_path: $op, new_path: $np} + . else null end
+      end;'
 cmd_post() {
     parse_args "$@"; post_init
     F=$(req payload); [ -s "$F" ] || die 1 "open-pr.sh post: payload file missing/empty"
@@ -614,19 +638,26 @@ cmd_post() {
                 || { post_error_hint; exit 1; }
             printf 'review_id=%s\nstate=PENDING\n' "$id" ;;
         gitlab)
-            refs=$(gl_mr_cached "$N" | jq '.diff_refs')
-            total=$(jq '.comments | length' "$F")
-            i=0
-            while [ "$i" -lt "$total" ]; do
-                jq -c --argjson i "$i" --argjson refs "$refs" \
-                   '.comments[$i] | {note: .body, position: ({position_type: "text", base_sha: $refs.base_sha, start_sha: $refs.start_sha, head_sha: $refs.head_sha, new_path: .path, old_path: .path} + (if .side == "RIGHT" then {new_line: .line} else {old_line: .line} end))}' \
-                   "$F" > "$TMPD/gl.note.json"
+            gl_mr_cached "$N" | jq '.diff_refs' > "$TMPD/gl.refs"
+            gl_changes_cached "$N" > "$TMPD/gl.changes.json"
+            # One draft per line; a finding no position can be built for becomes {moved: <its comment>}.
+            jq -c --slurpfile refs "$TMPD/gl.refs" --slurpfile ch "$TMPD/gl.changes.json" "$JQ_GL_POS"'
+                .comments[] | . as $c | gl_pos($ch[0].changes // [])
+                | if . == null then {moved: $c}
+                  else {note: $c.body, position: ({position_type: "text", base_sha: $refs[0].base_sha,
+                        start_sha: $refs[0].start_sha, head_sha: $refs[0].head_sha} + .)} end' "$F" > "$TMPD/gl.all"
+            jq -c 'select(.moved == null)' "$TMPD/gl.all" > "$TMPD/gl.drafts"
+            while IFS= read -r line; do
+                printf '%s\n' "$line" > "$TMPD/gl.note.json"
                 glab api -X POST -H "Content-Type: application/json" \
-                    "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null \
+                    "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null < /dev/null \
                     || { post_error_hint; exit 1; }
-                i=$((i + 1))
-            done
-            jq -c --arg m "$RM" '{note: (.body + $m)}' "$F" > "$TMPD/gl.note.json"
+            done < "$TMPD/gl.drafts"
+            jq -r 'select(.moved) | "moved_to_overview=\(.moved.path):\(.moved.line)"' "$TMPD/gl.all"
+            # a moved finding joins the overview as a FILE-style item, `path:line` above its own text
+            jq -c -s --slurpfile p "$F" --arg m "$RM" '{note: ([$p[0].body]
+                + map(select(.moved) | .moved | "`\(.path):\(.line)`\n\(.body)") | join("\n\n") + $m)}' \
+                "$TMPD/gl.all" > "$TMPD/gl.note.json"
             glab api -X POST -H "Content-Type: application/json" \
                 "projects/$GL_PROJ/merge_requests/$N/draft_notes" --input "$TMPD/gl.note.json" >/dev/null \
                 || { post_error_hint; exit 1; }
@@ -656,14 +687,78 @@ cmd_discard() {
     esac
     printf 'DISCARDED\n'
 }
+# GitLab's bulk_publish can fail (HTTP 500) after publishing part of the drafts and leave every one of
+# them listed, so a blind retry posts the published ones twice. A draft is "already published" when the
+# caller's notes after their newest overview that is not itself a draft (an earlier review's) hold one
+# with its body (GitLab strips \r and trailing whitespace) at its path and line.
+# Two identical drafts on one line share one twin: counting matches per key would tell them apart.
+JQ_GL_TWINS='def norm: (. // "") | gsub("\r"; "") | sub("\\s+$"; "");
+    def at: [(.position.new_path // null), (.position.new_line // .position.old_line // null)];
+    ($d[0] | map([(.note | norm)] + at)) as $dk
+    | [.[] | select(.system != true and .author.username == $me) | {id, body, k: ([(.body | norm)] + at)}] as $mine
+    | ([$mine[] | select((.body // "") | marked("review")) | select(.k as $k | $dk | index([$k]) | not) | .id] | max // 0) as $prev
+    | [$mine[] | select(.id > $prev) | .k] as $ck
+    | [$d[0][] | select(([(.note | norm)] + at) as $k | $ck | index([$k])) | .id]'
+# A listing that fails fails the call: read as empty, it would say every draft is published.
+gl_list() {
+    glab api --paginate "projects/$GL_PROJ/merge_requests/$N/$1?per_page=100" > "$TMPD/gl.list" \
+        && jq -c -s '[.[] | .[]? | objects]' "$TMPD/gl.list"
+}
+# $1 = drafts file, $2 = notes file -> the ids of those drafts already published, one per line
+gl_twins() { jq -r --slurpfile d "$1" --arg me "$ME" "$JQ_MARKED$JQ_GL_TWINS"' | .[]' "$2"; }
+gl_publish() {
+    ME=$(ctx_account)
+    gl_list draft_notes > "$TMPD/pub.drafts"
+    [ "$(jq 'length' "$TMPD/pub.drafts")" != 0 ] || { printf 'PUBLISHED\n'; return 0; }
+    cp "$TMPD/pub.drafts" "$TMPD/pub.first"
+    gl_list notes > "$TMPD/pub.notes"
+    if [ -z "$(gl_twins "$TMPD/pub.drafts" "$TMPD/pub.notes")" ]; then
+        rc=0; glab api -X POST "projects/$GL_PROJ/merge_requests/$N/draft_notes/bulk_publish" >/dev/null || rc=$?
+        gl_list draft_notes > "$TMPD/pub.drafts"
+        if [ "$rc" = 0 ] && [ "$(jq 'length' "$TMPD/pub.drafts")" = 0 ]; then printf 'PUBLISHED\n'; return 0; fi
+        err "open-pr.sh publish: bulk_publish failed or left drafts behind; publishing what is missing one by one"
+        gl_list notes > "$TMPD/pub.notes"
+    fi
+    # Reconcile, in the order post wrote the drafts: a published one's draft is deleted, the rest
+    # published alone. A failed call is left to the listing after the loop to report.
+    gl_twins "$TMPD/pub.drafts" "$TMPD/pub.notes" > "$TMPD/pub.twins"
+    : > "$TMPD/pub.now"; : > "$TMPD/pub.dropped"
+    for d in $(jq -r 'sort_by(.id) | .[].id' "$TMPD/pub.drafts"); do
+        check_ident '^[0-9]+$' "$d"
+        if grep -qx "$d" "$TMPD/pub.twins"; then
+            glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/draft_notes/$d" >/dev/null && echo "$d" >> "$TMPD/pub.dropped" || :
+        else
+            glab api -X PUT "projects/$GL_PROJ/merge_requests/$N/draft_notes/$d/publish" >/dev/null && echo "$d" >> "$TMPD/pub.now" || :
+        fi
+    done
+    gl_list draft_notes > "$TMPD/pub.left"
+    gl_list notes > "$TMPD/pub.notes"
+    # lost: a draft gone with no note of its own — GitLab answered its publish but showed nothing
+    jq -c --slurpfile left "$TMPD/pub.left" '[.[] | select(.id as $i | $left[0] | map(.id) | index($i) | not)]' \
+        "$TMPD/pub.first" > "$TMPD/pub.gone"
+    gl_twins "$TMPD/pub.gone" "$TMPD/pub.notes" > "$TMPD/pub.landed"
+    jq -r --rawfile now "$TMPD/pub.now" --rawfile dropped "$TMPD/pub.dropped" --rawfile landed "$TMPD/pub.landed" \
+        --slurpfile left "$TMPD/pub.left" '
+        def ids($s): $s | split("\n") | map(select(. != ""));
+        def lst: map(tostring) | join(",");
+        ($landed | ids(.)) as $ok
+        | "published_now=\(ids($now) | lst)", "duplicates_dropped=\(ids($dropped) | lst)",
+          "remaining=\($left[0] | map(.id) | lst)",
+          "lost=\([.[] | select((.id | tostring) as $i | ids($dropped) + $ok | index([$i]) | not)
+                     | "\(.id)@\(.position.new_path // "overview"):\(.position.new_line // .position.old_line // "")"] | join(","))"' \
+        "$TMPD/pub.gone" > "$TMPD/pub.report"
+    cat "$TMPD/pub.report"
+    if grep -qx 'remaining=' "$TMPD/pub.report" && grep -qx 'lost=' "$TMPD/pub.report"; then printf 'PUBLISHED\n'; return 0; fi
+    err "hint: publish is incomplete — remaining = drafts still unpublished (a re-run publishes only those, never a note twice); lost = drafts GitLab dropped without a note."
+    exit 1
+}
 cmd_publish() {
     parse_args "$@"; post_init; RM=$(review_stamp)
     case "$V" in
         github)
             RID=$(req review_id); check_ident '^[0-9]+$' "$RID"
             gh api -X POST "repos/$OWNER/$REPO/pulls/$N/reviews/$RID/events" -f event="COMMENT" --jq '.state' ;;
-        gitlab)
-            glab api -X POST "projects/$GL_PROJ/merge_requests/$N/draft_notes/bulk_publish" >/dev/null && printf 'PUBLISHED\n' ;;
+        gitlab) gl_publish ;;
         bitbucket)
             F=$(req payload)
             jq -c --arg m "$RM" '{content: {raw: (.body + $m)}}' "$F" > "$TMPD/bb.part.json"
@@ -705,21 +800,25 @@ cmd_post_verify() {
             if [ "$left" = 0 ]; then printf 'PUBLISHED\n'; else printf 'UNPUBLISHED draft_notes=%s\n' "$left"; fi
             if [ "$left" = 0 ]; then
                 glab api "projects/$GL_PROJ/merge_requests/$N/notes?sort=desc&order_by=created_at&per_page=100" > "$TMPD/pv.notes"
-                # no payload (an earlier draft published as it was): the newest overview this plugin stamped
+                # no payload (an earlier draft published as it was), or an overview `post` added moved
+                # findings to: the newest overview this plugin stamped
+                id=""
                 if [ -n "$P" ]; then
                     id=$(jq -r --slurpfile p "$P" --arg m "$(marker_text review)" '($p[0].body | sub("\\s+$"; "")) as $b
                         | [.[] | select(.system != true and .position == null
                                         and ((.body // "") | sub("\\s+$"; "") | rtrimstr($m) | sub("\\s+$"; "")) == $b)][0].id // empty' "$TMPD/pv.notes")
-                else
+                fi
+                if [ -z "$id" ]; then
                     id=$(jq -r "$JQ_MARKED"'[.[] | select(.system != true and .position == null and ((.body // "") | marked("review")))][0].id // empty' "$TMPD/pv.notes")
                 fi
                 [ -z "$id" ] || { check_ident '^[0-9]+$' "$id"; gl_mr_cached "$N" | jq -r --arg id "$id" '.web_url // empty | . + "#note_" + $id' > "$TMPD/pv.url"; }
-                # a publish posts the drafts in the order post wrote them, overview last: its notes are the ones
-                # after the plugin's previous overview. That one past this 100-note page ⇒ the window is unknown, no count.
+                # its notes: every one after the plugin's previous overview — a bulk publish posts the drafts in the
+                # order post wrote them, overview last, but publish's one-by-one recovery posts findings after it.
+                # That previous overview past this 100-note page ⇒ the window is unknown, no count.
                 [ -z "$id" ] || jq -r --argjson id "$id" "$JQ_MARKED$JQ_FINDINGS"'
                     [.[] | select(.system != true and .position == null and .id < $id and ((.body // "") | marked("review"))) | .id] as $older
                     | select($older != [] or length < 100) | ($older | max // 0) as $prev
-                    | [.[] | select(.system != true and .id > $prev and .id <= $id) | .body // ""] | labelled
+                    | [.[] | select(.system != true and .id > $prev) | .body // ""] | labelled
                     | "counts=" + tojson' "$TMPD/pv.notes" || true
             fi ;;
         bitbucket)
@@ -800,6 +899,92 @@ cmd_react() {
         gitlab) glab api -X POST "projects/$GL_PROJ/merge_requests/$N/notes/$CID/award_emoji" -f name="$E" | jq -r '.id' ;;
         bitbucket) printf 'NO-EQUIVALENT\n' ;;
     esac
+}
+# ------------------------------------------------------- edit / delete ----
+# Only a comment this plugin posted, from the caller's account: its last non-blank line, outside a
+# quote and a code fence, ends with one of the markers `marker`/`post` write, in either vendor form. A
+# person's own comment quoting a finding (`> …<!-- bot-finding -->`) is not one, though the plugin
+# posts under that person's account.
+JQ_OURS='def ours: (reduce (split("\n")[] | sub("\r$"; "")) as $l ({f: false, last: null};
+        if ($l | test("^\\s*(```|~~~)")) then .f = (.f | not) | .last = null
+        elif ($l | test("^\\s*$")) then .
+        else .last = (if .f then null else $l end) end)).last
+    | . != null and (test("^\\s*>") | not)
+      and test("(<!--\\s*bot-|^ {0,3}\\[bot-)(finding|review|reply|claim:[0-9]+|report:[0-9]+)(\\s*-->|\\]:\\s*#)\\s*$");'
+# cm_get: comment $CID as {pr, user, body, state} in $TMPD/cm.json. GitHub ids span the repo: pr names
+# the PR it is on. A GitLab draft note is listed to its author alone: its user is the caller.
+cm_get() {
+    case "$V/$KIND" in
+        github/line) gh api "repos/$OWNER/$REPO/pulls/comments/$CID" \
+                       | jq '{pr: (.pull_request_url // "" | split("/") | last), user: .user.login, body: (.body // ""), state: null}' ;;
+        github/top) gh api "repos/$OWNER/$REPO/issues/comments/$CID" \
+                       | jq '{pr: (.issue_url // "" | split("/") | last), user: .user.login, body: (.body // ""), state: null}' ;;
+        github/review) gh api "repos/$OWNER/$REPO/pulls/$N/reviews/$CID" \
+                       | jq --arg n "$N" '{pr: $n, user: .user.login, body: (.body // ""), state}' ;;
+        gitlab/draft) glab api "projects/$GL_PROJ/merge_requests/$N/draft_notes/$CID" \
+                       | jq --arg n "$N" --arg me "$ME" '{pr: $n, user: $me, body: (.note // ""), state: null}' ;;
+        gitlab/*) glab api "projects/$GL_PROJ/merge_requests/$N/notes/$CID" \
+                       | jq --arg n "$N" '{pr: (if .system then null else $n end), user: .author.username, body: (.body // ""), state: null}' ;;
+        bitbucket/*) bb_curl "$BB_API/pullrequests/$N/comments/$CID?fields=user.nickname,content.raw,deleted" \
+                       | jq --arg n "$N" '{pr: (if .deleted then null else $n end), user: .user.nickname, body: (.content.raw // ""), state: null}' ;;
+    esac > "$TMPD/cm.json"
+}
+# cm_init <op>: validates, then refuses (exit 1, nothing sent) unless comment C is the caller's and this plugin's.
+cm_init() {
+    post_init
+    CID=$(req comment_id); KIND=$(arg kind); [ -n "$KIND" ] || KIND=line
+    check_ident '^[0-9]+$' "$CID"; check_ident '^(line|top|review|draft)$' "$KIND"
+    case "$V/$KIND" in
+        github/draft) die 1 "open-pr.sh $1: a pending GitHub review's line comments are not covered; --kind review edits its body, discard deletes it" ;;
+        bitbucket/draft) printf 'NO-EQUIVALENT\n'; exit 0 ;;
+    esac
+    ME=$(ctx_account)
+    [ "$ME" != UNKNOWN ] || die 1 "open-pr.sh $1: the account is UNKNOWN (a workspace token), so no comment can be shown to be yours; nothing was sent"
+    cm_get || die 1 "open-pr.sh $1: could not read $KIND comment $CID on PR $N; nothing was sent"
+    jq -e --arg n "$N" --arg me "$ME" "$JQ_OURS"'.pr == $n and .user == $me and (.body | ours)' "$TMPD/cm.json" >/dev/null \
+        || die 1 "open-pr.sh $1: comment $CID is not this plugin's own on PR $N (another account's, or no marker of its own); nothing was sent"
+}
+# edit: F replaces the body. F not ending with a marker of its own keeps the old body's marker line, so
+# the comment stays known as this plugin's.
+cmd_edit() {
+    parse_args "$@"
+    F=$(req body_file); [ -s "$F" ] || die 1 "open-pr.sh edit: body file missing/empty"
+    cm_init edit
+    jq -n --rawfile new "$F" --slurpfile old "$TMPD/cm.json" "$JQ_OURS"'
+        ($new | sub("\\s+$"; "")) as $b
+        | if ($b | ours) then $b
+          else $b + "\n\n" + ($old[0].body | sub("\\s+$"; "") | split("\n") | last | sub("\r$"; "")) end' > "$TMPD/cm.body"
+    case "$V/$KIND" in
+        github/*) jq -c '{body: .}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+        gitlab/draft) jq -c '{note: .}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+        gitlab/*) jq -c '{body: .}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+        bitbucket/*) jq -c '{content: {raw: .}}' "$TMPD/cm.body" > "$TMPD/cm.req" ;;
+    esac
+    case "$V/$KIND" in
+        github/line) gh api -X PATCH "repos/$OWNER/$REPO/pulls/comments/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        github/top) gh api -X PATCH "repos/$OWNER/$REPO/issues/comments/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        github/review) gh api -X PUT "repos/$OWNER/$REPO/pulls/$N/reviews/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        gitlab/draft) glab api -X PUT -H "Content-Type: application/json" "projects/$GL_PROJ/merge_requests/$N/draft_notes/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        gitlab/*) glab api -X PUT -H "Content-Type: application/json" "projects/$GL_PROJ/merge_requests/$N/notes/$CID" --input "$TMPD/cm.req" > /dev/null ;;
+        bitbucket/*) bb_curl -X PUT -H "Content-Type: application/json" "$BB_API/pullrequests/$N/comments/$CID" --data @"$TMPD/cm.req" > /dev/null ;;
+    esac
+    printf 'EDITED %s\n' "$CID"
+}
+cmd_delete() {
+    parse_args "$@"
+    cm_init delete
+    case "$V/$KIND" in
+        github/line) gh api -X DELETE "repos/$OWNER/$REPO/pulls/comments/$CID" > /dev/null ;;
+        github/top) gh api -X DELETE "repos/$OWNER/$REPO/issues/comments/$CID" > /dev/null ;;
+        github/review)
+            # a submitted review stays: GitHub deletes only a pending one
+            [ "$(jq -r '.state' "$TMPD/cm.json")" = PENDING ] || { printf 'NO-EQUIVALENT\n'; return 0; }
+            gh api -X DELETE "repos/$OWNER/$REPO/pulls/$N/reviews/$CID" > /dev/null ;;
+        gitlab/draft) glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/draft_notes/$CID" > /dev/null ;;
+        gitlab/*) glab api -X DELETE "projects/$GL_PROJ/merge_requests/$N/notes/$CID" > /dev/null ;;
+        bitbucket/*) bb_curl -X DELETE "$BB_API/pullrequests/$N/comments/$CID" > /dev/null ;;
+    esac
+    printf 'DELETED %s\n' "$CID"
 }
 # ---------------------------------------------------------------- claim ----
 # Several machines may watch one repo: a reply carrying the claim marker for the trigger comment
@@ -1718,7 +1903,7 @@ Subcommands:
       `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…`
   publish [--review-id I] [--payload F]
       make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview
-      first)
+      first). GitLab exit 1: part landed; a re-run never posts twice
   post-verify [--review-id I] [--marker M] [--payload F]
       what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line
       `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else
@@ -1780,10 +1965,21 @@ Diagnostic subcommands (cases/self-repair.md, commands/watch.md and commands/men
       <detail>`; exit 1 when any fails. Posts nothing, touches no watcher state, leaves no process,
       runs before the jq gate; no option
 
-Case subcommands (each called by one cases/ file, which names the call; rendered nowhere):
+Case subcommands (rendered nowhere; a cases/ file that calls one names the call there):
   discard --draft-id I
       delete the pending draft `post` exit 8 named, only while it is still that one and this
       plugin's; `DISCARDED`. `NO-EQUIVALENT` on Bitbucket
+  edit --comment-id C --body-file F [--kind line|top|review|draft]
+      replace comment C's body with F; `EDITED <C>`. Refused (exit 1, nothing sent) unless C is on
+      this PR, by the caller's account (`UNKNOWN` ⇒ refused), and its last non-blank line, outside a
+      quote or code fence, ends with one of this plugin's markers. F without a marker of its own keeps
+      C's marker line. `--kind` (default `line`): GitHub `line` = review comment, `top` = conversation
+      comment, `review` = a review's body (pending or submitted); GitLab `draft` = a draft note, any
+      other = a note; Bitbucket one kind, `draft` ⇒ `NO-EQUIVALENT`. A pending GitHub review's line
+      comments are not covered
+  delete --comment-id C [--kind line|top|review|draft]
+      remove comment C under `edit`'s refusal rule and kinds; `DELETED <C>`. A submitted GitHub review
+      ⇒ `NO-EQUIVALENT` (GitHub deletes only a pending one)
 
 Internal subcommands (open-pr-watch.sh's and the session-title hook's own; no prompt calls them):
   pr-ref <url>
@@ -1843,6 +2039,8 @@ case "$sub" in
     post)         cmd_post "$@" ;;
     publish)      cmd_publish "$@" ;;
     discard)      cmd_discard "$@" ;;
+    edit)         cmd_edit "$@" ;;
+    delete)       cmd_delete "$@" ;;
     post-verify)  cmd_post_verify "$@" ;;
     push)         cmd_push "$@" ;;
     reply)        cmd_reply "$@" ;;
