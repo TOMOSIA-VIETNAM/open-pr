@@ -25,8 +25,15 @@ TERMINAL="posted draft lgtm_chat nothing answered fixed failed stopped"
 REPORTED="posted draft lgtm_chat nothing answered fixed failed question"
 # Longest rate-limit backoff; the menu bar counts a repo watched while its heartbeat is < 3x this.
 BACKOFF_CAP=900
+# Bounds on real time. Each reads an OPEN_PR_TEST_* variable that only the test suite sets, to
+# run the bound in a fraction of its time; unset, the value after :- holds.
 # Naps (0.2 s) `notify` waits for its toast, and `menubar` for its item, to be on screen.
-TOAST_WAIT=25 MENUBAR_WAIT=50
+TOAST_WAIT=${OPEN_PR_TEST_TOAST_WAIT:-25} MENUBAR_WAIT=${OPEN_PR_TEST_MENUBAR_WAIT:-50}
+# Seconds a state lock with no pid (its holder died between mkdir and pid write), or a .reclaim
+# left by a reclaimer that died, stands before it is removed.
+LOCK_RECLAIM=${OPEN_PR_TEST_LOCK_RECLAIM:-5}
+# Real seconds that one second of `wait`'s sleep between polls lasts.
+POLL_SECOND=${OPEN_PR_TEST_POLL_SECOND:-1}
 
 err() { printf '%s\n' "$*" >&2; }
 die() { code="$1"; shift; err "$*"; exit "$code"; }
@@ -173,13 +180,13 @@ lock() {   # $1 lock dir, default the repo's state lock
     lk="${1:-$SD/.lock}"; i=0; nopid=0; stuck=0
     while ! mkdir "$lk" 2>/dev/null; do
         holder=$(cat "$lk/pid" 2>/dev/null || true)
-        # open-pr.sh's dir_lock protocol (its comment says why), in 0.2 s naps: 25 = 5 s
-        if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || { [ -z "$holder" ] && [ "$nopid" -ge 25 ]; }; then
+        # open-pr.sh's dir_lock protocol (its comment says why), in 0.2 s naps
+        if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || { [ -z "$holder" ] && [ "$nopid" -ge $((LOCK_RECLAIM * 5)) ]; }; then
             if mkdir "$lk.reclaim" 2>/dev/null; then
                 [ "$(cat "$lk/pid" 2>/dev/null || true)" != "$holder" ] || rm -rf "$lk"
                 rmdir "$lk.reclaim"; nopid=0; stuck=0; continue
             fi
-            stuck=$((stuck + 1)); [ "$stuck" -lt 25 ] || { rm -rf "$lk.reclaim"; stuck=0; }
+            stuck=$((stuck + 1)); [ "$stuck" -lt $((LOCK_RECLAIM * 5)) ] || { rm -rf "$lk.reclaim"; stuck=0; }
         fi
         [ -n "$holder" ] || nopid=$((nopid + 1))
         i=$((i + 1))
@@ -1095,7 +1102,9 @@ cmd_wait() {
         # Slept in slices so a "Fix now" click or a stop applies within seconds.
         waited=0; slice=5; [ "$delay" -ge "$slice" ] || slice=$delay
         while [ "$waited" -lt "$delay" ]; do
-            sleep "$slice"; waited=$((waited + slice))
+            if [ "$POLL_SECOND" = 1 ]; then sleep "$slice"
+            else sleep "$(awk -v s="$slice" -v k="$POLL_SECOND" 'BEGIN { print s * k }')"; fi
+            waited=$((waited + slice))
             stop_requested
             ! fix_now_pending || break
         done

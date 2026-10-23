@@ -432,17 +432,19 @@ repo_lock() {   # $1 = any directory inside the repo
 # is dead, or that has no pid after 5 s (a holder killed between its mkdir and its pid write), is
 # removed under a second lock, <lock dir>.reclaim, once its pid reads the same there: a waiter
 # that saw the old lock never removes the new one another waiter took meanwhile. A .reclaim
-# older than 5 s belongs to a reclaimer that died; it is removed.
+# older than 5 s belongs to a reclaimer that died; it is removed. The 5 s: LOCK_RECLAIM, which
+# only the test suite shortens (OPEN_PR_TEST_LOCK_RECLAIM).
+LOCK_RECLAIM=${OPEN_PR_TEST_LOCK_RECLAIM:-5}
 dir_lock() {
     waited=0; nopid=0; stuck=0
     until mkdir "$1" 2>/dev/null; do
         owner=$(cat "$1/pid" 2>/dev/null || true)
-        if { [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; } || { [ -z "$owner" ] && [ "$nopid" -ge 5 ]; }; then
+        if { [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; } || { [ -z "$owner" ] && [ "$nopid" -ge "$LOCK_RECLAIM" ]; }; then
             if mkdir "$1.reclaim" 2>/dev/null; then
                 [ "$(cat "$1/pid" 2>/dev/null || true)" != "$owner" ] || rm -rf "$1"
                 rmdir "$1.reclaim"; nopid=0; stuck=0; continue
             fi
-            stuck=$((stuck + 1)); [ "$stuck" -lt 5 ] || { rm -rf "$1.reclaim"; stuck=0; }
+            stuck=$((stuck + 1)); [ "$stuck" -lt "$LOCK_RECLAIM" ] || { rm -rf "$1.reclaim"; stuck=0; }
         fi
         [ -n "$owner" ] || nopid=$((nopid + 1))
         [ "$waited" -lt "$2" ] || die 1 "$3"
@@ -1939,8 +1941,9 @@ st_jxa() {
     osascript -l JavaScript "$b/open-pr-toast.js" --probe open-pr selftest probe findings 0 0 "" "$d/snooze" pr \
         "" "" "" "" "" "" "" "" "" "" "" "$d/shown" > "$d/toast.log" 2>&1 < /dev/null &
     tp=$!
-    i=0   # 10 s, as `menubar` gives its item
-    while { kill -0 "$mp" || kill -0 "$tp"; } 2>/dev/null && [ "$i" -lt 50 ]; do sleep 0.2; i=$((i + 1)); done
+    # 50 naps of 0.2 s = 10 s, as `menubar` gives its item; only the test suite shortens it
+    i=0; naps=${OPEN_PR_TEST_PROBE_WAIT:-50}
+    while { kill -0 "$mp" || kill -0 "$tp"; } 2>/dev/null && [ "$i" -lt "$naps" ]; do sleep 0.2; i=$((i + 1)); done
     kill "$mp" "$tp" 2>/dev/null || :
     mrc=0; wait "$mp" || mrc=$?
     trc=0; wait "$tp" || trc=$?

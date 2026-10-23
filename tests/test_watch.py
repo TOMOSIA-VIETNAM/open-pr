@@ -183,8 +183,11 @@ class Watch:
         self.watch = tmp / "xdg" / "open-pr" / "watch"
         # COLUMNS=80: procps (Linux) then cuts a `ps` command line there unless told -ww, as it
         # does whenever it finds no terminal. TMPDIR: toast slots, private to the test.
+        # OPEN_PR_TEST_POLL_SECOND: a `wait` left running sleeps 0.1 s per second of its poll
+        # interval; the intervals it computes and prints are unchanged.
         self.env = dict(os.environ, FAKE_HOME=str(self.home), XDG_CONFIG_HOME=str(tmp / "xdg"),
-                        PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}", COLUMNS="80", TMPDIR=str(tmp))
+                        PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}", COLUMNS="80", TMPDIR=str(tmp),
+                        OPEN_PR_TEST_POLL_SECOND="0.1")
         self.children = []
 
     def run(self, *args, env_extra=None, path=None, check=True, cwd=None):
@@ -240,6 +243,17 @@ class Watch:
     def claude_calls(self, with_cwd=False):
         rows = [json.loads(l) for l in (self.home / "claude.calls").read_text().splitlines()]
         return rows if with_cwd else [r["argv"] for r in rows]
+
+    def calls(self, prefix):
+        """How many times the fake open-pr.sh ran <prefix>."""
+        f = self.home / "open-pr.calls"
+        return sum(1 for l in f.read_text().splitlines() if l.startswith(prefix + " ")) if f.exists() else 0
+
+    def until(self, cond, timeout=20):
+        """Polls cond until true; the test then asserts it."""
+        end = time.time() + timeout
+        while not cond() and time.time() < end:
+            time.sleep(0.05)
 
     def recorded(self, name, n=0, timeout=10):
         f = self.home / f"{name}.{n}.json"
@@ -483,7 +497,8 @@ def test_a_running_wait_sees_a_session_change_between_its_own_polls(w):
     proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        time.sleep(2.5)                      # at least one poll with the session still working
+        polls = w.calls("triggers")
+        w.until(lambda: w.calls("triggers") >= polls + 2)   # a poll with the session still working
         assert proc.poll() is None, "wait exited before anything changed"
         w.claude_set(sp["id"], "done")
         w.status_file(5, state="posted", url="https://github.com/o/r/pull/5")
@@ -1060,10 +1075,11 @@ def test_osascript_gets_the_text_as_argv_never_as_source(w):
 @pytest.mark.parametrize("env, log", [({"FAKE_NO_UI": "1", "FAKE_EXIT": "139"}, "open-pr-toast.js exited 139\n"),
                                       ({"FAKE_NO_UI": "1", "FAKE_SLEEP": "60"}, "open-pr-toast.js exited 143\n")])
 def test_a_toast_that_never_reaches_the_screen_is_not_reported_sent(w, tmp_path, env, log):
-    """A crash (SIGSEGV) or a hang before the toast is drawn: the hung one is stopped."""
+    """A crash (SIGSEGV) or a hang before the toast is drawn: the hung one is stopped at the bound
+    (5 naps = 1 s here), long before it would exit."""
     started = time.time()
-    out = notify(w, env_extra=env)
-    assert time.time() - started < 15
+    out = notify(w, env_extra=dict(env, OPEN_PR_TEST_TOAST_WAIT="5"))
+    assert time.time() - started < 8
     assert out == {"event": "posted", "sent": False, "reason": "toast not shown", "log": str(w.watch / "toast.log")}
     deadline = time.time() + 5
     while not (w.watch / "toast.log").read_text().endswith(log) and time.time() < deadline:
@@ -1082,8 +1098,8 @@ def test_a_toast_that_crashes_after_it_showed_leaves_its_exit_code_in_the_log(w,
 
 def test_a_toast_on_screen_late_within_its_bound_is_sent_and_logs_nothing(w, tmp_path):
     started = time.time()
-    out = notify(w, env_extra={"FAKE_UI_DELAY": "3"})
-    assert out == {"event": "posted", "sent": True, "via": "toast"} and time.time() - started >= 3
+    out = notify(w, env_extra={"FAKE_UI_DELAY": "1", "OPEN_PR_TEST_TOAST_WAIT": "10"})   # on screen at 1 s of 2 s
+    assert out == {"event": "posted", "sent": True, "via": "toast"} and time.time() - started >= 1
     w.wait_dead(int((tmp_path / "open-pr-toast" / "0" / "pid").read_text()))
     assert (w.watch / "toast.log").read_text() == "", "a toast that exits 0 appends nothing"
     assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["summary"] == "PR #3 posted"
@@ -1455,16 +1471,15 @@ def test_the_repo_setting_is_the_only_poll_interval(w):
 
 def test_a_running_wait_re_reads_the_repos_settings_at_each_poll(w):
     """A change made in the menu bar mid-wait (interval, slots) applies from the next poll."""
-    w.settings(poll_interval_seconds=15)
+    w.settings(poll_interval_seconds=1)
     w.run("wait", "--once")                                    # cursor set
-    calls = lambda: sum(1 for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("settings "))
-    before = calls()
+    before, polls = w.calls("settings"), w.calls("triggers")
     proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     w.children.append(proc)
     try:
-        time.sleep(18)                                         # 2 polls, 15 s apart
-        assert calls() - before >= 3, "read once at start, then cached for the life of the wait"
+        w.until(lambda: w.calls("triggers") >= polls + 3)      # 3 polls
+        assert w.calls("settings") - before >= 3, "read once at start, then cached for the life of the wait"
     finally:
         proc.kill(); proc.wait()
 
@@ -1556,10 +1571,10 @@ def test_a_menu_bar_that_exits_at_start_is_reported_not_started(w):
 def test_a_menu_bar_that_shows_no_item_is_stopped_not_reported_started(w):
     """A process merely alive is no item in the menu bar: one hung before its item exists."""
     started = time.time()
-    r = w.run("menubar", env_extra={"FAKE_NO_UI": "1", "FAKE_SLEEP": "60"}, check=False)
-    assert r.returncode == 1 and r.stdout == "" and "showed no item in 10 s" in r.stderr
+    r = w.run("menubar", env_extra={"FAKE_NO_UI": "1", "FAKE_SLEEP": "60", "OPEN_PR_TEST_MENUBAR_WAIT": "5"}, check=False)
+    assert r.returncode == 1 and r.stdout == "" and "showed no item in 1 s" in r.stderr
     assert str(w.watch / "menubar.log") in r.stderr
-    assert time.time() - started < 20
+    assert time.time() - started < 8
     assert not (w.watch / "menubar.pid").exists()
     out = subprocess.run(["pgrep", "-f", f"open-pr-menubar.js {w.watch}"], capture_output=True, text=True).stdout
     assert out == "", "the hung menu bar was left running"
@@ -1568,8 +1583,9 @@ def test_a_menu_bar_that_shows_no_item_is_stopped_not_reported_started(w):
 def test_a_menu_bar_whose_item_shows_late_within_its_bound_is_started(w):
     started = time.time()
     try:
-        assert w.run("menubar", env_extra={"FAKE_UI_DELAY": "6", "FAKE_SLEEP": "30"}).stdout == "started\n"
-        assert time.time() - started >= 6
+        assert w.run("menubar", env_extra={"FAKE_UI_DELAY": "1", "FAKE_SLEEP": "30",   # item at 1 s of 2 s
+                                           "OPEN_PR_TEST_MENUBAR_WAIT": "10"}).stdout == "started\n"
+        assert time.time() - started >= 1
         assert w.run("menubar").stdout == "running\n"
     finally:
         os.kill(int((w.watch / "menubar.pid").read_text()), 9)
@@ -1690,8 +1706,8 @@ def test_a_state_lock_that_never_got_its_pid_is_reclaimed(w):
     w.put_state({"cursor": None, "seen": [], "sessions": {}, "queue": []})
     (w.sd / ".lock").mkdir()
     start = time.time()
-    w.run("hide", "--pr", "3")
-    assert 4 <= time.time() - start < 20 and w.state()["hidden"] == [3]
+    w.run("hide", "--pr", "3", env_extra={"OPEN_PR_TEST_LOCK_RECLAIM": "1"})
+    assert 0.8 <= time.time() - start < 10 and w.state()["hidden"] == [3]
 
 
 def test_hide_is_idempotent_and_a_new_request_brings_the_row_back(w):
@@ -2950,7 +2966,9 @@ def _rosetta():
 
 # The real menu bar and toast on screen, under each architecture a Mac runs osascript on: Intel's
 # JXA bridge hung on an ObjC subclass and crashed on a layer colour that Apple silicon's took.
-# Needs the window server: run outside a shell sandbox.
+# Needs the window server: run outside a shell sandbox. It puts real windows on screen for
+# seconds, so it runs only when asked: OPEN_PR_SLOW=1 python3 -m pytest tests/test_watch.py -k each_architecture
+@pytest.mark.skipif(not os.environ.get("OPEN_PR_SLOW"), reason="real menu bar and toast: set OPEN_PR_SLOW=1")
 @pytest.mark.skipif(not _rosetta(), reason="macOS with Rosetta only")
 @pytest.mark.parametrize("arch", ["x86_64", "arm64"])
 def test_the_menu_bar_and_a_toast_reach_the_screen_on_each_architecture(tmp_path, arch):

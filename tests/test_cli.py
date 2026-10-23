@@ -132,8 +132,8 @@ def test_a_menu_bar_or_toast_that_never_shows_fails_selftest(mac, env, says):
 def test_a_hung_probe_is_stopped_within_its_bound(mac):
     base, log = mac
     started = time.time()
-    r = run("selftest", env_extra={**base, "FAKE_NO_UI": "1", "FAKE_SLEEP": "60"})
-    assert r.returncode == 1 and time.time() - started < 20
+    r = run("selftest", env_extra={**base, "FAKE_NO_UI": "1", "FAKE_SLEEP": "60", "OPEN_PR_TEST_PROBE_WAIT": "5"})
+    assert r.returncode == 1 and time.time() - started < 8, "stopped at its bound (5 naps = 1 s here)"
     out = subprocess.run(["pgrep", "-f", "sleep 60"], capture_output=True, text=True).stdout.split()
     mine = [p for p in out if str(base["TMPDIR"]) in subprocess.run(
         ["ps", "-o", "command=", "-p", p], capture_output=True, text=True).stdout]
@@ -3260,12 +3260,14 @@ def test_settings_set_writers_reclaiming_one_dead_lock_never_hold_it_together(da
 
 
 def test_settings_set_reclaims_a_lock_that_never_got_its_pid(data_dir):
-    """A holder killed between its mkdir and its pid write leaves an empty lock: taken over after 5 s."""
+    """A holder killed between its mkdir and its pid write leaves an empty lock: taken over after 5 s
+    (1 s here)."""
     f = _demo_settings(data_dir, {"review": {"post_lgtm": True}})
     (f.parent / "watch" / ".lock").mkdir(parents=True)
     start = time.time()
-    assert run("settings", "--repo", "demo", "--set", "review.post_lgtm", "--value", "false").returncode == 0
-    assert 4 <= time.time() - start < 20
+    assert run("settings", "--repo", "demo", "--set", "review.post_lgtm", "--value", "false",
+               env_extra={"OPEN_PR_TEST_LOCK_RECLAIM": "1"}).returncode == 0
+    assert 0.8 <= time.time() - start < 10
     assert json.loads(f.read_text())["review"]["post_lgtm"] is False
 
 
