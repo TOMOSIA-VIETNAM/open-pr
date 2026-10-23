@@ -744,7 +744,7 @@ def test_post_puts_a_finding_off_every_hunk_of_a_changed_file_on_the_file(shims,
     overview, lines, files = _landed(vendor, bodies)
     assert moved == [f"moved_to_file={path}:{line}"]
     at = FILE_AT[vendor] if path == "a.txt" or vendor != "bitbucket" else {"path": path}
-    assert files == [{"path": path, "body": f"`{path}:{line}`\n{SHOULD}", "at": at}], "no line anchor: the body names it"
+    assert files == [{"path": path, "body": f"`{path}:{line}`\n\n{SHOULD}", "at": at}], "no line anchor: the body names it"
     assert [c["path"] for c in lines] == ["c.txt"] and path not in overview
 
 
@@ -754,7 +754,7 @@ def test_post_puts_a_finding_on_a_file_outside_the_pr_in_the_overview_under_its_
     overview, lines, files = _landed(vendor, bodies)
     assert moved == ["moved_to_overview=b.txt:1"] and lines == files == []
     stamp = "[bot-review]: #" if vendor == "bitbucket" else "<!-- bot-review -->"
-    assert overview == f"overview\n\n#### 🟠 SHOULD FIX\n\n`b.txt:1`\n{SHOULD}\n\n{stamp}"
+    assert overview == f"overview\n\n#### 🟠 SHOULD FIX\n\n`b.txt:1`\n\n{SHOULD}\n\n{stamp}"
 
 
 def test_post_files_a_moved_finding_under_its_heading_in_severity_order(shims, tmp_path):
@@ -764,10 +764,20 @@ def test_post_files_a_moved_finding_under_its_heading_in_severity_order(shims, t
     _, bodies = _place(shims, tmp_path, "gitlab", [out("🔵", 1), out("🔴", 2), {**out("", 3), "body": "no severity"}], body=body)
     assert bodies[-1]["note"] == (
         "### 🤖【AI REVIEW】Overview\nThanks 🙏\n\n#### 🔴 MUST FIX\n🔴 file one\n\n<!-- bot-finding -->\n\n"
-        "`b.txt:2`\n🔴 moved 2\n\n<!-- bot-finding -->\n\n"
-        "#### 🔵 SUGGESTION\n\n`b.txt:1`\n🔵 moved 1\n\n<!-- bot-finding -->\n\n"
+        "`b.txt:2`\n\n🔴 moved 2\n\n<!-- bot-finding -->\n\n"
+        "#### 🔵 SUGGESTION\n\n`b.txt:1`\n\n🔵 moved 1\n\n<!-- bot-finding -->\n\n"
         "#### 📝 NOTE\n📝 file two\n\n<!-- bot-finding -->\n\n#### Files skipped\n- `seed.sql` — dump\n\n"
-        "`b.txt:3`\nno severity\n\n<!-- bot-review -->")
+        "`b.txt:3`\n\nno severity\n\n<!-- bot-review -->")
+
+
+@pytest.mark.parametrize("vendor", VENDORS)
+def test_the_path_line_of_a_moved_finding_is_a_paragraph_of_its_own(shims, tmp_path, vendor):
+    """One newline joins `path:line` to the finding's first line in rendered markdown."""
+    _, bodies = _place(shims, tmp_path, vendor, [{"path": "a.txt", "line": 9, "side": "RIGHT", "body": SHOULD},
+                                                  {"path": "b.txt", "line": 1, "side": "RIGHT", "body": SHOULD}])
+    overview, _, files = _landed(vendor, bodies)
+    assert files[0]["body"].split("\n\n")[0] == "`a.txt:9`"
+    assert "\n\n`b.txt:1`\n\n🟠 x" in overview
 
 
 def test_a_github_file_thread_answered_with_errors_and_exit_0_is_a_refusal(shims, tmp_path):
@@ -784,7 +794,7 @@ def test_a_file_comment_the_vendor_refuses_lands_in_the_overview_once(shims, tmp
     moved, bodies = _place(shims, tmp_path, vendor, [{"path": "a.txt", "line": 9, "side": "RIGHT", "body": SHOULD}, kept], refuse=True)
     overview, lines, files = _landed(vendor, bodies)
     assert moved == ["moved_to_overview=a.txt:9"], "reported where it landed, not where it was meant to"
-    assert "#### 🟠 SHOULD FIX\n\n`a.txt:9`\n" + SHOULD in overview
+    assert "#### 🟠 SHOULD FIX\n\n`a.txt:9`\n\n" + SHOULD in overview
     assert [c["path"] for c in lines] == ["a.txt"]
     sent = [b for b in bodies if "a.txt:9" in json.dumps(b, ensure_ascii=False)]
     if vendor == "github":
@@ -3290,7 +3300,7 @@ def test_an_option_name_outside_its_shape_is_refused_and_never_run(tmp_path, opt
 # A finding `post` put on its file (no line) is still a finding: "Old comments" lists it (line and side
 # null, its body opening with `path:line`), the fix role counts it, post-verify counts it.
 
-FILE_BODY = "`a.txt:9`\n🔴 x\n\n"
+FILE_BODY = "`a.txt:9`\n\n🔴 x\n\n"
 FILE_ROWS = {  # one file-level finding, as each vendor lists it
     "github": {"id": 31, "body": FILE_BODY + "<!-- bot-finding -->", "user": {"login": "rev"}, "path": "a.txt", "line": None,
                "original_line": None, "side": None, "subject_type": "file", "in_reply_to_id": None,
@@ -3350,7 +3360,7 @@ def test_post_verify_bitbucket_links_an_overview_publish_added_a_finding_to(shim
                           "links": {"html": {"href": f"https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-{i}"}}}
     serve(shims, "curl", [("pullrequests/5/comments?pagelen=100", {"values": [
         top(40, "older\n\n[bot-review]: #"), top(41, "a person's comment"),
-        top(42, PAYLOAD["body"] + "\n\n#### 🟠 SHOULD FIX\n\n`b.txt:1`\n🟠 x\n\n[bot-finding]: #\n\n[bot-review]: #")], "next": None})])
+        top(42, PAYLOAD["body"] + "\n\n#### 🟠 SHOULD FIX\n\n`b.txt:1`\n\n🟠 x\n\n[bot-finding]: #\n\n[bot-review]: #")], "next": None})])
     r = run("post-verify", "--vendor", "bitbucket", "--owner", "o", "--repo", "r", "--pr", "5", "--marker", "[bot-finding]: #",
             "--payload", str(f), env_extra=env_for(shims), check=True)
     assert r.stdout.splitlines()[-1] == "url=https://bitbucket.org/o/r/pull-requests/5/_/diff#comment-42"

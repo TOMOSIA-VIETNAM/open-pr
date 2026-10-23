@@ -618,7 +618,8 @@ pr_changes() {
 #     fine but fails the publish with a 500);
 #   {kind: "file"} + old_path, new_path: the file is in the PR, the line in none of its hunks;
 #   {kind: "overview"}: the file is not in the PR.
-# anchored: the body of a comment off its line, opening with the `path:line` it was about.
+# anchored: the body of a comment off its line, opening with the `path:line` it was about, a paragraph
+# of its own (a single newline would join it to the finding's first line).
 JQ_PLACE='def place($changes): . as $c
     | first($changes[] | select(.new_path == $c.path or .old_path == $c.path)) // null
     | if . == null then {kind: "overview"} else
@@ -638,7 +639,7 @@ JQ_PLACE='def place($changes): . as $c
             else . end)
           | .hit | if . then {kind: "line"} + . else {kind: "file"} end)
       end;
-    def anchored: "`\(.path):\(.line)`\n\(.body)";'
+    def anchored: "`\(.path):\(.line)`\n\n\(.body)";'
 # with_moved($m): the overview body with each finding in $m under its severity heading — the heading
 # added in severity order when missing, before any other `#### ` heading (the skipped-files list); a
 # finding without a severity goes last.
