@@ -1000,6 +1000,7 @@ def test_delete_removes_the_plugins_own_comment(shims, vendor, kind):
     ("another account's", "alice", None),
     ("a marker quoted by a person", "bot", "I disagree with this:\n> 🔵 x\n> {m}"),
     ("a marker inside a code fence", "bot", "pasted:\n```\n{m}\n```"),
+    ("a marker inside a fence left open", "bot", "pasted:\n~~~\n{m}\n"),   # rendered as code to the end
     ("a marker that is not the last line", "bot", "{m}\nand then my own words"),
 ])
 def test_edit_and_delete_refuse_a_comment_that_is_not_the_plugins_own(shims, vendor, kind, op, why, user, body):
