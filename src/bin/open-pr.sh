@@ -701,12 +701,14 @@ cmd_post() {
             while IFS= read -r line; do
                 printf '%s\n' "$line" | jq -c --slurpfile r "$TMPD/gh.review.out" "$JQ_PLACE"'{query: "mutation($r:ID!,$p:String!,$b:String!){addPullRequestReviewThread(input:{pullRequestReviewId:$r,path:$p,body:$b,subjectType:FILE}){thread{comments(first:1){nodes{pullRequestReview{databaseId}}}}}}",
                     variables: {r: $r[0].node_id, p: .p.new_path, b: (.c | anchored)}}' > "$TMPD/gh.thread.json"
-                if gh api -X POST graphql --input "$TMPD/gh.thread.json" > "$TMPD/gh.thread.out" < /dev/null; then
-                    jq -e --argjson id "$id" '.data.addPullRequestReviewThread.thread.comments.nodes[0].pullRequestReview.databaseId == $id' \
-                        "$TMPD/gh.thread.out" >/dev/null \
-                        || die 1 "open-pr.sh post: GitHub put a file comment on $(printf '%s' "$line" | jq -r '.c.path') outside pending review $id"
-                else
+                # judged by the thread it answers, not the exit code: no thread = refused, nothing created
+                gh api -X POST graphql --input "$TMPD/gh.thread.json" > "$TMPD/gh.thread.out" < /dev/null || :
+                t=$(jq -r '.data.addPullRequestReviewThread.thread.comments.nodes[0].pullRequestReview.databaseId // "none"' \
+                    "$TMPD/gh.thread.out" 2>/dev/null) || t=none
+                if [ "${t:-none}" = none ]; then
                     refuse "$line"
+                elif [ "$t" != "$id" ]; then
+                    die 1 "open-pr.sh post: GitHub put a file comment on $(printf '%s' "$line" | jq -r '.c.path') outside pending review $id"
                 fi
             done < "$TMPD/files"
             if [ -s "$TMPD/refused" ]; then

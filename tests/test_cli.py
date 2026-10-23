@@ -644,7 +644,8 @@ def files_routes(vendor, pr, files=PR_FILES):
 
 PR_OF = {"github": "5", "gitlab": "9", "bitbucket": "7"}
 POST_ROUTES = {
-    "github": lambda refuse: [("reviews?per_page", []), ("graphql", (1, "GraphQL: Could not resolve") if refuse else GH_THREAD),
+    "github": lambda refuse: [("reviews?per_page", []),
+                              ("graphql", refuse if isinstance(refuse, dict) else (1, "GraphQL: Could not resolve") if refuse else GH_THREAD),
                               ("pulls/5/reviews/777", {"id": 777}), ("-X POST repos/o/r/pulls/5/reviews", {"id": 777, "node_id": "PRR_1"})],
     "gitlab": lambda refuse: [("draft_notes?per_page", []), ("draft_notes", {})],
     "bitbucket": lambda refuse: [("comments", {"id": 42})],
@@ -767,6 +768,13 @@ def test_post_files_a_moved_finding_under_its_heading_in_severity_order(shims, t
         "#### 🔵 SUGGESTION\n\n`b.txt:1`\n🔵 moved 1\n\n<!-- bot-finding -->\n\n"
         "#### 📝 NOTE\n📝 file two\n\n<!-- bot-finding -->\n\n#### Files skipped\n- `seed.sql` — dump\n\n"
         "`b.txt:3`\nno severity\n\n<!-- bot-review -->")
+
+
+def test_a_github_file_thread_answered_with_errors_and_exit_0_is_a_refusal(shims, tmp_path):
+    """Judged by the thread the answer carries, never by gh's exit code alone."""
+    moved, bodies = _place(shims, tmp_path, "github", [{"path": "a.txt", "line": 9, "side": "RIGHT", "body": SHOULD}],
+                           refuse={"data": {"addPullRequestReviewThread": None}, "errors": [{"message": "no"}]})
+    assert moved == ["moved_to_overview=a.txt:9"] and "`a.txt:9`" in _landed("github", bodies)[0]
 
 
 @pytest.mark.parametrize("vendor", VENDORS)
