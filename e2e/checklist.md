@@ -28,6 +28,8 @@ Then check the mechanics:
       and the worktree; the cloned repo gains no file and no `.gitignore` line
 - [ ] every `Fix` that has a code form arrived as a fence — a LINE one as ` ```suggestion `; inline code
       inside a sentence does not count
+- [ ] every finding's bold `Fix` label opens its own paragraph — a blank line before it in the raw body,
+      never rendered on the description's line
 - [ ] the chat message after posting is ≤3 sentences with the link and the counts, and repeats NO
       finding text
 - [ ] a lesson proposal arrives as a CHOICE with `(Recommended)` on one option, not a prose question
