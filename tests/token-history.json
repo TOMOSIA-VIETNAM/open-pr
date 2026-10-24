@@ -177,6 +177,17 @@
       "feedback": 2188,
       "watch": 5952,
       "menubar": 250
+    },
+    {
+      "tag": "v2.2.0",
+      "date": "2026-10-24",
+      "review": 9899,
+      "fix": 8509,
+      "upgrade": 2354,
+      "clean": 1477,
+      "feedback": 2343,
+      "watch": 6584,
+      "menubar": 357
     }
   ]
 }
