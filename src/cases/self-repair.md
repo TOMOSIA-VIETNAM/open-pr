@@ -13,7 +13,7 @@ A review half-posted (`post` succeeded, `publish` or `post-verify` failed) ⇒ S
 
 | the failure | do |
 |---|---|
-| the user's environment — the script's own message or a `selftest` detail names it: a tool missing, crashing on its own (`--version`), or too old (jq < 1.6); credentials, permission, network, a shell sandbox | relay what to do, STOP. No patch |
+| the user's environment — the script's own message or a `selftest` detail names it: a tool missing, crashing on its own (`--version`), or too old (jq < 1.6); credentials, permission, network, a shell sandbox | relay what to do, STOP. No patch. Only `jxa` failed and `/open-pr:watch` called it ⇒ relay it, then the watch goes on without the menu bar and toasts |
 | anything else | a plugin defect ⇒ Step 2 |
 
 ## 2 — Ask
