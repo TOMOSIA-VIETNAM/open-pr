@@ -78,7 +78,7 @@ bar shows active reviews, recent toasts and snooze, and `/open-pr:menubar close`
 that too, and that it still runs the open-pr from before an update until they click its "Restart menu bar".
 
 Run 1 `<watch> wait --roles <roles>` (+ `--fix-prs <its listed PR numbers, comma-joined>`; + `--backlog`
-until that repo's `wait` exits 0) per watched repo, each its own background command; one exiting wakes you: 1 JSON
+on that repo's first `wait`) per watched repo, each its own background command; one exiting wakes you: 1 JSON
 per line, `repo` naming whose values to use. Run every `<watch>` call with the shell sandbox off where
 there is one — inside it `wait` reaches no host and no session starts.
 

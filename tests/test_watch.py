@@ -2089,6 +2089,27 @@ def test_a_failed_backlog_pass_is_tried_again_before_the_next_poll(w):
     assert "backlog pass failed (exit 1)" in err and backlog_calls(w) == 2
 
 
+def test_a_backlog_pass_still_due_runs_in_the_next_wait_after_a_poll_ends_this_one(w):
+    """The pass fails, the poll in the same wait has an event: the wait exits 0 on the poll's event,
+    and the prompt runs the next wait without --backlog — the pending request is still asked."""
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("1\n")
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    w.triggers(trig("61", "2026-01-01T00:00:05Z"))
+    r = w.run("wait", "--once", "--backlog")
+    assert [json.loads(l)["comment_id"] for l in r.stdout.splitlines()] == ["61"]
+    assert w.state()["backlog_due"] is True
+    w.triggers()
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["5"], "still due without --backlog"
+    assert "backlog_due" not in w.state()
+    assert w.run("wait", "--once").stdout == "" and backlog_calls(w) == 2, "a pass that succeeded is not run again"
+    st = w.state()
+    w.put_state(dict(st, cursors={"review": {"cursor": st["cursor"], "seen": [], "backlog_due": True}}))
+    assert w.run("wait", "--once", "--roles", "fix").stdout == "" and backlog_calls(w) == 2, \
+        "a fix-only wait never runs the pass, whatever another role set owes"
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once", "--roles", "review")] == ["5"], "each role set owes its own"
+
+
 def test_a_fix_only_wait_runs_no_backlog_pass(w):
     backlog(w, trig("5", "2025-01-01T00:00:00Z"))
     assert w.run("wait", "--once", "--backlog", "--roles", "fix").stdout == ""

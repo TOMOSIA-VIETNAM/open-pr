@@ -939,8 +939,9 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
 }
 # --backlog: before polling, the requests pending on each open PR whatever their age — the PR, not
 # when the watcher started, says what is pending. Delivered as trigger events with `backlog: true`,
-# a skipped one left out. A role set with no cursor yet starts at the newest comment read. A failed
-# pass is tried again before the next poll.
+# a skipped one left out. A role set with no cursor yet starts at the newest comment read. The pass
+# stays due in state (`backlog_due` beside the role set's cursor) until it succeeds: a failed one is
+# tried again before the next poll, and by the next wait when this one ends on a poll's events.
 backlog_once() {   # sets GOT
     GOT=""
     [ -n "$TOKEN" ] || TOKEN=$(trigger_token)
@@ -962,7 +963,8 @@ backlog_once() {   # sets GOT
         | from_entries' "$TMPD/backlog" > "$TMPD/titles"
     state_update --argjson p "$CP" --arg c "$(cat "$TMPD/mark" 2>/dev/null || true)" --arg now "$(now_iso)" \
         --slurpfile ti "$TMPD/titles" '.titles = ((.titles // {}) + $ti[0])
-        | if getpath($p + ["cursor"]) then . else setpath($p + ["cursor"]; if $c == "" then $now else $c end) | setpath($p + ["seen"]; []) end'
+        | if getpath($p + ["cursor"]) then . else setpath($p + ["cursor"]; if $c == "" then $now else $c end) | setpath($p + ["seen"]; []) end
+        | delpaths([$p + ["backlog_due"]])'
     unlock
     [ -s "$TMPD/events" ] || return 0
     cat "$TMPD/events"
@@ -1074,9 +1076,13 @@ cmd_wait() {
         [ "$x" != "$ROLES" ] && { [ "$x" = review,fix ] || has_role "$x"; } || continue
         rm -f "$SD/watcher$(sfx "$x").json" "$SD/heartbeat$(sfx "$x")" "$SD/stop$(sfx "$x")"
     done
+    BACKLOG=""
+    if has_role review; then
+        [ -z "$(arg backlog)" ] || state_update --argjson p "$CP" 'setpath($p + ["backlog_due"]; true)'
+        BACKLOG=$(state_json | jq -r --argjson p "$CP" 'if getpath($p + ["backlog_due"]) == true then 1 else empty end')
+    fi
     unlock
     write_watcher
-    BACKLOG=""; ! has_role review || BACKLOG=$(arg backlog)
     STARTED=$(date +%s)
     base=$(setting_int poll_interval_seconds 180)
     interval=$(next_interval "$base"); delay=$interval
@@ -1349,7 +1355,7 @@ Subcommands:
       `{"event":"ready","repo","pr","role"}` = a queued session of its roles has its turn (run `next`
       with the same `--roles`). `--backlog` (review role): first, each open PR's pending request
       whatever its age (`triggers --backlog`: unclaimed, its newest, `"backlog":true`, `"superseded"`),
-      except those `skip` names; a role set's first run starts its cursor at the newest comment read,
+      except those `skip` names; until a pass succeeds, every later wait of that role set runs it too; a role set's first run starts its cursor at the newest comment read,
       at now without `--backlog`. A skipped trigger is never delivered again. Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
       Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower. Each poll writes `quota.json`: the host's rate limit as
