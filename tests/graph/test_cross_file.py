@@ -296,9 +296,8 @@ def test_an_ordered_repeat_is_registered_against_the_stall_rule():
 
 
 def test_a_watcher_asks_its_roles_unless_its_arguments_name_them():
-    """`/open-pr:watch admin` meant a review watcher and got fix rows too: a role nobody named was a
-    default. The roles come from `ARGUMENTS` or the user's answer, asked every run; and the fix
-    role's file, read only when `<roles>` holds `fix`, is decided after that answer."""
+    """The roles come from `ARGUMENTS` or the user's answer, asked every run — never a default;
+    the fix role's file, read only when `<roles>` holds `fix`, is decided after that answer."""
     step1 = re.search(r"## Step 1\b.*?(?=\n## )", text(SRC / "commands" / "watch.md"), re.S).group(0)
     flat = " ".join(step1.split())
     ask = flat.find("ONE CHOICE `Review` · `Fix` · `Review and fix`")
