@@ -43,7 +43,7 @@ AI コーディングで PR は速くなりました。でもレビューは速�
 
 1 回の実行で、結びついた 3 つの要素が出ます: **overview**、**行コメント**（suggested change 付き）、そして `/open-pr:fix` が push したあとの **返信**。 — [デモを見る](./docs/ja-JP/demo.md)
 
-- **1 回の依頼で 1 件のレビュー** — bot コメントの垂れ流しではありません。watcher が加えるのは依頼への "taking a look" の返信と、修正後にあなたが同意したときの再レビュー依頼だけ
+- **1 回の依頼で 1 件のレビュー** — bot コメントの垂れ流しではありません。watcher が加えるのは依頼への "taking a look" の返信、レビュー公開後の結果の返信 1 件と、修正後にあなたが同意したときの再レビュー依頼だけ
 - **依頼に応じてレビュー** — `/open-pr:watch` は `/open-pr` コメントごとにあなたのマシンでレビューセッションを開き、自分の PR で "Fix now" をクリックすると修正セッションを開きます
 - **リポジトリを学ぶ** — README / CLAUDE.md / AGENTS.md / docs / wiki を読み、**チームのルールが汎用ルールに優先**
 - **チームが言ったことを記憶** — ある PR での指摘が、次の実行に引き継がれます
@@ -146,6 +146,8 @@ flowchart LR
 | `/open-pr:watch [review\|fix]` | `/open-pr` コメントで PR をレビューし、"Fix now" で自分の PR を修正する。PR ごとに 1 つのセッションをあなたのマシンで開く。[詳細](./docs/ja-JP/watch.md) |
 | `/open-pr:menubar [close]` | macOS: 進行中のレビューと修正、"Fix now"、設定、スヌーズをメニューバーに表示。`close` で消す。[詳細](./docs/ja-JP/watch.md#メニューバーmacos) |
 | `/open-pr:feedback` | **このプラグイン自体**の問題を issue tracker に報告。あなたのリポジトリを特定できる情報は取り除き、送信前に本文を確認してもらう |
+
+Claude Code では、`review` と `fix` が渡された PR からセッション名を付けます（`review api #12, web !7`）。すでに名前があるセッションはそのままです。
 
 > [!WARNING]
 > `fix` はリポジトリ（またはレビュー worktree）の **実コード** を編集します。コメントを処理させたいと自分で決めたときだけ実行してください。

@@ -12,8 +12,14 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | head SHA | `headRefOid` (40 chars) | `diff_refs.head_sha` | `source.commit.hash` (12 chars — prefix-matched, never equality) |
 | PR checkout | `refs/pull/<n>/head` | `refs/merge-requests/<n>/head` | fetch source branch, detach at the PR's commit hash; unreachable hash = force-push, exit 3 |
 | unpublished stage | PENDING review object | draft notes | none — the payload file is the stage; publish POSTs one comment per part, overview first |
-| publish | review event COMMENT | `bulk_publish` | per-part POST |
-| post-verify | review state by id | draft_notes emptied ⇔ published | marker-filtered comment scan (`--marker`) |
+| post: placing a LINE comment (one rule; the PR's files read once per post) | the files from `pulls/:n/files` (`patch`, `previous_filename`) | the MR's `/changes` | the whole diff cut at `diff --git a/O b/N`, plus every diffstat path with no chunk |
+| post: line in a hunk | `line` + `side`, `path` = the file's new name | added line `new_line`, removed `old_line`, unchanged BOTH (`new_line` alone drafts, then fails `bulk_publish` with a 500); `old_path`/`new_path` from the diff (renames) | `inline.to` (RIGHT) / `inline.from` (LEFT), `path` = the new name |
+| post: line in no hunk of a PR file (or a file with no hunks returned: binary, too large, collapsed) — body opens with `` `path:line` ``, printed `moved_to_file=` | `addPullRequestReviewThread` (GraphQL, `subjectType: FILE`) on the pending review's `node_id` — the REST review payload has no `subject_type`, and REST's standalone comment would publish at once; the thread must report that review's id, else exit 1 | a draft note with `position_type: "file"` (GitLab 16.x+) | publish: an inline comment with `inline: {path}` only |
+| post: file not in the PR, or a file comment refused — printed `moved_to_overview=` | into the review body under its severity heading (`#### 🔴 MUST FIX` …, added in severity order before any other `####` heading when missing); a refused thread ⇒ PUT the review body | into the overview draft, posted last, so a refused file draft (older GitLab) is moved before it exists | into the overview comment; a refused part ⇒ PUT that comment |
+| publish | review event COMMENT | `bulk_publish` when no listed draft is already on the MR (same body, path, line among the caller's notes after their newest overview that is no draft); else, or when it fails or leaves drafts: a draft already published is DELETEd, the rest `PUT draft_notes/:id/publish` one by one; a draft gone with no note = `lost` | per-part POST |
+| pending draft (`post` exit 8, `discard`) | the PENDING review, listed to its author alone; DELETE it | the caller's draft notes, listed to them alone; DELETE each | NO-EQUIVALENT — nothing is staged on the PR |
+| edit / delete (`--kind`) | `line`: PATCH/DELETE `pulls/comments/:id`; `top`: `issues/comments/:id`; `review`: PUT `pulls/:n/reviews/:id`, DELETE only while PENDING (else NO-EQUIVALENT); `draft` not covered. The comment's `pull_request_url`/`issue_url` must name this PR | `draft`: PUT/DELETE `draft_notes/:id` (`note`), listed to its author alone; else PUT/DELETE `merge_requests/:iid/notes/:id`, a system note refused | PUT/DELETE `pullrequests/:id/comments/:id`, a deleted one refused; `draft` NO-EQUIVALENT; refused under a workspace token (account UNKNOWN) |
+| post-verify | review state by id | draft_notes emptied ⇔ published | marker-filtered comment scan (`--marker`); the overview by `--payload`'s body, else the newest stamped one (a finding moved into it changed the body) |
 | FILE-level reviews | review objects | NO-EQUIVALENT | NO-EQUIVALENT |
 | account | login | username | nickname, or UNKNOWN under a workspace token (401 on /user is BY DESIGN) |
 | threads | GraphQL reviewThreads | discussions (`resolved` flag) | root comment + `parent` chains, `resolution` on the ROOT only |
@@ -23,7 +29,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | claim: delete (lost race) | `line`: DELETE `pulls/comments/:id`; `top`: DELETE `issues/comments/:id` | DELETE `merge_requests/:iid/notes/:id` | DELETE `pullrequests/:id/comments/:id` |
 | last-claim | the claims `claim` lists; `line` = a review comment, its `in_reply_to_id` the thread | the claim note's discussion | `parent` = C, no thread id |
 | repo-target | vendor from the remote host: `github.com` | any other host (self-hosted included); `owner/repo` only, a nested group exits 5 | `bitbucket.org` |
-| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |
+| triggers: sources | open PRs; repo-wide issue comments (`top`) + review comments (`line`); `--since` narrows by update time; `--backlog`: each open PR's `issues/:n/comments` + `pulls/:n/comments`, conditional with `--cache-dir`; then `pulls/:n/reviews` (conditional too) for each PR still holding a trigger, poll and `--backlog` alike | opened MRs (`updated_after`), then each MR's discussions, one row per note; system notes skipped; DiffNote/position = `line` | open PRs (`q=updated_on > <since>`), then each PR's comments; deleted skipped; `inline` = `line` |
 | triggers: rate limit ⇒ exit 9 | HTTP 403/429 naming a rate limit (primary or secondary), or `X-RateLimit-Remaining: 0`, the permission lookup included | HTTP 429, the membership lookup included | HTTP 429 |
 | triggers: `thread_id` | a review-comment reply: its thread's root comment id (no reply to a reply there), else null | the note's discussion id — what `reply`/`claim --thread-id` take | null |
 | triggers: `authorized` | `collaborators/:login/permission` `permission` ∈ admin/write (maintain and a custom role on write count as write), one call per author of a trigger, conditional with `--cache-dir`; 404 or a login outside `^[A-Za-z0-9][A-Za-z0-9-]*$` = `no`; any other failure = exit 1 | `members/all/:user_id` access level ≥ 30, one call per author; 404 = `no`; any other failure = exit 1 | UNKNOWN — the permission API needs admin |
@@ -32,6 +38,7 @@ in `scripts/token_report.py`. Whatever the vendor's API lacks is handled INSIDE 
 | triggers: `--quota-file` | `X-RateLimit-Limit/Remaining/Reset` from `gh api -i` (the conditional GETs; a 304 carries them too); window 1 h, default 5000 | `RateLimit-Limit/Remaining/Reset` from `glab api -i`, every page; window 1 min, no default (self-managed may send none) | `X-RateLimit-Limit/Remaining/NearLimit` from `curl -D`, every page; window 1 h, default 1000 |
 | open-prs (rate limit ⇒ exit 9, as triggers) | `pulls?state=open`, paginated | `merge_requests?state=opened`, paginated | `pullrequests?state=OPEN`, every `next` |
 | markers | HTML comments | HTML comments | link reference definitions (raw HTML is escaped there) |
+| review marker | `post` appends `<!-- bot-review -->` to the review body | `post` appends `<!-- bot-review -->` to the overview draft note | `publish` appends `[bot-review]: #` to the overview comment |
 
 `triggers` prints 1 JSON per line, identical on every vendor:
 `{"pr","url","pr_author","comment_id","kind","thread_id","user","created_at","body","authorized"}` — `kind` =
@@ -40,7 +47,21 @@ is strict; `--mark-file` gets the newest `created_at` among every comment fetche
 trigger is a body whose first word is the `--token` (default `/open-pr`): `/open-pr:review` and
 `/open-prx` are not `/open-pr`; an `@login` token ignores case. It drops, on every vendor, any comment
 carrying a finding or reply marker, or a claim marker in either form — the plugin's own posts. The
-logged-in account's plain comments count: one person may be both developer and reviewer.
+logged-in account's plain comments count: one person may be both developer and reviewer. A trigger is
+handled, and dropped, when any fetched comment carries its claim marker (whoever wrote it — the same rule
+`claim` locks by) or when it is older than the newest claimed trigger on its PR. A claim always follows
+its trigger, so every vendor's fetch window that holds a trigger holds its claim. It is answered, and
+dropped, too when a review this plugin published on its PR came strictly after it — a watcher's or a
+manual run's alike: on GitHub a submitted (not PENDING) review whose body or line comments carry a
+finding marker, or whose body is a plugin overview, timed by `submitted_at`; on GitLab and Bitbucket a
+note/comment carrying a finding marker, or a top-level one (not a reply) that is a plugin overview. A
+plugin overview carries the review marker `post`/`publish` append after a blank line to every overview
+body — the payload file is left as written, and `post-verify` matches a body with or without it — or,
+lacking it, opens with the review template's fixed `### 🤖【AI REVIEW】Overview`
+or `**LGTM 🌟**`. A review in
+the same second does not count (GitHub stamps whole seconds, so the order is unknown). `--backlog` reads every
+age (no `--since`) and prints one row per PR — its newest trigger by a user not judged `no`, plus
+`"backlog":true` and `"superseded"` (the ids of the older ones).
 `--findings-file` rows, same on every vendor: `{"pr","url","head_branch","review_id","comment_id","thread_id","kind",
 "user","created_at","counts"}` — `head_branch` = the PR's source branch from the open-PR listing already
 fetched (GitHub `head.ref`, GitLab `source_branch`, Bitbucket `source.branch.name`; null when absent); one per review the plugin posted after `--since` on a PR whose author

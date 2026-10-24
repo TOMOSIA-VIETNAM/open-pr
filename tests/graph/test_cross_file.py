@@ -293,3 +293,62 @@ def test_an_ordered_repeat_is_registered_against_the_stall_rule():
         assert site.get("reason", "").strip(), f"{sha} needs a reason, not just a claim"
         assert any(n == site["file"] for n, _, h in found if h == sha), \
             f"{sha} is registered against {site['file']}, which is not where it was found"
+
+
+def test_a_watcher_asks_its_roles_unless_its_arguments_name_them():
+    """The roles come from `ARGUMENTS` or the user's answer, asked every run — never a default;
+    the fix role's file, read only when `<roles>` holds `fix`, is decided after that answer."""
+    step1 = re.search(r"## Step 1\b.*?(?=\n## )", text(SRC / "commands" / "watch.md"), re.S).group(0)
+    flat = " ".join(step1.split())
+    ask = flat.find("ONE CHOICE `Review` · `Fix` · `Review and fix`")
+    assert ask >= 0, "no role in ARGUMENTS ⇒ the three-way question"
+    assert "asked each time, never saved" in flat
+    assert ask < flat.find("`Read` `cases/watch-fix.md`"), "the fix role's file is read after the answer"
+    for name, body in all_text().items():
+        assert "else `review,fix`" not in body, f"{name}: a default role set"
+    assert "when `<roles>` holds `fix`" in text(SRC / "cases" / "watch-fix.md")
+
+
+def test_a_posted_review_is_reported_to_its_request_from_what_the_session_wrote():
+    """The watcher answers a request once its review is on the PR, with the link `post-verify` found
+    and the commit the payload named: the session writes both, the watcher reads both, and no other
+    outcome earns a report (an LGTM kept off the PR has nothing to link; an answer is its own reply)."""
+    watch = " ".join(text(SRC / "commands" / "watch.md").split())
+    session = " ".join(text(SRC / "cases" / "watch-session.md").split())
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    assert '"review_url": "", "commit": ""' in session
+    assert "`review_url` = its `url=` line, `commit` = the payload's `commit_id`" in session
+    assert "`<op> post-verify --payload <it>`" in review, "GitLab and Bitbucket find the overview by its body"
+    assert "| `posted` | notify `posted`; 1 chat line; review role ⇒ report it (below) |" in watch
+    assert "| `lgtm_chat` | notify `posted`; 1 chat line; no report (kept off the PR) |" in watch
+    rule = re.search(r"Report — .*?done before\.", watch).group(0)
+    assert "on `posted` only" in rule and "no other state" in rule
+    for field in ("status file commit", "status file's `review_url`"):
+        assert field in rule, field
+    assert "`<op> report --body-file <it>` + `<request thread>`" in rule
+    # the session answers the request it was spawned for; last-claim only for a record without one
+    assert "`<request thread>` = the event's `request`, else what `<op> last-claim … --pr N` prints" in watch
+    assert "--cwd <pwd>` + the claim's `--comment-id`, `--kind` (+ `--thread-id`)" in watch
+    assert "a PR printed ⇒ item 7 with the fields it prints" in watch, "a queued request keeps its request"
+
+
+def test_a_pending_draft_post_is_routed_to_its_case_before_any_other_post_error():
+    """`post` exit 8 = the caller's own unpublished review already on the PR. review.md hands it to
+    the one case that asks before touching it; the generic post-error file must not catch it too."""
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    route = review.find("`post` exit 8 → `Read` `cases/pending-draft.md`")
+    assert route >= 0
+    assert route < review.find("Any other post/publish error || post-verify mismatch → `Read` `cases/post-review.md`")
+    assert "8  `post`:" in cli_text(), "the exit is documented where every exit code is"
+    case = " ".join(text(SRC / "cases" / "pending-draft.md").split())
+    for call in ("`<op> discard --draft-id <I>`", "`<op> publish --review-id <I>`"):
+        assert call in case
+    assert "`ours=false` — a person's own pending review. FORBIDDEN: publishing or discarding it" in case
+    assert "| `overview=false` | `Discard it and post this review` |" in case, "a part-way post is never published"
+    # a published earlier draft reports what post-verify counted on it, never this run's findings;
+    # only an uncountable one is null, which the watcher words by its note, never as LGTM
+    assert "`<op> post-verify --review-id <I>`; its `url=` line is the link, its `counts=` line the counts" in case
+    assert "`counts` = that JSON — no `counts=` line ⇒ `null`, `note` saying they could not be counted" in case
+    assert "counts=<json>" in cli_text()
+    watch = " ".join(text(SRC / "commands" / "watch.md").split())
+    assert "LGTM when `{}`, its `note` when `null`" in watch

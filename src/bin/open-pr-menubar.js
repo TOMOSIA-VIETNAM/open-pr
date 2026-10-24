@@ -7,10 +7,12 @@
 //                                           runner `here`: fixed in the watcher's own session (its tab)
 //                                           `titles`: each PR's title, its row's title after #N
 //   <data>/<repo>/watch/feed.jsonl   notifications; a PR role's latest one, when newer than its
-//                                           session's state, is its row's text
-//   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pid of
-//                                           its wait (liveTab), and the repo_dir/remote "Remove from list"
-//                                           passes to `hide` and "Fix now" to `fix-now`
+//                                           session's state, is its row's text; a question's `focus`
+//                                           (watcher | session) is where its row's click goes
+//   <data>/<repo>/watch/watcher.json the terminal tab whose watcher watches the repo, the pids of
+//                                           its wait and of its `claude` (liveTab), the repo_dir/remote "Remove from list"
+//                                           passes to `hide` and "Fix now" to `fix-now`, and the
+//                                           open-pr-watch.sh its wait runs (see pluginUpdate)
 //   <data>/<repo>/watch/stop         written by "Stop"; the watcher's `wait` consumes it
 //   <data>/<repo>/watch/quota.json   the host's rate limit as the last poll read it (see QUOTA)
 //   <data>/<repo>/settings.json      the repo's watch.poll_interval_seconds (see STALE); the settings
@@ -19,11 +21,14 @@
 //   role has its own, suffixed (heartbeat-fix, watcher-fix.json, stop-fix — see SETS)
 //   snooze file                             toasts off until then; the Snooze menu writes it too
 // It stays until the user closes it (the menu, or `menubar --close`); watching goes on either way.
-// argv: snooze file, pid file, heartbeat age (seconds) past which a repo is not watched, data dirs,
-// then the absolute path of open-pr-watch.sh.
+// argv: snooze file, pid file (its pid is written there once the item is in the menu bar), heartbeat
+// age (seconds) past which a repo is not watched, data dirs, then the absolute path of open-pr-watch.sh.
+// A leading --probe (`open-pr.sh selftest`): the item hidden, its menu built once, any error fatal,
+// the pid file written, then it quits.
 // File contents are data only: shown as menu titles, opened when they are http(s) URLs, copied
 // as text, written into a .command file or passed to osascript as argv after matching OPEN_CMD,
-// passed to osascript as argv after matching TAB_ID, turned into `claude attach` after matching
+// passed to osascript as argv after matching TAB_ID (a tty `ps` lists among them), compared with `ps` args
+// after matching OPEN_CMD, turned into `claude attach`/`--resume` after matching
 // SESSION_ID, or passed to open-pr-watch.sh as argv after matching isDir/REMOTE/digits or a
 // SETTINGS key and one of its values — never spliced into source.
 ObjC.import('Cocoa');
@@ -40,6 +45,8 @@ var PR_INDENT = 3;
 var PILL = { h: 20, gear: 30 };
 // Points a menu row spends beside its subtitle: indent, icon, submenu arrow.
 var SUBTITLE_PAD = 140;
+// A severity mark in a row's text (see smallMarks).
+var MARK = /🔴|🟠|🔵|📝/;
 // The only shape of `open` (see open_cmd in open-pr-watch.sh) allowed into a Terminal script.
 var OPEN_CMD = /^[a-z-]+ (attach|resume|-r|--resume|--conversation) [A-Za-z0-9._-]+$/;
 // iTerm's unique id (the part of ITERM_SESSION_ID after ':') or a Terminal tab's tty.
@@ -51,7 +58,9 @@ var SETS = [{ sfx: '', roles: ['review', 'fix'] }, { sfx: '-review', roles: ['re
 // A row removed stays out until state.json lists it hidden (hide runs in the background).
 var HIDE_PENDING = 30000, FIX_PENDING = 120000;   // ms a click shows before the watcher acts on it
 var dataDirs = [], snoozeFile = '', pidFile = '', fresh = 2700, watchScript = '', pendingHide = {}, pendingFix = {};
-var item = null, target = null, icons = {}, rowParts = {}, pillParts = {}, litRow = null, menuOpen = false;
+// mtime of the open-pr-menubar.js beside watchScript when this menu bar started: the code it runs
+var launched = 0;
+var item = null, icons = {}, rowParts = {}, pillParts = {}, litRow = null, menuOpen = false;
 // The watcher row whose settings show inline under it: { row: its rowParts, items: the panel items,
 // panels: settingsPanel's objects }; shown = the scan the open menu was built from.
 var openPanel = null, shown = null;
@@ -81,9 +90,12 @@ var KIND = {   // SF Symbol, label — by a session's last_state (lgtm_chat as l
 // the kind of its event: a question asked from inside a still-working session is newer than
 // "working", and the row must stop saying "Reviewing".
 // A watcher row's terminal icon tint and role word, by the role it serves: review and fix watchers
-// tell apart at a glance. Its PR rows belong to it and carry no role.
+// tell apart at a glance. Its PR rows belong to it; a fix row's state starts "Fix: ".
 var ROLE_LOOK = { review: [[0.04, 0.42, 0.9], 'Review'], fix: [[0.8, 0.38, 0.02], 'Fix'], '': [null, 'Review + fix'] };
 var ROLE_RANK = { '': 0, '-review': 1, '-fix': 2 };   // a repo's watchers: both roles, review, fix
+// The badge: rows shown whose session runs, waits for the user's answer, or is starting on a Fix now
+// click. A `findings` row waits for nobody: Fix now is the user's to choose.
+var BUSY = { working: 1, fixing: 1, fixing_here: 1, fix_requested: 1, question: 1 }, busy = 0;
 var EVENT_KIND = { review_started: 'working', re_review: 'working', question: 'question',
                    draft_ready: 'draft', posted: 'posted', findings: 'findings', error: 'failed' };
 // by TERM_PROGRAM: menu name, bundle id, app a session opens in (see openIn)
@@ -97,9 +109,9 @@ var TERMS = {
 // `on run argv`: the tab id or command arrives as an argument, never as source. Automation
 // permission is asked once; without it the app was already brought forward (goToTab).
 // FOCUS returns "found" so a closed tab can be told apart from a found one. argv: the tab id and
-// the tty the watcher runs on (liveTab). w, t and s are positional references ("item 1 of every
-// window"): `select w` moves the window to the front, so it comes last or t and s resolve in
-// another window.
+// the tty the watcher runs on (liveTab), or a session's tty (attachedTab; iTerm: id ""). w, t and s
+// are positional references ("item 1 of every window"): `select w` moves the window to the front, so
+// it comes last or t and s resolve in another window.
 var FOCUS = {
     'iTerm.app': [
         'on run argv',
@@ -107,7 +119,7 @@ var FOCUS = {
         'repeat with w in windows',
         'repeat with t in tabs of w',
         'repeat with s in sessions of t',
-        'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',
+        'if ((item 1 of argv) is "" or (unique id of s) is (item 1 of argv)) and (tty of s) is (item 2 of argv) then',
         'select t', 'select s', 'select w', 'activate', 'return "found"',
         'end if', 'end repeat', 'end repeat', 'end repeat', 'end tell', 'end run'],
     'Apple_Terminal': [
@@ -170,44 +182,20 @@ SETTINGS.forEach(function (g) { g[1].forEach(function (k) {
 var settingsCache = {}, SETTINGS_RETRY = 60000;   // ms before a failed read is tried again
 var EYESPOTS = [[26,32, 38,44, 26,56, 14,44], [114,44, 102,56, 90,44, 102,32]];
 
-// A button over a watcher row's hand-drawn pill (Stop, the settings gear): darkens the pill while
-// the pointer is on it.
-ObjC.registerSubclass({
-    name: 'OPRPillButton',
-    superclass: 'NSButton',
-    methods: {
-        'mouseEntered:': { types: ['void', ['id']], implementation: function () { hoverPill(this, true); } },
-        'mouseExited:': { types: ['void', ['id']], implementation: function () { hoverPill(this, false); } }
-    }
-});
-ObjC.registerSubclass({
-    name: 'OPRMenuTarget',
-    methods: {
-        'tick:': { types: ['void', ['id']], implementation: function () { refresh(); } },
-        'openURL:': { types: ['void', ['id']], implementation: function (s) { openURL(unwrapString(s.representedObject)); } },
-        'copyText:': { types: ['void', ['id']], implementation: function (s) { copyText(unwrapString(s.representedObject)); } },
-        'openTerminal:': { types: ['void', ['id']], implementation: function (s) { openTerminal(parse(unwrapString(s.representedObject))); } },
-        // sender: a control inside a watcherRow view; its item carries { go, stop }
-        'goRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'go'); } },
-        'goTab:': { types: ['void', ['id']], implementation: function (s) { goToTab(parse(unwrapString(s.representedObject))); } },
-        'stopRow:': { types: ['void', ['id']], implementation: function (s) { rowAction(s, 'stop'); } },
-        'settingsRow:': { types: ['void', ['id']], implementation: function (s) { toggleSettings(s); } },
-        'menu:willHighlightItem:': { types: ['void', ['id', 'id']], implementation: function (m, mi) { highlightRow(mi); } },
-        'menuWillOpen:': { types: ['void', ['id']], implementation: function () { menuOpen = true; } },
-        'menuDidClose:': { types: ['void', ['id']], implementation: function () { menuOpen = false; highlightRow(null); closeSettings(); } },
-        'stopSession:': { types: ['void', ['id']], implementation: function (t) { stopSession(parse(unwrapString(t.userInfo))); } },
-        'hide:': { types: ['void', ['id']], implementation: function (s) { hide(parse(unwrapString(s.representedObject))); } },
-        'fixNow:': { types: ['void', ['id']], implementation: function (s) { fixNow(parse(unwrapString(s.representedObject))); } },
-        'snooze:': { types: ['void', ['id']], implementation: function (s) { snooze(Number(s.tag)); } },
-        'applyAll:': { types: ['void', ['id']], implementation: function (s) { applyAll(s); } },
-        // sender: a control in a settings panel (see controls)
-        'setting:': { types: ['void', ['id']], implementation: function (s) { setSetting(s); } },
-        'reveal:': { types: ['void', ['id']], implementation: function (s) { reveal(s); } },
-        'quit:': { types: ['void', ['id']], implementation: function () { leave(); } }
-    }
-});
+// Every Cocoa callback is a JS function behind a block: a control's or menu item's target is an
+// NSBlockOperation whose `main` runs it, timers and notifications take a block. No ObjC subclass:
+// registering one hangs osascript on an Intel Mac. A target is held weakly, so each operation is
+// kept here while a menu that can show it lives: the current menu's and the one it replaced (an
+// action may run while a refresh swaps the menu).
+var ops = [], opsBefore = [];
+function act(fn) { var op = $.NSBlockOperation.blockOperationWithBlock(fn); ops.push(op); return op; }
+// While the menu is open (tracking runs its own run loop mode, so the timer is in the common modes):
+// the highlight of a watcher row and the hover of a pill, which a view item gets from nobody else.
+var TRACK = 0.05, tracker = null;
 
 function run(argv) {
+    var probe = argv[0] === '--probe';
+    if (probe) argv = argv.slice(1);
     snoozeFile = argv[0] || ''; pidFile = argv[1] || '';
     fresh = Number(argv[2]) || fresh;
     var rest = argv.slice(3), last = str(rest[rest.length - 1]);
@@ -215,19 +203,67 @@ function run(argv) {
         rest.pop();
         if ($.NSFileManager.defaultManager.fileExistsAtPath(last)) watchScript = last;
     }
+    launched = menubarTime(watchScript);
     dataDirs = rest.filter(function (d) { return typeof d === 'string' && d !== ''; });
     var app = $.NSApplication.sharedApplication;
     app.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
     icons.bar = mothImage(18, true);
     icons.header = mothImage(28, false);
     item = $.NSStatusBar.systemStatusBar.statusItemWithLength(-1);   // -1 = variable length
+    // its own autosave name: the hidden state macOS keeps for it never reaches the real item's
+    if (probe) { item.setAutosaveName('open-pr-selftest'); item.setVisible(false); }
     item.button.setImage(icons.bar);
     item.button.setImagePosition($.NSImageLeft);
     item.button.setToolTip('open-pr');
-    target = $.OPRMenuTarget.alloc.init;
+    // object $() (nil): any menu, ours told by isOurs. A JS null crosses the bridge as NSNull, which no menu is.
+    var nc = $.NSNotificationCenter.defaultCenter, main = $.NSOperationQueue.mainQueue;
+    nc.addObserverForNameObjectQueueUsingBlock($.NSMenuDidBeginTrackingNotification, $(), main, function (n) {
+        if (isOurs(n.object)) menuOpened();
+    });
+    nc.addObserverForNameObjectQueueUsingBlock($.NSMenuDidEndTrackingNotification, $(), main, function (n) {
+        if (isOurs(n.object)) menuClosed();
+    });
+    if (probe) item.setMenu(build(scan()));   // throws, where refresh() would show brokenMenu
     refresh();
-    $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(REFRESH, target, 'tick:', null, true);
+    $.NSTimer.scheduledTimerWithTimeIntervalRepeatsBlock(REFRESH, true, function () { refresh(); });
+    // `menubar` waits for this: the item is in the menu bar
+    if (pidFile) $(String($.NSProcessInfo.processInfo.processIdentifier) + '\n').writeToFileAtomicallyEncodingError(pidFile, true, $.NSUTF8StringEncoding, null);
+    if (probe) { $.NSStatusBar.systemStatusBar.removeStatusItem(item); return; }
     app.run;
+}
+function isOurs(menu) { return !!item && !menu.isNil() && !item.menu.isNil() && menu.isEqual(item.menu); }
+function menuOpened() {
+    menuOpen = true;
+    if (tracker) tracker.invalidate;
+    tracker = $.NSTimer.timerWithTimeIntervalRepeatsBlock(TRACK, true, function () { track(); });
+    $.NSRunLoop.currentRunLoop.addTimerForMode(tracker, $.NSRunLoopCommonModes);
+}
+function menuClosed() {
+    if (tracker) { tracker.invalidate; tracker = null; }
+    menuOpen = false;
+    highlightRow(null);
+    Object.keys(pillParts).forEach(function (h) { var q = pillParts[h]; if (q.hover) { q.hover = false; paintPill(q, !!q.lit); } });
+    closeSettings();
+}
+// One tracking step: repaints only what changed since the last.
+function track() {
+    var m = item.menu;
+    if (m.isNil()) return;
+    highlightRow(m.highlightedItem);
+    var at = $.NSEvent.mouseLocation;
+    Object.keys(pillParts).forEach(function (h) {
+        var q = pillParts[h], r = screenRect(q.button);
+        var on = !!r && at.x >= r.origin.x && at.x <= r.origin.x + r.size.width && at.y >= r.origin.y && at.y <= r.origin.y + r.size.height;
+        if (on !== !!q.hover) { q.hover = on; paintPill(q, !!q.lit); }
+    });
+}
+// A view's frame on screen, or null while it is in no window. Through the content view: a nil
+// view to convertRect:toView: crashes the bridge.
+function screenRect(v) {
+    var w = v.window;
+    if (w.isNil()) return null;
+    var c = w.contentView, r = v.convertRectToView(v.bounds, c), o = c.frame.origin;
+    return w.convertRectToScreen($.NSMakeRect(r.origin.x + o.x, r.origin.y + o.y, r.size.width, r.size.height));
 }
 
 // ------------------------------------------------------------- reading ----
@@ -276,14 +312,14 @@ function watcherOf(w, set) {
     return { key: tab ? tab + set.sfx : '',
              cwdName: cwd ? basename(cwd) : '', termName: term ? (t ? t[0] : term) : '',
              role: set.sfx.replace('-', ''), start: 0, beat: Infinity, poll: 0, only: true,
-             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx, pids: [],
+             term: term, term_session: ts, tty: tty, session_id: sid, app: t ? t[2] : 'Terminal', sfx: set.sfx, pids: [], hosts: [],
              dirs: [], rows: [] };
 }
 
-// → { repos: [{ name, folders, settings, watchers }] by name, quotas, polls, active }: one group per
+// → { repos: [{ name, folders, settings, watchers }] by name, quotas, polls }: one group per
 // watched repo (its data dirs merged), its watchers by role, each with its PR rows.
 function scan() {
-    var out = { repos: [], active: 0, quotas: [], polls: [] }, groups = {}, repoCount = {};
+    var out = { repos: [], quotas: [], polls: [] }, groups = {}, repoCount = {}, scripts = [];
     dataDirs.forEach(function (data) { listDir(data).forEach(function (name) {
         if (typeof name !== 'string' || name.charAt(0) === '.') return;
         var dir = data + '/' + name + '/watch';
@@ -306,6 +342,8 @@ function scan() {
             // when this wait started: the watcher record is written at each start
             e.start = Math.max(e.start, Date.now() - ageSeconds(dir + '/watcher' + set.sfx + '.json') * 1000);
             if (j && typeof j === 'object' && typeof j.pid === 'number') e.pids.push(j.pid);
+            if (j && typeof j === 'object' && typeof j.host_pid === 'number') e.hosts.push(j.host_pid);
+            if (j && typeof j === 'object') scripts.push(str(j.script));
             e.beat = Math.min(e.beat, ageSeconds(dir + '/heartbeat' + set.sfx));
             e.poll = Math.max(e.poll, repoPoll(data + '/' + name));
             e.dirs.push(dir);
@@ -391,10 +429,20 @@ function scan() {
         g.watchers.forEach(function (w) {
             // Stop ends the watcher's session only when this is its one repo
             w.only = repoCount[w.key] === 1;
-            // waiting on the user first, then the latest
+            // waiting on the user first, then the latest; a PR's rows side by side where its first
+            // one falls, review on top and its fix row nested under it; ROWS PRs shown, never split.
+            // A repo-wide row is its own group.
             w.rows.sort(function (a, b) { return (b.active - a.active) || (b.at - a.at); });
-            w.rows = w.rows.slice(0, ROWS);
-            w.rows.forEach(function (r) { if (r.active) out.active++; });
+            var prs = [], of = {};
+            w.rows.forEach(function (r) {
+                var k = r.pr || ':' + r.role;
+                if (!of[k]) prs.push(of[k] = []);
+                of[k].push(r);
+            });
+            w.rows = [].concat.apply([], prs.slice(0, ROWS).map(function (g) {
+                if (g.length > 1) { if (g[0].role === 'fix') g.reverse(); g[1].nested = true; }
+                return g;
+            }));
         });
         // both roles, review, fix; then by tab
         var key = function (w) { return [ROLE_RANK[w.sfx], low(w.cwdName + ' ' + w.termName)]; };
@@ -404,7 +452,39 @@ function scan() {
             return 0;
         });
     });
+    out.update = pluginUpdate(scripts);
     return out;
+}
+// mtime of the open-pr-menubar.js beside open-pr-watch.sh path p; 0 for none
+function menubarTime(p) { return /^\/.*\/open-pr-watch\.sh$/.test(p) ? mtime(p.replace(/[^\/]+$/, 'open-pr-menubar.js')) : 0; }
+// A plugin update: an open-pr-menubar.js written after the one this menu bar runs — its own, changed
+// in place (a git clone), or the one beside a live watcher's script (a new install directory; a
+// watcher still on an older build is none). It never restarts itself: → null, or { args: the newest
+// such build's `menubar --restart` argv for /bin/sh, null when that script fails buildScript }.
+function pluginUpdate(scripts) {
+    if (!launched) return null;
+    var best = '', at = launched;
+    [watchScript].concat(scripts).forEach(function (p) { var t = menubarTime(p); if (t > at) { at = t; best = p; } });
+    if (!best) return null;
+    var ok = buildScript(best);
+    return { args: ok ? [ok, 'menubar', '--restart'] : null };
+}
+// p when a click may run it: watchScript, or the same file of a sibling install — `<dir>/<build>/bin/
+// open-pr-watch.sh` beside watchScript's `<dir>/<its build>`, one directory per version as a plugin
+// manager keeps them; a regular file (a symlink is not followed), no empty, `.` or `..` segment. Else ''.
+function buildScript(p) {
+    var up = function (x) { return x.split('/').slice(0, -3).join('/'); };
+    if (!/^\/.+\/bin\/open-pr-watch\.sh$/.test(p) || /\/\/|\/\.\.?\/|[\x00-\x1f\x7f]/.test(p)) return '';
+    if (p !== watchScript && (p.split('/').length !== watchScript.split('/').length || up(p) !== up(watchScript))) return '';
+    var at = $.NSFileManager.defaultManager.attributesOfItemAtPathError(p, null);
+    return !at.isNil() && ObjC.unwrap(at.objectForKey($.NSFileType)) === ObjC.unwrap($.NSFileTypeRegular) ? p : '';
+}
+// A row's state without its own PR's number, which its title shows: the feed's summary was written
+// for the toast. `#N` or `owner/repo#N` leading (with its ":") or after a space; never `#N0`.
+function ownless(t, pr) {
+    if (!pr) return t;
+    var n = '(?:[\\w.-]+/[\\w.-]+)?#' + pr + '(?![0-9])';
+    return t.replace(new RegExp('^' + n + ':?\\s*'), '').replace(new RegExp('\\s+' + n, 'g'), '');
 }
 // Text from a file shown as a menu title: one line.
 function oneLine(t) { return str(t).replace(/\s+/g, ' ').trim(); }
@@ -510,6 +590,8 @@ function finish(r) {
     }
     // Counted and listed first like an active session: it waits on the user.
     if (f && kind === 'question') r.active = true;
+    // where the user answers it: the watcher's tab, or the session (as the toast's click)
+    r.focus = f && kind === 'question' && (f.focus === 'watcher' || f.focus === 'session') ? f.focus : '';
     var at = Math.max(r.stateAt, fat);
     r.kind = kind;
     r.at = at;
@@ -584,15 +666,29 @@ function blank() {
 // ---------------------------------------------------------------- menu ----
 // A settings read waits on a task while the run loop turns, so the timer can fire inside it. An open
 // menu is left as it is: a settings panel writes while it stays open, and updates its own controls.
+// The badge and the menu change together, the menu first: a menu that fails to build is logged
+// (menubar.log), a minimal one shows, and the badge counts nothing it does not show.
 var refreshing = false;
 function refresh() {
     if (refreshing || menuOpen) return;
     refreshing = true;
     try {
-        var s = scan();
-        item.button.setTitle(s.active ? String(s.active) : '');
-        item.setMenu(build(s));
+        var m;
+        try { m = build(scan()); } catch (e) {
+            console.log('open-pr menu bar: the menu failed to build: ' + e);
+            m = brokenMenu();
+        }
+        item.setMenu(m);
+        item.button.setTitle(busy ? String(busy) : '');
     } finally { refreshing = false; }
+}
+function brokenMenu() {
+    busy = 0;
+    var m = newMenu('open-pr');
+    add(m, 'The menu failed to build — see menubar.log');
+    m.addItem($.NSMenuItem.separatorItem);
+    add(m, 'Quit menu bar', leave);
+    return m;
 }
 
 function clip(t, n) { n = n || CLIP; return t.length > n ? t.slice(0, n - 1) + '…' : t; }
@@ -602,22 +698,25 @@ function newMenu(title) {
     m.setAutoenablesItems(false);
     return m;
 }
-function add(menu, title, action, value, tag) {
-    var mi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(clip(title), action || null, '');
-    mi.setEnabled(!!action);
-    if (action) {
-        mi.setTarget(target);
+// fn(value) runs on a click; no fn: a line that does nothing. value is also the item's represented object.
+function add(menu, title, fn, value) {
+    var mi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(clip(title), fn ? 'main' : null, '');
+    mi.setEnabled(!!fn);
+    if (fn) {
+        mi.setTarget(act(function () { fn(value); }));
         if (value !== undefined) mi.setRepresentedObject($(value));
-        if (tag !== undefined) mi.setTag(tag);
     }
     menu.addItem(mi);
     return mi;
 }
+// fn of the object a JSON value holds
+function json(fn) { return function (v) { fn(parse(v)); }; }
 // Native subtitle from macOS 14.4; before that, the same two lines as an attributed title. One line,
 // cut with "…" at SUB_W before its tail (the time), which stays whole: the menu widens to fit it (a
 // native subtitle does not widen it, and runs under the submenu arrow).
 function subtitle(mi, text, tail) {
-    var font = $.NSFont.menuFontOfSize(12), width = function (t) { return $(t).sizeWithAttributes($({ NSFont: font })).width; };
+    // a severity mark measured as a wide letter: smallMarks draws it smaller than at this size
+    var font = $.NSFont.menuFontOfSize(12), width = function (t) { return $(t.replace(/🔴|🟠|🔵|📝/g, 'W')).sizeWithAttributes($({ NSFont: font })).width; };
     tail = tail && text.slice(-tail.length) === tail ? tail : '';
     var head = oneLine(text.slice(0, text.length - tail.length));
     text = head + tail;
@@ -626,14 +725,33 @@ function subtitle(mi, text, tail) {
         while (lo < hi) { var mid = Math.ceil((lo + hi) / 2); if (width(head.slice(0, mid) + '…' + tail) <= SUB_W) lo = mid; else hi = mid - 1; }
         text = head.slice(0, lo).replace(/\s+$/, '') + '…' + tail;
     }
-    if (mi.respondsToSelector('setSubtitle:')) {
+    if (!MARK.test(text) && mi.respondsToSelector('setSubtitle:')) {
         var menu = mi.menu, w = width(text);
         if (!menu.isNil() && w + SUBTITLE_PAD > menu.minimumWidth) menu.setMinimumWidth(w + SUBTITLE_PAD);
         mi.setSubtitle(text);
         return;
     }
-    mi.setAttributedTitle(attributed([[ObjC.unwrap(mi.title) + '\n', $.NSFont.menuFontOfSize(0), $.NSColor.labelColor],
-                                      [text, $.NSFont.menuFontOfSize(11), $.NSColor.secondaryLabelColor]], false));
+    var title = ObjC.unwrap(mi.title) + '\n';
+    mi.setAttributedTitle(smallMarks(attributed([[title, $.NSFont.menuFontOfSize(0), $.NSColor.labelColor],
+                                                 [text, font, $.NSColor.secondaryLabelColor]], false), title.length, text, 12));
+}
+// A one-line title with severity marks (a nested fix row's).
+function markedTitle(mi) {
+    var t = ObjC.unwrap(mi.title), font = $.NSFont.menuFontOfSize(0);
+    if (MARK.test(t)) mi.setAttributedTitle(smallMarks(attributed([[t, font, $.NSColor.labelColor]], false), 0, t, font.pointSize));
+}
+// Severity marks in s from `at` on, `text` long, at about the x-height of text `size` points high and
+// centred on it: at the text's own size they outweigh its words. Opaque black: a translucent text
+// colour tints the colour glyph. Same in open-pr-toast.js.
+function smallMarks(s, at, text, size) {
+    var re = /🔴|🟠|🔵|📝/g, m, font = $.NSFont.systemFontOfSize(Math.round(size * 0.7));
+    while ((m = re.exec(text))) {
+        var r = $.NSMakeRange(at + m.index, m[0].length);
+        s.addAttributeValueRange('NSFont', font, r);
+        s.addAttributeValueRange('NSBaselineOffset', $(size * 0.1), r);
+        s.addAttributeValueRange('NSColor', $.NSColor.blackColor, r);
+    }
+    return s;
 }
 // parts [[text, font, colour]…] → one attributed string, built piece by piece (JXA does not bridge
 // NSAttributedString's initWithString… initializers). cut: one line, its tail cut with "…" (an
@@ -726,13 +844,13 @@ function repoRow(name, folders, settings, quotas) {
     if (gw) {
         var gear = $.NSImageView.imageViewWithImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('gearshape', 'Settings'));
         gear.image.setTemplate(true);
-        p.gear = pill(v, p, w - gw - 14, gw, gear, 14, 14, 'settingsRow:', 'Settings of ' + name, REPO.h);
+        p.gear = pill(v, p, w - gw - 14, gw, gear, 14, 14, toggleSettings, 'Settings of ' + name, REPO.h);
     }
     rowParts[v.hash] = p;
     return v;
 }
 // A watcher row (a view item gets neither the item's action nor the menu's highlight): a transparent
-// button over the left part takes the click, and the menu delegate (highlightRow) shows the highlight.
+// button over the left part takes the click, and track() shows the highlight.
 // parts: watcherLine's.
 function watcherRow(parts, canGo, role) {
     var stopFont = $.NSFont.systemFontOfSizeWeight($.NSFont.smallSystemFontSize, $.NSFontWeightMedium);
@@ -765,7 +883,7 @@ function watcherRow(parts, canGo, role) {
     line.setAttributedStringValue(lineAttr);
     v.addSubview(line);
     if (canGo) {   // ends 4 pt short of the pill, so its hit area stays its own
-        var hit = $.NSButton.buttonWithTitleTargetAction('', target, 'goRow:');
+        var hit = $.NSButton.buttonWithTitleTargetAction('', act(function () { rowAction(hit, 'go'); }), 'main');
         hit.setTransparent(true);
         hit.setFrame($.NSMakeRect(0, 0, w - bw - 18, ROW.h));
         hit.setAutoresizingMask($.NSViewWidthSizable);
@@ -778,14 +896,15 @@ function watcherRow(parts, canGo, role) {
     var word = $.NSTextField.labelWithString('Stop');
     word.setFont(stopFont);
     var ww = Math.ceil(word.intrinsicContentSize.width) + 4;   // room for the last glyph's overhang
-    p.stop = pill(v, p, w - bw - 14, bw, word, ww, 16, 'stopRow:', 'Stop watcher', ROW.h);
+    p.stop = pill(v, p, w - bw - 14, bw, word, ww, 16, function (b) { rowAction(b, 'stop'); }, 'Stop watcher', ROW.h);
     rowParts[v.hash] = p;
     return v;
 }
 // A pill at x (bw wide) in a row rh high, holding `content` (cw × ch, centred by frame: the alignment
-// constant is wrong on Apple silicon) under a transparent OPRPillButton. Drawn by hand: a bezel goes
-// dark on the selection colour, and its title with it.
-function pill(v, row, x, bw, content, cw, ch, action, tip, rh) {
+// constant is wrong on Apple silicon) under a transparent button whose click runs fn(button); track()
+// darkens it while the pointer is on it. Drawn by hand: a bezel goes dark on the selection colour, and
+// its title with it.
+function pill(v, row, x, bw, content, cw, ch, fn, tip, rh) {
     var bh = PILL.h, box = $.NSBox.alloc.initWithFrame($.NSMakeRect(x, (rh - bh) / 2, bw, bh));
     box.setBoxType($.NSBoxCustom);
     box.setTitlePosition($.NSNoTitle);
@@ -796,14 +915,11 @@ function pill(v, row, x, bw, content, cw, ch, action, tip, rh) {
     content.setFrame($.NSMakeRect(x + (bw - cw) / 2, (rh - ch) / 2, cw, ch));
     content.setAutoresizingMask($.NSViewMinXMargin);
     v.addSubview(content);
-    var b = $.OPRPillButton.alloc.initWithFrame(box.frame);
+    var b = $.NSButton.alloc.initWithFrame(box.frame);
     b.setTitle('');
-    b.setTarget(target);
-    b.setAction(action);
+    b.setTarget(act(function () { fn(b); }));
+    b.setAction('main');
     b.setTransparent(true);
-    // InVisibleRect: the area follows the button; ActiveAlways: a menu window is never key
-    b.addTrackingArea($.NSTrackingArea.alloc.initWithRectOptionsOwnerUserInfo($.NSZeroRect,
-        $.NSTrackingMouseEnteredAndExited | $.NSTrackingActiveAlways | $.NSTrackingInVisibleRect, b, null));
     b.setAutoresizingMask($.NSViewMinXMargin);
     b.setToolTip(tip);
     v.addSubview(b);
@@ -811,12 +927,15 @@ function pill(v, row, x, bw, content, cw, ch, action, tip, rh) {
     paintPill(q, false);
     return q;
 }
+// mi: the menu's highlighted item (nil or null: none); the watcher row it is shows as selected.
 function highlightRow(mi) {
-    if (litRow) paintRow(litRow, false);
-    litRow = null;
     var v = mi && !mi.isNil() ? mi.view : null;
     var p = v && !v.isNil() ? rowParts[v.hash] : null;
-    if (p && p.canGo) { litRow = p; paintRow(p, true); }
+    if (!p || !p.canGo) p = null;
+    if (p === litRow) return;
+    if (litRow) paintRow(litRow, false);
+    litRow = p;
+    if (p) paintRow(p, true);
 }
 function paintRow(p, on) {
     p.bg.setHidden(!on);
@@ -837,12 +956,6 @@ function paintPill(q, on) {
     if (q.content.respondsToSelector('setTextColor:')) q.content.setTextColor(c);
     else q.content.setContentTintColor(c);
 }
-function hoverPill(button, on) {
-    var q = pillParts[button.hash];
-    if (!q) return;
-    q.hover = on;
-    paintPill(q, !!q.lit);
-}
 function rowAction(sender, which) {
     var mi = sender.enclosingMenuItem;
     if (mi.isNil()) return;
@@ -861,11 +974,11 @@ function toggleSettings(sender) {
     var was = openPanel && openPanel.row === q.row;
     closeSettings();
     if (was) return;
-    var menu = mi.menu, at = Number(menu.indexOfItem(mi)), many = q.row.settings.length > 1;
+    var menu = mi.menu, at = Number(menu.indexOfItem(mi));
     openPanel = { row: q.row, items: q.row.settings.map(function (x, i) {
         // re-read: the menu is not rebuilt while open, so x.conf may be older than the file
         var y = { name: x.name, repo: x.repo, arg: x.arg, conf: repoSettings(x.repo, x.arg.repo_dir, x.arg.remote) || x.conf };
-        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, ''), p = settingsPanel(y, q.row.quotas, many ? x.repo : '');
+        var pi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(x.name, null, ''), p = settingsPanel(y, q.row.quotas, caption(q.row.settings, x));
         pi.setView(p.view);
         menu.insertItemAtIndex(pi, at + 1 + i);
         return { item: pi, panel: p };
@@ -874,6 +987,20 @@ function toggleSettings(sender) {
     openPanel.items = openPanel.items.map(function (o) { return o.item; });
     q.pressed = true;
     paintPill(q, !!q.lit);
+}
+// A panel's title line: its data dir, when the repo has one in each of several.
+function caption(settings, x) { return settings.length > 1 ? x.repo : ''; }
+// The width of x's panel, measured on a panel built aside; again only once what it shows changes.
+var panelWidths = {};
+function panelWidth(x, quotas, cap) {
+    var k = JSON.stringify([x.conf, quotas, cap]), c = panelWidths[x.repo];
+    if (!c || c.k !== k) {
+        var keep = controls, n = ops.length;
+        controls = {};
+        c = panelWidths[x.repo] = { k: k, w: settingsPanel(x, quotas, cap).view.frame.size.width };
+        controls = keep; ops.length = n;
+    }
+    return c.w;
 }
 function closeSettings() {
     if (!openPanel) return;
@@ -885,12 +1012,19 @@ function closeSettings() {
 
 function build(s) {
     var m = newMenu('open-pr');
-    m.setDelegate(target);
-    rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {}; shown = s;
+    opsBefore = ops; ops = [];
+    rowParts = {}; pillParts = {}; litRow = null; openPanel = null; controls = {}; shown = s; busy = 0;
     var until = snoozedUntil();
     var head = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent('open-pr', null, '');
     head.setView(headerView(until, gauge(s.quotas), pollSpan(s.polls)));
     m.addItem(head);
+    // The new build's script stops this menu bar and starts its own.
+    if (s.update) {
+        var args = s.update.args, up = add(m, 'open-pr was updated — ' + (args ? 'Restart menu bar' : 'run /open-pr:menubar restart'),
+            args ? function () { spawn('/bin/sh', args); } : null);
+        up.setAttributedTitle(attributed([[ObjC.unwrap(up.title), $.NSFont.menuFontOfSize(0), warnColor()]], false));
+        up.setImage(symbol(['arrow.clockwise']));
+    }
 
     m.addItem($.NSMenuItem.separatorItem);
     if (!s.repos.length) add(m, 'Not watching any repository');
@@ -900,29 +1034,34 @@ function build(s) {
         gi.setView(repoRow(g.name, g.folders, g.settings, s.quotas));
         m.addItem(gi);
         g.watchers.forEach(function (w) { watcherItems(m, w); });
+        // the menu keeps the width it opened with: room for the widest panel its gear may show
+        g.settings.forEach(function (x) {
+            m.setMinimumWidth(Math.max(m.minimumWidth, panelWidth(x, s.quotas, caption(g.settings, x))));
+        });
     });
 
     m.addItem($.NSMenuItem.separatorItem);
     var sub = newMenu('Snooze toasts');
     if (until) add(sub, 'Off until ' + when(until)).setState($.NSControlStateValueOn);
-    add(sub, '30 minutes', 'snooze:', undefined, 30);
-    add(sub, '1 hour', 'snooze:', undefined, 60);
-    add(sub, 'Until 9:00 tomorrow', 'snooze:', undefined, -1);
+    add(sub, '30 minutes', snooze, 30);
+    add(sub, '1 hour', snooze, 60);
+    add(sub, 'Until 9:00 tomorrow', snooze, -1);
     sub.addItem($.NSMenuItem.separatorItem);
-    if (until) add(sub, 'Turn toasts back on', 'snooze:', undefined, 0);
+    if (until) add(sub, 'Turn toasts back on', snooze, 0);
     else add(sub, 'Toasts on').setState($.NSControlStateValueOn);
     var sn = add(m, 'Snooze toasts');
     sn.setSubmenu(sub);
     sn.setEnabled(true);
     sn.setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription(until ? 'bell.slash' : 'bell', ''));
-    add(m, 'Quit menu bar', 'quit:').setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('power', ''));
+    add(m, 'Quit menu bar', leave).setImage($.NSImage.imageWithSystemSymbolNameAccessibilityDescription('power', ''));
     return m;
 }
-// A watcher's row, then its PR rows one indentation step in (their icons under its text).
+// A watcher's row, then its PR rows one indentation step in (their icons under its text); a fix
+// row nested under its PR's review row one more step, its state as its title.
 function watcherItems(m, w) {
     // A record from before watcher.json existed has no tab to show.
     var go = w.key && (TERMS[w.term] || SESSION_ID.test(w.session_id))
-        ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id, pids: w.pids } : null;
+        ? { term: w.term, term_session: w.term_session, tty: w.tty, session_id: w.session_id, pids: w.pids, hosts: w.hosts } : null;
     if (w.key) {
         var parts = watcherLine(w), wt = parts.map(function (x) { return x[0]; }).join('');
         var wi = $.NSMenuItem.alloc.initWithTitleActionKeyEquivalent(wt, null, '');
@@ -938,18 +1077,26 @@ function watcherItems(m, w) {
     }
     w.rows.forEach(function (x) {
         var spec = KIND[x.kind];
-        var mi = add(m, x.title, isURL(x.url) ? 'openURL:' : null, x.url);
-        mi.setIndentationLevel(PR_INDENT);
-        subtitle(mi, x.text, x.time);
+        if (BUSY[x.kind]) busy++;
+        // A click goes where the user acts: a question's answer, else the pull request.
+        var session = OPEN_CMD.test(x.open) ? JSON.stringify({ open: x.open, term: w.term }) : '';
+        var answer = x.focus === 'watcher' && go ? JSON.stringify(go) : '';
+        var text = (x.role === 'fix' ? 'Fix: ' : '') + ownless(x.text, x.pr), title = x.nested ? oneLine(text) : x.title;
+        var mi = answer ? add(m, title, json(goToTab), answer)
+            : x.focus === 'session' && session ? add(m, title, json(openTerminal), session)
+            : add(m, title, isURL(x.url) ? openURL : null, x.url);
+        mi.setIndentationLevel(PR_INDENT + (x.nested ? 1 : 0));
+        if (x.nested) markedTitle(mi); else subtitle(mi, text, x.time);
         mi.setImage(spec ? symbol(spec) : blank());
         // Offered in every state: `open` also reopens a finished or stopped session.
         var sub = newMenu(x.title);
-        if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', 'fixNow:', x.fix);
-        if (isURL(x.url)) add(sub, 'Open pull request', 'openURL:', x.url);
-        if (OPEN_CMD.test(x.open)) add(sub, 'Open session in ' + w.app, 'openTerminal:', JSON.stringify({ open: x.open, term: w.term }));
-        if (x.here && go) add(sub, 'Open session in ' + w.app, 'goTab:', JSON.stringify(go));
-        if (x.open) add(sub, 'Copy command  ' + x.open, 'copyText:', x.open);
-        if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', 'hide:', x.hide);
+        if (answer) add(sub, 'Answer in ' + w.app, json(goToTab), answer);
+        if (x.fix && prArgs(parse(x.fix), 'fix-now')) add(sub, 'Fix now', json(fixNow), x.fix);
+        if (isURL(x.url)) add(sub, 'Open pull request', openURL, x.url);
+        if (session) add(sub, 'Open session in ' + w.app, json(openTerminal), session);
+        if (x.here && go) add(sub, 'Open session in ' + w.app, json(goToTab), JSON.stringify(go));
+        if (x.open) add(sub, 'Copy command  ' + x.open, copyText, x.open);
+        if (x.hide && prArgs(parse(x.hide), 'hide')) add(sub, 'Remove from list', json(hide), x.hide);
         if (sub.numberOfItems > 0) { mi.setSubmenu(sub); mi.setEnabled(true); }
     });
 }
@@ -971,7 +1118,10 @@ function control(p, v, key, values) {
     p.ctl.push(c);
     return v;
 }
-function checkbox(p, key, title) { return control(p, $.NSButton.checkboxWithTitleTargetAction(title, target, 'setting:'), key); }
+function checkbox(p, key, title) {
+    var b = $.NSButton.checkboxWithTitleTargetAction(title, act(function () { setSetting(b); }), 'main');
+    return control(p, b, key);
+}
 // x: { name, repo, conf, arg }; caption: a title line on top (the repo, when a watcher has several).
 // The view of one menu item: a click on a control inside it leaves the menu open, where a plain
 // item's action closes it.
@@ -997,14 +1147,14 @@ function settingsPanel(x, quotas, caption) {
                 return;
             }
             var seg = $.NSSegmentedControl.segmentedControlWithLabelsTrackingModeTargetAction(
-                $(k[2].map(function (o) { return o[1]; })), $.NSSegmentSwitchTrackingSelectOne, target, 'setting:');
+                $(k[2].map(function (o) { return o[1]; })), $.NSSegmentSwitchTrackingSelectOne, act(function () { setSetting(seg); }), 'main');
             k[2].forEach(function (o, j) {
                 var tip = k[0] === 'watch.poll_interval_seconds' ? span(o[0]) + estimate(quotas, o[0]) : o[2];
                 if (tip) seg.setToolTipForSegment(tip, j);
             });
             put(control(p, seg, k[0], k[2].map(function (o) { return o[0]; })), col, undefined, 24);
             if (k[0] === 'watch.poll_interval_seconds') {   // placed right of the control once it is sized
-                var b = $.NSButton.buttonWithTitleTargetAction('Apply to all', target, 'applyAll:');
+                var b = $.NSButton.buttonWithTitleTargetAction('Apply to all', act(function () { applyAll(b); }), 'main');
                 b.setControlSize($.NSControlSizeSmall);
                 b.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
                 b.setToolTip('Poll every repo this menu shows at this interval');
@@ -1025,7 +1175,7 @@ function settingsPanel(x, quotas, caption) {
     put(steth, pad, 14, 14, 1);
     p.doctor = put(text('', small, second), pad + 20, -1, 14, 1);
     top += 22;
-    p.reveal = $.NSButton.buttonWithTitleTargetAction('Show settings file', target, 'reveal:');
+    p.reveal = $.NSButton.buttonWithTitleTargetAction('Show settings file', act(function () { reveal(p.reveal); }), 'main');
     p.reveal.setControlSize($.NSControlSizeSmall);
     p.reveal.setFont($.NSFont.systemFontOfSize($.NSFont.smallSystemFontSize));
     controls[p.reveal.hash] = { reveal: x.repo + '/settings.json' };
@@ -1092,16 +1242,45 @@ function copyText(t) {
     pb.clearContents;
     pb.setStringForType($(t), $.NSPasteboardTypeString);
 }
-function openTerminal(o) { if (o) openIn(str(o.term), str(o.open), snoozeFile); }
-// Runs cmd in a new tab of the terminal `term` names. iTerm does not run a .command file handed to
-// it (LaunchServices then falls back to Terminal), so it gets the command over AppleScript;
+function openTerminal(o) { if (o) openSession(str(o.term), str(o.open), snoozeFile); }
+// The terminal app openIn runs a command in, by TERM_PROGRAM: none recorded ⇒ iTerm while it runs
+// (the user then works in it); one openIn cannot drive ⇒ Terminal.
+function termApp(term) {
+    if (term === 'iTerm.app' || term === 'ghostty' || term === 'WezTerm') return term;
+    if (!term && $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.googlecode.iterm2').count > 0) return 'iTerm.app';
+    return 'Apple_Terminal';
+}
+function bundleId(term) { return TERMS[term][1]; }   // differs from the toast: its TERMS hold the id alone
+// FOCUS argv for the tab of app (a termApp value) where cmd already runs: the process on a tty whose
+// args are exactly cmd, the newest (highest pid) of several; null when none or app has no FOCUS.
+// ps: the output of `ps -A -o pid=,ppid=,tty=,args=`.
+function attachedTab(app, cmd, ps) {
+    var pid = -1, tty = '';
+    if (!FOCUS[app] || !OPEN_CMD.test(cmd)) return null;
+    String(ps || '').split('\n').forEach(function (l) {
+        var f = /^\s*(\d+)\s+\d+\s+(\S+)\s+(.*)$/.exec(l);
+        if (f && f[3].trim() === cmd && !/^(\?\??|-)$/.test(f[2]) && +f[1] > pid) { pid = +f[1]; tty = '/dev/' + f[2]; }
+    });
+    if (!TAB_ID.test(tty)) return null;
+    return app === 'iTerm.app' ? ['', tty] : [tty, tty];
+}
+// Brings forward the tab where cmd already runs (attachedTab), else runs cmd in a new one (openIn): a
+// second `attach` shows one session in two tabs. Tab not found ('') ⇒ a new one. A lookup that failed
+// or still waits on its permission prompt (null) opens nothing, as in goToTab: ps saw the session on a
+// tty, so its tab is there and a new one would be the duplicate; its app was brought forward.
+function openSession(term, cmd, snooze) {
+    var app = termApp(term), tab = attachedTab(app, cmd, output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty=,args=']));
+    if (!tab) return openIn(term, cmd, snooze);
+    spawn('/usr/bin/open', ['-b', bundleId(app)]);
+    return output('/usr/bin/osascript', script(FOCUS[app]).concat(tab)) !== '' || openIn(term, cmd, snooze);
+}
+// Runs cmd in a new tab of the terminal app termApp(term) names. iTerm does not run a .command file
+// handed to it (LaunchServices then falls back to Terminal), so it gets the command over AppleScript;
 // Terminal opens the file via LaunchServices, which needs no Automation permission; Ghostty and
-// WezTerm take it as a program; any other terminal ⇒ Terminal. The .command file sits next to
-// the snooze file.
+// WezTerm take it as a program. The .command file sits next to the snooze file.
 function openIn(term, cmd, snooze) {
     if (!OPEN_CMD.test(cmd)) return false;
-    // no terminal recorded: prefer iTerm when it runs, as the user then works in it
-    if (!term && $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.googlecode.iterm2').count > 0) term = 'iTerm.app';
+    term = termApp(term);
     if (term === 'iTerm.app') return spawn('/usr/bin/osascript', script(ITERM_NEW_TAB).concat([cmd]));
     if (!snooze) return false;
     var dir = snooze.replace(/\/[^\/]*$/, '') + '/sessions', fm = $.NSFileManager.defaultManager;
@@ -1132,32 +1311,54 @@ function hostTty(ps, pid) {
     }
     return '';
 }
-// [tab id, its tty] while a watcher pid still runs on the tty of the tab recorded, else null: the
-// tab is closed, or it now runs something else — the user quit `claude` there (the session went
-// on in the background), or a background session inherited the tab of the `claude` that started it.
+// [tab id, its tty] while a watcher pid — its wait, or the `claude` running it (between waits no wait
+// runs) — still runs on the tty of the tab recorded, else null: the tab is closed, or it now runs
+// something else — the user quit `claude` there (the session went on in the background), or a
+// background session inherited the tab of the `claude` that started it.
 function liveTab(w, ps) {
-    var id = tabId(w);
+    var id = tabId(w), pids = w.pids.concat(w.hosts || []);
     if (!TAB_ID.test(id)) return null;
-    for (var i = 0; i < w.pids.length; i++) {
-        var t = hostTty(ps, w.pids[i]), tty = '/dev/' + t;
+    for (var i = 0; i < pids.length; i++) {
+        var t = hostTty(ps, pids[i]), tty = '/dev/' + t;
         if (t && TAB_ID.test(tty) && (w.term !== 'Apple_Terminal' || tty === id)) return [id, tty];
     }
     return null;
 }
+// What brings back a watcher session whose tab was not found, or '' while its `claude` runs (the session
+// is open in a tab; a resume would start a second copy). Listed by `claude agents --json` (agents():
+// its output, null when it did not run) as a background job ⇒ attach; not listed ⇒ resume. No host
+// recorded, or no listing ⇒ attach: resuming blind might start that copy.
+function reopen(w, ps, agents) {
+    var hosts = w.hosts || [], up = String(ps || '').split('\n').map(function (l) { return l.trim().split(/\s+/)[0]; });
+    if (!SESSION_ID.test(w.session_id)) return '';
+    if (hosts.some(function (h) { return ps === null || up.indexOf(String(h)) >= 0; })) return '';
+    var attach = 'claude attach ' + w.session_id.slice(0, 8), out = hosts.length ? agents() : null, list = [];
+    if (out === null) return attach;
+    // A listing that cannot be read may hide the job: attach only fails, a resume would copy it.
+    try { list = JSON.parse(out); } catch (e) { return attach; }
+    if (!Array.isArray(list)) return attach;
+    var job = list.filter(function (a) {
+        return a && a.sessionId === w.session_id && (a.kind === undefined || a.kind === 'background');
+    })[0];
+    if (!job) return 'claude --resume ' + w.session_id;
+    return /^[0-9a-f]{8,64}$/.test(job.id) ? 'claude attach ' + job.id : attach;
+}
 // A tab that is gone (the user quit `claude`, which keeps the watcher's session running in the
-// background) is reopened with `claude attach`; each watcher names its own session.
+// background) is reopened (reopen); each watcher names its own session.
 function goToTab(w) {
     if (!w || typeof w !== 'object') return;
     w = { term: str(w.term), term_session: str(w.term_session), tty: str(w.tty), session_id: str(w.session_id),
-          pids: Array.isArray(w.pids) ? w.pids : [] };
+          pids: Array.isArray(w.pids) ? w.pids : [], hosts: Array.isArray(w.hosts) ? w.hosts : [] };
     var t = TERMS[w.term];
     // Needs no permission, so the app comes forward even when the tab lookup is refused. Via
     // LaunchServices: an accessory app's own activate request is ignored by macOS.
     if (t) spawn('/usr/bin/open', ['-b', t[1]]);
-    var src = FOCUS[w.term], tab = src ? liveTab(w, output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty='])) : null;
+    var ps = output('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty=']);
+    var src = FOCUS[w.term], tab = src ? liveTab(w, ps) : null;
     var found = tab ? output('/usr/bin/osascript', script(src).concat(tab)) : '';
     // null: the lookup failed or is still waiting on a permission prompt — the tab may be there.
-    if (found === '' && SESSION_ID.test(w.session_id)) openIn(w.term, 'claude attach ' + w.session_id.slice(0, 8), snoozeFile);
+    var cmd = found === '' ? reopen(w, ps, function () { return output('/usr/bin/env', ['claude', 'agents', '--json']); }) : '';
+    if (cmd) openSession(w.term, cmd, snoozeFile);
 }
 function newTask(path, args) {
     var task = $.NSTask.alloc.init;
@@ -1214,7 +1415,7 @@ function stopWatcher(o) {
     if (dirs.length && SESSION_ID.test(sid)) stopLater({ dirs: dirs, sfx: sfx, session_id: sid, tries: 0 });
 }
 function stopLater(o) {
-    $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(3, target, 'stopSession:', $(JSON.stringify(o)), false);
+    $.NSTimer.scheduledTimerWithTimeIntervalRepeatsBlock(3, false, function () { stopSession(o); });
 }
 // A watcher session left running in the background (its user quit `claude`) has nobody to close
 // it once its waits are stopped. Stopped once its waits consumed their stop files, or after 15 s.

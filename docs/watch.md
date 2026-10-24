@@ -2,16 +2,21 @@
 
 [← README](../README.md)
 
-`/open-pr:watch` turns the terminal you run it in into a watcher for one or more repositories, in two
-roles at once:
+`/open-pr:watch` turns the terminal you run it in into a watcher for one or more repositories, in one
+or both of two roles:
 
 - **review** — a developer asks for a review by commenting on the pull request; your machine opens a
   separate review session for it.
 - **fix** — a new review on one of your own pull requests toasts its findings with "Fix now"; one click
   opens a separate fix session for it.
 
-It tells you whenever something needs you. `/open-pr:watch review` or `/open-pr:watch fix` keeps one
-role only.
+It tells you whenever something needs you. `/open-pr:watch review`, `/open-pr:watch fix` or
+`/open-pr:watch review fix` picks the roles; with neither word, it asks which each time it starts.
+
+Each time it starts, it reads the open pull requests for review requests still waiting: a `/open-pr`
+comment with no "taking a look" reply yet, however old. It asks you once about all of them: review
+them, pick some, or skip. A skipped request is not asked about again; a newer request on that pull
+request still comes through.
 
 ## Before the first run
 
@@ -81,6 +86,9 @@ Comments the plugin posts never trigger; your own do, so one person can be both 
   once the pull request has moved on). When unclear, the watcher asks you.
 - `auto_submit_review` decides whether the review is published or left as a draft, unless you tell the
   watcher otherwise. A draft is never published without you.
+- Once the review is on the pull request, the watcher replies once more where it claimed the request:
+  the commit reviewed, the count per severity (or LGTM) and a link to the review. A draft gets that reply
+  when you publish it; an LGTM kept off the pull request (`post_lgtm: false`) gets none.
 - Once a session has reported its result, it is yours: the watcher stays silent about it and never reads
   what you write there, until the next request on that pull request.
 - A Claude Code review session left idle for 10 minutes after its result is stopped to free memory;
@@ -176,7 +184,8 @@ watched repo, sorted by name — a repo watched from several folders or machines
     running.
 - **Pull request rows** — under each watcher row, one step in: `#12 <title>` (the number alone until a
   poll has read the title), and one line under it with the state and its time, cut with "…" when long;
-  "No pull requests yet" when there are none.
+  "No pull requests yet" when there are none. A fix row's state starts `Fix:`; a pull request with both
+  a review and a fix row shows the fix row one step further in under the review row, as that one line.
   - The state, updated in place: reviewing, posted with counts, LGTM, draft, needs an answer, new
     findings, fixing, fixing here, fixed, failed.
   - **Fix now** on a row with new findings.

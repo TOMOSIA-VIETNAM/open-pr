@@ -13,7 +13,9 @@ Reached ONLY when `<op> post`/`<op> publish` errors, || `<op> post-verify` contr
    informational only and is never worked around.
 4. FORBIDDEN: creating or deleting a "test"/"isolate" review or note on the real PR to debug, or any
    posting outside `<op> post`/`publish`/`reply`.
-5. A partial Bitbucket publish (1 request per part) → `<op> post-verify --marker` shows what landed;
+5. A partial GitLab publish (`remaining=`/`lost=` lines) → `<op> publish` again once; it publishes only
+   `remaining`. A `lost` id stays lost: name its `path:line` in the report.
+6. A partial Bitbucket publish (1 request per part) → `<op> post-verify --marker` shows what landed;
    re-post ONLY the missing parts — a duplicate has no bulk undo.
 
 ## The verify step mismatched

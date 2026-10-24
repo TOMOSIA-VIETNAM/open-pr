@@ -2,16 +2,20 @@
 
 [← README](../../README.vi-VN.md)
 
-`/open-pr:watch` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo, đảm nhận cùng lúc
-hai vai:
+`/open-pr:watch` biến terminal nơi bạn chạy nó thành watcher cho một hoặc nhiều repo, đảm nhận một hoặc
+cả hai vai:
 
 - **review** — developer yêu cầu review bằng cách comment trên pull request; máy bạn mở một session review
   riêng cho pull request đó.
 - **fix** — một review mới trên pull request của chính bạn hiện toast các finding kèm nút "Fix now"; một
   click mở một session fix riêng cho pull request đó.
 
-Watcher báo bạn mỗi khi có việc cần bạn. `/open-pr:watch review` hoặc `/open-pr:watch fix` chỉ giữ một
-vai.
+Watcher báo bạn mỗi khi có việc cần bạn. `/open-pr:watch review`, `/open-pr:watch fix` hoặc
+`/open-pr:watch review fix` chọn vai; không ghi vai nào thì mỗi lần khởi động watcher sẽ hỏi.
+
+Mỗi lần khởi động, watcher đọc các pull request đang mở để tìm yêu cầu review còn chờ: comment `/open-pr`
+chưa có reply "đang xem qua", dù cũ bao lâu. Watcher hỏi bạn một lần cho tất cả: review hết, chọn một số,
+hay bỏ qua. Yêu cầu đã bỏ qua không bị hỏi lại; yêu cầu mới hơn trên pull request đó vẫn được nhận.
 
 ## Trước lần chạy đầu tiên
 
@@ -81,6 +85,9 @@ developer vừa là reviewer.
   thay đổi). Khi không rõ, watcher hỏi bạn.
 - `auto_submit_review` quyết định review được publish hay giữ dạng draft, trừ khi bạn dặn watcher khác đi.
   Draft không bao giờ được publish khi chưa có bạn.
+- Khi review đã lên pull request, watcher reply thêm một lần đúng chỗ đã nhận yêu cầu: commit đã review,
+  số finding theo mức độ (hoặc LGTM) và link tới review. Draft được reply khi bạn publish nó; LGTM không
+  đăng lên pull request (`post_lgtm: false`) thì không có reply.
 - Khi một session đã báo kết quả, nó thuộc về bạn: watcher im lặng về nó và không bao giờ đọc những gì bạn
   viết ở đó, cho đến yêu cầu tiếp theo trên pull request đó.
 - Session review Claude Code để idle 10 phút sau khi có kết quả sẽ được stop để giải phóng bộ nhớ; hội
@@ -174,7 +181,9 @@ là một nhóm:
   - **Stop** dừng watcher đó trên repo này; các repo khác của nó và watcher của vai kia vẫn chạy.
 - **Dòng pull request** — dưới mỗi dòng watcher, thụt vào một bậc: `#12 <tiêu đề>` (chỉ có số cho đến
   khi một lượt poll đọc được tiêu đề), và một dòng bên dưới ghi trạng thái kèm thời điểm, cắt bằng "…"
-  khi quá dài; ghi "No pull requests yet" khi chưa có dòng nào.
+  khi quá dài; ghi "No pull requests yet" khi chưa có dòng nào. Trạng thái của dòng fix bắt đầu bằng
+  `Fix:`; pull request có cả dòng review và dòng fix thì dòng fix thụt thêm một bậc ngay dưới dòng review,
+  chỉ còn dòng trạng thái đó.
   - Trạng thái, cập nhật ngay tại chỗ: đang review, đã post kèm số finding, LGTM, draft, cần trả lời, có
     finding mới, đang fix, đang fix tại đây, đã fix, lỗi.
   - **Fix now** trên dòng có finding mới.

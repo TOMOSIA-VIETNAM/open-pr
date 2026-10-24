@@ -27,12 +27,12 @@ this one is its ONLY writer. Every other rule of the command running (`commands/
   ⇒ `Write` `F` again with the new outcome.
 
   ```json
-  {"state": "posted|draft|lgtm_chat|nothing|fixed|question|failed", "url": "<PR URL>", "counts": {"<severity label>": 0}, "note": "<1 sentence>", "lessons": [], "question": ""}
+  {"state": "posted|draft|lgtm_chat|nothing|fixed|question|failed", "url": "<PR URL>", "counts": {"<severity label>": 0}, "note": "<1 sentence>", "lessons": [], "question": "", "review_url": "", "commit": ""}
   ```
 
   | `state` | when |
   |---|---|
-  | `posted` | published and `post-verify` confirmed it |
+  | `posted` | published and `post-verify` confirmed it; `review_url` = its `url=` line, `commit` = the payload's `commit_id` |
   | `draft` | `post` left it unpublished (`auto_submit_review: false`, no instruction to publish) |
   | `lgtm_chat` | `post_lgtm: false` kept the LGTM line off the PR |
   | `fixed` | fix committed; `counts` = `{"fixed": n, "declined": n}`; `note` says whether pushed and replied |

@@ -2,6 +2,12 @@
   "_note": "Every place under src/ where a Step orders, or bans, a second lookup. The stall rule in core/guardrails.md enumerates the only repeats that stay allowed, and each site here says which claim it makes — so dropping an exemption from the rule reddens the sites that leaned on it, and a new repeat has to be argued for here instead of appended to the rule as one more clause. `claim`: the CAPS word the rule exempts (`changed`, `written`), `forbidden` where the site bans the repeat, `not-a-repeat` where the run does not already hold the material. A sha covers the matched phrase plus 45 characters either side; edit a site and the suite prints the new entry to paste.",
   "sites": [
     {
+      "sha": "9886cb2192a4",
+      "file": "cases/post-review.md",
+      "claim": "not-a-repeat",
+      "reason": "A second publish call after a partial GitLab publish is a write, not a lookup: it publishes only the drafts the first call left, which the run does not already hold as published."
+    },
+    {
       "sha": "5c98462967f9",
       "file": "cases/post-review.md",
       "claim": "not-a-repeat",
@@ -84,6 +90,24 @@
       "file": "cases/memory-not-found.md",
       "claim": "written",
       "reason": "Import just copied this repo's settings.json into <data>; the first settings call read defaults from a file that did not exist yet, so the second reads what the copy WROTE."
+    },
+    {
+      "sha": "ad407a7e43f1",
+      "file": "cases/self-repair.md",
+      "claim": "written",
+      "reason": "The failed call (or selftest) runs again only after the patch was WRITTEN to the plugin's bin/: it proves the written file, which the first run never saw."
+    },
+    {
+      "sha": "23fed238af53",
+      "file": "cases/self-repair.md",
+      "claim": "not-a-repeat",
+      "reason": "Names the re-run's outcome as a field of the report handed to feedback; nothing is looked up again there."
+    },
+    {
+      "sha": "c5d4c59112e3",
+      "file": "cases/pending-draft.md",
+      "claim": "not-a-repeat",
+      "reason": "The second `post` follows a `discard` that removed the draft the first one stopped on: it is a write, never a re-read of anything the run holds."
     }
   ]
 }

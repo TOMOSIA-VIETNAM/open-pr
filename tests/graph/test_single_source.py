@@ -167,24 +167,42 @@ def test_a_reply_marker_does_not_mean_the_finding_is_settled():
 
 
 def test_re_review_reads_a_confirmation_out_of_the_thread_text():
-    """With the marker demoted, the words in the thread are the only thing that can hold a
-    confirmation back: one already posted (by anyone), or a human deciding to leave the code
-    as it is. Both silences must be content-driven, and both must be reachable without
-    fetching anything the run does not already hold."""
+    """Whether a finding is settled is read from what the thread says — a human may decide to
+    leave the code as it is — and that text is on hand without another fetch. A settling or
+    "fixed" reply is not a reviewer's confirmation, though: when the developer wrote it by
+    hand, the thread must still get one, or nobody can tell which findings were checked
+    against the new code."""
     s = _section(text(SRC / "cases" / "re-review.md"),
                  "Checking whether old findings (left by this command) have been fixed")
-    assert re.search(r"reply SAYS decides", s) and re.search(r"never its marker", s), \
+    flat = " ".join(s.split())
+    assert re.search(r"reply SAYS decides whether the finding is settled", flat) \
+        and re.search(r"never its marker", flat), \
         "content decides whether a finding is settled — not authorship, not the marker"
-    assert re.search(r"fetch nothing more", s), \
+    assert re.search(r"fetch nothing more", flat), \
         "the thread text is on hand already; reading it must cost no extra call"
-    assert re.search(r"reply settles it.{0,90}count it closed", s), \
+    assert re.search(r"reply settles it.{0,90}count it closed", flat), \
         "a reply that settles the finding closes it whatever the code shows"
-    assert re.search(r"FORBIDDEN: a second confirmation", s), \
-        "double-confirming is what the demoted marker no longer prevents"
-    assert re.search(r"`auto_resolve_fixed_findings` `true`.{0,20}`<op> resolve`", s), \
-        "a silent close must still resolve when the setting asks for it"
-    assert re.search(r"no reply says so yet.{0,40}reply on THAT EXACT thread", s), \
-        "a fix nothing has confirmed must still get its confirming reply"
+    assert re.search(r"`auto_resolve_fixed_findings` `true`|per `auto_resolve_fixed_findings`", flat), \
+        "resolving a fixed finding must stay governed by the setting"
+
+
+def test_re_review_confirms_a_developer_reply_but_never_its_own():
+    """A developer's hand-written reply leaves no reviewer confirmation, so one is owed on both
+    a fixed and a settled thread; a reply carrying this plugin's reply marker — the fix
+    command's, from the developer's account, or this command's from an earlier run — already
+    answered, and confirming again on every re-review would stack duplicates."""
+    flat = " ".join(_section(text(SRC / "cases" / "re-review.md"),
+                             "Checking whether old findings (left by this command) have been fixed").split())
+    assert re.search(r"carrying the reply marker \(either form, ANY account.{0,120}post NO reply", flat), \
+        "a thread already holding a plugin reply must get no second one, whoever's account posted it"
+    assert re.search(r"none ⇒ a reply is OWED: on THAT EXACT thread via `<op> reply --kind line`", flat), \
+        "a thread with no plugin reply must get the reviewer's reply"
+    assert re.search(r"reply settles it.{0,120}Reply owed ⇒ an acknowledgement", flat), \
+        "a thread the developer settled must be acknowledged"
+    assert re.search(r"\*\*Fixed\*\*.{0,60}Reply owed ⇒ a confirmation.{0,60}even when a developer reply already says fixed", flat), \
+        "a fix the developer announced by hand must still be confirmed"
+    assert re.search(r"FORBIDDEN: resolving — `auto_resolve_fixed_findings` covers fixed findings only", flat), \
+        "acknowledging a settled thread must not widen what gets resolved"
 
 
 def test_fix_still_stops_on_its_own_earlier_reply():

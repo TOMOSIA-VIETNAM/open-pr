@@ -25,6 +25,15 @@ TERMINAL="posted draft lgtm_chat nothing answered fixed failed stopped"
 REPORTED="posted draft lgtm_chat nothing answered fixed failed question"
 # Longest rate-limit backoff; the menu bar counts a repo watched while its heartbeat is < 3x this.
 BACKOFF_CAP=900
+# Bounds on real time. Each reads an OPEN_PR_TEST_* variable that only the test suite sets, to
+# run the bound in a fraction of its time; unset, the value after :- holds.
+# Naps (0.2 s) `notify` waits for its toast, and `menubar` for its item, to be on screen.
+TOAST_WAIT=${OPEN_PR_TEST_TOAST_WAIT:-25} MENUBAR_WAIT=${OPEN_PR_TEST_MENUBAR_WAIT:-50}
+# Seconds a state lock with no pid (its holder died between mkdir and pid write), or a .reclaim
+# left by a reclaimer that died, stands before it is removed.
+LOCK_RECLAIM=${OPEN_PR_TEST_LOCK_RECLAIM:-5}
+# Real seconds that one second of `wait`'s sleep between polls lasts.
+POLL_SECOND=${OPEN_PR_TEST_POLL_SECOND:-1}
 
 err() { printf '%s\n' "$*" >&2; }
 die() { code="$1"; shift; err "$*"; exit "$code"; }
@@ -54,9 +63,14 @@ parse_args() {
             --off) ARG_off=1; shift ;;
             --fresh) ARG_fresh=1; shift ;;
             --close) ARG_close=1; shift ;;
+            --restart) ARG_restart=1; shift ;;
             --quiet) ARG_quiet=1; shift ;;
+            --backlog) ARG_backlog=1; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
+                # the name becomes a variable name inside eval: anything else would run as code
+                printf '%s' "$key" | grep -Eqx '[a-z][a-z0-9_]{0,40}' \
+                    || die 4 "open-pr: invalid option: $(printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177' | cut -c1-60)"
                 printf '%s' "$key" | grep -Eq '^[a-z_]+$' || die 1 "open-pr-watch.sh: bad option $1"
                 [ $# -ge 2 ] || die 1 "open-pr-watch.sh: $1 needs a value"
                 eval "ARG_${key}=\$2"
@@ -137,6 +151,7 @@ setting_int() {
 #   cursor    newest processed comment created_at, UTC, second precision — of the wait serving
 #             both roles; a wait serving one role keeps its own under cursors.<role>, with its seen
 #   seen      comment ids at exactly that created_at (ties the cursor cannot order)
+#   skipped   trigger comment ids the user chose not to review (see skip); never delivered
 #   sessions  { "<pr>:<role>": {pr,role,runner,id,session_id,name,repo,url,open,cwd,pid,started_at,
 #                        last_state,last_state_at,finished[,closed]} }   role = review | fix
 #             runner `here` = a fix the watcher runs in its own session (see `here`): no id, no open
@@ -165,13 +180,13 @@ lock() {   # $1 lock dir, default the repo's state lock
     lk="${1:-$SD/.lock}"; i=0; nopid=0; stuck=0
     while ! mkdir "$lk" 2>/dev/null; do
         holder=$(cat "$lk/pid" 2>/dev/null || true)
-        # open-pr.sh's dir_lock protocol (its comment says why), in 0.2 s naps: 25 = 5 s
-        if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || { [ -z "$holder" ] && [ "$nopid" -ge 25 ]; }; then
+        # open-pr.sh's dir_lock protocol (its comment says why), in 0.2 s naps
+        if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || { [ -z "$holder" ] && [ "$nopid" -ge $((LOCK_RECLAIM * 5)) ]; }; then
             if mkdir "$lk.reclaim" 2>/dev/null; then
                 [ "$(cat "$lk/pid" 2>/dev/null || true)" != "$holder" ] || rm -rf "$lk"
                 rmdir "$lk.reclaim"; nopid=0; stuck=0; continue
             fi
-            stuck=$((stuck + 1)); [ "$stuck" -lt 25 ] || { rm -rf "$lk.reclaim"; stuck=0; }
+            stuck=$((stuck + 1)); [ "$stuck" -lt $((LOCK_RECLAIM * 5)) ] || { rm -rf "$lk.reclaim"; stuck=0; }
         fi
         [ -n "$holder" ] || nopid=$((nopid + 1))
         i=$((i + 1))
@@ -273,7 +288,13 @@ run_bounded() {   # $1 seconds, $2 output file, rest = command (cwd = W)
     done
     wait "$p"
 }
-claude_list() { (cd "$W" && claude agents --json "$@") 2>/dev/null || printf '[]'; }
+# One JSON array, else [] (no listing, an error, a notice printed around it): every caller parses it,
+# and a jq parse error under `set -e` would end the run.
+claude_list() {
+    (cd "$W" && claude agents --json "$@") 2>/dev/null \
+        | jq -c -n '[inputs] | if length == 1 and (.[0] | type == "array") then .[0] else [] end' 2>/dev/null \
+        || printf '[]'
+}
 claude_sid() {   # id → sessionId; a fresh session may take a moment to list
     i=0
     while [ "$i" -lt 10 ]; do
@@ -314,7 +335,7 @@ claude_resume() {   # sets RID SID WARNING; $1 id, $2 session id, $3 prompt
         pid=$(claude_list | jq -r --arg id "$RID" 'first(.[]? | select(.id == $id) | .pid // empty) // empty')
         (cd "$W" && claude stop "$RID") > /dev/null 2>&1 || true
         i=0
-        while claude_list | jq -e --arg id "$RID" 'any(.[]?; .id == $id)' > /dev/null \
+        while claude_list | jq -e -n --arg id "$RID" 'any(inputs | .[]?; .id == $id)' > /dev/null \
             || { [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; }; do
             i=$((i + 1))
             [ "$i" -lt 150 ] || die 1 "claude session $RID still running 30s after claude stop — not resuming (a resume now would start a copy)"
@@ -352,6 +373,25 @@ status_note() {   # why from_status_file said failed without the file saying so
     case " $REPORTED " in *" $s "*) [ -n "$s" ] && return 0 ;; esac
     printf 'status file holds no known state'
 }
+# The state of the status file $1 when this run wrote it: not older than $2, the run's started_at
+# (spawn and resume remove the file first, then record that time). An unreadable mtime reads as
+# this run's, for the removal stands.
+run_result() {   # $1 session key, $2 started_at
+    f=$(status_file "$1")
+    [ -s "$f" ] || return 0
+    m=$(date -u -r "$f" +%Y%m%d%H%M%S 2>/dev/null || true)
+    s=$(printf '%s' "$2" | tr -cd '0-9')
+    [ -z "$m" ] || [ -z "$s" ] || [ "$m" -ge "$s" ] || return 0
+    jq -r '.state // empty' "$f" 2>/dev/null || true
+}
+# Claude state $1 of session $2 (started $3): blocked after its run wrote a final result reads as
+# done — the prompt it waits at asks nothing, so no request waits on it; a question still does.
+settled() {
+    [ "$1" = blocked ] || { printf '%s' "$1"; return 0; }
+    fs=$(run_result "$2" "$3")
+    case " $REPORTED " in *" $fs "*) [ -z "$fs" ] || [ "$fs" = question ] || { printf done; return 0; } ;; esac
+    printf blocked
+}
 CLAUDE_AGENTS=""
 # `claude agents` state of the entry with id $1. A resumed or attached session that finished its
 # turn stays "working" with status "idle" (waiting at its prompt), never "done": read as done.
@@ -362,11 +402,11 @@ claude_state() {
 status_one() {   # $1 session key
     key="$1"; pr=${key%%:*}; role=${key#*:}
     row=$(state_json | jq -r --arg key "$key" --argjson pr "$pr" '(.hidden // []) as $h | .sessions[$key]
-        | [.runner, .id, .session_id, .pid, (.finished == true), .last_state, ($h | index([$pr]) != null)]
+        | [.runner, .id, .session_id, .pid, (.finished == true), .last_state, ($h | index([$pr]) != null), .started_at]
         | map(. // "" | tostring) | join("\u001f")')
     # not whitespace: IFS whitespace would merge the empty fields
     us=$(printf '\037')
-    IFS="$us" read -r runner id sid pid fin last hid <<EOF
+    IFS="$us" read -r runner id sid pid fin last hid started <<EOF
 $row
 EOF
     note=""; inuse=""
@@ -380,7 +420,7 @@ EOF
         # The user may still be talking in it: a new request waits rather than stops it.
         if [ "$runner" = claude ]; then
             [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
-            cs=$(claude_state "$id")
+            cs=$(settled "$(claude_state "$id")" "$key" "$started")
             case "$cs" in working|blocked) inuse=$cs ;; esac
         elif pid_alive "$pid"; then inuse=working; fi
     elif [ "$runner" = here ]; then
@@ -391,7 +431,7 @@ EOF
         [ -n "$CLAUDE_AGENTS" ] || CLAUDE_AGENTS=$(claude_list --all)
         entry=$(printf '%s' "$CLAUDE_AGENTS" | jq -c --arg id "$id" '[.[]? | select(.id == $id)][0] // empty')
         [ -n "$sid" ] || sid=$(printf '%s' "$entry" | jq -r '.sessionId // empty' 2>/dev/null || true)
-        cs=$(claude_state "$id")
+        cs=$(settled "$(claude_state "$id")" "$key" "$started")
         case "$cs" in
             working) st=working ;;
             blocked) st=question ;;
@@ -450,7 +490,7 @@ cmd_status() {
     state_json > "$TMPD/state.in"
     jq -c --slurpfile st "$TMPD/state.in" '{pr, role, runner, id, state, open}
         + ($st[0].sessions[.key].findings | if . then {findings: .} else {} end) + (if .note then {note} else {} end) + (if .finished then {finished} else {} end)
-        + (if .hidden then {hidden} else {} end)' "$TMPD/status"
+        + (if .hidden then {hidden} else {} end) + ($st[0].sessions[.key].request | if . then {request: .} else {} end)' "$TMPD/status"
 }
 
 # --------------------------------------------------------------- spawn ----
@@ -499,21 +539,32 @@ JQ_BUSY='def busy($s; $q; $now):
                   and (([$q[]? | select(.key == $r.key) | .queued_at // empty][0] // null) as $at
                        | $at == null or ($now - ($at | fromdateiso8601)) < '"$IN_USE_GRACE"')))
      | .key];'
+# --comment-id C --kind line|top [--thread-id T]: the request a spawn serves, as its claim answered it
+# → REQ, `{comment_id, kind, thread_id}` (the shape `open-pr.sh last-claim` prints), or "" when none.
+request_arg() {
+    C=$(arg comment_id); K=$(arg kind); T=$(arg thread_id); REQ=""
+    [ -n "$C$K$T" ] || return 0
+    check_ident '^[0-9]+$' "$C"; check_ident '^(line|top)$' "$K"
+    [ -z "$T" ] || check_ident '^[A-Za-z0-9_-]+$' "$T"
+    REQ=$(jq -n -c --arg c "$C" --arg k "$K" --arg t "$T" '{comment_id: $c, kind: $k, thread_id: (if $t == "" then null else $t end)}')
+}
 enqueue() {   # $1 reason
     state_update --arg key "$KEY" --argjson pr "$N" --arg role "$ROLE" --arg runner "$RUNNER" --arg name "$NAME" \
-        --arg f "$PF" --arg at "$(now_iso)" --arg cwd "$CW" --arg url "$URL" --arg fresh "$FRESH" \
+        --arg f "$PF" --arg at "$(now_iso)" --arg cwd "$CW" --arg url "$URL" --arg fresh "$FRESH" --arg req "$REQ" \
         '(([.queue[] | select(.key == $key) | .queued_at][0]) // $at) as $since
          | .queue = ([.queue[] | select(.key != $key)]
                      + [{key: $key, pr: $pr, role: $role, runner: $runner, name: $name, prompt_file: $f, queued_at: $since}
                         + (if $cwd == "" then {} else {cwd: $cwd} end)
                         + (if $url == "" then {} else {url: $url} end)
-                        + (if $fresh == "" then {} else {fresh: true} end)])'
+                        + (if $fresh == "" then {} else {fresh: true} end)
+                        + (if $req == "" then {} else $req | fromjson | {comment_id, kind} + (if .thread_id then {thread_id} else {} end) end)])'
     jq -n -c --argjson pr "$N" --arg role "$ROLE" --arg why "$1" '{pr: $pr, role: $role, queued: true, reason: $why}'
 }
 cmd_spawn() {
     parse_args "$@"
     RUNNER=$(req runner); check_runner "$RUNNER"
     N=$(pr_arg); ROLE=$(role_arg); KEY="$N:$ROLE"; NAME=$(req name); PF=$(req prompt_file); URL=$(arg url)
+    request_arg
     [ -r "$PF" ] || die 1 "open-pr-watch.sh: prompt file not readable: $PF"
     PF=$(cd "$(dirname "$PF")" && printf '%s/%s' "$(pwd)" "$(basename "$PF")")
     CW=$(arg cwd); FRESH=$(arg fresh)
@@ -584,13 +635,16 @@ unhide() {
 record_session() {
     state_update --arg key "$KEY" --argjson pr "$N" --arg role "$ROLE" --arg runner "$RUNNER" --arg id "$RID" --arg sid "$SID" \
         --arg name "$NAME" --arg pid "$PID" --arg at "$(now_iso)" --arg repo "$OWNER/$REPO" \
-        --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" --arg cwd "$W" \
+        --arg url "$URL" --arg open "$(open_cmd "$RUNNER" "$RID")" --arg cwd "$W" --arg req "${REQ:-}" --arg resumed "${resumed:-false}" \
         "$JQ_RETIRE"'def nul: if . == "" then null else . end;
          retire($key; $id | nul; $at)
          | .sessions[$key] = {pr: $pr, role: $role, runner: $runner, id: ($id | nul), session_id: ($sid | nul),
                             name: $name, repo: $repo, url: (($url | nul) // .sessions[$key].url), open: ($open | nul),
                             cwd: $cwd, pid: ($pid | nul | if . then tonumber else . end), started_at: $at,
                             last_state: "working", last_state_at: $at, finished: false}
+                           # a resume for no new request keeps answering the one it served
+                           + (if $req != "" then {request: ($req | fromjson)}
+                              elif $resumed == "true" then (.sessions[$key].request | if . then {request: .} else {} end) else {} end)
                            + (if $role == "fix" then {findings: (.findings[$pr | tostring] // .sessions[$key].findings)} else {} end)
          | del(.findings[if $role == "fix" then ($pr | tostring) else "" end])
          | .queue = [.queue[] | select(.key != $key)]'
@@ -634,6 +688,14 @@ cmd_forget() {
     state_update --arg key "$N:$ROLE" --arg at "$(now_iso)" "$JQ_RETIRE"'retire($key; null; $at) | del(.sessions[$key])'
     rm -f "$(status_file "$N:$ROLE")"
     jq -n -c --argjson pr "$N" --arg role "$ROLE" '{pr: $pr, role: $role, forgotten: true}'
+}
+# Backlog triggers the user chose not to review: no wait delivers them again.
+cmd_skip() {
+    parse_args "$@"
+    ids=$(req comment_ids); check_ident '^[0-9]+(,[0-9]+)*$' "$ids"
+    load_repo; lock
+    state_update --arg ids "$ids" '.skipped = ((.skipped // []) + ($ids | split(",")) | map(tonumber) | unique | .[-500:] | map(tostring))'
+    jq -n -c --arg ids "$ids" '{skipped: ($ids | split(","))}'
 }
 # Both roles: off the menu bar, out of the fix role, its pending findings dropped.
 cmd_hide() {
@@ -779,6 +841,7 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
         ($st[0] | getpath($p + ["cursor"])) as $cur | ($st[0] | getpath($p + ["seen"]) // []) as $seen
         | map(select(type == "object") | . + {_k: (.created_at | utc)})
         | map(select(._k > $cur or (._k == $cur and ((.comment_id | tostring) as $c | $seen | index([$c]) | not))))
+        | map(select((.comment_id | tostring) as $c | $st[0].skipped // [] | index([$c]) | not))
         | reduce .[] as $t ([]; if any(.[]; .comment_id == $t.comment_id) then . else . + [$t] end)
         | sort_by(._k)[]' "$TMPD/triggers" > "$TMPD/new"
     # The user asking for a review of their own PR puts it in the fix role.
@@ -808,12 +871,13 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
                                   and (.state == "working" or .state == "question"))] | length == 0)' \
         "$TMPD/fixev" > "$TMPD/fixev.ok"
     jq -r '.pr' "$TMPD/fixev" | while IFS= read -r n; do
-        jq -e --argjson p "$n" 'select(.pr == $p)' "$TMPD/fixev.ok" > /dev/null || rm -f "$SD/fix_now/$n"
+        jq -e -n --argjson p "$n" 'any(inputs; .pr == $p)' "$TMPD/fixev.ok" > /dev/null || rm -f "$SD/fix_now/$n"
     done
     mv "$TMPD/fixev.ok" "$TMPD/fixev"
     jq -c -s --slurpfile st "$TMPD/state.in" '
         .[] | select(.state != ($st[0].sessions[.key].last_state // null))
-        | {event: "session", pr, role, state, open} + (if .note then {note} else {} end)' "$TMPD/own" > "$TMPD/sess"
+        | {event: "session", pr, role, state, open} + (if .note then {note} else {} end)
+          + ($st[0].sessions[.key].request | if . then {request: .} else {} end)' "$TMPD/own" > "$TMPD/sess"
     # `ready`: nothing else wakes the watcher to run `next`.
     max=$(setting_int max_concurrent 5)
     jq -c -s --slurpfile st "$TMPD/state.in" --argjson max "$max" --arg roles "$ROLES" "$JQ_BUSY"'
@@ -873,6 +937,39 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
     unlock
     GOT=1
 }
+# --backlog: before polling, the requests pending on each open PR whatever their age — the PR, not
+# when the watcher started, says what is pending. Delivered as trigger events with `backlog: true`,
+# a skipped one left out. A role set with no cursor yet starts at the newest comment read. The pass
+# stays due in state (`backlog_due` beside the role set's cursor) until it succeeds: a failed one is
+# tried again before the next poll, and by the next wait when this one ends on a poll's events.
+backlog_once() {   # sets GOT
+    GOT=""
+    [ -n "$TOKEN" ] || TOKEN=$(trigger_token)
+    rc=0
+    opr triggers --vendor "$VENDOR" --owner "$OWNER" --repo "$REPO" ${HOST:+--host "$HOST"} --backlog \
+        --mark-file "$TMPD/mark" --token "$TOKEN" --cache-dir "$SD/etags" > "$TMPD/backlog" 2> "$TMPD/backlog.err" || rc=$?
+    if [ "$rc" != 0 ]; then
+        cat "$TMPD/backlog.err" >&2
+        err "open-pr-watch.sh: backlog pass failed (exit $rc); retrying next poll"
+        return 0
+    fi
+    BACKLOG=""
+    lock
+    state_json > "$TMPD/state.in"
+    jq -c --slurpfile st "$TMPD/state.in" --arg r "$OWNER/$REPO" '
+        select(type == "object" and ((.comment_id | tostring) as $c | $st[0].skipped // [] | index([$c]) | not))
+        | {event: "trigger", repo: $r} + del(.pr_author, .title)' "$TMPD/backlog" > "$TMPD/events"
+    jq -s '[.[] | select(type == "object" and (.title | type) == "string") | {key: (.pr | tostring), value: .title}]
+        | from_entries' "$TMPD/backlog" > "$TMPD/titles"
+    state_update --argjson p "$CP" --arg c "$(cat "$TMPD/mark" 2>/dev/null || true)" --arg now "$(now_iso)" \
+        --slurpfile ti "$TMPD/titles" '.titles = ((.titles // {}) + $ti[0])
+        | if getpath($p + ["cursor"]) then . else setpath($p + ["cursor"]; if $c == "" then $now else $c end) | setpath($p + ["seen"]; []) end
+        | delpaths([$p + ["backlog_due"]])'
+    unlock
+    [ -s "$TMPD/events" ] || return 0
+    cat "$TMPD/events"
+    GOT=1
+}
 # watcher$SFX.json: which terminal tab runs this watcher, for the menu bar to group its repos and
 # focus that tab. Env values are data: a value outside its pattern is recorded as "".
 NL='
@@ -902,6 +999,21 @@ EOF
         p=$pp; i=$((i + 1))
     done
 }
+# The `claude` hosting this watcher (the nearest ancestor running it: the native binary, or node
+# running an npm install's cli.js): while it runs, its tab is live even between waits, and resuming
+# its session would start a second copy.
+host_pid() {
+    p=$$; i=0
+    while [ "$i" -lt 15 ] && [ "${p:-0}" -gt 1 ]; do
+        row=$(ps -ww -o ppid=,args= -p "$p" 2>/dev/null || true)
+        read -r pp cm rest <<EOF
+$row
+EOF
+        case "${cm:-}" in claude|*/claude) fit "$p" '[0-9]{1,10}'; return 0 ;; esac
+        case "${cm:-}:${rest:-}" in node:*/claude-code/cli.js*|*/node:*/claude-code/cli.js*) fit "$p" '[0-9]{1,10}'; return 0 ;; esac
+        p=${pp:-}; i=$((i + 1))
+    done
+}
 # A watcher session that went to the background has no terminal env: its next wait keeps the
 # terminal app recorded before (not the tab id or tty — that tab is gone).
 write_watcher() {
@@ -909,11 +1021,14 @@ write_watcher() {
     # no control characters (a newline would pass grep line by line)
     [ "$cwd" = "$(printf '%s' "$cwd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#cwd} -le 1024 ] || cwd=""
     rd=$D; [ "$rd" = "$(printf '%s' "$rd" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#rd} -le 1024 ] || rd=""
+    # the plugin build this wait runs: the menu bar restarts into the newest one it sees
+    sc=$SELF_DIR/open-pr-watch.sh; [ "$sc" = "$(printf '%s' "$sc" | LC_ALL=C tr -d '\000-\037\177')" ] && [ ${#sc} -le 1024 ] || sc=""
     jq -n -c --argjson pid "$$" --arg cwd "$cwd" --arg rd "$rd" --arg rm "$(fit "$RM" '[A-Za-z0-9._-]{1,128}')" \
         --arg term "$(t=$(fit "${TERM_PROGRAM:-}" "$TERM_RE"); [ -n "$t" ] || t=$(watcher_field term "$TERM_RE"); printf '%s' "$t")" \
         --arg ts "$(fit "${ITERM_SESSION_ID:-${TERM_SESSION_ID:-}}" "$TERM_SESSION_RE")" \
-        --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" \
-        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm}' > "$WF.tmp"
+        --arg tty "$(ancestor_tty)" --arg sid "$(fit "${CLAUDE_CODE_SESSION_ID:-}" "$SESSION_ID_RE")" --arg hp "$(host_pid)" --arg sc "$sc" \
+        '{pid: $pid, cwd: $cwd, term: $term, term_session: $ts, tty: $tty, session_id: $sid, repo_dir: $rd, remote: $rm, script: $sc}
+         + (if $hp == "" then {} else {host_pid: ($hp | tonumber)} end)' > "$WF.tmp"
     mv "$WF.tmp" "$WF"
 }
 watcher_field() {   # $1 key of the watcher record WF, $2 ERE → its value, or "" when it does not match
@@ -951,7 +1066,7 @@ cmd_wait() {
         has_role "$r" || continue
         old=$(cat "$SD/wait-$r.pid" 2>/dev/null || true)
         if [ -n "$old" ] && [ "$old" != "$$" ] && kill -0 "$old" 2>/dev/null \
-            && ps -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
+            && ps -ww -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
             die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched for $r on this machine (wait pid $old) — stop that watcher first"
         fi
     done
@@ -961,6 +1076,11 @@ cmd_wait() {
         [ "$x" != "$ROLES" ] && { [ "$x" = review,fix ] || has_role "$x"; } || continue
         rm -f "$SD/watcher$(sfx "$x").json" "$SD/heartbeat$(sfx "$x")" "$SD/stop$(sfx "$x")"
     done
+    BACKLOG=""
+    if has_role review; then
+        [ -z "$(arg backlog)" ] || state_update --argjson p "$CP" 'setpath($p + ["backlog_due"]; true)'
+        BACKLOG=$(state_json | jq -r --argjson p "$CP" 'if getpath($p + ["backlog_due"]) == true then 1 else empty end')
+    fi
     unlock
     write_watcher
     STARTED=$(date +%s)
@@ -968,6 +1088,10 @@ cmd_wait() {
     interval=$(next_interval "$base"); delay=$interval
     while :; do
         stop_requested
+        if [ -n "$BACKLOG" ]; then
+            backlog_once
+            [ -z "$GOT" ] || return 0
+        fi
         # Not an `if` condition: set -e must still apply inside.
         poll_once
         [ -z "$GOT" ] || return 0
@@ -984,7 +1108,9 @@ cmd_wait() {
         # Slept in slices so a "Fix now" click or a stop applies within seconds.
         waited=0; slice=5; [ "$delay" -ge "$slice" ] || slice=$delay
         while [ "$waited" -lt "$delay" ]; do
-            sleep "$slice"; waited=$((waited + slice))
+            if [ "$POLL_SECOND" = 1 ]; then sleep "$slice"
+            else sleep "$(LC_ALL=C awk -v s="$slice" -v k="$POLL_SECOND" 'BEGIN { print s * k }')"; fi
+            waited=$((waited + slice))
             stop_requested
             ! fix_now_pending || break
         done
@@ -1044,13 +1170,27 @@ cmd_notify() {
         open=""; [ -z "$P" ] || open=$(fit "$(session_field "$P:$ROLE" open)" "$OPEN_CMD_RE")
         # "Fix now" on a findings toast runs `fix-now` for this repo
         fx=""; [ "$E" != findings ] || [ -z "$P" ] || fx="$SELF_DIR/open-pr-watch.sh"
-        nohup osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
+        # The toast creates `shown` once on screen; toast.log ends with its exit code when not 0.
+        # A slot reused while full still holds the marker of the toast showing there.
+        shown="$sd/$slot/shown"; rm -f "$shown"
+        ( trap '' HUP; rc=0
+          osascript -l JavaScript "$SELF_DIR/open-pr-toast.js" "$title" "$summary" "$detail" \
             "$E" "$slot" 8 "$(arg url)" "$WD/snooze_until" "$FOCUS" "$open" \
             "$(watcher_field term "$TERM_RE")" "$(watcher_field term_session "$TERM_SESSION_RE")" \
             "$(watcher_field tty "$TTY_RE")" "$(watcher_field session_id "$SESSION_ID_RE")" \
-            "$(jq -r '.pid // "" | numbers' "$WF" 2>/dev/null || true)" "$fx" "${fx:+$D}" "${fx:+$(fit "$RM" '[A-Za-z0-9._-]{1,128}')}" "${fx:+$P}" \
-            > "$WD/toast.log" 2>&1 &
-        printf '%s\n' "$!" > "$sd/$slot/pid"
+            "$(jq -r '.pid // "" | numbers' "$WF" 2>/dev/null || true)" "$(jq -r '.host_pid // "" | numbers' "$WF" 2>/dev/null || true)" "$fx" "${fx:+$D}" "${fx:+$(fit "$RM" '[A-Za-z0-9._-]{1,128}')}" "${fx:+$P}" \
+            "$shown" || rc=$?
+          [ "$rc" = 0 ] || printf 'open-pr-toast.js exited %s\n' "$rc"
+        ) > "$WD/toast.log" 2>&1 < /dev/null &
+        tp=$!
+        printf '%s\n' "$tp" > "$sd/$slot/pid"
+        i=0
+        while [ ! -e "$shown" ] && kill -0 "$tp" 2>/dev/null && [ "$i" -lt "$TOAST_WAIT" ]; do nap; i=$((i + 1)); done
+        if [ ! -e "$shown" ]; then
+            pkill -P "$tp" 2>/dev/null || :
+            jq -n -c --arg e "$E" --arg log "$WD/toast.log" '{event: $e, sent: false, reason: "toast not shown", log: $log}'
+            return 0
+        fi
     elif command -v notify-send >/dev/null 2>&1; then
         via=notify-send
         notify-send -- "$title" "$summary${detail:+
@@ -1071,9 +1211,9 @@ feed_add() {
     lock
     { tail -n $((FEED_MAX - 1)) "$SD/feed.jsonl" 2>/dev/null || true
       jq -n -c --arg at "$(now_iso)" --arg repo "$OWNER/$REPO" --arg pr "$P" --arg e "$E" \
-          --arg s "$summary" --arg d "$detail" --arg u "$(arg url)" --arg role "$ROLE" \
+          --arg s "$summary" --arg d "$detail" --arg u "$(arg url)" --arg role "$ROLE" --arg f "$FOCUS" \
           '{at: $at, repo: $repo, pr: (if $pr == "" then null else ($pr | tonumber) end), role: $role, event: $e,
-            summary: $s, detail: $d, url: (if $u == "" then null else $u end)}'
+            summary: $s, detail: $d, url: (if $u == "" then null else $u end), focus: $f}'
     } > "$SD/feed.jsonl.tmp"
     mv "$SD/feed.jsonl.tmp" "$SD/feed.jsonl"
     unlock
@@ -1115,21 +1255,28 @@ cmd_menubar() {
     lock "$WD/.lock"
     pf="$WD/menubar.pid"
     pid=$(cat "$pf" 2>/dev/null || true)
-    # pids get reused
+    # pids get reused. -ww here and at every `ps` read of a command line: without a terminal,
+    # procps (Linux) cuts it at 80 columns, often before the script name.
     live=""
     if printf '%s' "$pid" | grep -Eq '^[0-9]+$' && kill -0 "$pid" 2>/dev/null \
-        && ps -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then live=1; fi
+        && ps -ww -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then live=1; fi
     if [ -n "$(arg close)" ]; then
         [ -n "$live" ] || { rm -f "$pf"; printf 'not running\n'; return 0; }
         kill "$pid" 2>/dev/null || true; rm -f "$pf"; printf 'closed\n'; return 0
     fi
     # It reads the data dirs it was started with: a mapping added since (`data-dir --add-root`)
-    # restarts it, else the repos under that mapping never show.
+    # restarts it, else the repos under that mapping never show. It runs the code it was started
+    # from: this build's menu bar script written after that start (menubar.dirs is written at each
+    # start) is a plugin update, which only the user restarts it for (`--restart`, or its menu).
     if [ -n "$live" ]; then
-        [ "$dirs" != "$(cat "$WD/menubar.dirs" 2>/dev/null || true)" ] || { printf 'running\n'; return 0; }
+        if [ -z "$(arg restart)" ] && [ "$dirs" = "$(cat "$WD/menubar.dirs" 2>/dev/null || true)" ]; then
+            [ -z "$(find "$SELF_DIR/open-pr-menubar.js" -newer "$WD/menubar.dirs" 2>/dev/null)" ] || { printf 'out of date\n'; return 0; }
+            printf 'running\n'; return 0
+        fi
         kill "$pid" 2>/dev/null || true
     fi
     printf '%s\n' "$dirs" > "$WD/menubar.dirs"
+    rm -f "$pf"
     # one data dir per argv element (a path holding a newline is not supported)
     nl='
 '
@@ -1139,15 +1286,18 @@ cmd_menubar() {
     nohup osascript -l JavaScript "$SELF_DIR/open-pr-menubar.js" "$WD/snooze_until" "$pf" \
         "$((3 * BACKOFF_CAP))" "$@" "$SELF_DIR/open-pr-watch.sh" > "$WD/menubar.log" 2>&1 < /dev/null &
     pid=$!
-    printf '%s\n' "$pid" > "$pf"
-    # Inside a shell sandbox it cannot reach the window server and exits at once: say so, never
-    # `started` for an item that is not there.
-    sleep 2
-    if ! kill -0 "$pid" 2>/dev/null; then
-        rm -f "$pf" "$WD/menubar.dirs"
-        die 1 "open-pr-watch.sh menubar: the menu bar exited at start — run it with the shell sandbox off (log: $WD/menubar.log)"
-    fi
-    printf 'started\n'
+    # It writes its pid to the pid file once its item is in the menu bar: never `started` for an item
+    # that is not there. Inside a shell sandbox it cannot reach the window server and exits at once.
+    i=0
+    while [ "$(cat "$pf" 2>/dev/null || true)" != "$pid" ] && kill -0 "$pid" 2>/dev/null && [ "$i" -lt "$MENUBAR_WAIT" ]; do
+        nap; i=$((i + 1))
+    done
+    [ "$(cat "$pf" 2>/dev/null || true)" != "$pid" ] || { printf 'started\n'; return 0; }
+    rm -f "$pf" "$WD/menubar.dirs"
+    kill -0 "$pid" 2>/dev/null \
+        || die 1 "open-pr-watch.sh menubar: the menu bar exited at start — run it with the shell sandbox off (log: $WD/menubar.log)"
+    kill "$pid" 2>/dev/null || :
+    die 1 "open-pr-watch.sh menubar: the menu bar showed no item in $((MENUBAR_WAIT / 5)) s and was stopped (log: $WD/menubar.log)"
 }
 
 # --------------------------------------------------------------- trust ----
@@ -1183,7 +1333,7 @@ Common options:
   Output is JSON lines unless stated.
 
 Subcommands:
-  wait [--once] [--roles review,fix] [--fix-prs N,N…]
+  wait [--once] [--backlog] [--roles review,fix] [--fix-prs N,N…]
       poll every `watch.poll_interval_seconds` until something happens, print it, exit 0; `repo` =
       owner/repo in every event. `--roles` (default both) picks what is delivered; one wait per repo
       and role on a machine, so a review wait and a fix wait run side by side:
@@ -1197,12 +1347,16 @@ Subcommands:
       PR out.
       `{"event":"fix_now","repo","pr"[,"url","head_branch","review_id","counts","comment_id","thread_id","user"]}`
       per `fix-now` since (with the PR's latest findings), within 5 s while waiting.
-      `{"event":"session","repo","pr","role","state","open"}` per session of its roles whose state changed.
+      `{"event":"session","repo","pr","role","state","open"[,"request"]}` per session of its roles whose state
+      changed; `request` = the one spawn recorded.
       Once a session's result (draft|posted|lgtm_chat|nothing|answered|fixed|failed|stopped) is
       delivered the session is finished: no slot held, and no more events from it until spawn resumes
       it, except a new result its status file is rewritten to (a draft the user published there).
       `{"event":"ready","repo","pr","role"}` = a queued session of its roles has its turn (run `next`
-      with the same `--roles`). The first run of a role set starts its cursor at now (no replay). Events count as delivered only when wait exits
+      with the same `--roles`). `--backlog` (review role): first, each open PR's pending request
+      whatever its age (`triggers --backlog`: unclaimed, its newest, `"backlog":true`, `"superseded"`),
+      except those `skip` names; until a pass succeeds, every later wait of that role set runs it too; a role set's first run starts its cursor at the newest comment read,
+      at now without `--backlog`. A skipped trigger is never delivered again. Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
       Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower. Each poll writes `quota.json`: the host's rate limit as
       `triggers --quota-file` read it, plus `host` and `at`. A vendor rate limit doubles the wait (up to 900 s, one
@@ -1210,11 +1364,13 @@ Subcommands:
       open (merged or closed) is hidden and its sessions marked closed, then stopped once not in use;
       a failed check prints one stderr line and waits for the next. Every poll touches `heartbeat`;
       each start writes `watcher.json` {pid, cwd, term, term_session, tty, session_id, repo_dir,
-      remote} (the terminal tab it runs in, its Claude Code session, and the repo, for the menu bar).
+      remote, script[, host_pid]} (the terminal tab it runs in, its Claude Code session and the pid of the
+      `claude` running it, the repo, and the path of this script, for the menu bar).
       A wait serving one role names these and `stop` with a suffix: `heartbeat-fix`,
       `watcher-fix.json`, `stop-fix`, `quota-fix.json`.
       `--once`: one poll, exit 0 with nothing printed when nothing happened
   spawn --runner R --pr N --name S --prompt-file F [--role review|fix] [--url U] [--cwd W] [--fresh]
+        [--comment-id C --kind line|top [--thread-id T]]
       open PR N's session for that role (default review) with the prompt read from F →
       `{"pr","role","id","open"}`; it has one ⇒ resume it (`"resumed":true`; a `"warning"` when the
       platform started a copy); all `max_concurrent` slots busy (both roles share them), or that
@@ -1222,7 +1378,9 @@ Subcommands:
       the repo dir), recorded so a resume runs there again. `--fresh`: open a new session even when
       there is one; the old one is left untouched and untracked. U (the PR URL) is kept for the menu
       bar. Takes N off the hidden list; a fix session takes over the PR's pending findings. A fix after one
-      run `here` opens a new session; exit 1 while that one is still `working`
+      run `here` opens a new session; exit 1 while that one is still `working`. C/kind/T: the request
+      it serves, as its claim answered it — recorded on the session as `"request"`, replacing the
+      one a resumed session served (none given: a resume keeps it, a new session has none)
   here --pr N [--url U]
       PR N's fix runs in the watcher's own session: recorded as fix session with runner `here` (no id,
       `open` null; the menu bar's "Open session" goes to the watcher's tab), its status file cleared,
@@ -1230,16 +1388,18 @@ Subcommands:
       until its status file (`paths --pr N --role fix`) holds a result, written by the watcher. Exit 1
       while a fix of PR N is `working`
   status [--pr N] [--role R]
-      per session `{"pr","role","runner","id","state","open"[,"findings"]}` (a fix session: the
+      per session `{"pr","role","runner","id","state","open"[,"findings"][,"request"]}` (a fix session: the
       findings it was opened for, as `findings` events carry them), state one of working|question|draft|
       posted|lgtm_chat|nothing|answered|fixed|failed|stopped (`"note"` says why when the session left
       no status file); a finished session shows its result with `"finished":true`, a hidden one
       `"hidden":true`
   next [--roles review,fix]
       a slot is free ⇒ pop the first queued session of those roles (default both) not running → `{"pr","role","runner","name",
-      "prompt_file","queued_at"[,"cwd"][,"url"][,"fresh"]}`, to pass back to spawn; else nothing
+      "prompt_file","queued_at"[,"cwd"][,"url"][,"fresh"][,"comment_id","kind"[,"thread_id"]]}`, to pass back to spawn; else nothing
   forget --pr N [--role R]
       drop that session (default review), so the next spawn opens a fresh one
+  skip --comment-ids C,C…
+      backlog triggers the user chose not to review: no wait delivers them again → `{"skipped":[…]}`
   hide --pr N
       both roles: leave PR N out of the menu bar until the next spawn for it, out of the fix role,
       its pending findings dropped → `{"pr","hidden":true}`
@@ -1258,7 +1418,8 @@ Subcommands:
       `pr` (default) opens U; `watcher` brings the watcher's terminal tab forward; `session` opens
       PR N's session of role R in the watcher's terminal app (no valid open command ⇒ as
       `watcher`); a watcher in an unknown terminal ⇒ opens U. The watcher = the wait serving R.
-      `--quiet`: the feed line only (whatever the setting or snooze), no toast
+      `--quiet`: the feed line only (whatever the setting or snooze), no toast. A toast not on screen
+      within 5 s (it crashed or hung; stopped then) → `"sent":false,"reason":"toast not shown"` + `log`
   snooze --for D | --until T | --off
       no toasts on this machine, every repo, for D (30m, 1h, 2h30m) or until T (ISO-8601);
       `--off` resumes → `{"snooze_until"}` (UTC, or null). Shared with the toast and the menu bar
@@ -1267,13 +1428,15 @@ Subcommands:
       (its key allowlist, its exit codes; the file untouched on a refusal). A running wait applies
       `poll_interval_seconds` and `max_concurrent` from its next poll; a running session keeps the values
       it read. The menu bar's settings panel runs it
-  menubar [--close]
+  menubar [--close | --restart]
       macOS: start the menu bar item (review and fix rows grouped by the watcher serving their role,
       recent toasts, snooze; "Remove from list" on a PR runs `hide`, "Fix now" runs `fix-now`) unless it runs →
-      `started` | `running` (exit 1 when it exits at start, e.g. inside a shell sandbox; its
+      `started` once its item is in the menu bar | `running` | `out of date` (it runs, and this
+      script's `open-pr-menubar.js` changed after it started: a plugin update; it is left running)
+      (exit 1 when it exits at start, e.g. inside a shell sandbox, or shows no item within 10 s; its
       stderr is `menubar.log`); one running on other data dirs than `data-dir --all` now prints is
-      restarted (`started`); it stays until closed. `--close` → `closed` | `not running`. Elsewhere
-      `NO-EQUIVALENT`. Plain lines
+      restarted (`started`); it stays until closed. `--restart`: one running is stopped, then this
+      script's is started. `--close` → `closed` | `not running`. Elsewhere `NO-EQUIVALENT`. Plain lines
   trust --runner R [--cwd W]
       will R open a session in W (default the repo dir) without a prompt? claude: `trusted` | `untrusted` plus
       a `run: cd <dir> && claude` line (trust is per exact directory, a trusted parent does not
@@ -1298,6 +1461,10 @@ EOF
 
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 need jq
+# 1.6, what Debian 12, Ubuntu 22.04 and macOS ship, is the oldest jq these programs run on.
+case "$(jq --version 2>&1)" in
+    jq-1.[0-5]|jq-1.[0-5][!0-9]*|"jq version "*) die 1 "open-pr-watch.sh: jq 1.6 or newer is required, found $(jq --version 2>&1)" ;;
+esac
 
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/open-pr-watch.XXXXXX")
 trap 'unlock; rm -rf "$TMPD" ${OPEN_PR_WATCH_COPY:+"$OPEN_PR_WATCH_COPY"}' EXIT
@@ -1321,6 +1488,7 @@ case "$sub" in
     next)    cmd_next "$@" ;;
     forget)  cmd_forget "$@" ;;
     hide)    cmd_hide "$@" ;;
+    skip)    cmd_skip "$@" ;;
     fix-now) cmd_fix_now "$@" ;;
     paths)   cmd_paths "$@" ;;
     notify)  cmd_notify "$@" ;;

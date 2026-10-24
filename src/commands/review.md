@@ -128,10 +128,10 @@ Write "reconfirm this requirement/spec".
 
 Criteria + precedence: Step 5.
 
-**FILE vs LINE** = contextual judgment, no enum, BOUNDED by the diff: LINE only where the target line
-sits INSIDE a hunk — an unchanged region of a touched file is FILE by force. LINE:
-`-` line ⇒ `side: "LEFT"` (base), `+`/context line ⇒ `side: "RIGHT"` (head). FILE → Step 8 body; LINE →
-Step 9 `comments[]`. FORBIDDEN: a FILE finding inside `comments[]`.
+**FILE vs LINE** = contextual judgment, no enum: LINE = the finding points at ONE line, in any file —
+`-` line ⇒ `side: "LEFT"` (base), else `side: "RIGHT"` (head); `post` places it (its diff line, else its
+file, else the overview). FILE = no single line → Step 8 body; LINE → Step 9 `comments[]`. FORBIDDEN: a
+FILE finding inside `comments[]`.
 
 **Scope:**
 
@@ -160,6 +160,7 @@ the output language:
 
 ```
 <emoji> <short description>.
+
 **<Fix>** — <the fix in words>
 <why, 1 sentence, only when it adds to the description>
 <marker>
@@ -215,7 +216,7 @@ language-neutral already — FORBIDDEN: an English connective like "as of" insid
 | FILE | LINE | overview-exclusive¹ | body |
 |---|---|---|---|
 | – | – | – | EXACTLY 1 line: **LGTM 🌟** (commit `<link>`). No `### 🤖【AI REVIEW】Overview` heading, no thanks, no assessment — only a non-empty skipped-files list may follow it |
-| – | ≥1 | – | the opening line ONLY. DROP every severity heading. A normal outcome ⇒ FORBIDDEN: filler like "good PR"/"reviewed thoroughly"; the LINE comments suffice |
+| – | ≥1 | – | `### 🤖【AI REVIEW】Overview` + the opening line ONLY. DROP every severity heading. A normal outcome ⇒ FORBIDDEN: filler like "good PR"/"reviewed thoroughly"; the LINE comments suffice |
 
 ¹ an Overview item from Step 7, or a non-empty skipped-files list.
 
@@ -263,17 +264,19 @@ Then `<op> post`. Invariants on every vendor:
 
 - exactly 1 review / 1 batch for the main PR, never split. A submodule post is a separate result for a
   DIFFERENT PR and doesn't count here.
-- every LINE finding attached to its correct diff line + side
+- every LINE finding carries its real line + side
 
-`auto_submit_review`: `true` → `<op> publish`, then `<op> post-verify` confirms it landed; `false` →
+`auto_submit_review`: `true` → `<op> publish`, then `<op> post-verify --payload <it>` confirms it landed; `false` →
 stop at whatever `post` left unpublished — a server-side draft, or (Bitbucket, which has no draft) the
 payload file itself with nothing on the PR — and say it isn't published. FORBIDDEN: publishing on the
 user's behalf.
 
-Post/publish error || post-verify mismatch → `Read` `cases/post-review.md`.
+`post` exit 8 → `Read` `cases/pending-draft.md`. Any other post/publish error || post-verify mismatch →
+`Read` `cases/post-review.md`.
 Happy path → skip that file.
 
-**Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, plus
+**Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, each
+`moved_to_*` line `post`/`publish` printed (`path:line` → its file or the overview), plus
 the worktree path and that `/open-pr:clean` removes it. FORBIDDEN: repeating a finding's description or
 its Fix — the PR carries that text; removing the worktree, or asking to — the user's later call.
 

@@ -43,7 +43,7 @@ AI 编码让 PR 变快了。但评审并没有变快。
 
 一次运行会产出三个互相关联的部分：**总览**、**行级评论**（附带 suggested change），以及 `/open-pr:fix` 推送之后的 **回复**。 —— [查看演示](./docs/zh-Hans/demo.md)
 
-- **每次请求 1 条评审** —— 只发一条，不是源源不断的 bot 评论；watcher 只会在请求下额外回复一条 "taking a look"，并在修复之后、经你同意时发一条再次评审的请求
+- **每次请求 1 条评审** —— 只发一条，不是源源不断的 bot 评论；watcher 只会在请求下额外回复一条 "taking a look"，评审发布后回复一条结果，并在修复之后、经你同意时发一条再次评审的请求
 - **按请求评审** —— `/open-pr:watch` 会为每条 `/open-pr` 评论在你的机器上打开一个评审会话，你在自己的 PR 上点击 "Fix now" 时打开一个修复会话
 - **学习你的仓库** —— 读 README / CLAUDE.md / AGENTS.md / docs / wiki；**团队规范优先于通用规则**
 - **记住团队说过的话** —— 这次 PR 上的一句纠正，下次运行就会应用
@@ -146,6 +146,8 @@ flowchart LR
 | `/open-pr:watch [review\|fix]` | 收到 `/open-pr` 评论时评审该 PR，点击 "Fix now" 时修复你自己的 PR，在你的机器上每个 PR 一个会话。[详情](./docs/zh-Hans/watch.md) |
 | `/open-pr:menubar [close]` | macOS：在菜单栏显示进行中的评审与修复、"Fix now"、设置和暂停提醒；`close` 关闭它。[详情](./docs/zh-Hans/watch.md#菜单栏macos) |
 | `/open-pr:feedback` | 把 **本插件** 的问题报到它自己的 issue tracker —— 会剥掉一切能识别你仓库的信息，并在发出前先给你看 |
+
+在 Claude Code 中，`review` 和 `fix` 会按传入的 PR 为会话命名（`review api #12, web !7`），已有名称的会话保持不变。
 
 > [!WARNING]
 > `fix` 会改动仓库（或 review worktree）里的 **真实代码**。只有当你确实想让它处理这些评论时才运行它。

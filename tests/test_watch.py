@@ -47,7 +47,9 @@ case "$1" in
               [ -z "$mf" ] || cat "$FAKE_HOME/mark.txt" > "$mf" 2>/dev/null || : > "$mf"
               ff=$(printf '%s\n' "$@" | sed -n '/^--findings-file$/{n;p;}')
               [ -z "$ff" ] || cat "$FAKE_HOME/findings.jsonl" > "$ff" 2>/dev/null || : > "$ff"
-              cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;;
+              # --backlog: backlog.jsonl, what `triggers --backlog` prints
+              case " $* " in *" --backlog "*) cat "$FAKE_HOME/backlog.jsonl" 2>/dev/null || true ;;
+                  *) cat "$FAKE_HOME/triggers.jsonl" 2>/dev/null || true ;; esac ;;
     # open.txt: the open PR numbers; absent = the call fails (open.rc: its exit code, default 1)
     open-prs) [ -f "$FAKE_HOME/open.txt" ] || { printf 'open-prs down\n' >&2; exit "$(cat "$FAKE_HOME/open.rc" 2>/dev/null || echo 1)"; }
               cat "$FAKE_HOME/open.txt" ;;
@@ -74,7 +76,19 @@ out = os.path.join(home, f"{name}.out")
 if os.path.exists(out):
     sys.stdout.write(open(out).read())
     sys.stdout.flush()
+# on screen, as the real ones say so (FAKE_NO_UI: never, as one that crashes or hangs first):
+# the toast creates its last argv, the menu bar writes its pid to its pid file
+a = sys.argv[1:]
+if name == "osascript" and len(a) > 4 and not os.environ.get("FAKE_NO_UI"):
+    time.sleep(float(os.environ.get("FAKE_UI_DELAY", "0")))
+    if a[2].endswith("open-pr-toast.js") and a[-1].endswith("/shown"):
+        open(a[-1], "w").close()
+    elif a[2].endswith("open-pr-menubar.js"):
+        with open(a[4] + ".tmp", "w") as fh:
+            fh.write(f"{os.getpid()}\n")
+        os.replace(a[4] + ".tmp", a[4])
 time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
+sys.exit(int(os.environ.get("FAKE_EXIT", "0")))
 """
 
 FAKE_CLAUDE = r"""#!/usr/bin/env python3
@@ -101,13 +115,22 @@ def new(name):
     db["sessions"].append(s)
     return s
 
-if a[:2] == ["agents", "--json"]:
+if a == ["agents", "--json"] and "FAKE_CLAUDE_LIST" in os.environ:
+    sys.stdout.write(os.environ["FAKE_CLAUDE_LIST"])
+elif a[:2] == ["agents", "--json"]:
+    for s in db["sessions"]:   # FAKE_CLAUDE_LINGER: listed for that many more listings after `stop`
+        if s.get("linger"):
+            s["linger"] -= 1
+            if not s["linger"]:
+                s["state"] = "stopped"
     rows = db["sessions"] if "--all" in a else [s for s in db["sessions"] if s["state"] in ACTIVE]
     print(json.dumps(rows))
 elif a[:1] == ["stop"]:
     for s in db["sessions"]:
         if s["id"] == a[1]:
-            s["state"] = "stopped"
+            s["linger"] = int(os.environ.get("FAKE_CLAUDE_LINGER", "0"))
+            if not s["linger"]:
+                s["state"] = "stopped"
 elif a[:1] == ["--bg"] and "--resume" in a:
     sid = a[a.index("--resume") + 1]
     s = next(s for s in db["sessions"] if s["sessionId"] == sid)
@@ -158,8 +181,13 @@ class Watch:
         self.repo.mkdir()
         self.sd = self.home / "data" / "r" / "watch"
         self.watch = tmp / "xdg" / "open-pr" / "watch"
+        # COLUMNS=80: procps (Linux) then cuts a `ps` command line there unless told -ww, as it
+        # does whenever it finds no terminal. TMPDIR: toast slots, private to the test.
+        # OPEN_PR_TEST_POLL_SECOND: a `wait` left running sleeps 0.1 s per second of its poll
+        # interval; the intervals it computes and prints are unchanged.
         self.env = dict(os.environ, FAKE_HOME=str(self.home), XDG_CONFIG_HOME=str(tmp / "xdg"),
-                        PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}")
+                        PATH=f"{self.fakes}{os.pathsep}{os.environ['PATH']}", COLUMNS="80", TMPDIR=str(tmp),
+                        OPEN_PR_TEST_POLL_SECOND="0.1")
         self.children = []
 
     def run(self, *args, env_extra=None, path=None, check=True, cwd=None):
@@ -215,6 +243,17 @@ class Watch:
     def claude_calls(self, with_cwd=False):
         rows = [json.loads(l) for l in (self.home / "claude.calls").read_text().splitlines()]
         return rows if with_cwd else [r["argv"] for r in rows]
+
+    def calls(self, prefix):
+        """How many times the fake open-pr.sh ran <prefix>."""
+        f = self.home / "open-pr.calls"
+        return sum(1 for l in f.read_text().splitlines() if l.startswith(prefix + " ")) if f.exists() else 0
+
+    def until(self, cond, timeout=20):
+        """Polls cond until true; the test then asserts it."""
+        end = time.time() + timeout
+        while not cond() and time.time() < end:
+            time.sleep(0.05)
 
     def recorded(self, name, n=0, timeout=10):
         f = self.home / f"{name}.{n}.json"
@@ -404,6 +443,52 @@ def test_wait_reports_a_session_state_change_once(w):
 
 
 
+def test_each_result_answers_the_request_its_session_was_spawned_for(w):
+    """Two requests on one PR: the newest claim is the second's, yet the first session's result
+    answers the first; the session resumed for the second answers the second. A resume for no new
+    request (a draft the user approved) keeps answering the one it served."""
+    first, second = ("--comment-id", "41", "--kind", "top"), ("--comment-id", "42", "--kind", "line", "--thread-id", "40")
+    sp = w.spawn(5, extra=first)
+    w.run("wait", "--once")   # a role set's first run only starts its cursor
+    assert w.spawn(5, extra=second)["queued"] is True, "the first review still runs"
+    w.claude_set(sp["id"], "done")
+    w.status_file(5, state="posted")
+    ev = w.jsonl("wait", "--once")
+    assert [e.get("request") for e in ev if e["event"] == "session"] == [{"comment_id": "41", "kind": "top", "thread_id": None}]
+    nxt = w.jsonl("next")[0]
+    assert (nxt["comment_id"], nxt["kind"], nxt["thread_id"]) == ("42", "line", "40"), "the queue keeps the request"
+    w.spawn(5, extra=("--comment-id", nxt["comment_id"], "--kind", nxt["kind"], "--thread-id", nxt["thread_id"]))
+    want = {"comment_id": "42", "kind": "line", "thread_id": "40"}
+    assert w.state()["sessions"]["5:review"]["request"] == want
+    w.claude_set(sp["id"], "done")
+    w.status_file(5, state="draft")
+    assert [e.get("request") for e in w.jsonl("wait", "--once") if e["event"] == "session"] == [want]
+    w.spawn(5, text="the user approved publishing")
+    assert w.state()["sessions"]["5:review"]["request"] == want
+    assert w.jsonl("status", "--pr", "5")[0]["request"] == want
+
+
+def test_a_session_recorded_without_a_request_reports_none(w):
+    """A record from before spawn took the request: no `request`, so the watcher falls back to last-claim."""
+    sp = w.spawn(6)
+    w.run("wait", "--once")
+    assert "request" not in w.state()["sessions"]["6:review"]
+    w.claude_set(sp["id"], "done")
+    w.status_file(6, state="posted")
+    assert [e for e in w.jsonl("wait", "--once") if e["event"] == "session"][0].keys() == \
+        {"event", "repo", "pr", "role", "state", "open"}
+
+
+@pytest.mark.parametrize("bad", [("--comment-id", "9;id", "--kind", "top"), ("--comment-id", "9", "--kind", "both"),
+                                 ("--comment-id", "9", "--kind", "line", "--thread-id", "a/../b"),
+                                 ("--kind", "top"), ("--comment-id", "9")])
+def test_spawn_refuses_a_malformed_request(w, bad):
+    r = w.run("spawn", "--runner", "claude", "--pr", "7", "--name", "review o/r#7", "--prompt-file", w.prompt("x"),
+              *bad, check=False)
+    assert r.returncode == 4 and "invalid value" in r.stderr
+    assert not (w.sd / "state.json").exists() or "7:review" not in w.state().get("sessions", {})
+
+
 def test_a_running_wait_sees_a_session_change_between_its_own_polls(w):
     """A session listing cached across polls would report `working` forever."""
     w.settings(poll_interval_seconds=1)
@@ -412,7 +497,8 @@ def test_a_running_wait_sees_a_session_change_between_its_own_polls(w):
     proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        time.sleep(2.5)                      # at least one poll with the session still working
+        polls = w.calls("triggers")
+        w.until(lambda: w.calls("triggers") >= polls + 2)   # a poll with the session still working
         assert proc.poll() is None, "wait exited before anything changed"
         w.claude_set(sp["id"], "done")
         w.status_file(5, state="posted", url="https://github.com/o/r/pull/5")
@@ -524,7 +610,8 @@ def test_wait_records_the_terminal_tab_it_runs_in(w):
                         TERM_SESSION_ID="other", CLAUDE_CODE_SESSION_ID="269289ac-1f2e-4d3c-9b8a-0123456789ab")
     r = w.run("wait", "--once", "--repo-dir", str(w.repo), cwd=where)
     rec = json.loads((w.sd / "watcher.json").read_text())
-    assert set(rec) == {"pid", "cwd", "term", "term_session", "tty", "session_id", "repo_dir", "remote"}
+    assert set(rec) - {"host_pid"} == {"pid", "cwd", "term", "term_session", "tty", "session_id", "repo_dir", "remote", "script"}
+    assert rec["script"] == str(w.bin / "open-pr-watch.sh"), "the plugin build the wait runs, not its private copy"
     assert rec["session_id"] == "269289ac-1f2e-4d3c-9b8a-0123456789ab", "what `claude attach` reopens"
     assert (rec["repo_dir"], rec["remote"]) == (str(w.repo), ""), "what the menu bar passes to hide"
     assert rec["cwd"] == str(where), "the directory the user runs the watcher from"
@@ -546,6 +633,55 @@ def test_a_hostile_terminal_value_is_recorded_as_empty(w, hostile):
     rec = json.loads((w.sd / "watcher.json").read_text())
     assert rec["term"] == "" and rec["term_session"] == "" and rec["session_id"] == ""
     assert not (w.repo / "pwned").exists() and not (w.sd / "pwned").exists()
+
+
+# `ps -o <fields>= -p N` answered from FAKE_PS ("pid ppid tty comm" lines; `*` = any pid not listed,
+# so the wait's own); any other ps call runs the real one.
+FAKE_PS = r"""#!/usr/bin/env python3
+import os, sys
+a = sys.argv[1:]
+table = os.environ.get("FAKE_PS")
+if not table or "-o" not in a or "-p" not in a:
+    os.execv("/bin/ps", ["ps"] + a)
+fields = [f.rstrip("=") for f in a[a.index("-o") + 1].split(",")]
+rows = {}
+for line in table.splitlines():
+    if line.strip():
+        r = dict(zip(("pid", "ppid", "tty", "comm"), line.split(None, 3)))
+        r["args"] = r.get("comm", "")
+        rows[r["pid"]] = r
+r = rows.get(a[a.index("-p") + 1]) or rows.get("*")
+if r is None or any(f not in r for f in fields):
+    os.execv("/bin/ps", ["ps"] + a)
+print(" ".join(r[f] for f in fields))
+"""
+
+
+def with_ps(w, tree):
+    d = w.home.parent / "psbin"
+    d.mkdir(exist_ok=True)
+    make_exe(d / "ps", FAKE_PS)
+    return {"FAKE_PS": tree, "PATH": f"{d}{os.pathsep}{w.env['PATH']}"}
+
+
+@pytest.mark.parametrize("tree, host", [
+    ("* 7000003 ?? sh\n7000003 7000002 ?? node\n7000002 7000001 ttys007 /Users/x/.local/bin/claude\n"
+     "7000001 50 ttys007 claude\n50 1 ttys007 zsh", 7000002),
+    ("* 7000003 ?? sh\n7000003 7000001 ?? node\n7000001 1 ttys007 claude", 7000001),
+    ("* 7000003 ?? sh\n7000003 7000001 ttys007 claude-helper\n7000001 1 ttys007 zsh", None),
+    ("* 7000003 ?? sh\n7000003 1 ttys007 zsh", None),
+    # an npm install: node running claude-code's cli.js
+    ("* 7000003 ?? sh\n7000003 7000001 ?? sh\n7000001 50 ttys007 /usr/local/bin/node "
+     "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js --resume x\n50 1 ttys007 zsh", 7000001),
+    ("* 7000003 ?? sh\n7000003 7000001 ttys007 node /srv/app/server.js\n7000001 1 ttys007 zsh", None),
+])
+def test_wait_records_the_claude_running_the_watcher(w, tree, host):
+    """Between waits only that `claude` runs: the menu bar finds the watcher's tab by it."""
+    w.env = watcher_env(w, **with_ps(w, tree))
+    w.run("wait", "--once")
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    assert rec.get("host_pid") == host, "the nearest `claude` ancestor, by its name; none ⇒ no field"
+    assert rec["tty"] == "ttys007"
 
 
 def test_a_directory_name_is_recorded_verbatim_as_data(w):
@@ -582,6 +718,32 @@ def test_spawn_on_a_claude_session_stops_waits_then_resumes_without_flags(w):
     assert calls[-1] == ["--bg", "--resume", sid, "second look"]
     assert not (w.sd / "pr-4.status.json").exists(), "a stale status file survived the relaunch"
     assert w.claude_db()["sessions"][0]["name"] == "review o/r#4"
+
+
+# What `claude agents --json` printed while a resume waits for the stopped session to leave it.
+@pytest.mark.parametrize("listing", ["", " \n", "[]", '[{"id": "other"}]', "{oops", "[] notice", "{}", "null",
+                                     'Update available\n[{"id": "other"}]'])
+def test_a_resume_reads_a_listing_without_the_session_as_none_running(w, listing):
+    """`jq -e` exits 0 on no input under jq 1.6: an empty list then read as "still running" for 30 s.
+    A listing that is not one JSON array reads as none running, never as a jq error that ends the run."""
+    sp = w.spawn(4)
+    w.claude_set(sp["id"], "done")
+    w.status_file(4, state="draft")
+    started = time.time()
+    again = w.spawn(4, text="second look", env_extra={"FAKE_CLAUDE_LIST": listing})
+    assert again["resumed"] and time.time() - started < 10
+
+
+def test_a_resume_waits_while_the_stopped_session_is_still_listed(w):
+    """Resumed while still listed, the CLI starts a copy instead."""
+    sp = w.spawn(4)
+    w.claude_set(sp["id"], "done")
+    w.status_file(4, state="draft")
+    again = w.spawn(4, text="second look", env_extra={"FAKE_CLAUDE_LINGER": "3"})
+    assert again["resumed"] and "warning" not in again and again["id"] == sp["id"]
+    calls = w.claude_calls()
+    stop, resume = calls.index(["stop", sp["id"]]), [c[:2] for c in calls].index(["--bg", "--resume"])
+    assert calls[stop + 1:resume].count(["agents", "--json"]) >= 3
 
 
 def test_a_resume_that_starts_a_copy_is_reported_and_followed(w):
@@ -733,6 +895,42 @@ def test_status_maps_each_claude_state(w, claude_state, status_body, want):
     assert ("note" in row) == (claude_state == "done" and status_body is None)
 
 
+FAILED_422 = {"state": "failed", "note": "Post rejected (HTTP 422): a pending draft review exists on this PR.", "question": ""}
+
+
+@pytest.mark.parametrize("status_body, age, want", [
+    (FAILED_422, 0, "failed"),
+    ({"state": "posted"}, 0, "posted"),
+    ({"state": "question", "question": "Discard it?"}, 0, "question"),
+    (FAILED_422, 3600, "question"),
+    (None, 0, "question"),
+])
+def test_a_blocked_claude_session_reads_as_the_result_this_run_wrote(w, status_body, age, want):
+    """A session that wrote its result, then ended its turn waiting at its prompt, lists as blocked:
+    that result is the outcome. Only a file from before this run's start, none, or a question asks."""
+    sp = w.spawn(12)
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "blocked")
+    if status_body:
+        w.status_file(12, **status_body)
+        t = time.time() - age
+        os.utime(w.sd / "pr-12.status.json", (t, t))
+    assert w.jsonl("status", "--pr", "12")[0]["state"] == want
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == [want]
+
+
+def test_a_session_whose_run_ended_in_a_result_takes_a_new_request_at_once(w):
+    """Blocked at its prompt after writing a final result: nothing waits on it, so a new request on
+    the PR resumes it now instead of holding for the in-use grace."""
+    sp = w.spawn(12)
+    assert w.run("wait", "--once").stdout == ""
+    w.claude_set(sp["id"], "blocked")
+    w.status_file(12, **FAILED_422)
+    assert [e["state"] for e in w.jsonl("wait", "--once")] == ["failed"]
+    again = w.spawn(12, text="review again")
+    assert again.get("resumed") is True and "queued" not in again, again
+
+
 @pytest.mark.parametrize("status, status_body, want", [
     ("idle", {"state": "posted"}, "posted"),
     ("idle", None, "failed"),
@@ -874,9 +1072,53 @@ def test_osascript_gets_the_text_as_argv_never_as_source(w):
 
 
 
+@pytest.mark.parametrize("env, log", [({"FAKE_NO_UI": "1", "FAKE_EXIT": "139"}, "open-pr-toast.js exited 139\n"),
+                                      ({"FAKE_NO_UI": "1", "FAKE_SLEEP": "60"}, "open-pr-toast.js exited 143\n")])
+def test_a_toast_that_never_reaches_the_screen_is_not_reported_sent(w, tmp_path, env, log):
+    """A crash (SIGSEGV) or a hang before the toast is drawn: the hung one is stopped at the bound
+    (5 naps = 1 s here), long before it would exit."""
+    started = time.time()
+    out = notify(w, env_extra=dict(env, OPEN_PR_TEST_TOAST_WAIT="5"))
+    assert time.time() - started < 8
+    assert out == {"event": "posted", "sent": False, "reason": "toast not shown", "log": str(w.watch / "toast.log")}
+    deadline = time.time() + 5
+    while not (w.watch / "toast.log").read_text().endswith(log) and time.time() < deadline:
+        time.sleep(0.1)
+    assert (w.watch / "toast.log").read_text().endswith(log), "the shell may name the signal first"
+    assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["summary"] == "PR #3 posted", "the feed line stays"
+
+
+def test_a_toast_that_crashes_after_it_showed_leaves_its_exit_code_in_the_log(w, tmp_path):
+    assert notify(w, env_extra={"FAKE_EXIT": "139"})["via"] == "toast"
+    deadline = time.time() + 5
+    while (w.watch / "toast.log").read_text() == "" and time.time() < deadline:
+        time.sleep(0.1)
+    assert (w.watch / "toast.log").read_text() == "open-pr-toast.js exited 139\n"
+
+
+def test_a_toast_on_screen_late_within_its_bound_is_sent_and_logs_nothing(w, tmp_path):
+    started = time.time()
+    out = notify(w, env_extra={"FAKE_UI_DELAY": "1", "OPEN_PR_TEST_TOAST_WAIT": "10"})   # on screen at 1 s of 2 s
+    assert out == {"event": "posted", "sent": True, "via": "toast"} and time.time() - started >= 1
+    w.wait_dead(int((tmp_path / "open-pr-toast" / "0" / "pid").read_text()))
+    assert (w.watch / "toast.log").read_text() == "", "a toast that exits 0 appends nothing"
+    assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["summary"] == "PR #3 posted"
+
+
+def test_a_toast_in_a_reused_slot_is_judged_by_its_own_marker(w, tmp_path):
+    """Eight toasts on screen: the ninth takes slot 0, whose toast already created `shown`."""
+    me = str(os.getpid())
+    for n in range(8):
+        (tmp_path / "open-pr-toast" / str(n)).mkdir(parents=True)
+        (tmp_path / "open-pr-toast" / str(n) / "pid").write_text(me + "\n")
+    (tmp_path / "open-pr-toast" / "0" / "shown").write_text("")
+    out = notify(w, env_extra={"FAKE_NO_UI": "1", "FAKE_EXIT": "139"})
+    assert (out["sent"], out.get("reason")) == (False, "toast not shown"), out
+
+
 def test_toasts_stack_in_free_slots_and_carry_the_pr_url(w, tmp_path):
     """A new toast takes the first free slot; a slot frees when its toast exits."""
-    env = {"TMPDIR": str(tmp_path), "FAKE_SLEEP": "30"}
+    env = {"FAKE_SLEEP": "30"}
     f = w.prompt("Reviewing #3\nfix: x", "t.txt")
     for _ in range(2):
         w.run("notify", "--event", "review_started", "--text-file", f, "--url", "https://h/o/r/pull/3",
@@ -899,14 +1141,14 @@ def test_notify_focus_hands_the_toast_where_a_click_goes(w):
     sp = w.spawn(3)
     (w.sd / "watcher.json").write_text(json.dumps(
         {"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p0:AB-12", "tty": "ttys004",
-         "session_id": "269289ac-1f2e"}))
+         "session_id": "269289ac-1f2e", "host_pid": 7}))
     url = "https://github.com/o/r/pull/3"
     w.run("notify", "--event", "question", "--text-file", w.prompt("PR #3 needs you", "q.txt"),
           "--pr", "3", "--url", url, "--focus", "session")
     rec = w.recorded("osascript")["argv"]
     assert rec[9] == url
-    assert rec[11:18] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e", "1"]
-    assert rec[18:] == ["", "", "", ""], "only a findings toast carries Fix now"
+    assert rec[11:19] == ["session", f"claude attach {sp['id']}", "iTerm.app", "w0t0p0:AB-12", "ttys004", "269289ac-1f2e", "1", "7"]
+    assert rec[19:23] == ["", "", "", ""], "only a findings toast carries Fix now"
 
 
 # osascript argv[18:] = what the toast's "Fix now" runs: open-pr-watch.sh fix-now for that repo and PR.
@@ -914,13 +1156,13 @@ def test_a_findings_toast_offers_fix_now_for_its_repo_and_pr(w):
     w.run("notify", "--event", "findings", "--text-file", w.prompt("#3: 2 🟠", "f.txt"), "--pr", "3",
           "--role", "fix", "--remote", "origin")
     rec = w.recorded("osascript")["argv"]
-    assert rec[18:] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
+    assert rec[19:23] == [str(w.bin / "open-pr-watch.sh"), str(w.repo.resolve()), "origin", "3"]
     assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["role"] == "fix"
 
 
 def test_notify_focus_defaults_to_the_pr_and_rejects_an_unknown_one(w):
     assert notify(w)["sent"] is True
-    assert w.recorded("osascript")["argv"][11:18] == ["pr", "", "", "", "", "", ""], "no --pr, no watcher.json"
+    assert w.recorded("osascript")["argv"][11:19] == ["pr", "", "", "", "", "", "", ""], "no --pr, no watcher.json"
     r = w.run("notify", "--event", "posted", "--text-file", w.prompt("x"), "--focus", "tab", check=False)
     assert r.returncode == 1 and "pr watcher session" in r.stderr
 
@@ -930,9 +1172,10 @@ def test_notify_passes_no_open_command_or_tab_outside_their_shape(w):
     w.put_state({"cursor": None, "seen": [], "queue": [],
                  "sessions": {"3:review": {"pr": 3, "role": "review", "runner": "claude", "open": "claude attach x; touch pwned"}}})
     (w.sd / "watcher.json").write_text(json.dumps(
-        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude", "pid": "1; id"}))
+        {"term": 'iTerm"$(id)', "term_session": "a b", "tty": "../../x y", "session_id": "ABC; claude", "pid": "1; id",
+         "host_pid": "2; id"}))
     w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--pr", "3", "--focus", "session")
-    assert w.recorded("osascript")["argv"][11:18] == ["session", "", "", "", "", "", ""]
+    assert w.recorded("osascript")["argv"][11:19] == ["session", "", "", "", "", "", "", ""]
 
 
 def _minimal_path(w, tmp_path, with_notify_send):
@@ -947,6 +1190,22 @@ def _minimal_path(w, tmp_path, with_notify_send):
     if with_notify_send:
         shutil.copy(w.fakes / "notify-send", sysbin / "notify-send")
     return str(sysbin)
+
+
+# `jq --version` as each release prints it; the floor is 1.6 (open-pr.sh holds the same table).
+@pytest.mark.parametrize("version, ok", [
+    ("jq-1.5", False), ("jq-1.5rc2", False), ("jq-1.0", False), ("jq version 1.4", False), ("jq version 1.3", False),
+    ("jq-1.6", True), ("jq-1.6-159-apple-gcff5336-dirty", True), ("jq-1.7.1", True), ("jq-1.8.0", True),
+    ("jq-1.10", True), ("jq-1.15", True), ("", True), ("garbage", True)])
+def test_a_jq_older_than_1_6_is_refused(w, tmp_path, version, ok):
+    d = tmp_path / "oldjq"
+    d.mkdir()
+    make_exe(d / "jq", f'#!/bin/sh\n[ "$1" = --version ] && {{ echo "{version}"; exit 0; }}\nexec "{shutil.which("jq")}" "$@"\n')
+    r = w.run("snooze", "--off", path=f"{d}{os.pathsep}{w.env['PATH']}", check=False)
+    if ok:
+        assert r.returncode == 0, r.stderr
+    else:
+        assert r.returncode == 1 and f"jq 1.6 or newer is required, found {version}" in r.stderr
 
 
 def test_notify_send_gets_title_and_text_after_a_double_dash(w, tmp_path):
@@ -1111,9 +1370,11 @@ def test_a_new_request_never_cuts_a_conversation_in_a_finished_session(w):
 
 
 def test_a_question_left_unanswered_holds_a_new_request_only_for_a_while(w):
-    """After the grace period a new request goes ahead (stop + resume), not queued forever."""
+    """After the grace period a new request goes ahead (stop + resume), not queued forever. Only a
+    question holds it: a session blocked after its run's final result holds nothing."""
     sp = finish(w)
     w.claude_set(sp["id"], "blocked")
+    w.status_file(5, state="question", question="Publish the draft?")
     assert w.spawn(5, text="again")["reason"] == "session in use"
     assert w.run("wait", "--once").stdout == "", "within the grace period"
     st = w.state()
@@ -1210,16 +1471,15 @@ def test_the_repo_setting_is_the_only_poll_interval(w):
 
 def test_a_running_wait_re_reads_the_repos_settings_at_each_poll(w):
     """A change made in the menu bar mid-wait (interval, slots) applies from the next poll."""
-    w.settings(poll_interval_seconds=15)
+    w.settings(poll_interval_seconds=1)
     w.run("wait", "--once")                                    # cursor set
-    calls = lambda: sum(1 for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("settings "))
-    before = calls()
+    before, polls = w.calls("settings"), w.calls("triggers")
     proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait"], cwd=w.repo, env=w.env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     w.children.append(proc)
     try:
-        time.sleep(18)                                         # 2 polls, 15 s apart
-        assert calls() - before >= 3, "read once at start, then cached for the life of the wait"
+        w.until(lambda: w.calls("triggers") >= polls + 3)      # 3 polls
+        assert w.calls("settings") - before >= 3, "read once at start, then cached for the life of the wait"
     finally:
         proc.kill(); proc.wait()
 
@@ -1269,9 +1529,22 @@ def test_notify_feeds_the_last_fifty_notifications_sent_or_snoozed(w):
     at = rows[-2].pop("at")
     assert datetime.fromisoformat(at.replace("Z", "+00:00")).tzinfo is not None
     assert rows[-2] == {"repo": "o/r", "pr": 3, "role": "review", "event": "posted", "summary": "PR #3 posted",
-                        "detail": "claude attach 1", "url": "https://h/o/r/pull/3"}
+                        "detail": "claude attach 1", "url": "https://h/o/r/pull/3", "focus": "pr"}
     assert (rows[-1]["event"], rows[-1]["pr"], rows[-1]["url"], rows[-1]["detail"]) == \
         ("review_started", None, None, ""), "a snoozed notification is still recent history"
+
+
+@pytest.mark.parametrize("focus", ["pr", "watcher", "session", None])
+def test_a_feed_line_keeps_where_its_click_goes(w, focus):
+    """The menu bar sends a question's row where the user answers it, as the toast does."""
+    extra = ("--focus", focus) if focus else ()
+    w.run("notify", "--event", "question", "--text-file", w.prompt("5 old /open-pr triggers"), "--pr", "3", "--quiet", *extra)
+    assert json.loads((w.sd / "feed.jsonl").read_text().splitlines()[-1])["focus"] == (focus or "pr")
+
+
+def test_a_feed_line_is_never_written_for_an_unknown_focus(w):
+    r = w.run("notify", "--event", "question", "--text-file", w.prompt("q"), "--focus", "tab", "--quiet", check=False)
+    assert r.returncode == 1 and not (w.sd / "feed.jsonl").exists()
 
 
 def test_notify_rejects_a_pr_that_is_not_a_number(w):
@@ -1288,11 +1561,34 @@ def test_menubar_without_osascript_is_no_equivalent(w, tmp_path):
 
 def test_a_menu_bar_that_exits_at_start_is_reported_not_started(w):
     """Inside a shell sandbox osascript cannot reach the window server and exits at once."""
-    r = w.run("menubar", check=False)
+    r = w.run("menubar", env_extra={"FAKE_NO_UI": "1"}, check=False)
     assert r.returncode == 1 and r.stdout == "" and "sandbox off" in r.stderr
     assert not (w.watch / "menubar.pid").exists()
     assert w.run("menubar", env_extra={"FAKE_SLEEP": "30"}).stdout == "started\n", "a later start is not blocked"
     os.kill(int((w.watch / "menubar.pid").read_text()), 9)
+
+
+def test_a_menu_bar_that_shows_no_item_is_stopped_not_reported_started(w):
+    """A process merely alive is no item in the menu bar: one hung before its item exists."""
+    started = time.time()
+    r = w.run("menubar", env_extra={"FAKE_NO_UI": "1", "FAKE_SLEEP": "60", "OPEN_PR_TEST_MENUBAR_WAIT": "5"}, check=False)
+    assert r.returncode == 1 and r.stdout == "" and "showed no item in 1 s" in r.stderr
+    assert str(w.watch / "menubar.log") in r.stderr
+    assert time.time() - started < 8
+    assert not (w.watch / "menubar.pid").exists()
+    out = subprocess.run(["pgrep", "-f", f"open-pr-menubar.js {w.watch}"], capture_output=True, text=True).stdout
+    assert out == "", "the hung menu bar was left running"
+
+
+def test_a_menu_bar_whose_item_shows_late_within_its_bound_is_started(w):
+    started = time.time()
+    try:
+        assert w.run("menubar", env_extra={"FAKE_UI_DELAY": "1", "FAKE_SLEEP": "30",   # item at 1 s of 2 s
+                                           "OPEN_PR_TEST_MENUBAR_WAIT": "10"}).stdout == "started\n"
+        assert time.time() - started >= 1
+        assert w.run("menubar").stdout == "running\n"
+    finally:
+        os.kill(int((w.watch / "menubar.pid").read_text()), 9)
 
 
 def test_menubar_closes_on_request(w):
@@ -1349,6 +1645,34 @@ def test_menubar_runs_detached_once_per_machine(w):
     os.kill(int((watch / "menubar.pid").read_text()), 9)
 
 
+def test_a_menubar_older_than_its_build_says_so_and_restarts_only_on_request(w):
+    """A plugin update rewrites open-pr-menubar.js (a new install directory, or in place): a menu bar
+    started before it runs the old code. A watcher's start runs `menubar` too: it never restarts it."""
+    env = {"FAKE_SLEEP": "30"}
+    js = w.bin / "open-pr-menubar.js"
+    js.write_text("")
+    t = time.time()
+    os.utime(js, (t - 100, t - 100))
+    assert w.run("menubar", env_extra=env).stdout == "started\n"
+    old = int((w.watch / "menubar.pid").read_text())
+    try:
+        assert w.run("menubar", env_extra=env).stdout == "running\n", "a build older than the start is none"
+        os.utime(w.watch / "menubar.dirs", (t - 60, t - 60))   # it started at t - 60 …
+        os.utime(js, (t - 50, t - 50))                         # … and the plugin updated after
+        assert w.run("menubar", env_extra=env).stdout == "out of date\n"
+        os.kill(old, 0)
+        assert not (w.home / "osascript.1.json").exists(), "it was restarted on its own"
+        assert w.run("menubar", "--restart", env_extra=env).stdout == "started\n"
+        w.wait_dead(old)
+        new = int((w.watch / "menubar.pid").read_text())
+        assert new != old and w.recorded("osascript", 1)["argv"][2] == str(js)
+        assert w.run("menubar", env_extra=env).stdout == "running\n", "the one started runs this build"
+    finally:
+        for pid in (old, int((w.watch / "menubar.pid").read_text() or 0)):
+            try: os.kill(pid, 9)
+            except (OSError, ValueError): pass
+
+
 # ------------------------------------------------------------ hide / closed PRs ----
 
 def tracked(w, pr=5):
@@ -1382,8 +1706,8 @@ def test_a_state_lock_that_never_got_its_pid_is_reclaimed(w):
     w.put_state({"cursor": None, "seen": [], "sessions": {}, "queue": []})
     (w.sd / ".lock").mkdir()
     start = time.time()
-    w.run("hide", "--pr", "3")
-    assert 4 <= time.time() - start < 20 and w.state()["hidden"] == [3]
+    w.run("hide", "--pr", "3", env_extra={"OPEN_PR_TEST_LOCK_RECLAIM": "1"})
+    assert 0.8 <= time.time() - start < 10 and w.state()["hidden"] == [3]
 
 
 def test_hide_is_idempotent_and_a_new_request_brings_the_row_back(w):
@@ -1629,6 +1953,20 @@ def test_a_fix_now_click_while_that_fix_session_runs_opens_nothing(w):
     assert not (w.sd / "fix_now" / "5").exists(), "the dropped click stays pending and wakes every poll"
 
 
+def test_a_dropped_click_and_a_delivered_one_in_one_poll_are_told_apart(w):
+    """Each click is matched to its own PR: the one whose fix session runs is used up, the other
+    delivered once."""
+    fix_ready(w, finding(), finding(pr=6, review="71"))
+    w.run("wait", "--once")
+    w.spawn(5, extra=("--role", "fix"))
+    w.run("wait", "--once")
+    w.run("fix-now", "--pr", "5")
+    w.run("fix-now", "--pr", "6")
+    assert [(e["event"], e["pr"]) for e in w.jsonl("wait", "--once")] == [("fix_now", 6)]
+    assert not (w.sd / "fix_now" / "5").exists() and not (w.sd / "fix_now" / "6").exists()
+    assert w.run("wait", "--once").stdout == ""
+
+
 def test_a_fix_now_click_wakes_a_sleeping_wait(w):
     fix_ready(w)
     (w.watch).mkdir(parents=True, exist_ok=True)
@@ -1678,6 +2016,104 @@ def test_a_review_wait_and_a_fix_wait_watch_one_repo_side_by_side(w):
             p.kill(); p.wait()
     (w.sd / "wait-fix.pid").write_text("999999\n")
     assert w.run("wait", "--once", "--roles", "fix", check=False).returncode == 0, "a dead holder frees its role"
+
+
+def backlog(w, *rows):
+    (w.home / "backlog.jsonl").write_text("".join(json.dumps(dict(r, backlog=True, superseded=[])) + "\n" for r in rows))
+
+
+def backlog_calls(w):
+    return sum(1 for l in (w.home / "open-pr.calls").read_text().splitlines()
+               if l.startswith("triggers") and "--backlog" in l.split())
+
+
+def test_a_request_made_before_the_first_start_is_delivered_as_backlog(w):
+    """The reviewer starts watching a day after the dev asked: the PR still holds the request."""
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    (w.home / "mark.txt").write_text("2025-01-02T00:00:00Z")
+    ev = w.jsonl("wait", "--once", "--backlog")
+    assert ev == [{"event": "trigger", "repo": "o/r", **trig("5", "2025-01-01T00:00:00Z"), "backlog": True, "superseded": []}]
+    assert w.state()["cursor"] == "2025-01-02T00:00:00Z", "a first run starts at the newest comment read, not at now"
+    assert w.run("wait", "--once").stdout == "", "without --backlog the pass does not run"
+    assert backlog_calls(w) == 1
+
+
+def test_a_backlog_pass_with_nothing_pending_keeps_an_existing_cursor(w):
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    assert w.run("wait", "--once", "--backlog").stdout == ""
+    assert w.state()["cursor"] == "2026-01-01T00:00:00Z", "the poll, not the pass, moves a cursor that exists"
+
+
+def test_a_skipped_backlog_trigger_is_never_delivered_again_but_a_newer_one_is(w):
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    assert w.jsonl("skip", "--comment-ids", "5,3") == [{"skipped": ["5", "3"]}]
+    assert w.run("wait", "--once", "--backlog").stdout == "", "skipped: not asked again on a restart"
+    w.triggers(trig("3", "2026-01-01T00:00:04Z"), trig("5", "2026-01-01T00:00:05Z"), trig("6", "2026-01-01T00:00:06Z"))
+    w.put_state(dict(w.state(), cursor="2026-01-01T00:00:00Z", seen=[]))
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["6"], "a stale cursor never brings it back"
+    backlog(w, trig("7", "2026-01-02T00:00:00Z"))
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once", "--backlog")] == ["7"], "a newer request on that PR"
+    assert w.state()["skipped"] == ["3", "5"]
+    for bad in ("5;id", "", "a,1"):
+        assert w.run("skip", "--comment-ids", bad, check=False).returncode in (1, 4), bad
+
+
+def test_the_backlog_pass_runs_once_per_wait_not_per_poll(w):
+    w.settings(poll_interval_seconds=1)
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait", "--backlog"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    w.children.append(proc)
+    try:
+        end = time.time() + 20
+        calls = w.home / "open-pr.calls"
+        while time.time() < end and (not calls.exists() or sum(1 for l in calls.read_text().splitlines()
+                                                                if l.startswith("triggers")) < 4):
+            time.sleep(0.2)
+    finally:
+        proc.kill(); proc.wait()
+    polls = sum(1 for l in (w.home / "open-pr.calls").read_text().splitlines() if l.startswith("triggers"))
+    assert polls >= 4 and backlog_calls(w) == 1
+
+
+def test_a_failed_backlog_pass_is_tried_again_before_the_next_poll(w):
+    w.settings(poll_interval_seconds=1)
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("1\n")
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    proc = subprocess.Popen(["sh", str(w.bin / "open-pr-watch.sh"), "wait", "--backlog"], cwd=w.repo, env=w.env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    w.children.append(proc)
+    out, err = proc.communicate(timeout=30)
+    assert proc.returncode == 0 and [json.loads(l)["comment_id"] for l in out.splitlines()] == ["5"]
+    assert "backlog pass failed (exit 1)" in err and backlog_calls(w) == 2
+
+
+def test_a_backlog_pass_still_due_runs_in_the_next_wait_after_a_poll_ends_this_one(w):
+    """The pass fails, the poll in the same wait has an event: the wait exits 0 on the poll's event,
+    and the prompt runs the next wait without --backlog — the pending request is still asked."""
+    w.put_state({"cursor": "2026-01-01T00:00:00Z", "seen": [], "sessions": {}, "queue": []})
+    (w.home / "triggers.rc").write_text("1\n")
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    w.triggers(trig("61", "2026-01-01T00:00:05Z"))
+    r = w.run("wait", "--once", "--backlog")
+    assert [json.loads(l)["comment_id"] for l in r.stdout.splitlines()] == ["61"]
+    assert w.state()["backlog_due"] is True
+    w.triggers()
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once")] == ["5"], "still due without --backlog"
+    assert "backlog_due" not in w.state()
+    assert w.run("wait", "--once").stdout == "" and backlog_calls(w) == 2, "a pass that succeeded is not run again"
+    st = w.state()
+    w.put_state(dict(st, cursors={"review": {"cursor": st["cursor"], "seen": [], "backlog_due": True}}))
+    assert w.run("wait", "--once", "--roles", "fix").stdout == "" and backlog_calls(w) == 2, \
+        "a fix-only wait never runs the pass, whatever another role set owes"
+    assert [e["comment_id"] for e in w.jsonl("wait", "--once", "--roles", "review")] == ["5"], "each role set owes its own"
+
+
+def test_a_fix_only_wait_runs_no_backlog_pass(w):
+    backlog(w, trig("5", "2025-01-01T00:00:00Z"))
+    assert w.run("wait", "--once", "--backlog", "--roles", "fix").stdout == ""
+    assert backlog_calls(w) == 0, "it delivers no trigger"
 
 
 def test_each_role_wait_keeps_its_own_cursor(w):
@@ -1816,12 +2252,11 @@ def test_a_done_line_never_outranks_a_session_still_working(w):
 
 
 def _menubar_js(w, body, script=False):
-    """The menu bar's own functions run headless: its Cocoa classes (registering one outside an
-    app run hangs osascript) left out, its run() replaced by `body`. script: it runs the sandbox's
-    open-pr-watch.sh (beside the fake open-pr.sh), as the real one is handed its own."""
-    src = re.sub(r"^ObjC\.registerSubclass\(\{.*?^\}\);$", "", MENUBAR.read_text(), flags=re.S | re.M)
+    """The menu bar's own functions run headless: its run() (the status item, the app run) replaced
+    by `body`. script: it runs the sandbox's open-pr-watch.sh (beside the fake open-pr.sh), as the
+    real one is handed its own."""
     ws = json.dumps(str(w.bin / "open-pr-watch.sh")) if script else "''"
-    js = src.replace("function run(argv) {", "function runApp(argv) {", 1) + (
+    js = MENUBAR.read_text().replace("function run(argv) {", "function runApp(argv) {", 1) + (
         f"\nfunction run() {{ dataDirs = [{json.dumps(str(w.home / 'data'))}]; fresh = 2700; watchScript = {ws}; {body} }}")
     f = w.home / "menubar-headless.js"
     f.write_text(js)
@@ -1854,13 +2289,121 @@ def test_a_click_focuses_the_watchers_tab_only_while_its_wait_still_runs_there(w
                    None]
 
 
-def test_the_toast_and_the_menu_bar_find_a_watchers_tab_the_same_way():
+# A watcher between waits: its `claude` (200) runs in the tab (ttys007), no wait. 610: a `claude` on ttys002.
+PS_HOST = "1 0 ??\n200 1 ttys007\n600 1 ttys002\n610 600 ttys002\n"
+SID = "269289ac-1f2e-4d3c-9b8a-0123456789ab"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_watcher_between_waits_keeps_its_tab_live_by_its_claude(w):
+    it = lambda hosts: {"term": "iTerm.app", "term_session": "w0t1p2:AB-12", "tty": "ttys007", "pids": [400], "hosts": hosts}
+    ap = lambda hosts: {"term": "Apple_Terminal", "term_session": "", "tty": "ttys007", "pids": [400], "hosts": hosts}
+    cases = [it([200]), it([610]), it([999]), it([]), ap([200]), ap([610])]
+    got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(function (c) {{ return liveTab(c, {json.dumps(PS_HOST)}); }}));")
+    assert got == [["AB-12", "/dev/ttys007"],
+                   ["AB-12", "/dev/ttys002"],   # iTerm answers with tab AB-12's own tty: not ttys002 ⇒ not found
+                   None, None,
+                   ["/dev/ttys007", "/dev/ttys007"],
+                   None]                        # its `claude` runs in another tab: not this one
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_watcher_session_whose_tab_is_gone_is_attached_resumed_or_left_alone(w):
+    """Never `--resume` while the watcher's `claude` runs: that would be a second copy of its session."""
+    job = lambda **k: json.dumps([dict({"id": "269289ac", "sessionId": SID, "kind": "background"}, **k)])
+    cases = [
+        ([200], job(), ""),                                   # its claude runs (in some tab)
+        ([999], job(), "claude attach 269289ac"),             # gone from the tab, a background job now
+        ([999], job(id="abcdef12"), "claude attach abcdef12"),
+        ([999], job(id="x; id"), "claude attach 269289ac"),
+        ([999], "[]", f"claude --resume {SID}"),              # nothing runs it
+        ([999], job(sessionId="other"), f"claude --resume {SID}"),
+        ([999], job(kind="interactive"), f"claude --resume {SID}"),
+        # a listing that cannot be read may hide the job: attach (it only fails), never a second copy
+        ([999], "not json", "claude attach 269289ac"),
+        ([999], '{"id": 1}', "claude attach 269289ac"),
+        ([999], "Update available\n[]", "claude attach 269289ac"),
+        ([999], "[1, null]", f"claude --resume {SID}"),
+        ([999], None, "claude attach 269289ac"),              # no listing: never resume blind
+        ([], "[]", "claude attach 269289ac"),                 # no host recorded (an older record)
+    ]
+    got = _menubar_js(w, "var calls = 0; return JSON.stringify(" + json.dumps(cases) + ".map(function (c) {"
+                         " return reopen({ session_id: " + json.dumps(SID) + ", hosts: c[0] }, " + json.dumps(PS_HOST) + ","
+                         " function () { calls++; return c[1]; }); }).concat([calls,"
+                         " reopen({ session_id: 'ABC; id', hosts: [999] }, '', function () { return '[]'; }),"
+                         " reopen({ session_id: " + json.dumps(SID) + ", hosts: [999] }, null, function () { return '[]'; })]));")
+    assert got[:len(cases)] == [c[2] for c in cases]
+    assert got[len(cases)] == len(cases) - 2, "no listing read while the host runs or when none is recorded"
+    assert got[len(cases) + 1:] == ["", ""], "a session id outside its shape; ps unreadable ⇒ the host may run"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_click_on_a_watcher_between_waits_focuses_its_tab_and_starts_nothing(w):
+    go = {"term": "iTerm.app", "term_session": "w0t1p2:AB-12", "tty": "ttys007", "session_id": SID, "pids": [400], "hosts": [200]}
+    run = lambda answer, hosts, agents: _menubar_js(w, """var log = [];
+        spawn = function (p, a) { log.push(['spawn', p]); return true; };
+        openIn = function (t, c) { log.push(['openIn', c]); return true; };
+        output = function (p, a) { log.push(['output', p, a[0]]);
+            return p === '/bin/ps' ? """ + json.dumps(PS_HOST) + """ : p === '/usr/bin/osascript' ? """ + json.dumps(answer) +
+            """ : """ + json.dumps(agents) + """; };
+        goToTab(""" + json.dumps(dict(go, hosts=hosts)) + """);
+        return JSON.stringify(log);""")
+    found = run("found", [200], "[]")
+    assert ["output", "/usr/bin/osascript", "-e"] in found and not [x for x in found if x[0] == "openIn"]
+    refused = run(None, [200], "[]")
+    assert not [x for x in refused if x[0] == "openIn"], "a lookup still waiting on permission: the tab may be there"
+    closed = run("", [200], "[]")
+    assert not [x for x in closed if x[0] == "openIn"], "its claude still runs: no second copy"
+    gone = run("", [999], "[]")
+    assert ["openIn", f"claude --resume {SID}"] in gone
+    assert ["output", "/usr/bin/env", "claude"] in gone
+
+
+# `ps -A -o pid=,ppid=,tty=,args=`: two tabs attached to session 269289ac (ttys004, then ttys009 newer),
+# another session's attach (ttys005), the same command with no tty (a daemon), a resumed session (ttys006).
+PS_ARGS = ("1 0 ?? /sbin/launchd\n700 1 ttys004 claude attach 269289ac\n930 1 ttys009 claude attach 269289ac\n"
+           "800 1 ttys005 claude attach abcdef12\n990 1 ?? claude attach 269289ac\n"
+           f"810 1 ttys006 claude --resume {SID}\n820 1 ttys007 -zsh\n")
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_opening_a_session_already_attached_in_a_tab_brings_that_tab_forward(w):
+    """A second `attach` would show one session in two tabs: the newest tab running the command is focused."""
+    def run(term, cmd, answer="found", ps=PS_ARGS):
+        return _menubar_js(w, """var log = [];
+            spawn = function (p, a) { log.push(['spawn', p].concat(a)); return true; };
+            openIn = function (t, c) { log.push(['openIn', t, c]); return true; };
+            output = function (p, a) { log.push(['output', p].concat(p === '/bin/ps' ? a : a.slice(-2)));
+                return p === '/bin/ps' ? """ + json.dumps(ps) + """ : """ + json.dumps(answer) + """; };
+            openTerminal(""" + json.dumps({"term": term, "open": cmd}) + """);
+            return JSON.stringify(log);""")
+    ps = ["output", "/bin/ps", "-A", "-o", "pid=,ppid=,tty=,args="]
+    assert run("iTerm.app", "claude attach 269289ac") == [
+        ps, ["spawn", "/usr/bin/open", "-b", "com.googlecode.iterm2"], ["output", "/usr/bin/osascript", "", "/dev/ttys009"]]
+    assert run("Apple_Terminal", "claude attach 269289ac") == [
+        ps, ["spawn", "/usr/bin/open", "-b", "com.apple.Terminal"], ["output", "/usr/bin/osascript", "/dev/ttys009", "/dev/ttys009"]]
+    assert run("WarpTerminal", f"claude --resume {SID}")[-1] == ["output", "/usr/bin/osascript", "/dev/ttys006", "/dev/ttys006"], \
+        "a terminal openIn cannot drive opens in Terminal: the tab is looked for there"
+    assert run("iTerm.app", "claude attach 1234abcd") == [ps, ["openIn", "iTerm.app", "claude attach 1234abcd"]], "none attached"
+    assert run("iTerm.app", "claude attach 269289ac", answer="")[-1] == ["openIn", "iTerm.app", "claude attach 269289ac"], \
+        "its tab not found: a new one"
+    assert not [x for x in run("iTerm.app", "claude attach 269289ac", answer=None) if x[0] == "openIn"], \
+        "a lookup refused or still waiting on permission: the tab ps saw is there"
+    assert run("iTerm.app", "claude attach 269289ac", ps=None)[-1] == ["openIn", "iTerm.app", "claude attach 269289ac"]
+    assert run("ghostty", "claude attach 269289ac") == [ps, ["openIn", "ghostty", "claude attach 269289ac"]], "no FOCUS for it"
+    got = _menubar_js(w, "return JSON.stringify(" + json.dumps(["claude attach abcdef12", "claude attach 269289a",
+                                                               "claude attach 269289ac; id", "-zsh", ""]) +
+                         ".map(function (c) { return attachedTab('iTerm.app', c, " + json.dumps(PS_ARGS + "830 1 ttys008 claude attach 269289ac; id\n840 1 ttys003 -zsh\n") + "); }));")
+    assert got == [["", "/dev/ttys005"], None, None, None, None], "only the exact command, only in its shape"
+
+
+def test_the_toast_and_the_menu_bar_find_a_tab_and_draw_severity_marks_the_same_way():
     toast = (REPO / "src" / "bin" / "open-pr-toast.js").read_text()
     body = lambda src, name: re.search(rf"^function {name}\(.*?^\}}$", src, re.S | re.M).group(0)
-    for name in ("tabId", "hostTty", "liveTab"):
+    for name in ("tabId", "hostTty", "liveTab", "reopen", "termApp", "attachedTab", "openSession", "openIn", "smallMarks"):
         assert body(toast, name) == body(MENUBAR.read_text(), name), name
     for src in (toast, MENUBAR.read_text()):
-        assert "'if (unique id of s) is (item 1 of argv) and (tty of s) is (item 2 of argv) then',\n" \
+        assert "'if ((item 1 of argv) is \"\" or (unique id of s) is (item 1 of argv)) and (tty of s) is (item 2 of argv) then',\n" \
                "        'select t', 'select s', 'select w', 'activate', 'return \"found\"'," in src
 
 
@@ -2020,9 +2563,8 @@ def test_a_panel_control_writes_its_key_and_shows_the_value_read_back(w):
 def test_the_gear_shows_a_repos_settings_inline_under_its_row_and_hides_them(w):
     _watched(w)
     (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
-    # run() is left out: a plain NSButton stands in for the pill button class, which only an app run
-    # can register, and the header icon run() draws is drawn here
-    got = _menubar_js(w, PANEL_DUMP + """$.OPRPillButton = $.NSButton; target = $.NSObject.alloc.init; icons.header = mothImage(28, false);
+    # run() is left out: the header icon it draws is drawn here
+    got = _menubar_js(w, PANEL_DUMP + """icons.header = mothImage(28, false);
         var m = build(scan()), titles = function () { var a = [];
             for (var i = 0; i < m.numberOfItems; i++) a.push(ObjC.unwrap(m.itemAtIndex(i).title)); return a; };
         var row = m.itemArray.js.filter(function (mi) { return !mi.view.isNil() && rowParts[mi.view.hash]; })[0];
@@ -2080,16 +2622,60 @@ def test_a_fix_run_here_shows_as_fixing_here_and_opens_the_watchers_tab(w):
                   "last_state": "working", "last_state_at": "2026-01-01T00:00:00Z"}}})
     (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p1:AA"}))
     (w.sd / "heartbeat").write_text("")
-    got = _menubar_js(w, """$.OPRPillButton = $.NSButton; target = $.NSObject.alloc.init; icons.header = mothImage(28, false);
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
         var s = scan(), r = s.repos[0].watchers[0].rows[0], m = build(s);
         var mi = m.itemArray.js.filter(function (x) { return ObjC.unwrap(x.title) === '#5'; })[0], sub = [];
         for (var i = 0; i < mi.submenu.numberOfItems; i++) { var it = mi.submenu.itemAtIndex(i);
-            sub.push([ObjC.unwrap(it.title), ObjC.unwrap(it.action), unwrapString(it.representedObject)]); }
+            sub.push([ObjC.unwrap(it.title), it.isEnabled && !it.target.isNil(), unwrapString(it.representedObject)]); }
         return JSON.stringify([r.kind, r.text.split(' · ')[0], sub]);""")
     assert got[0:2] == ["fixing_here", "Fixing here"]
     go = [x for x in got[2] if x[0] == "Open session in iTerm"]
-    assert go and go[0][1] == "goTab:" and json.loads(go[0][2])["term_session"] == "w0t0p1:AA"
+    assert go and go[0][1] and json.loads(go[0][2])["term_session"] == "w0t0p1:AA"
     assert not [x for x in got[2] if x[0].startswith("Copy command")], "no session command to copy"
+
+
+def _question_row(w, feed, state_at="2026-01-01T00:00:00Z"):
+    """The #5 row's click (its represented object) and submenu titles, its newest feed line `feed`."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "5:review": {"pr": 5, "role": "review", "runner": "claude", "repo": "o/r", "url": "https://github.com/o/r/pull/5",
+                     "open": "claude attach abc12345", "last_state": "working", "last_state_at": state_at}}})
+    (w.sd / "watcher.json").write_text(json.dumps({"pid": 1, "cwd": "/x", "term": "iTerm.app", "term_session": "w0t0p1:AA"}))
+    (w.sd / "heartbeat").write_text("")
+    (w.sd / "feed.jsonl").write_text(json.dumps(dict({"at": "2026-01-01T00:01:00Z", "repo": "o/r", "pr": 5, "role": "review",
+                                                      "event": "question", "summary": "#5 needs you"}, **feed)) + "\n")
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
+        var m = build(scan()), mi = m.itemArray.js.filter(function (x) { return ObjC.unwrap(x.title) === '#5'; })[0], sub = [];
+        for (var i = 0; i < mi.submenu.numberOfItems; i++) sub.push(ObjC.unwrap(mi.submenu.itemAtIndex(i).title));
+        return JSON.stringify([unwrapString(mi.representedObject), !mi.target.isNil(), sub]);""")
+    return (json.loads(got[0]) if got[0].startswith("{") else got[0]), got[1], got[2]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_row_for_the_watchers_own_question_answers_in_the_watchers_tab(w):
+    click, live, sub = _question_row(w, {"focus": "watcher"})
+    assert live and click["term_session"] == "w0t0p1:AA", "the row's click goes to the watcher's tab"
+    assert sub[:2] == ["Answer in iTerm", "Open pull request"]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_row_for_a_sessions_question_opens_that_session(w):
+    click, live, sub = _question_row(w, {"focus": "session"})
+    assert live and click == {"open": "claude attach abc12345", "term": "iTerm.app"}
+    assert "Answer in iTerm" not in sub and "Open session in iTerm" in sub
+
+
+@pytest.mark.parametrize("feed", [{}, {"focus": "pr"}, {"focus": "tab"}, {"focus": 3}])
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_question_row_without_a_known_focus_keeps_the_pull_request_click(w, feed):
+    """An older feed line has no focus: its row stays as it was."""
+    click, _, sub = _question_row(w, feed)
+    assert click == "https://github.com/o/r/pull/5" and sub[0] == "Open pull request"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_question_the_session_moved_past_offers_no_answer(w):
+    click, _, sub = _question_row(w, {"focus": "watcher"}, state_at="2026-01-01T00:02:00Z")
+    assert click == "https://github.com/o/r/pull/5" and "Answer in iTerm" not in sub
 
 
 @pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
@@ -2105,3 +2691,337 @@ def test_show_settings_file_reveals_only_a_settings_file_in_a_data_dir(w):
              f"{data}/r/../r/settings.json", f"{w.home}/settings.json", "data/r/settings.json", None]
     got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(revealable));")
     assert got == [f"{data}/r/settings.json"] + [""] * 7, "only <data>/<repo>/settings.json, a regular file"
+
+
+# refresh() against a stand-in status item: what it sets as the badge and the menu.
+REFRESH_STUB = """var bar = { title: null, menu: null };
+    item = { setMenu: function (m) { bar.menu = m; }, button: { setTitle: function (t) { bar.title = String(t); } } };
+    icons.header = mothImage(28, false);
+    var titles = function () { var a = []; for (var i = 0; i < bar.menu.numberOfItems; i++) a.push(ObjC.unwrap(bar.menu.itemAtIndex(i).title)); return a; };"""
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_badge_counts_the_rows_shown_that_run_or_wait_for_an_answer(w):
+    """A row waiting for Fix now, or one done, is nobody being busy: only running sessions, questions
+    and a Fix now click being started count."""
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "1:review": {"pr": 1, "role": "review", "last_state": "working", "last_state_at": now},
+        "2:review": {"pr": 2, "role": "review", "last_state": "question", "last_state_at": now},
+        "3:review": {"pr": 3, "role": "review", "last_state": "posted", "last_state_at": now}},
+        "findings": {"4": {"at": now, "counts": {"🟠": 1}}, "5": {"at": now, "counts": {"🔵": 1}}}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """pendingFix[__REPO__ + '#5'] = Date.now();
+        refresh(); return JSON.stringify([bar.title, scan().repos[0].watchers[0].rows.map(function (r) { return r.kind; }).sort()]);"""
+                      .replace("__REPO__", json.dumps(str(w.repo))))
+    assert got[1] == ["findings", "fix_requested", "posted", "question", "working"]
+    assert got[0] == "3", "working, question and fix_requested; not findings or posted"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_menu_that_fails_to_build_shows_a_minimal_one_and_no_badge(w):
+    """Badge set before the menu was built: a build error left "1" beside a menu saying nothing runs."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "1:review": {"pr": 1, "role": "review", "last_state": "working"}}})
+    _watched(w)
+    f = w.home / "menubar-headless.js"
+    got = _menubar_js(w, REFRESH_STUB + """refresh(); var before = [bar.title, titles().length > 4];
+        watcherItems = function () { throw new Error('boom'); };
+        refresh(); return JSON.stringify([before, bar.title, titles()]);""")
+    assert got[0] == ["1", True]
+    assert got[1:] == ["", ["The menu failed to build — see menubar.log", "", "Quit menu bar"]]
+    out = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", str(f)], capture_output=True, text=True, timeout=30, env=w.env)
+    assert "open-pr menu bar: the menu failed to build: Error: boom" in out.stderr, "the error reaches menubar.log"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_the_menu_is_built_as_wide_as_the_settings_panel_its_gear_opens(w):
+    """The gear inserts the panel into the menu already open, which keeps the width it opened with:
+    with a short repo name the panel lost "Apply to all" and its right column."""
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
+        var s = scan(), m = build(s), x = s.repos[0].settings[0];
+        return JSON.stringify([m.minimumWidth, settingsPanel(x, s.quotas, '').view.frame.size.width, HEADER_W]);""", script=True)
+    assert got[0] >= got[1] > got[2], got
+
+
+def _build(root, age):
+    """A plugin build's bin/ under root: its scripts, the menu bar's written `age` seconds ago."""
+    b = root / "bin"
+    b.mkdir(parents=True)
+    (b / "open-pr-watch.sh").write_text("")
+    (b / "open-pr-menubar.js").write_text("")
+    t = time.time() - age
+    os.utime(b / "open-pr-menubar.js", (t, t))
+    return str(b / "open-pr-watch.sh")
+
+
+# The line the menu shows under its header, whether a click runs anything, and what: one per watcher
+# record's `script` (None: the build the menu bar runs, updated in place since it started).
+UPDATE = """var log = [];
+    $.NSApplication.sharedApplication;   // warnColor reads NSApp, as in run()
+    spawn = function (p, a) { log.push([p].concat(a)); return true; };
+    launched = menubarTime(watchScript); __TOUCH__ refresh();
+    var mi = bar.menu.itemAtIndex(1), t = ObjC.unwrap(mi.title);
+    if (mi.isEnabled) bar.menu.performActionForItemAtIndex(1);
+    return JSON.stringify([/updated/.test(t) ? t : '', mi.isEnabled, log, scan().update]);"""
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("case", ["same", "newer", "older", "elsewhere", "missing", "in place"])
+def test_the_menu_says_open_pr_was_updated_and_restarts_into_the_newest_build(w, tmp_path, case):
+    """Every live watcher records the script its wait runs. One whose build is newer than the menu
+    bar's start is an update; a click runs that build's `menubar --restart`, and only a sibling install
+    of the one it runs (or itself) — any other path gets the line and no action."""
+    (w.bin / "open-pr-menubar.js").write_text("")
+    t = time.time() - 100
+    os.utime(w.bin / "open-pr-menubar.js", (t, t))
+    script = {"same": str(w.bin / "open-pr-watch.sh"), "in place": str(w.bin / "open-pr-watch.sh"),
+              "newer": _build(tmp_path.parent / (tmp_path.name + "-new"), 0),
+              "older": _build(tmp_path.parent / (tmp_path.name + "-old"), 500),
+              "elsewhere": _build(tmp_path / "x" / "new", 0),
+              "missing": str(tmp_path.parent / (tmp_path.name + "-gone") / "bin" / "open-pr-watch.sh")}[case]
+    _watched(w)
+    rec = json.loads((w.sd / "watcher.json").read_text())
+    (w.sd / "watcher.json").write_text(json.dumps(dict(rec, script=script)))
+    touch = "$.NSFileManager.defaultManager.setAttributesOfItemAtPathError($({ NSFileModificationDate: $.NSDate.date }), " \
+            + json.dumps(str(w.bin / "open-pr-menubar.js")) + ", null);" if case == "in place" else ""
+    got = _menubar_js(w, REFRESH_STUB + UPDATE.replace("__TOUCH__", touch), script=True)
+    restart = {"newer": script, "in place": str(w.bin / "open-pr-watch.sh")}.get(case)
+    if restart:
+        assert got == ["open-pr was updated — Restart menu bar", True, [["/bin/sh", restart, "menubar", "--restart"]],
+                       {"args": [restart, "menubar", "--restart"]}]
+    elif case == "elsewhere":
+        assert got == ["open-pr was updated — run /open-pr:menubar restart", False, [], {"args": None}]
+    else:
+        assert got[0] == "" and got[3] is None, "an older or missing build is no update"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_click_runs_only_a_script_of_a_sibling_install(w, tmp_path):
+    new = _build(tmp_path.parent / (tmp_path.name + "-new"), 0)
+    here = str(w.bin / "open-pr-watch.sh")
+    up = str(tmp_path.parent)
+    cases = [here, new, up + "/" + tmp_path.name + "-new/../" + tmp_path.name + "-new/bin/open-pr-watch.sh",
+             up + "/./bin/open-pr-watch.sh", up + "//bin/open-pr-watch.sh", up + "/x\n/bin/open-pr-watch.sh",
+             new.replace("open-pr-watch.sh", "open-pr.sh"), "bin/open-pr-watch.sh", ""]
+    got = _menubar_js(w, f"return JSON.stringify({json.dumps(cases)}.map(buildScript));", script=True)
+    assert got == [here, new, "", "", "", "", "", "", ""]
+
+
+
+# One row per case: its state.json entry → the kind it shows, and whether the badge counts it.
+BADGE_KINDS = [
+    ({"1:review": {"last_state": "working"}}, "working", True),
+    ({"1:review": {"last_state": "question"}}, "question", True),
+    ({"1:fix": {"last_state": "working"}}, "fixing", True),
+    ({"1:fix": {"last_state": "working", "runner": "here"}}, "fixing_here", True),
+    ({"1:review": {"last_state": "posted"}}, "posted", False),
+    ({"1:review": {"last_state": "draft"}}, "draft", False),
+    ({"1:review": {"last_state": "lgtm_chat"}}, "lgtm", False),
+    ({"1:review": {"last_state": "failed"}}, "failed", False),
+    ({"1:review": {"last_state": "stopped"}}, "stopped", False),
+    ({"1:review": {"last_state": "working", "finished": True}}, "working", True),
+    ({}, None, False),
+]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("sessions, kind, counted", BADGE_KINDS)
+def test_the_badge_counts_each_kind_of_row_or_not(w, sessions, kind, counted):
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        k: dict(v, pr=int(k.split(":")[0]), role=k.split(":")[1], last_state_at=now) for k, v in sessions.items()}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """refresh();
+        var rows = scan().repos.map(function (g) { return g.watchers[0].rows.map(function (r) { return r.kind; }); });
+        return JSON.stringify([bar.title, rows]);""")
+    assert got[1] == ([[kind]] if kind else [[]])
+    assert got[0] == ("1" if counted else ""), "zero shows no number"
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("n, hidden, shown", [(2, [2], 1), (10, [], 10), (11, [], 10), (12, [12], 10), (1, [1], 0)])
+def test_the_badge_counts_only_the_rows_the_menu_shows(w, n, hidden, shown):
+    """A removed PR has no row, and past ROWS rows a watcher shows none: the badge counts neither."""
+    sessions = {f"{i}:review": {"pr": i, "role": "review", "last_state": "working",
+                                "last_state_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 100 + i))}
+                for i in range(1, n + 1)}
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": sessions, "hidden": hidden})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """refresh();
+        var prs = titles().filter(function (t) { return /^#[0-9]+$/.test(t); });
+        return JSON.stringify([bar.title, prs.length, ROWS]);""")
+    assert got == [str(shown) if shown else "", shown, 10]
+
+
+def _ago(sec):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - sec))
+
+
+# The PR rows of the menu refresh() built: [title, indentation steps past a PR row's, subtitle, submenu titles].
+PR_ITEMS = """var items = function () { var a = [];
+        for (var i = 0; i < bar.menu.numberOfItems; i++) { var mi = bar.menu.itemAtIndex(i), sub = [], s = mi.submenu;
+            if (mi.indentationLevel < PR_INDENT || ObjC.unwrap(mi.title) === 'No pull requests yet') continue;
+            if (!s.isNil()) for (var j = 0; j < s.numberOfItems; j++) sub.push(ObjC.unwrap(s.itemAtIndex(j).title));
+            // a state with severity marks is the title's second line (smallMarks needs an attributed title)
+            var two = ObjC.unwrap(mi.title).split('\\n');
+            a.push([two[0], mi.indentationLevel - PR_INDENT,
+                    two[1] || (mi.respondsToSelector('subtitle') ? ObjC.unwrap(mi.subtitle) || '' : ''), sub]); }
+        return a; };"""
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_prs_fix_row_nests_under_its_review_row_and_groups_keep_the_row_order(w):
+    """A PR's review and fix rows sat apart, each placed by its own time. Now one PR is one group:
+    review on top, its fix row one step further in, titled by its state alone; groups ordered as rows
+    were (one waiting on the user first, then the newest of its rows). A PR with one row is as before,
+    a fix row's state saying it is the fix."""
+    url = lambda n: f"https://github.com/o/r/pull/{n}"
+    w.put_state({"cursor": None, "seen": [], "queue": [], "titles": {"1": "One", "2": "Two", "3": "Three", "4": "Four"},
+                 "sessions": {
+                     "1:review": {"pr": 1, "role": "review", "last_state": "posted", "last_state_at": _ago(300), "url": url(1)},
+                     "2:review": {"pr": 2, "role": "review", "last_state": "posted", "last_state_at": _ago(200), "url": url(2)},
+                     "4:review": {"pr": 4, "role": "review", "last_state": "working", "last_state_at": _ago(500), "url": url(4)}},
+                 "findings": {"1": {"at": _ago(100), "counts": {"🔵": 4}, "url": url(1)},
+                              "3": {"at": _ago(400), "counts": {"🟠": 1}, "url": url(3)}}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + PR_ITEMS + "refresh(); return JSON.stringify(items());", script=True)
+    got = [[t.split(" · ")[0], lvl, sub.split(" · ")[0], menu] for t, lvl, sub, menu in got]
+    pr = ["Open pull request", "Remove from list"]
+    assert got == [
+        ["#1 One", 0, "Posted", pr],
+        ["Fix: 4 🔵 — Fix now", 1, "", ["Fix now"] + pr],
+        ["#3 Three", 0, "Fix: 1 🟠 — Fix now", ["Fix now"] + pr],
+        ["#4 Four", 0, "Reviewing", pr],
+        ["#2 Two", 0, "Posted", pr],
+    ], got
+
+
+# A feed summary (written for the toast, which needs the number) → the row's state under its title.
+OWN_NUMBER = [
+    (1914, "#1914: 4 🔵 SUGGESTION", "4 🔵 SUGGESTION"),
+    (1915, "Đã post review #1915: 4 🔵", "Đã post review: 4 🔵"),
+    (1916, "#1916 posted", "posted"),
+    (1917, "bỏ qua #1913, xong #1917", "bỏ qua #1913, xong"),
+    (1918, "LGTM", "LGTM"),
+    (1919, "#19190: other PR", "#19190: other PR"),
+    (1920, "Reviewed o/r#1920 — 1 🟠", "Reviewed — 1 🟠"),
+    (None, "poll failed after #1914", "poll failed after #1914"),
+]
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_a_rows_state_leaves_out_its_own_pr_number(w):
+    """`#1914 Title` over `#1914: 4 🔵 …` said the number twice: a row's state drops its own PR's
+    number, never another's, nor anything on the repo-wide row."""
+    _watched(w)   # a repo-wide line older than the watcher is over: these are newer
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {}})
+    (w.sd / "feed.jsonl").write_text("".join(json.dumps(
+        {"at": _ago(-60), "repo": "o/r", "role": "review", "event": "posted", "summary": summary, **({"pr": pr} if pr else {})}) + "\n"
+        for pr, summary, _ in OWN_NUMBER))
+    got = _menubar_js(w, REFRESH_STUB + PR_ITEMS + "refresh(); return JSON.stringify(items());")
+    seen = {t.split(" ")[0]: sub.rsplit(" · ", 1)[0] for t, _, sub, _ in got}
+    assert seen == {(f"#{pr}" if pr else "Repository"): want for pr, _, want in OWN_NUMBER}
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+def test_severity_marks_are_drawn_smaller_than_the_text_around_them(w):
+    """At the text's size a 🔵 outweighed the words of its line: in a row's state and in a nested fix
+    row's title, each mark is drawn smaller than the text beside it, in its own colours."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        "1:review": {"pr": 1, "role": "review", "last_state": "posted", "last_state_at": _ago(300)}},
+        "findings": {"1": {"at": _ago(100), "counts": {"🔵": 4}}, "2": {"at": _ago(200), "counts": {"🔴": 1, "📝": 2}}}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + """refresh(); var out = [];
+        for (var i = 0; i < bar.menu.numberOfItems; i++) {
+            var mi = bar.menu.itemAtIndex(i), a = mi.attributedTitle, t = a.isNil() ? '' : ObjC.unwrap(a.string), re = /🔴|🟠|🔵|📝/g, m;
+            if (mi.indentationLevel < PR_INDENT || !t) continue;
+            var size = function (k) { return a.attributeAtIndexEffectiveRange('NSFont', k, null).pointSize; };
+            while ((m = re.exec(t))) out.push([t.split('\\n')[0].split(' ')[0], m[0], size(m.index) < size(m.index - 2)]);
+        }
+        return JSON.stringify(out);""")
+    assert got == [["Fix:", "🔵", True], ["#2", "🔴", True], ["#2", "📝", True]], got
+
+
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("n", [10, 11])
+def test_the_row_limit_counts_prs_and_the_badge_counts_each_nested_row(w, n):
+    """ROWS is PRs shown, never rows: a PR is never split by the limit, and the badge counts both
+    of its running rows."""
+    w.put_state({"cursor": None, "seen": [], "queue": [], "sessions": {
+        f"{i}:{role}": {"pr": i, "role": role, "last_state": "working", "last_state_at": _ago(100 - i)}
+        for i in range(1, n + 1) for role in ("review", "fix")}})
+    _watched(w)
+    got = _menubar_js(w, REFRESH_STUB + PR_ITEMS + """refresh();
+        return JSON.stringify([bar.title, items().map(function (x) { return [x[0].split(' · ')[0], x[1]]; })]);""")
+    assert got[0] == "20"
+    shown = list(range(n, n - 10, -1))
+    assert got[1] == [x for i in shown for x in ([f"#{i}", 0], ["Fix: Fixing", 1])]
+
+
+# A panel wider than the default one: a typed trigger shows as an extra segment, a repo held in
+# several data dirs gets its path as a caption.
+@pytest.mark.skipif(not shutil.which("osascript"), reason="macOS only")
+@pytest.mark.parametrize("change", [
+    "x.conf.watch.trigger = '@' + new Array(60).join('a');",
+    "s.repos[0].settings.push({ name: x.name, repo: '/' + new Array(90).join('d') + '/r', conf: x.conf, arg: x.arg, doctor: x.doctor });",
+])
+def test_a_panel_widened_by_its_content_widens_the_menu_built_next(w, change):
+    _watched(w)
+    (w.home / "settings.json").write_text(json.dumps({"review": {}, "watch": {"max_concurrent": 5}}))
+    got = _menubar_js(w, """icons.header = mothImage(28, false);
+        var s = scan(), x = s.repos[0].settings[0], before = build(s).minimumWidth;
+        s = scan(); x = s.repos[0].settings[0]; """ + change + """
+        var widths = s.repos[0].settings.map(function (y) { return settingsPanel(y, s.quotas, caption(s.repos[0].settings, y)).view.frame.size.width; });
+        return JSON.stringify([before, build(s).minimumWidth, Math.max.apply(null, widths)]);""", script=True)
+    before, after, panel = got
+    assert panel > before, "the case does not widen the panel"
+    assert after >= panel, got
+
+
+def _rosetta():
+    return shutil.which("osascript") and subprocess.run(["arch", "-x86_64", "/usr/bin/true"], capture_output=True).returncode == 0
+
+
+# The real menu bar and toast on screen, under each architecture a Mac runs osascript on: Intel's
+# JXA bridge hung on an ObjC subclass and crashed on a layer colour that Apple silicon's took.
+# Needs the window server: run outside a shell sandbox. It puts real windows on screen for
+# seconds, so it runs only when asked: OPEN_PR_SLOW=1 python3 -m pytest tests/test_watch.py -k each_architecture
+@pytest.mark.skipif(not os.environ.get("OPEN_PR_SLOW"), reason="real menu bar and toast: set OPEN_PR_SLOW=1")
+@pytest.mark.skipif(not _rosetta(), reason="macOS with Rosetta only")
+@pytest.mark.parametrize("arch", ["x86_64", "arm64"])
+def test_the_menu_bar_and_a_toast_reach_the_screen_on_each_architecture(tmp_path, arch):
+    data = tmp_path / "data"
+    data.mkdir()
+    pf = tmp_path / "menubar.pid"
+    bar = subprocess.Popen(["arch", f"-{arch}", "/usr/bin/osascript", "-l", "JavaScript", str(MENUBAR),
+                            str(tmp_path / "snooze"), str(pf), "2700", str(data)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    try:
+        deadline = time.time() + 20
+        while time.time() < deadline and bar.poll() is None and not pf.exists():
+            time.sleep(0.1)
+        assert pf.exists(), f"no item in the menu bar (exit {bar.poll()}): {bar.stderr.read() if bar.poll() is not None else ''}"
+        assert pf.read_text().strip() == str(bar.pid), "arch execs osascript: the pid is the menu bar's"
+        time.sleep(1)
+        assert bar.poll() is None, bar.stderr.read()
+    finally:
+        bar.kill()
+        bar.wait()
+    shown = tmp_path / "slot" / "shown"
+    shown.parent.mkdir()
+    toast = subprocess.run(["arch", f"-{arch}", "/usr/bin/osascript", "-l", "JavaScript",
+                            str(REPO / "src" / "bin" / "open-pr-toast.js"), f"open-pr test ({arch})", "smoke test", "",
+                            "findings", "0", "1", "", "", "pr", "", "", "", "", "", "", "", "", "", "", "", str(shown)],
+                           capture_output=True, text=True, timeout=30)
+    assert toast.returncode == 0 and shown.exists(), toast.stderr
+
+
+@pytest.mark.parametrize("opt", ["--a=1;touch pwned;b", "--roles review --once", "--x$(touch pwned)"])
+def test_a_watch_option_name_outside_its_shape_is_refused_and_never_run(tmp_path, opt):
+    """open-pr-watch.sh parses options the same way: the name never reaches eval as code."""
+    r = subprocess.run(["sh", str(WATCH), "status", opt, "x"], capture_output=True, text=True, cwd=tmp_path, timeout=30)
+    assert r.returncode == 4 and "invalid option" in r.stderr
+    assert not (tmp_path / "pwned").exists()

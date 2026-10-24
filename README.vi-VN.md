@@ -43,7 +43,7 @@ AI coding làm PR ra nhanh hơn. Nhưng review thì không nhanh hơn.
 
 Một lần chạy cho ra ba phần gắn với nhau: **overview**, **line comment** (kèm suggested change), và **reply** sau khi `/open-pr:fix` đã push. — [Xem demo](./docs/vi-VN/demo.md)
 
-- **1 review cho mỗi yêu cầu** — một review được đăng, không phải một dòng comment bot; watcher chỉ thêm một reply "taking a look" vào lời yêu cầu, và một yêu cầu re-review sau khi fix khi bạn đồng ý
+- **1 review cho mỗi yêu cầu** — một review được đăng, không phải một dòng comment bot; watcher chỉ thêm một reply "taking a look" vào lời yêu cầu, một reply kết quả khi review đã được đăng, và một yêu cầu re-review sau khi fix khi bạn đồng ý
 - **Review khi được yêu cầu** — `/open-pr:watch` mở một session review trên máy bạn cho mỗi comment `/open-pr`, và một session fix khi bạn click "Fix now" trên PR của chính bạn
 - **Học convention của repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rule thắng generic rule
 - **Nhớ những gì team đã nói** — một lần nhắc trên PR này được áp dụng cho lần chạy sau
@@ -146,6 +146,8 @@ Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fi
 | `/open-pr:watch [review\|fix]` | Review một PR khi có comment `/open-pr` và fix PR của chính bạn khi bấm "Fix now", mỗi PR một session trên máy bạn. [Chi tiết](./docs/vi-VN/watch.md) |
 | `/open-pr:menubar [close]` | macOS: review và fix đang chạy, "Fix now", setting và snooze trên menu bar; `close` để tắt. [Chi tiết](./docs/vi-VN/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Báo vấn đề của **chính plugin này** lên issue tracker của nó — đã gỡ hết thứ nhận diện repo của bạn, và cho bạn xem trước khi gửi |
+
+Trong Claude Code, `review` và `fix` đặt tên session theo các PR được truyền vào (`review api #12, web !7`), trừ khi session đã có tên.
 
 > [!WARNING]
 > `fix` sửa **code thật** trong repo (hoặc review worktree). Chỉ chạy khi bạn chủ động muốn nó xử lý comment.

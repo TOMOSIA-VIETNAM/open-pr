@@ -78,6 +78,7 @@ ROLES = {
     "case-watch-fix": ["cases/watch-fix.md"],
     "menubar-cmd": ["commands/menubar.md"],
     "case-post-error": ["cases/post-review.md"],
+    "case-pending-draft": ["cases/pending-draft.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
     # whichever file currently holds the "is this our own finding" logic
@@ -90,6 +91,7 @@ ROLES = {
     "case-multi-pr-fix": ["cases/multi-pr-fix.md"],
     "case-data-dir": ["cases/data-dir.md"],
     "case-memory-not-found": ["cases/memory-not-found.md"],
+    "case-self-repair": ["cases/self-repair.md"],
     "tpl-rails": ["templates/rails.md"],
     "tpl-vue": ["templates/vue.md"],
     "tpl-nodejs": ["templates/nodejs.md"],
@@ -138,6 +140,11 @@ SCENARIOS = {
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "case-post-error", "criteria", "always-rule", "tpl-rails",
     ],
+    # `post` met the caller's own pending draft (a manual run with auto_submit_review off left it)
+    "review/pending-draft-github": [
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "gh-worktree", "gh-post", "case-pending-draft", "criteria", "always-rule", "tpl-rails",
+    ],
     "chat/reconfigure-review": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings",
         "case-chat-requests", "reconfigure", "memory-commit",
@@ -151,11 +158,11 @@ SCENARIOS = {
     "feedback": [
         "feedback-cmd", "guardrails",
     ],
-    # the watcher's own session: first run asks its settings and commits them; both roles by default
+    # the watcher's own session: first run asks its settings and commits them; both roles named or answered
     "watch/first-run": [
         "watch-cmd", "guardrails", "cli", "repo-settings", "memory-commit", "case-watch-fix",
     ],
-    # a known repo, `/open-pr:watch review`: the fix role's prompt stays unread
+    # a known repo, `/open-pr:watch review` (or the answer `Review`): the fix role's prompt stays unread
     "watch/review-only": [
         "watch-cmd", "guardrails", "cli",
     ],
@@ -165,6 +172,12 @@ SCENARIOS = {
     ],
     "menubar": [
         "menubar-cmd",
+    ],
+    # a review whose `<op>` call failed in a way no table documents: diagnose, patch the installed
+    # plugin, hand off to feedback (the bin/ file it Reads varies, so it is not counted)
+    "review/self-repair-github": [
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "case-self-repair", "feedback-cmd",
     ],
     # a session the watcher opened to answer a question asked on a PR
     "watch/answer-session": [

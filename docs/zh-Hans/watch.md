@@ -2,13 +2,18 @@
 
 [← README](../../README.zh-Hans.md)
 
-`/open-pr:watch` 会把你运行它的终端变成一个或多个仓库的 watcher，同时承担两个角色：
+`/open-pr:watch` 会把你运行它的终端变成一个或多个仓库的 watcher，承担两个角色中的一个或两个：
 
 - **review** —— 开发者在 pull request 上评论来请求评审；你的机器会为该 pull request 打开一个单独的评审会话。
 - **fix** —— 你自己的 pull request 收到新的评审时，toast 会列出发现的问题并附带 "Fix now"；点一下就为该
   pull request 打开一个单独的修复会话。
 
-需要你处理时它会通知你。`/open-pr:watch review` 或 `/open-pr:watch fix` 只保留一个角色。
+需要你处理时它会通知你。`/open-pr:watch review`、`/open-pr:watch fix` 或 `/open-pr:watch review fix`
+选择角色；两个都不写时，每次启动都会询问。
+
+每次启动时，它会读取打开的 pull request 中仍在等待的评审请求：还没有"正在查看"回复的 `/open-pr` 评论，
+无论多旧。它会就这些请求一次性询问你：全部评审、选择部分或跳过。已跳过的请求不会再被询问；该 pull request
+上更新的请求照常处理。
 
 ## 首次运行之前
 
@@ -67,6 +72,8 @@ watcher：评审 watcher 和修复 watcher（一个标签页运行 `/open-pr:wat
   （pull request 已有进展后，旧的上下文可能造成误导）。意图不明确时，watcher 会询问你。
 - 评审是发布还是留作草稿，由 `auto_submit_review` 决定，除非你另行告诉 watcher。没有你，草稿永远不会被
   发布。
+- 评审出现在 pull request 上之后，watcher 会在认领请求的位置再回复一次：评审的提交、各严重级别的数量
+  （或 LGTM）以及评审链接。草稿在你发布时才回复；不发到 pull request 上的 LGTM（`post_lgtm: false`）不回复。
 - 会话一旦报告了结果，就归你了：在该 pull request 的下一次请求之前，watcher 不会再就它说任何话，也永远
   不会读取你在那里写的内容。
 - 报告结果后闲置 10 分钟的 Claude Code 评审会话会被停止以释放内存；对话会保留，`claude attach <id>` 和之后的
@@ -146,7 +153,8 @@ watcher 启动时会在菜单栏显示飞蛾图标和进行中的会话数。整
     会选中确切的标签页；其他 terminal 则把应用调到前台。标签页已关闭的 watcher 会用 `claude attach` 重新打开。
   - **Stop** 停止该 watcher 在此仓库上的监视；它的其他仓库和另一角色的 watcher 继续运行。
 - **pull request 行** —— 在每个 watcher 行下方缩进一级：`#12 <标题>`（轮询读到标题之前只显示编号），下方一行
-  是状态及时间，过长时以 "…" 截断；没有行时显示 "No pull requests yet"。
+  是状态及时间，过长时以 "…" 截断；没有行时显示 "No pull requests yet"。修复行的状态以 `Fix:` 开头；
+  同时有评审行和修复行的 pull request，修复行再缩进一级、位于评审行下方，只显示这一行状态。
   - 就地更新的状态：评审中、已发布及问题数、LGTM、草稿、待回答、有新发现、修复中、在此修复中、已修复、失败。
   - 有新发现的行上显示 **Fix now**。
   - 打开 pull request；在该 watcher 所运行的 terminal 中打开其会话（iTerm、Terminal、Ghostty 或 WezTerm 中的

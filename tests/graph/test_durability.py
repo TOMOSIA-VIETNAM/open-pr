@@ -223,6 +223,17 @@ def test_read_spend_is_owned_judgment_with_a_stated_cost():
         "the cost must be stated where the judgment is exercised"
 
 
+def test_the_fix_label_opens_its_own_paragraph():
+    """Markdown joins lines split by one newline into one paragraph, so a Fix label written
+    straight under the description renders mid-sentence (GitLab shows it inline) and the fix
+    disappears into the text. The format every finding copies must keep a blank line between
+    them."""
+    s = text(SRC / "commands" / "review.md")
+    fence = re.search(r"\*\*Finding format\*\*.*?```\n(.*?)```", s, re.S).group(1)
+    assert re.search(r"^<emoji> <short description>\.\n\n\*\*<Fix>\*\*", fence), \
+        "a blank line must separate the description from the Fix label"
+
+
 def test_fix_owns_the_edit_and_checks_the_callers():
     """A pasted snippet can break another caller and cost a whole round. The fixer owns the
     edit — the finding names the problem, the code decides the fix — and an edit to shared

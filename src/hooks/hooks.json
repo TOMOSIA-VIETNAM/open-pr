@@ -1,0 +1,16 @@
+{
+  "description": "Names a Claude Code session after the PRs passed to /open-pr:review or /open-pr:fix, unless the session already has a name.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/open-pr-session-title.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -43,7 +43,7 @@ AI coding made PRs faster. But review didn't get faster.
 
 One run produces three parts that belong together: an **overview**, **line comments** (with suggested changes), and a **reply** after `/open-pr:fix` has pushed. — [See the demo](./docs/demo.md)
 
-- **1 review per request** — one review posted, not a stream of bot comments; a watcher adds only a "taking a look" reply to the request, and a re-review request after a fix once you say yes
+- **1 review per request** — one review posted, not a stream of bot comments; a watcher adds only a "taking a look" reply to the request, one reply with the result once the review is published, and a re-review request after a fix once you say yes
 - **Review on request** — `/open-pr:watch` opens a review session on your machine for each `/open-pr` comment, and a fix session when you click "Fix now" on your own PR
 - **Learns your repo** — README / CLAUDE.md / AGENTS.md / docs / wiki; team rules beat generic rules
 - **Remembers what the team said** — a correction on one PR carries into the next run
@@ -146,6 +146,8 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:watch [review\|fix]` | Reviews a PR on a `/open-pr` comment and fixes your own PRs on "Fix now", one session per PR on your machine. [Details](./docs/watch.md) |
 | `/open-pr:menubar [close]` | macOS: the reviews and fixes in progress, "Fix now", settings and snooze in the menu bar; `close` removes it. [Details](./docs/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |
+
+In Claude Code, `review` and `fix` name the session after the PRs given (`review api #12, web !7`), unless it already has a name.
 
 > [!WARNING]
 > `fix` edits **real code** in the repo (or the review worktree). Run it only when you deliberately want it to handle the comments.

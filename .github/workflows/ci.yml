@@ -40,7 +40,21 @@ jobs:
       - run: pip install -r requirements-dev.txt
 
       - name: Prompt-graph invariants
-        run: python3 -m pytest tests/ -q
+        run: python3 -m pytest tests/ -q -n auto
+
+      # 1.6 is the oldest jq the scripts support (Debian 12, Ubuntu 22.04 and macOS ship it),
+      # and it differs from the runner's: `jq -e` exits 0 on no output, a keyword is no
+      # variable name. The upstream binary, checked against its pinned hash.
+      - name: Scripts under jq 1.6
+        env:
+          JQ16_SHA256: af986793a515d500ab2d35f8d2aecd656e764504b789b66d7e1a0b727a124c44
+        run: |
+          mkdir -p /tmp/jq16
+          curl -sfL -o /tmp/jq16/jq https://github.com/jqlang/jq/releases/download/jq-1.6/jq-linux64
+          echo "$JQ16_SHA256  /tmp/jq16/jq" | sha256sum -c -
+          chmod +x /tmp/jq16/jq
+          PATH="/tmp/jq16:$PATH" jq --version
+          PATH="/tmp/jq16:$PATH" python3 -m pytest tests/test_cli.py tests/test_watch.py -q -n auto
 
       - name: Duplication scan
         run: python3 scripts/dup_scan.py
