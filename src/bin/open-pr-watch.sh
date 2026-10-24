@@ -25,8 +25,15 @@ TERMINAL="posted draft lgtm_chat nothing answered fixed failed stopped"
 REPORTED="posted draft lgtm_chat nothing answered fixed failed question"
 # Longest rate-limit backoff; the menu bar counts a repo watched while its heartbeat is < 3x this.
 BACKOFF_CAP=900
+# Bounds on real time. Each reads an OPEN_PR_TEST_* variable that only the test suite sets, to
+# run the bound in a fraction of its time; unset, the value after :- holds.
 # Naps (0.2 s) `notify` waits for its toast, and `menubar` for its item, to be on screen.
-TOAST_WAIT=25 MENUBAR_WAIT=50
+TOAST_WAIT=${OPEN_PR_TEST_TOAST_WAIT:-25} MENUBAR_WAIT=${OPEN_PR_TEST_MENUBAR_WAIT:-50}
+# Seconds a state lock with no pid (its holder died between mkdir and pid write), or a .reclaim
+# left by a reclaimer that died, stands before it is removed.
+LOCK_RECLAIM=${OPEN_PR_TEST_LOCK_RECLAIM:-5}
+# Real seconds that one second of `wait`'s sleep between polls lasts.
+POLL_SECOND=${OPEN_PR_TEST_POLL_SECOND:-1}
 
 err() { printf '%s\n' "$*" >&2; }
 die() { code="$1"; shift; err "$*"; exit "$code"; }
@@ -173,13 +180,13 @@ lock() {   # $1 lock dir, default the repo's state lock
     lk="${1:-$SD/.lock}"; i=0; nopid=0; stuck=0
     while ! mkdir "$lk" 2>/dev/null; do
         holder=$(cat "$lk/pid" 2>/dev/null || true)
-        # open-pr.sh's dir_lock protocol (its comment says why), in 0.2 s naps: 25 = 5 s
-        if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || { [ -z "$holder" ] && [ "$nopid" -ge 25 ]; }; then
+        # open-pr.sh's dir_lock protocol (its comment says why), in 0.2 s naps
+        if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || { [ -z "$holder" ] && [ "$nopid" -ge $((LOCK_RECLAIM * 5)) ]; }; then
             if mkdir "$lk.reclaim" 2>/dev/null; then
                 [ "$(cat "$lk/pid" 2>/dev/null || true)" != "$holder" ] || rm -rf "$lk"
                 rmdir "$lk.reclaim"; nopid=0; stuck=0; continue
             fi
-            stuck=$((stuck + 1)); [ "$stuck" -lt 25 ] || { rm -rf "$lk.reclaim"; stuck=0; }
+            stuck=$((stuck + 1)); [ "$stuck" -lt $((LOCK_RECLAIM * 5)) ] || { rm -rf "$lk.reclaim"; stuck=0; }
         fi
         [ -n "$holder" ] || nopid=$((nopid + 1))
         i=$((i + 1))
@@ -932,8 +939,9 @@ poll_once() {   # sets GOT (events committed), LIMITED (vendor rate-limited), AC
 }
 # --backlog: before polling, the requests pending on each open PR whatever their age — the PR, not
 # when the watcher started, says what is pending. Delivered as trigger events with `backlog: true`,
-# a skipped one left out. A role set with no cursor yet starts at the newest comment read. A failed
-# pass is tried again before the next poll.
+# a skipped one left out. A role set with no cursor yet starts at the newest comment read. The pass
+# stays due in state (`backlog_due` beside the role set's cursor) until it succeeds: a failed one is
+# tried again before the next poll, and by the next wait when this one ends on a poll's events.
 backlog_once() {   # sets GOT
     GOT=""
     [ -n "$TOKEN" ] || TOKEN=$(trigger_token)
@@ -955,7 +963,8 @@ backlog_once() {   # sets GOT
         | from_entries' "$TMPD/backlog" > "$TMPD/titles"
     state_update --argjson p "$CP" --arg c "$(cat "$TMPD/mark" 2>/dev/null || true)" --arg now "$(now_iso)" \
         --slurpfile ti "$TMPD/titles" '.titles = ((.titles // {}) + $ti[0])
-        | if getpath($p + ["cursor"]) then . else setpath($p + ["cursor"]; if $c == "" then $now else $c end) | setpath($p + ["seen"]; []) end'
+        | if getpath($p + ["cursor"]) then . else setpath($p + ["cursor"]; if $c == "" then $now else $c end) | setpath($p + ["seen"]; []) end
+        | delpaths([$p + ["backlog_due"]])'
     unlock
     [ -s "$TMPD/events" ] || return 0
     cat "$TMPD/events"
@@ -996,7 +1005,7 @@ EOF
 host_pid() {
     p=$$; i=0
     while [ "$i" -lt 15 ] && [ "${p:-0}" -gt 1 ]; do
-        row=$(ps -o ppid=,args= -p "$p" 2>/dev/null || true)
+        row=$(ps -ww -o ppid=,args= -p "$p" 2>/dev/null || true)
         read -r pp cm rest <<EOF
 $row
 EOF
@@ -1057,7 +1066,7 @@ cmd_wait() {
         has_role "$r" || continue
         old=$(cat "$SD/wait-$r.pid" 2>/dev/null || true)
         if [ -n "$old" ] && [ "$old" != "$$" ] && kill -0 "$old" 2>/dev/null \
-            && ps -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
+            && ps -ww -o command= -p "$old" 2>/dev/null | grep -q 'open-pr-watch.sh wait'; then
             die 10 "open-pr-watch.sh: $OWNER/$REPO is already watched for $r on this machine (wait pid $old) — stop that watcher first"
         fi
     done
@@ -1067,9 +1076,13 @@ cmd_wait() {
         [ "$x" != "$ROLES" ] && { [ "$x" = review,fix ] || has_role "$x"; } || continue
         rm -f "$SD/watcher$(sfx "$x").json" "$SD/heartbeat$(sfx "$x")" "$SD/stop$(sfx "$x")"
     done
+    BACKLOG=""
+    if has_role review; then
+        [ -z "$(arg backlog)" ] || state_update --argjson p "$CP" 'setpath($p + ["backlog_due"]; true)'
+        BACKLOG=$(state_json | jq -r --argjson p "$CP" 'if getpath($p + ["backlog_due"]) == true then 1 else empty end')
+    fi
     unlock
     write_watcher
-    BACKLOG=""; ! has_role review || BACKLOG=$(arg backlog)
     STARTED=$(date +%s)
     base=$(setting_int poll_interval_seconds 180)
     interval=$(next_interval "$base"); delay=$interval
@@ -1095,7 +1108,9 @@ cmd_wait() {
         # Slept in slices so a "Fix now" click or a stop applies within seconds.
         waited=0; slice=5; [ "$delay" -ge "$slice" ] || slice=$delay
         while [ "$waited" -lt "$delay" ]; do
-            sleep "$slice"; waited=$((waited + slice))
+            if [ "$POLL_SECOND" = 1 ]; then sleep "$slice"
+            else sleep "$(LC_ALL=C awk -v s="$slice" -v k="$POLL_SECOND" 'BEGIN { print s * k }')"; fi
+            waited=$((waited + slice))
             stop_requested
             ! fix_now_pending || break
         done
@@ -1240,10 +1255,11 @@ cmd_menubar() {
     lock "$WD/.lock"
     pf="$WD/menubar.pid"
     pid=$(cat "$pf" 2>/dev/null || true)
-    # pids get reused
+    # pids get reused. -ww here and at every `ps` read of a command line: without a terminal,
+    # procps (Linux) cuts it at 80 columns, often before the script name.
     live=""
     if printf '%s' "$pid" | grep -Eq '^[0-9]+$' && kill -0 "$pid" 2>/dev/null \
-        && ps -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then live=1; fi
+        && ps -ww -p "$pid" -o command= 2>/dev/null | grep -q 'open-pr-menubar\.js'; then live=1; fi
     if [ -n "$(arg close)" ]; then
         [ -n "$live" ] || { rm -f "$pf"; printf 'not running\n'; return 0; }
         kill "$pid" 2>/dev/null || true; rm -f "$pf"; printf 'closed\n'; return 0
@@ -1339,7 +1355,7 @@ Subcommands:
       `{"event":"ready","repo","pr","role"}` = a queued session of its roles has its turn (run `next`
       with the same `--roles`). `--backlog` (review role): first, each open PR's pending request
       whatever its age (`triggers --backlog`: unclaimed, its newest, `"backlog":true`, `"superseded"`),
-      except those `skip` names; a role set's first run starts its cursor at the newest comment read,
+      except those `skip` names; until a pass succeeds, every later wait of that role set runs it too; a role set's first run starts its cursor at the newest comment read,
       at now without `--backlog`. A skipped trigger is never delivered again. Events count as delivered only when wait exits
       0 — act on no other output. GitHub requests are conditional on the ETags kept in `etags/`.
       Nothing active and no event for 600 s ⇒ polls every 600 s, unless the setting is slower. Each poll writes `quota.json`: the host's rate limit as

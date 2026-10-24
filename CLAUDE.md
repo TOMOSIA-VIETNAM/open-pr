@@ -21,7 +21,8 @@ Vendors: GitHub, GitLab, Bitbucket.
 ## Layout
 
 ```
-src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar; code, never `Read` into context except by `cases/self-repair.md`
+src/bin/          open-pr.sh — the deterministic runtime · open-pr-watch.sh — watch state + session runners · open-pr-toast.js — macOS toast · open-pr-menubar.js — macOS menu bar · open-pr-session-title.sh — names the session; code, never `Read` into context except by `cases/self-repair.md`
+src/hooks/        hooks.json — Claude Code hooks, auto-loaded from the plugin root
 src/commands/     entry points; only these have frontmatter
 src/core/         shared procedure
 src/setup/        bootstrap, doctor, template, lesson
@@ -91,6 +92,7 @@ Run until green. The suite proves the graph still holds — not that a rule you 
 | vendor commands live | `vendor_lint.py --url <fixture PR URL>` |
 | a component needs a check of the user's machine (tool, version, platform bridge) | `st_<name>` + its name in `SELFTEST`, `src/bin/open-pr.sh`; `selftest` and the self-repair case pick it up; `tests/test_cli.py` names the checks in order |
 | the CI suite on a branch with no open PR | `gh workflow run ci.yml --ref <branch>` |
+| the real menu bar and toast on screen under x86_64 and arm64 (macOS with Rosetta, outside a sandbox; skipped otherwise) | `OPEN_PR_SLOW=1 python3 -m pytest tests/test_watch.py -k each_architecture` |
 
 Cheaper → lower affected ceilings (by hand by the measured delta if you had tightened them; otherwise `--update-budgets` is fine). Costlier because the fix is correct → say which scenario / by how much / why on the PR. Never strip behaviour for budget.
 

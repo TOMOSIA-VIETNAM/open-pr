@@ -26,9 +26,9 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `locate-repo --owner O --repo R --host H` | `<repo_dir>` whose git remote matches |
 | `checkout --head-sha S --base B (--repo-dir D \| --worktree W --submodule-path P)` | main: worktree add + PR checkout; submodule: init THAT path + checkout into it. Gates the tree against S (one retry), fetches `origin/<B>` by explicit refspec. Prints `worktree=…`. One per repo at a time: waits `--lock-timeout` s (120), then exit 1 |
 | `verify-line --worktree W --path P --line N --side LEFT\|RIGHT --base B` | print that line's REAL content (LEFT = merge-base blob) or `UNCONFIRMABLE <reason>` — the caller judges the match |
-| `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…` |
-| `publish [--review-id I] [--payload F]` | make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview first) |
-| `post-verify [--review-id I] [--marker M] [--payload F]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else GitLab's newest plugin one), after its `counts=<json>` (GitHub, GitLab) |
+| `post --payload F` | create the vendor's unpublished stage. Payload, ONE shape everywhere: `{"body","commit_id","comments":[{"path","line","side","body"}]}`. GitHub prints `review_id=…`. A comment off every hunk goes on its file, `moved_to_file=<path:line>`; outside the PR's files (or refused there) into the overview, `moved_to_overview=<path:line>` |
+| `publish [--review-id I] [--payload F]` | make it visible (GitHub needs `--review-id`; Bitbucket re-takes `--payload`, posts overview first). GitLab exit 1: part landed; a re-run never posts twice |
+| `post-verify [--review-id I] [--marker M] [--payload F]` | what the PR actually shows (Bitbucket: `--marker` = the finding marker); last line `url=<review overview>` once published (GitLab, Bitbucket: found by `--payload`'s body, else the newest plugin one), after its `counts=<json>` (GitHub, GitLab) |
 | `reply --comment-id C --body-file F [--kind line\|top] [--thread-id T]` | reply on a thread (`top` = overview-level). GitLab replies into the DISCUSSION — also pass the thread holding C |
 | `resolve --thread-id T` | resolve a review thread |
 | `push --branch B [--dir D]` | `HEAD:B` to the remote matching the PR's host — never a blind `origin`. Failure is printed and STOPS the flow; the plugin never works around credentials |
@@ -45,7 +45,8 @@ Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-S
 <!-- /open-pr.sh --help -->
 
 Normalized shapes, identical on every vendor: "Old comments" = 1 JSON/line
-`{id, body, user, path, line, side, in_reply_to}`; "Review threads" =
+`{id, body, user, path, line, side, in_reply_to}` (`line` null: on the whole file, body opens with
+`path:line`); "Review threads" =
 `{thread_id, resolved, comment_ids}`; "Reviews" = `{id, body, user, state}` — GitHub's review
 objects; on GitLab/Bitbucket the TOP-LEVEL notes/comments, which is where an overview (and its FILE
 findings) lives there.
