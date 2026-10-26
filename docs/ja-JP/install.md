@@ -24,6 +24,22 @@ curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/instal
 
 ## Update
 
+Claude Code — 実行後に Claude Code を再起動します:
+
+```bash
+claude plugin marketplace update open-pr
+claude plugin update open-pr@open-pr
+```
+
+Codex:
+
+```bash
+codex plugin marketplace upgrade open-pr
+codex plugin add open-pr@open-pr
+```
+
+Cursor、Gemini CLI、Antigravity:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
 ```

@@ -24,6 +24,22 @@ Or:
 
 ## Update
 
+Claude Code — then restart it:
+
+```bash
+claude plugin marketplace update open-pr
+claude plugin update open-pr@open-pr
+```
+
+Codex:
+
+```bash
+codex plugin marketplace upgrade open-pr
+codex plugin add open-pr@open-pr
+```
+
+Cursor, Gemini CLI, Antigravity:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TOMOSIA-VIETNAM/open-pr/main/install.sh | bash -s -- --update
 ```
