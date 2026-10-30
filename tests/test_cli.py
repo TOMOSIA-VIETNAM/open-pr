@@ -1330,6 +1330,21 @@ esac
         "Head SHA must be fetched before the Diff it describes"
 
 
+def test_a_self_hosted_gitlab_mr_is_read_from_the_host_given(shims):
+    """Unset, glab reads pwd's remote host or gitlab.com, and a self-hosted MR answers 404."""
+    make_shim(Path(shims["path"]), "glab",
+              f'''printf '%s\\n' "host=${{GITLAB_HOST:-}} glab $*" >> "{shims['log']}"; printf '{{}}\\n' ''')
+    base = ("--vendor", "gitlab", "--owner", "o", "--repo", "r")
+    run("context", *base, "--pr", "5", "--sections", "info", "--host", "git.example.com:8443",
+        env_extra=env_for(shims), check=True)
+    run("open-prs", *base, "--host", "git.example.com", env_extra=env_for(shims), check=True)
+    calls = Path(shims["log"]).read_text().splitlines()
+    assert calls and all(c.startswith("host=git.example.com") for c in calls), calls
+    bad = run("context", *base, "--pr", "5", "--sections", "info", "--host", "x;rm -rf /",
+              env_extra=env_for(shims))
+    assert bad.returncode == 4, "a host is validated before it reaches glab"
+
+
 # ------------------------------------------------- settings and stacks ----
 
 def test_data_dir_is_set_once_and_read_everywhere(tmp_path, monkeypatch):
