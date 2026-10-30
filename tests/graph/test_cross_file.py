@@ -332,6 +332,18 @@ def test_a_posted_review_is_reported_to_its_request_from_what_the_session_wrote(
     assert "a PR printed ⇒ item 7 with the fields it prints" in watch, "a queued request keeps its request"
 
 
+def test_more_findings_after_a_posted_review_ask_which_round_they_join():
+    """Step 9 posts 1 review per round, so findings asked for after it would be refused or
+    improvised. The user picks: a reply under the posted overview, or a new round."""
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    assert "More findings after Step 9 posted → `Read` `cases/more-findings.md`" in review
+    case = " ".join(text(SRC / "cases" / "more-findings.md").split())
+    assert "`Same round` when `<op> context --sections head` still prints Step 8's `<commit_id>`" in case
+    assert "ONE `<op> reply --kind top` on the posted overview" in case
+    assert "`New round` — run this command again on the same PR URL" in case
+    assert "Chat already says which ⇒ no ask" in case
+
+
 def test_a_pending_draft_post_is_routed_to_its_case_before_any_other_post_error():
     """`post` exit 8 = the caller's own unpublished review already on the PR. review.md hands it to
     the one case that asks before touching it; the generic post-error file must not catch it too."""
