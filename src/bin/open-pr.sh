@@ -89,7 +89,13 @@ bb_diff_cached() {
 
 # ------------------------------------------------------------- gitlab ----
 GL_PROJ=""
-gl_init() { GL_PROJ="$1%2F$2"; need glab; }
+# --host goes to glab as GITLAB_HOST: unset, glab picks pwd's remote host or gitlab.com, and a
+# self-hosted MR then answers 404 Project Not Found.
+gl_init() {
+    GL_PROJ="$1%2F$2"; need glab
+    h=$(arg host)
+    [ -z "$h" ] || { check_ident '^[A-Za-z0-9.-]+(:[0-9]+)?$' "$h"; export GITLAB_HOST="$h"; }
+}
 gl_mr_cached() {   # the base MR object, one fetch per run
     if [ ! -s "$TMPD/gl.mr" ]; then
         glab api "projects/$GL_PROJ/merge_requests/$1" > "$TMPD/gl.mr"
