@@ -30,7 +30,8 @@ need() {
 parse_args() {
     while [ $# -gt 0 ]; do
         case "$1" in
-            --backlog) ARG_backlog=1; shift ;;
+            # flags that take no value; each name is a literal here, never input
+            --backlog|--star|--add|--later) eval "ARG_${1#--}=1"; shift ;;
             --*)
                 key=$(printf '%s' "${1#--}" | tr '-' '_')
                 # the name becomes a variable name inside eval: anything else would run as code
@@ -1751,6 +1752,40 @@ settings_set() {
 }
 # Prints the repo's settings.json with every read-time default applied, plus the computed
 # doctor_due and doctor_next_at. `--set K --value V` writes one key first (settings_set).
+# The star question at the end of a review/fix run. Asked only where gh can tell the answer is still
+# "not starred": absent, logged out or offline ⇒ never asked, so nobody who starred is asked again.
+# The answer lives in the user-level config, beside the data directory: once starred gh is never
+# called again, and "Later" silences it for 30 days.
+STAR_REPO=TOMOSIA-VIETNAM/open-pr
+star_ask() {
+    c=$(conf_json) || exit $?
+    quiet=$(printf '%s' "$c" | jq -r '.star.state == "starred"
+        or (([.star.later_at | strings | fromdateiso8601?] | .[0] // 0) + 2592000 > now)')
+    [ "$quiet" = false ] || { printf 'false'; return 0; }
+    command -v gh >/dev/null 2>&1 || { printf 'false'; return 0; }
+    rc=0; gh api "user/starred/$STAR_REPO" > /dev/null 2> "$TMPD/star.err" || rc=$?
+    if [ "$rc" = 0 ]; then
+        conf_write '.star = {state: "starred"}' ""
+        printf 'false'
+    elif grep -q 'HTTP 404' "$TMPD/star.err"; then printf 'true'
+    else printf 'false'
+    fi
+}
+cmd_star() {
+    parse_args "$@"
+    if [ -n "$(arg add)" ]; then
+        need gh
+        gh api -X PUT "user/starred/$STAR_REPO" > /dev/null \
+            || die 1 "url=https://github.com/$STAR_REPO"
+        conf_write '.star = {state: "starred"}' ""
+        printf 'starred\n'
+    elif [ -n "$(arg later)" ]; then
+        conf_write '.star = {state: "later", later_at: (now | todate)}' ""
+        printf 'later\n'
+    else
+        die 1 "open-pr.sh star: --add or --later"
+    fi
+}
 cmd_settings() {
     parse_args "$@"
     data=$(data_dir "$(arg repo_dir)")
@@ -1762,7 +1797,8 @@ cmd_settings() {
     if [ -n "$k" ]; then v=$(req value); settings_set "$f" "$k" "$v"
     elif [ -n "$(arg value)" ]; then die 1 "open-pr.sh settings: --value needs --set"; fi
     if [ -s "$f" ]; then raw=$(cat "$f"); found=true; else raw='{}'; found=false; fi
-    printf '%s' "$raw" | jq --arg memdir "$mem_dir" --argjson found "$found" "$JQ_EPOCH"'
+    star=null; [ -z "$(arg star)" ] || star=$(star_ask)
+    printf '%s' "$raw" | jq --arg memdir "$mem_dir" --argjson found "$found" --argjson star "$star" "$JQ_EPOCH"'
         # A boolean defaulting to true needs has(): the // operator treats an explicit
         # false as absent and would flip a stored false back to the default.
         def default_bool($node; $key; $fallback):
@@ -1819,7 +1855,7 @@ cmd_settings() {
                 else (now > ($next | fromdateiso8601))
                 end
             )
-        }'
+        } + (if $star == null then {} else {star_ask: $star} end)'
 }
 
 # -------------------------------------------------------------- stacks ----
@@ -1988,7 +2024,7 @@ usage: open-pr.sh <subcommand> [--option value ...]
 
 Common options:
   `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT
-  `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`);
+  `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`star`/`stacks`/`verify-line`);
   `--owner O --repo R --pr N` on every networked one (`account`: no `--pr`); `--host H` where
   self-hostable.
 
@@ -2050,6 +2086,9 @@ Subcommands:
       `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory
       was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: writes
       that one key first (menu bar, watch chat; keys in reference/settings-schema.md), exit 4 on a refused key or value
+      `--star` adds `star_ask` (gh says not starred yet, no Later in 30 days)
+  star --add | --later
+      star open-pr via gh (exit 1: `url=` to star by hand) | quiet `star_ask` for 30 days
   stacks [--repo-dir D] <path>…
       `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions
       ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions`
@@ -2167,6 +2206,7 @@ case "$sub" in
     data-dir)     cmd_data_dir "$@" ;;
     find-memory)  cmd_find_memory "$@" ;;
     settings)     cmd_settings "$@" ;;
+    star)         cmd_star "$@" ;;
     stacks)       cmd_stacks "$@" ;;
     *) die 1 "open-pr.sh: unknown subcommand: $sub (see --help)" ;;
 esac

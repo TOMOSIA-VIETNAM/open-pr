@@ -90,7 +90,7 @@ touching any file, proceeding to Step 2.
 
 ## Step 2 — Settings
 
-`<op> settings --repo <repo>` (`core/repo-settings.md` names what each field means). Resolve
+`<op> settings --repo <repo> --star` (`core/repo-settings.md` names what each field means). Resolve
 `chat_language` per that file.
 
 - the FILE carries a `.fix` node → use its values, do NOT ask again
@@ -193,6 +193,9 @@ For EACH finding decided (fixed or declined), body written to a file, then `<op>
 Content MUST end with `<op> marker --kind reply`, exactly as printed — Step 3 reads it back.
 
 FORBIDDEN: `<op> resolve` — this command has no auto-resolve setting, unlike `re-review.md`.
+
+Last in chat, in the chat language: `- /open-pr:feedback to tell the author when something goes
+wrong`. `star_ask: true` ⇒ `Read` `cases/star.md`, after it.
 
 ## Step 11 — Lesson-saving
 

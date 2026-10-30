@@ -80,6 +80,7 @@ ROLES = {
     "case-post-error": ["cases/post-review.md"],
     "case-pending-draft": ["cases/pending-draft.md"],
     "case-more-findings": ["cases/more-findings.md"],
+    "case-star": ["cases/star.md"],
     "case-chat-requests": ["cases/chat-requests.md", "commands/review.md"],
     "case-re-review": ["cases/re-review.md"],
     # whichever file currently holds the "is this our own finding" logic
@@ -145,6 +146,11 @@ SCENARIOS = {
     "review/pending-draft-github": [
         "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
         "gh-worktree", "gh-post", "case-pending-draft", "criteria", "always-rule", "tpl-rails",
+    ],
+    # gh confirms no star yet: the run ends with the star question
+    "review/star-ask-github": [
+        "review-cmd", "guardrails", "cli", "locate-repo", "pr-target", "repo-settings", "stack", "gh-fetch",
+        "gh-worktree", "gh-post", "case-star", "criteria", "always-rule", "tpl-rails",
     ],
     # the user asks for more findings after the run posted its review
     "review/more-findings-github": [
