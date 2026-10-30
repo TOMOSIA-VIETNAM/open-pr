@@ -1514,6 +1514,79 @@ def test_find_memory_reports_existing_memory_one_repo_deep(tmp_path):
     assert run("find-memory", "--repo", "a b", cwd=ws).returncode == 4
 
 
+def _star_gh(tmp_path, rc, err=""):
+    """A gh that answers the starred check with exit `rc` and logs every call."""
+    d = tmp_path / "star-bin"
+    d.mkdir(exist_ok=True)
+    log = tmp_path / "gh.log"
+    make_shim(d, "gh", f'''printf '%s\\n' "$*" >> "{log}"
+[ -z "{err}" ] || printf '%s\\n' "{err}" >&2
+exit {rc}
+''')
+    return {"PATH": str(d) + os.pathsep + os.environ["PATH"]}, log
+
+
+def _without_gh(tmp_path):
+    """PATH holding every tool of the system dirs except gh."""
+    d = tmp_path / "no-gh"
+    d.mkdir()
+    for root in ("/usr/bin", "/bin"):
+        for name in os.listdir(root):
+            if name != "gh" and not (d / name).exists():
+                (d / name).symlink_to(os.path.join(root, name))
+    jq = shutil.which("jq")
+    if not (d / "jq").exists():
+        (d / "jq").symlink_to(jq)
+    return {"PATH": str(d)}
+
+
+def test_the_star_question_is_due_only_where_gh_confirms_no_star_yet(tmp_path, data_dir):
+    """Asked at the end of a review/fix only when gh says "not starred" (404): a user gh cannot
+    check is never asked, so nobody who starred is asked again; a star seen once is recorded and
+    gh is never called for it again; "Later" keeps it quiet for 30 days."""
+    conf = tmp_path / "xdg" / "open-pr" / "config.json"
+    ask = lambda env: json.loads(run("settings", "--repo", "demo", "--star", cwd=tmp_path,
+                                     env_extra=env, check=True).stdout)["star_ask"]
+    assert "star_ask" not in json.loads(run("settings", "--repo", "demo", cwd=tmp_path, check=True).stdout), \
+        "only review/fix ask for it; the watcher's and menu bar's reads never reach the network"
+
+    env, log = _star_gh(tmp_path, 1, "gh: Not Found (HTTP 404)")
+    assert ask(env) is True
+    assert log.read_text().splitlines() == ["api user/starred/TOMOSIA-VIETNAM/open-pr"]
+
+    assert ask(_star_gh(tmp_path, 4, "gh: To get started with GitHub CLI, please run:  gh auth login")[0]) is False
+    assert ask(_without_gh(tmp_path)) is False
+
+    env, log = _star_gh(tmp_path, 0)
+    assert ask(env) is False
+    assert json.loads(conf.read_text())["star"] == {"state": "starred"}
+    log.write_text("")
+    assert ask(env) is False and log.read_text() == "", "a recorded star never calls gh again"
+
+    conf.write_text(json.dumps({"data_dir": str(data_dir)}))
+    env, log = _star_gh(tmp_path, 1, "gh: Not Found (HTTP 404)")
+    assert run("star", "--later", env_extra=env, check=True).stdout.strip() == "later"
+    log.write_text("")
+    assert ask(env) is False and log.read_text() == "", "Later stays quiet without calling gh"
+    c = json.loads(conf.read_text())
+    c["star"]["later_at"] = "2020-01-01T00:00:00Z"
+    conf.write_text(json.dumps(c))
+    assert ask(env) is True, "30 days after Later it may ask again"
+
+
+def test_star_add_stars_through_gh_or_hands_back_the_page(tmp_path, data_dir):
+    conf = tmp_path / "xdg" / "open-pr" / "config.json"
+    env, log = _star_gh(tmp_path, 0)
+    assert run("star", "--add", env_extra=env, check=True).stdout.strip() == "starred"
+    assert log.read_text().splitlines() == ["api -X PUT user/starred/TOMOSIA-VIETNAM/open-pr"]
+    assert json.loads(conf.read_text())["star"] == {"state": "starred"}
+    conf.write_text(json.dumps({"data_dir": str(data_dir)}))
+    r = run("star", "--add", env_extra=_star_gh(tmp_path, 1, "gh: Forbidden (HTTP 403)")[0])
+    assert r.returncode == 1 and "url=https://github.com/TOMOSIA-VIETNAM/open-pr" in r.stderr
+    assert "star" not in json.loads(conf.read_text()), "a failed star records nothing"
+    assert run("star").returncode == 1
+
+
 def test_settings_applies_read_time_defaults(tmp_path, data_dir):
     d = data_dir / "demo"
     d.mkdir(parents=True)

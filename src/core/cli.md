@@ -17,7 +17,7 @@ by the exit codes below.
 or writes there; exit 7 ⇒ `Read` `cases/data-dir.md` first.
 
 <!-- open-pr.sh --help, via scripts/cli_doc.py -->
-Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one (`account`: no `--pr`); `--host H` where self-hostable.
+Common options, elided from the table: `--vendor V` on every vendor-shaped subcommand (`marker` and `commit-url` included — NOT `target`/`locate-repo`/`data-dir`/`find-memory`/`settings`/`star`/`stacks`/`verify-line`); `--owner O --repo R --pr N` on every networked one (`account`: no `--pr`); `--host H` where self-hostable.
 
 | subcommand | does |
 |---|---|
@@ -38,7 +38,8 @@ Common options, elided from the table: `--vendor V` on every vendor-shaped subco
 | `marker --kind finding\|reply\|claim\|report [--comment-id C]` | the marker literal — end every finding/reply with it; `claim` and `report` need C |
 | `data-dir [--repo-dir D] \| --set P \| --add-root R --dir P \| --all` | absolute `<data>` for D (default cwd): the `data_dirs` entry with the nearest `root` at or above D, else the default `data_dir`. `--set` records P as the default, `--add-root` maps R and below to P; both take `~`/relative, create P, print it. `--all`: every distinct `<data>`, 1 per line. A config that is not a JSON object ⇒ exit 1 |
 | `find-memory [--repo R]` | memory below the cwd, absolute. Bare: `suggest=<path>` (`notebooks/review` beside the repo, or at a non-repo cwd), then `found=<path>` per `notebooks/review` up to one repo deep. `--repo R`: `found=<path>` per `notebooks/review/R` |
-| `settings --repo <repo> [--repo-dir D] [--set K --value V]` | `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`, `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: writes that one key first (menu bar, watch chat; keys in reference/settings-schema.md), exit 4 on a refused key or value |
+| `settings --repo <repo> [--repo-dir D] [--set K --value V]` | `<data>/<repo>/settings.json` (`<data>` for D, default cwd) with read-time defaults applied + computed `doctor_due`, `doctor_next_at`. Missing file ⇒ pure defaults, and `memory_dir` + `memory_found` say which directory was read and whether its `settings.json` was there; `watch_configured` = node in the file. `--set`: writes that one key first (menu bar, watch chat; keys in reference/settings-schema.md), exit 4 on a refused key or value `--star` adds `star_ask` (gh says not starred yet, no Later in 30 days) |
+| `star --add \| --later` | star open-pr via gh (exit 1: `url=` to star by hand) \| quiet `star_ask` for 30 days |
 | `stacks [--repo-dir D] <path>…` | `path<TAB>stack` per file, overlays applied. `.md` = the caller's judgment: agent-instructions ⇔ the CONTENT instructs an AI agent; prompt text inside code files adds `agent-instructions` onto the base stack |
 
 Exit codes: 0 = ok · 1 = other — post errors add a `hint:` line · 2 = head-SHA gate failed after its one retry · 3 = vendor checkout error (e.g. force-push) · 4 = invalid PR URL or value · 5 = repo dir unresolvable · 6 = missing credentials · 7 = `<data>` not set for that location · 8 = `post`: a pending review of yours is already on the PR; nothing posted · 9 = vendor rate limit (the watcher's poll).

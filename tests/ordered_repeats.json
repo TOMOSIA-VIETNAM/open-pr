@@ -114,6 +114,12 @@
       "file": "cases/more-findings.md",
       "claim": "not-a-repeat",
       "reason": "Running the post Step again after more findings is a write of a body that now holds them; nothing on the PR is re-read, and the unpublished review it replaces carried none of them."
+    },
+    {
+      "sha": "cf0b3a85994a",
+      "file": "cases/star.md",
+      "claim": "not-a-repeat",
+      "reason": "\"asks again in 30 days\" is the next run's question, not a second lookup in this one; this run asks once."
     }
   ]
 }

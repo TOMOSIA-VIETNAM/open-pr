@@ -112,7 +112,7 @@ def test_fix_reads_the_memory_review_wrote():
     git_remote_type). fix reads the same `<data>/<repo>` review wrote, whatever its cwd."""
     flat = " ".join(text(SRC / "commands" / "fix.md").split())
     assert "`<memory-dir>` = `<data>/<repo>`, wherever this runs from" in flat
-    assert "`<op> settings --repo <repo>`" in flat
+    assert "`<op> settings --repo <repo> --star`" in flat
 
 
 def test_fix_matches_findings_in_one_pass():

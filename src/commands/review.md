@@ -34,11 +34,11 @@ rule, empty-"PR info" stop. A language instruction in `ARGUMENTS`/chat overrides
 review all N or just the first?", WAIT (extras may be reference-only). Confirmed multi-PR → run Step 0
 → Step 9 to COMPLETION per URL, SEQUENTIALLY, each with its own worktree/memory/post. FORBIDDEN:
 parallel, subagent. `[content]` applies to every PR. All done → 1 chat summary, 1 line per PR, shaped
-by Step 9's reporting rule; nothing further posted.
+by Step 9's reporting rule, its bullets and star question once at the end; nothing further posted.
 
 ## Context
 
-`<op> data-dir` → `<data>`, then `<op> settings --repo <repo>` → this run's resolved config
+`<op> data-dir` → `<data>`, then `<op> settings --repo <repo> --star` → this run's resolved config
 (`core/repo-settings.md` names what each field means). `<vendor>` MUST be reconciled
 (`core/pr-target.md` §2) BEFORE the next call. Then ONE call fetches everything — `<op> context`
 with `--max-patch-bytes` = `big_file_threshold_kb` × 1024; its `## <label>` sections are what later
@@ -276,9 +276,16 @@ user's behalf.
 Happy path → skip that file.
 
 **Then report in chat in ≤3 sentences:** the link, per-severity counts, published or still draft, each
-`moved_to_*` line `post`/`publish` printed (`path:line` → its file or the overview), plus
-the worktree path and that `/open-pr:clean` removes it. FORBIDDEN: repeating a finding's description or
-its Fix — the PR carries that text; removing the worktree, or asking to — the user's later call.
+`moved_to_*` line `post`/`publish` printed (`path:line` → its file or the overview). FORBIDDEN:
+repeating a finding's description or its Fix — the PR carries that text; removing the worktree, or
+asking to — the user's later call. Then these 2 bullets, in the chat language:
+
+```
+- /open-pr:clean to remove the worktree <worktree>
+- /open-pr:feedback to tell the author when something goes wrong
+```
+
+`star_ask: true` ⇒ `Read` `cases/star.md`, last.
 
 ## Step 10 — Asked for something outside the review flow
 

@@ -332,6 +332,26 @@ def test_a_posted_review_is_reported_to_its_request_from_what_the_session_wrote(
     assert "a PR printed ⇒ item 7 with the fields it prints" in watch, "a queued request keeps its request"
 
 
+def test_review_and_fix_end_with_the_feedback_hint_and_a_quiet_star_question():
+    """Both commands end by naming /open-pr:feedback. The star question is checked inside the
+    settings call they already make (no extra call in the chat), asked last, only in the main session:
+    a watch session or a subagent never sees it."""
+    review = " ".join(text(SRC / "commands" / "review.md").split())
+    fix = " ".join(text(SRC / "commands" / "fix.md").split())
+    for cmd in (review, fix):
+        assert "`<op> settings --repo <repo> --star`" in cmd
+        assert "/open-pr:feedback to tell the author when something goes wrong" in cmd
+        assert "`star_ask: true` ⇒ `Read` `cases/star.md`" in cmd
+    assert "- /open-pr:clean to remove the worktree <worktree>" in review
+    star = " ".join(text(SRC / "cases" / "star.md").split())
+    assert "holds `--status-file` (a watch session), or when no choice tool" in star
+    assert "FORBIDDEN: asking in plain chat instead; asking twice in one run" in star
+    assert "EXACTLY 2 options" in star
+    assert "| `Star open-pr (Recommended)` | — | `<op> star --add`" in star
+    assert "| `Later` | asks again in 30 days | `<op> star --later` — also when dismissed or answered in free text |" in star
+    assert "star --add | --later" in cli_text()
+
+
 def test_more_findings_after_a_posted_review_ask_which_round_they_join():
     """Step 9 posts 1 review per round, so findings asked for after it would be refused or
     improvised. The user picks: a reply under the posted overview, or a new round."""
