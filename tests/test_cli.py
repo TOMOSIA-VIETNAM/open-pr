@@ -1339,7 +1339,8 @@ def test_a_self_hosted_gitlab_mr_is_read_from_the_host_given(shims):
         env_extra=env_for(shims), check=True)
     run("open-prs", *base, "--host", "git.example.com", env_extra=env_for(shims), check=True)
     calls = Path(shims["log"]).read_text().splitlines()
-    assert calls and all(c.startswith("host=git.example.com") for c in calls), calls
+    hosts = {c.split(" ", 1)[0] for c in calls}
+    assert calls and hosts == {"host=git.example.com:8443", "host=git.example.com"}, calls
     bad = run("context", *base, "--pr", "5", "--sections", "info", "--host", "x;rm -rf /",
               env_extra=env_for(shims))
     assert bad.returncode == 4, "a host is validated before it reaches glab"
