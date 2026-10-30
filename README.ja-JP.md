@@ -142,7 +142,7 @@ flowchart LR
 | `/open-pr:review <PR_URL>` | ちょうど **1** 件のレビューを投稿。コードは変更せず、close も merge もしない。リポジトリでの初回はセットアップも行う |
 | `/open-pr:fix <PR_URL>` | finding を読む → 正誤を判断 → 修正 → **1** コミット → 返信。🔵 / 📝 は必ず先に確認 |
 | `/open-pr:upgrade` | ローカル設定を現在の schema へ上げる — 要約してから確認; 同意するまで何も書かない |
-| `/open-pr:clean` | `review` がチェックアウトした worktree を削除（先に確認）。memory / settings には触れない |
+| `/open-pr:clean` | pwd のプロジェクトについて `review` がチェックアウトした worktree を削除（先に確認）。全プロジェクトは `--all`。memory / settings には触れない |
 | `/open-pr:watch [review\|fix]` | `/open-pr` コメントで PR をレビューし、"Fix now" で自分の PR を修正する。PR ごとに 1 つのセッションをあなたのマシンで開く。[詳細](./docs/ja-JP/watch.md) |
 | `/open-pr:menubar [close]` | macOS: 進行中のレビューと修正、"Fix now"、設定、スヌーズをメニューバーに表示。`close` で消す。[詳細](./docs/ja-JP/watch.md#メニューバーmacos) |
 | `/open-pr:feedback` | **このプラグイン自体**の問題を issue tracker に報告。あなたのリポジトリを特定できる情報は取り除き、送信前に本文を確認してもらう |

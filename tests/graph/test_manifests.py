@@ -192,6 +192,11 @@ def test_clean_deletes_worktrees_and_nothing_else():
     assert "(Recommended)" in c and "`Keep them`" in c, "two options, one of them recommended"
     assert "worktree prune" in flat, \
         "a removed checkout leaves a registration behind in the reviewed repo"
+    # one data directory can hold worktrees of many projects: a bare run removes pwd's only
+    assert "empty ⇒ this project only" in flat and "`--all` ⇒ every worktree" in flat, \
+        "with no argument, clean must stay inside the project it was run from"
+    assert "`git rev-parse --show-toplevel`, or `pwd -P` when that exits ≠ 0" in flat, \
+        "the scope comes from two separate calls: guardrails ban chains and 2>/dev/null"
     # review.md points at it and must not do the deleting itself
     r = " ".join(text(SRC / "commands" / "review.md").split())
     assert "/open-pr:clean" in r, "the run that creates a worktree must say what removes it"

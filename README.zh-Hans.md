@@ -142,7 +142,7 @@ flowchart LR
 | `/open-pr:review <PR_URL>` | 发布恰好 **1** 条评审。不改代码、不 close、不 merge。仓库第一次运行时会顺带完成初始化 |
 | `/open-pr:fix <PR_URL>` | 读取 findings → 判断对错 → 修复 → **1** 个 commit → 回复。🔵 / 📝 一律先问过你 |
 | `/open-pr:upgrade` | 把本地配置升到当前 schema —— 先给出摘要再询问；你不同意就什么都不写 |
-| `/open-pr:clean` | 删除 `review` 检出的 worktree（会先询问）。memory / 设置不受影响 |
+| `/open-pr:clean` | 删除 `review` 为 pwd 所在项目检出的 worktree（会先询问）；`--all` 覆盖所有项目。memory / 设置不受影响 |
 | `/open-pr:watch [review\|fix]` | 收到 `/open-pr` 评论时评审该 PR，点击 "Fix now" 时修复你自己的 PR，在你的机器上每个 PR 一个会话。[详情](./docs/zh-Hans/watch.md) |
 | `/open-pr:menubar [close]` | macOS：在菜单栏显示进行中的评审与修复、"Fix now"、设置和暂停提醒；`close` 关闭它。[详情](./docs/zh-Hans/watch.md#菜单栏macos) |
 | `/open-pr:feedback` | 把 **本插件** 的问题报到它自己的 issue tracker —— 会剥掉一切能识别你仓库的信息，并在发出前先给你看 |
