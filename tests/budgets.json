@@ -11,7 +11,7 @@
     "review/pending-draft-github": 9188,
     "chat/reconfigure-review": 8461,
     "upgrade": 2354,
-    "clean": 1477,
+    "clean": 1614,
     "feedback": 2343,
     "watch/first-run": 8680,
     "watch/review-only": 6771,
@@ -29,6 +29,6 @@
     "fix/first-run-gitlab": 8352,
     "review/more-findings-github": 9187
   },
-  "mean": 7979,
+  "mean": 7983,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand — lower them by hand when a change wins tokens back."
 }

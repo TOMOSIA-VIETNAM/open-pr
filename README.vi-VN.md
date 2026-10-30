@@ -142,7 +142,7 @@ Chi tiết re-review, worktree, và guard trước khi `fix`: [Flow re-review/fi
 | `/open-pr:review <PR_URL>` | Post đúng **1** review. Không edit code, không close, không merge. Lần đầu trong repo thì setup luôn |
 | `/open-pr:fix <PR_URL>` | Đọc finding → cân đúng/sai → fix → **1** commit → reply. 🔵 / 📝 luôn ask trước |
 | `/open-pr:upgrade` | Nâng local config lên schema hiện tại — summarize rồi hỏi; chưa đồng ý thì không ghi gì |
-| `/open-pr:clean` | Xóa worktree mà `review` đã checkout (ask trước). Memory / settings không bị đụng |
+| `/open-pr:clean` | Xóa worktree mà `review` đã checkout cho project ở pwd (ask trước); `--all` cho mọi project. Memory / settings không bị đụng |
 | `/open-pr:watch [review\|fix]` | Review một PR khi có comment `/open-pr` và fix PR của chính bạn khi bấm "Fix now", mỗi PR một session trên máy bạn. [Chi tiết](./docs/vi-VN/watch.md) |
 | `/open-pr:menubar [close]` | macOS: review và fix đang chạy, "Fix now", setting và snooze trên menu bar; `close` để tắt. [Chi tiết](./docs/vi-VN/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Báo vấn đề của **chính plugin này** lên issue tracker của nó — đã gỡ hết thứ nhận diện repo của bạn, và cho bạn xem trước khi gửi |
