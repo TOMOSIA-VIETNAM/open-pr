@@ -22,147 +22,155 @@
 <text x="54" y="75.5" text-anchor="end" font-size="10" class="label">18k</text>
 <line x1="78.0" y1="250.0" x2="78.0" y2="254.0" class="guide" stroke-opacity="0.5"/>
 <text x="78.0" y="266.0" text-anchor="middle" font-size="10" class="label">v0.1.0</text>
-<line x1="107.0" y1="250.0" x2="107.0" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="107.0" y="266.0" text-anchor="middle" font-size="10" class="label">v0.2.0</text>
-<line x1="135.9" y1="250.0" x2="135.9" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="135.9" y="266.0" text-anchor="middle" font-size="10" class="label">v0.2.1</text>
-<line x1="164.9" y1="250.0" x2="164.9" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="193.8" y1="250.0" x2="193.8" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="222.8" y1="250.0" x2="222.8" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="251.7" y1="250.0" x2="251.7" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="280.7" y1="250.0" x2="280.7" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="309.6" y1="250.0" x2="309.6" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="338.6" y1="250.0" x2="338.6" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="367.5" y1="250.0" x2="367.5" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="396.5" y1="250.0" x2="396.5" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<line x1="425.4" y1="250.0" x2="425.4" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="425.4" y="266.0" text-anchor="middle" font-size="10" class="label">v1.4.1</text>
-<line x1="454.4" y1="250.0" x2="454.4" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="454.4" y="266.0" text-anchor="middle" font-size="10" class="label">v1.4.2</text>
-<line x1="483.3" y1="250.0" x2="483.3" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="483.3" y="266.0" text-anchor="middle" font-size="10" class="label">v1.4.3</text>
-<line x1="512.3" y1="250.0" x2="512.3" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="512.3" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.0</text>
-<line x1="541.2" y1="250.0" x2="541.2" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="541.2" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.1</text>
-<line x1="570.2" y1="250.0" x2="570.2" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="570.2" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.2</text>
-<line x1="599.1" y1="250.0" x2="599.1" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="599.1" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.3</text>
-<line x1="628.1" y1="250.0" x2="628.1" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="628.1" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.4</text>
-<line x1="657.0" y1="250.0" x2="657.0" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="657.0" y="266.0" text-anchor="middle" font-size="10" class="label">v2.1.0</text>
+<line x1="105.6" y1="250.0" x2="105.6" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="105.6" y="266.0" text-anchor="middle" font-size="10" class="label">v0.2.0</text>
+<line x1="133.3" y1="250.0" x2="133.3" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="133.3" y="266.0" text-anchor="middle" font-size="10" class="label">v0.2.1</text>
+<line x1="160.9" y1="250.0" x2="160.9" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="188.5" y1="250.0" x2="188.5" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="216.2" y1="250.0" x2="216.2" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="243.8" y1="250.0" x2="243.8" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="271.5" y1="250.0" x2="271.5" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="299.1" y1="250.0" x2="299.1" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="326.7" y1="250.0" x2="326.7" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="354.4" y1="250.0" x2="354.4" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="382.0" y1="250.0" x2="382.0" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="409.6" y1="250.0" x2="409.6" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<line x1="437.3" y1="250.0" x2="437.3" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="437.3" y="266.0" text-anchor="middle" font-size="10" class="label">v1.4.2</text>
+<line x1="464.9" y1="250.0" x2="464.9" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="464.9" y="266.0" text-anchor="middle" font-size="10" class="label">v1.4.3</text>
+<line x1="492.5" y1="250.0" x2="492.5" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="492.5" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.0</text>
+<line x1="520.2" y1="250.0" x2="520.2" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="520.2" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.1</text>
+<line x1="547.8" y1="250.0" x2="547.8" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="547.8" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.2</text>
+<line x1="575.5" y1="250.0" x2="575.5" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="575.5" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.3</text>
+<line x1="603.1" y1="250.0" x2="603.1" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="603.1" y="266.0" text-anchor="middle" font-size="10" class="label">v2.0.4</text>
+<line x1="630.7" y1="250.0" x2="630.7" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="630.7" y="266.0" text-anchor="middle" font-size="10" class="label">v2.1.0</text>
+<line x1="658.4" y1="250.0" x2="658.4" y2="254.0" class="guide" stroke-opacity="0.5"/>
+<text x="658.4" y="266.0" text-anchor="middle" font-size="10" class="label">v2.2.0</text>
 <line x1="686.0" y1="250.0" x2="686.0" y2="254.0" class="guide" stroke-opacity="0.5"/>
-<text x="686.0" y="266.0" text-anchor="middle" font-size="10" class="label">v2.2.0</text>
-<text x="280.7" y="266.0" text-anchor="middle" font-size="10" class="label">…</text>
-<polyline points="78.0,147.9 107.0,96.8 135.9,102.3 164.9,87.0 193.8,142.5 222.8,142.2 251.7,142.4 280.7,142.3 309.6,142.3 338.6,140.6 367.5,134.0 396.5,136.9 425.4,130.7 454.4,130.7 483.3,129.7 512.3,162.6 541.2,159.6 570.2,158.7 599.1,156.7 628.1,156.8 657.0,154.3 686.0,151.2" fill="none" class="line-review" stroke-width="2" stroke-linejoin="round"/>
+<text x="686.0" y="266.0" text-anchor="middle" font-size="10" class="label">v2.2.1</text>
+<text x="285.3" y="266.0" text-anchor="middle" font-size="10" class="label">…</text>
+<polyline points="78.0,147.9 105.6,96.8 133.3,102.3 160.9,87.0 188.5,142.5 216.2,142.2 243.8,142.4 271.5,142.3 299.1,142.3 326.7,140.6 354.4,134.0 382.0,136.9 409.6,130.7 437.3,130.7 464.9,129.7 492.5,162.6 520.2,159.6 547.8,158.7 575.5,156.7 603.1,156.8 630.7,154.3 658.4,151.2 686.0,151.5" fill="none" class="line-review" stroke-width="2" stroke-linejoin="round"/>
 <circle cx="78.0" cy="147.9" r="3" class="dot-review"/>
-<circle cx="107.0" cy="96.8" r="3" class="dot-review"/>
-<circle cx="135.9" cy="102.3" r="3" class="dot-review"/>
-<circle cx="164.9" cy="87.0" r="3" class="dot-review"/>
-<circle cx="193.8" cy="142.5" r="3" class="dot-review"/>
-<circle cx="222.8" cy="142.2" r="3" class="dot-review"/>
-<circle cx="251.7" cy="142.4" r="3" class="dot-review"/>
-<circle cx="280.7" cy="142.3" r="3" class="dot-review"/>
-<circle cx="309.6" cy="142.3" r="3" class="dot-review"/>
-<circle cx="338.6" cy="140.6" r="3" class="dot-review"/>
-<circle cx="367.5" cy="134.0" r="3" class="dot-review"/>
-<circle cx="396.5" cy="136.9" r="3" class="dot-review"/>
-<circle cx="425.4" cy="130.7" r="3" class="dot-review"/>
-<circle cx="454.4" cy="130.7" r="3" class="dot-review"/>
-<circle cx="483.3" cy="129.7" r="3" class="dot-review"/>
-<circle cx="512.3" cy="162.6" r="3" class="dot-review"/>
-<circle cx="541.2" cy="159.6" r="3" class="dot-review"/>
-<circle cx="570.2" cy="158.7" r="3" class="dot-review"/>
-<circle cx="599.1" cy="156.7" r="3" class="dot-review"/>
-<circle cx="628.1" cy="156.8" r="3" class="dot-review"/>
-<circle cx="657.0" cy="154.3" r="3" class="dot-review"/>
-<circle cx="686.0" cy="151.2" r="3" class="dot-review"/>
-<polyline points="164.9,118.6 193.8,164.1 222.8,164.1 251.7,162.7 280.7,162.7 309.6,162.7 338.6,161.0 367.5,154.3 396.5,156.1 425.4,156.1 454.4,156.2 483.3,156.2 512.3,179.6 541.2,177.8 570.2,172.0 599.1,171.0 628.1,171.8 657.0,167.6 686.0,164.8" fill="none" class="line-fix" stroke-width="2" stroke-linejoin="round"/>
-<circle cx="164.9" cy="118.6" r="3" class="dot-fix"/>
-<circle cx="193.8" cy="164.1" r="3" class="dot-fix"/>
-<circle cx="222.8" cy="164.1" r="3" class="dot-fix"/>
-<circle cx="251.7" cy="162.7" r="3" class="dot-fix"/>
-<circle cx="280.7" cy="162.7" r="3" class="dot-fix"/>
-<circle cx="309.6" cy="162.7" r="3" class="dot-fix"/>
-<circle cx="338.6" cy="161.0" r="3" class="dot-fix"/>
-<circle cx="367.5" cy="154.3" r="3" class="dot-fix"/>
-<circle cx="396.5" cy="156.1" r="3" class="dot-fix"/>
-<circle cx="425.4" cy="156.1" r="3" class="dot-fix"/>
-<circle cx="454.4" cy="156.2" r="3" class="dot-fix"/>
-<circle cx="483.3" cy="156.2" r="3" class="dot-fix"/>
-<circle cx="512.3" cy="179.6" r="3" class="dot-fix"/>
-<circle cx="541.2" cy="177.8" r="3" class="dot-fix"/>
-<circle cx="570.2" cy="172.0" r="3" class="dot-fix"/>
-<circle cx="599.1" cy="171.0" r="3" class="dot-fix"/>
-<circle cx="628.1" cy="171.8" r="3" class="dot-fix"/>
-<circle cx="657.0" cy="167.6" r="3" class="dot-fix"/>
+<circle cx="105.6" cy="96.8" r="3" class="dot-review"/>
+<circle cx="133.3" cy="102.3" r="3" class="dot-review"/>
+<circle cx="160.9" cy="87.0" r="3" class="dot-review"/>
+<circle cx="188.5" cy="142.5" r="3" class="dot-review"/>
+<circle cx="216.2" cy="142.2" r="3" class="dot-review"/>
+<circle cx="243.8" cy="142.4" r="3" class="dot-review"/>
+<circle cx="271.5" cy="142.3" r="3" class="dot-review"/>
+<circle cx="299.1" cy="142.3" r="3" class="dot-review"/>
+<circle cx="326.7" cy="140.6" r="3" class="dot-review"/>
+<circle cx="354.4" cy="134.0" r="3" class="dot-review"/>
+<circle cx="382.0" cy="136.9" r="3" class="dot-review"/>
+<circle cx="409.6" cy="130.7" r="3" class="dot-review"/>
+<circle cx="437.3" cy="130.7" r="3" class="dot-review"/>
+<circle cx="464.9" cy="129.7" r="3" class="dot-review"/>
+<circle cx="492.5" cy="162.6" r="3" class="dot-review"/>
+<circle cx="520.2" cy="159.6" r="3" class="dot-review"/>
+<circle cx="547.8" cy="158.7" r="3" class="dot-review"/>
+<circle cx="575.5" cy="156.7" r="3" class="dot-review"/>
+<circle cx="603.1" cy="156.8" r="3" class="dot-review"/>
+<circle cx="630.7" cy="154.3" r="3" class="dot-review"/>
+<circle cx="658.4" cy="151.2" r="3" class="dot-review"/>
+<circle cx="686.0" cy="151.5" r="3" class="dot-review"/>
+<polyline points="160.9,118.6 188.5,164.1 216.2,164.1 243.8,162.7 271.5,162.7 299.1,162.7 326.7,161.0 354.4,154.3 382.0,156.1 409.6,156.1 437.3,156.2 464.9,156.2 492.5,179.6 520.2,177.8 547.8,172.0 575.5,171.0 603.1,171.8 630.7,167.6 658.4,164.8 686.0,164.8" fill="none" class="line-fix" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="160.9" cy="118.6" r="3" class="dot-fix"/>
+<circle cx="188.5" cy="164.1" r="3" class="dot-fix"/>
+<circle cx="216.2" cy="164.1" r="3" class="dot-fix"/>
+<circle cx="243.8" cy="162.7" r="3" class="dot-fix"/>
+<circle cx="271.5" cy="162.7" r="3" class="dot-fix"/>
+<circle cx="299.1" cy="162.7" r="3" class="dot-fix"/>
+<circle cx="326.7" cy="161.0" r="3" class="dot-fix"/>
+<circle cx="354.4" cy="154.3" r="3" class="dot-fix"/>
+<circle cx="382.0" cy="156.1" r="3" class="dot-fix"/>
+<circle cx="409.6" cy="156.1" r="3" class="dot-fix"/>
+<circle cx="437.3" cy="156.2" r="3" class="dot-fix"/>
+<circle cx="464.9" cy="156.2" r="3" class="dot-fix"/>
+<circle cx="492.5" cy="179.6" r="3" class="dot-fix"/>
+<circle cx="520.2" cy="177.8" r="3" class="dot-fix"/>
+<circle cx="547.8" cy="172.0" r="3" class="dot-fix"/>
+<circle cx="575.5" cy="171.0" r="3" class="dot-fix"/>
+<circle cx="603.1" cy="171.8" r="3" class="dot-fix"/>
+<circle cx="630.7" cy="167.6" r="3" class="dot-fix"/>
+<circle cx="658.4" cy="164.8" r="3" class="dot-fix"/>
 <circle cx="686.0" cy="164.8" r="3" class="dot-fix"/>
-<polyline points="193.8,227.5 222.8,227.5 251.7,227.5 280.7,227.5 309.6,227.5 338.6,226.4 367.5,226.4 396.5,226.4 425.4,226.4 454.4,226.5 483.3,226.5 512.3,226.9 541.2,226.9 570.2,226.1 599.1,225.8 628.1,226.1 657.0,226.1 686.0,225.0" fill="none" class="line-upgrade" stroke-width="2" stroke-linejoin="round"/>
-<circle cx="193.8" cy="227.5" r="3" class="dot-upgrade"/>
-<circle cx="222.8" cy="227.5" r="3" class="dot-upgrade"/>
-<circle cx="251.7" cy="227.5" r="3" class="dot-upgrade"/>
-<circle cx="280.7" cy="227.5" r="3" class="dot-upgrade"/>
-<circle cx="309.6" cy="227.5" r="3" class="dot-upgrade"/>
-<circle cx="338.6" cy="226.4" r="3" class="dot-upgrade"/>
-<circle cx="367.5" cy="226.4" r="3" class="dot-upgrade"/>
-<circle cx="396.5" cy="226.4" r="3" class="dot-upgrade"/>
-<circle cx="425.4" cy="226.4" r="3" class="dot-upgrade"/>
-<circle cx="454.4" cy="226.5" r="3" class="dot-upgrade"/>
-<circle cx="483.3" cy="226.5" r="3" class="dot-upgrade"/>
-<circle cx="512.3" cy="226.9" r="3" class="dot-upgrade"/>
-<circle cx="541.2" cy="226.9" r="3" class="dot-upgrade"/>
-<circle cx="570.2" cy="226.1" r="3" class="dot-upgrade"/>
-<circle cx="599.1" cy="225.8" r="3" class="dot-upgrade"/>
-<circle cx="628.1" cy="226.1" r="3" class="dot-upgrade"/>
-<circle cx="657.0" cy="226.1" r="3" class="dot-upgrade"/>
+<polyline points="188.5,227.5 216.2,227.5 243.8,227.5 271.5,227.5 299.1,227.5 326.7,226.4 354.4,226.4 382.0,226.4 409.6,226.4 437.3,226.5 464.9,226.5 492.5,226.9 520.2,226.9 547.8,226.1 575.5,225.8 603.1,226.1 630.7,226.1 658.4,225.0 686.0,225.0" fill="none" class="line-upgrade" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="188.5" cy="227.5" r="3" class="dot-upgrade"/>
+<circle cx="216.2" cy="227.5" r="3" class="dot-upgrade"/>
+<circle cx="243.8" cy="227.5" r="3" class="dot-upgrade"/>
+<circle cx="271.5" cy="227.5" r="3" class="dot-upgrade"/>
+<circle cx="299.1" cy="227.5" r="3" class="dot-upgrade"/>
+<circle cx="326.7" cy="226.4" r="3" class="dot-upgrade"/>
+<circle cx="354.4" cy="226.4" r="3" class="dot-upgrade"/>
+<circle cx="382.0" cy="226.4" r="3" class="dot-upgrade"/>
+<circle cx="409.6" cy="226.4" r="3" class="dot-upgrade"/>
+<circle cx="437.3" cy="226.5" r="3" class="dot-upgrade"/>
+<circle cx="464.9" cy="226.5" r="3" class="dot-upgrade"/>
+<circle cx="492.5" cy="226.9" r="3" class="dot-upgrade"/>
+<circle cx="520.2" cy="226.9" r="3" class="dot-upgrade"/>
+<circle cx="547.8" cy="226.1" r="3" class="dot-upgrade"/>
+<circle cx="575.5" cy="225.8" r="3" class="dot-upgrade"/>
+<circle cx="603.1" cy="226.1" r="3" class="dot-upgrade"/>
+<circle cx="630.7" cy="226.1" r="3" class="dot-upgrade"/>
+<circle cx="658.4" cy="225.0" r="3" class="dot-upgrade"/>
 <circle cx="686.0" cy="225.0" r="3" class="dot-upgrade"/>
-<polyline points="222.8,236.6 251.7,236.5 280.7,236.5 309.6,236.5 338.6,235.3 367.5,235.3 396.5,235.3 425.4,235.3 454.4,235.4 483.3,235.4 512.3,235.8 541.2,235.8 570.2,235.0 599.1,234.7 628.1,234.6 657.0,234.7 686.0,233.6" fill="none" class="line-clean" stroke-width="2" stroke-linejoin="round"/>
-<circle cx="222.8" cy="236.6" r="3" class="dot-clean"/>
-<circle cx="251.7" cy="236.5" r="3" class="dot-clean"/>
-<circle cx="280.7" cy="236.5" r="3" class="dot-clean"/>
-<circle cx="309.6" cy="236.5" r="3" class="dot-clean"/>
-<circle cx="338.6" cy="235.3" r="3" class="dot-clean"/>
-<circle cx="367.5" cy="235.3" r="3" class="dot-clean"/>
-<circle cx="396.5" cy="235.3" r="3" class="dot-clean"/>
-<circle cx="425.4" cy="235.3" r="3" class="dot-clean"/>
-<circle cx="454.4" cy="235.4" r="3" class="dot-clean"/>
-<circle cx="483.3" cy="235.4" r="3" class="dot-clean"/>
-<circle cx="512.3" cy="235.8" r="3" class="dot-clean"/>
-<circle cx="541.2" cy="235.8" r="3" class="dot-clean"/>
-<circle cx="570.2" cy="235.0" r="3" class="dot-clean"/>
-<circle cx="599.1" cy="234.7" r="3" class="dot-clean"/>
-<circle cx="628.1" cy="234.6" r="3" class="dot-clean"/>
-<circle cx="657.0" cy="234.7" r="3" class="dot-clean"/>
-<circle cx="686.0" cy="233.6" r="3" class="dot-clean"/>
-<polyline points="367.5,227.7 396.5,227.7 425.4,227.1 454.4,227.2 483.3,227.2 512.3,227.6 541.2,227.6 570.2,226.8 599.1,226.5 628.1,226.6 657.0,226.6 686.0,225.1" fill="none" class="line-feedback" stroke-width="2" stroke-linejoin="round"/>
-<circle cx="367.5" cy="227.7" r="3" class="dot-feedback"/>
-<circle cx="396.5" cy="227.7" r="3" class="dot-feedback"/>
-<circle cx="425.4" cy="227.1" r="3" class="dot-feedback"/>
-<circle cx="454.4" cy="227.2" r="3" class="dot-feedback"/>
-<circle cx="483.3" cy="227.2" r="3" class="dot-feedback"/>
-<circle cx="512.3" cy="227.6" r="3" class="dot-feedback"/>
-<circle cx="541.2" cy="227.6" r="3" class="dot-feedback"/>
-<circle cx="570.2" cy="226.8" r="3" class="dot-feedback"/>
-<circle cx="599.1" cy="226.5" r="3" class="dot-feedback"/>
-<circle cx="628.1" cy="226.6" r="3" class="dot-feedback"/>
-<circle cx="657.0" cy="226.6" r="3" class="dot-feedback"/>
+<polyline points="216.2,236.6 243.8,236.5 271.5,236.5 299.1,236.5 326.7,235.3 354.4,235.3 382.0,235.3 409.6,235.3 437.3,235.4 464.9,235.4 492.5,235.8 520.2,235.8 547.8,235.0 575.5,234.7 603.1,234.6 630.7,234.7 658.4,233.6 686.0,232.5" fill="none" class="line-clean" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="216.2" cy="236.6" r="3" class="dot-clean"/>
+<circle cx="243.8" cy="236.5" r="3" class="dot-clean"/>
+<circle cx="271.5" cy="236.5" r="3" class="dot-clean"/>
+<circle cx="299.1" cy="236.5" r="3" class="dot-clean"/>
+<circle cx="326.7" cy="235.3" r="3" class="dot-clean"/>
+<circle cx="354.4" cy="235.3" r="3" class="dot-clean"/>
+<circle cx="382.0" cy="235.3" r="3" class="dot-clean"/>
+<circle cx="409.6" cy="235.3" r="3" class="dot-clean"/>
+<circle cx="437.3" cy="235.4" r="3" class="dot-clean"/>
+<circle cx="464.9" cy="235.4" r="3" class="dot-clean"/>
+<circle cx="492.5" cy="235.8" r="3" class="dot-clean"/>
+<circle cx="520.2" cy="235.8" r="3" class="dot-clean"/>
+<circle cx="547.8" cy="235.0" r="3" class="dot-clean"/>
+<circle cx="575.5" cy="234.7" r="3" class="dot-clean"/>
+<circle cx="603.1" cy="234.6" r="3" class="dot-clean"/>
+<circle cx="630.7" cy="234.7" r="3" class="dot-clean"/>
+<circle cx="658.4" cy="233.6" r="3" class="dot-clean"/>
+<circle cx="686.0" cy="232.5" r="3" class="dot-clean"/>
+<polyline points="354.4,227.7 382.0,227.7 409.6,227.1 437.3,227.2 464.9,227.2 492.5,227.6 520.2,227.6 547.8,226.8 575.5,226.5 603.1,226.6 630.7,226.6 658.4,225.1 686.0,225.1" fill="none" class="line-feedback" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="354.4" cy="227.7" r="3" class="dot-feedback"/>
+<circle cx="382.0" cy="227.7" r="3" class="dot-feedback"/>
+<circle cx="409.6" cy="227.1" r="3" class="dot-feedback"/>
+<circle cx="437.3" cy="227.2" r="3" class="dot-feedback"/>
+<circle cx="464.9" cy="227.2" r="3" class="dot-feedback"/>
+<circle cx="492.5" cy="227.6" r="3" class="dot-feedback"/>
+<circle cx="520.2" cy="227.6" r="3" class="dot-feedback"/>
+<circle cx="547.8" cy="226.8" r="3" class="dot-feedback"/>
+<circle cx="575.5" cy="226.5" r="3" class="dot-feedback"/>
+<circle cx="603.1" cy="226.6" r="3" class="dot-feedback"/>
+<circle cx="630.7" cy="226.6" r="3" class="dot-feedback"/>
+<circle cx="658.4" cy="225.1" r="3" class="dot-feedback"/>
 <circle cx="686.0" cy="225.1" r="3" class="dot-feedback"/>
-<polyline points="657.0,189.8 686.0,183.6" fill="none" class="line-watch" stroke-width="2" stroke-linejoin="round"/>
-<circle cx="657.0" cy="189.8" r="3" class="dot-watch"/>
+<polyline points="630.7,189.8 658.4,183.6 686.0,183.6" fill="none" class="line-watch" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="630.7" cy="189.8" r="3" class="dot-watch"/>
+<circle cx="658.4" cy="183.6" r="3" class="dot-watch"/>
 <circle cx="686.0" cy="183.6" r="3" class="dot-watch"/>
-<polyline points="657.0,245.6 686.0,244.5" fill="none" class="line-menubar" stroke-width="2" stroke-linejoin="round"/>
-<circle cx="657.0" cy="245.6" r="3" class="dot-menubar"/>
+<polyline points="630.7,245.6 658.4,244.5 686.0,244.5" fill="none" class="line-menubar" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="630.7" cy="245.6" r="3" class="dot-menubar"/>
+<circle cx="658.4" cy="244.5" r="3" class="dot-menubar"/>
 <circle cx="686.0" cy="244.5" r="3" class="dot-menubar"/>
 <circle cx="66" cy="18" r="3.5" class="dot-review"/>
-<text x="75" y="21.5" font-size="11" class="label">/open-pr:review 9,899</text>
+<text x="75" y="21.5" font-size="11" class="label">/open-pr:review 9,866</text>
 <circle cx="239.0" cy="18" r="3.5" class="dot-fix"/>
 <text x="248.0" y="21.5" font-size="11" class="label">/open-pr:fix 8,509</text>
 <circle cx="391.0" cy="18" r="3.5" class="dot-upgrade"/>
 <text x="400.0" y="21.5" font-size="11" class="label">/open-pr:upgrade 2,354</text>
 <circle cx="66" cy="35" r="3.5" class="dot-clean"/>
-<text x="75" y="38.5" font-size="11" class="label">/open-pr:clean 1,477</text>
+<text x="75" y="38.5" font-size="11" class="label">/open-pr:clean 1,589</text>
 <circle cx="232.0" cy="35" r="3.5" class="dot-feedback"/>
 <text x="241.0" y="38.5" font-size="11" class="label">/open-pr:feedback 2,343</text>
 <circle cx="419.0" cy="35" r="3.5" class="dot-watch"/>
