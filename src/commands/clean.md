@@ -29,7 +29,7 @@ None → say there is nothing to clean, STOP.
 `ARGUMENTS`: empty ⇒ this project only, below · `--all` ⇒ every worktree · repo names ⇒ worktrees
 whose `<repo>` segment it names, case-insensitive, any project.
 
-Empty ⇒ `<scope>` = `git rev-parse --show-toplevel 2>/dev/null || pwd -P`; keep a worktree when
+Empty ⇒ `<scope>` = output of `git rev-parse --show-toplevel`, or `pwd -P` when that exits ≠ 0; keep a worktree when
 Step 4's `--git-common-dir` line minus `/.git` is `<scope>` or under `<scope>/` (pwd may hold
 several repos). That line failing ⇒ orphan, not kept.
 

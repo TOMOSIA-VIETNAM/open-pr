@@ -28,6 +28,6 @@
     "fix/multi-pr-submodule": 9061,
     "fix/first-run-gitlab": 8352
   },
-  "mean": 7930,
+  "mean": 7931,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand — lower them by hand when a change wins tokens back."
 }

@@ -48,7 +48,7 @@ cd ~/workspace
 | `/open-pr:review` | workspace holding the repo, or inside the repo — finds it by `git remote` | comments on the PR + memory under `<data>/<repo>/` |
 | `/open-pr:fix` | in that repo / workspace holding it — but **the repo must be on the PR's branch** | real code in the repo + replies on the PR |
 | `/open-pr:upgrade` | anywhere — every repo in the data directory, or the ones you name | `<data>/<repo>/settings.json` |
-| `/open-pr:clean` | anywhere | writes nothing — only deletes `<data>/*/worktrees/*` checked out from the project at pwd; `--all` for every project in every data directory |
+| `/open-pr:clean` | in the project, or the workspace holding it; anywhere with `--all` or a repo name | writes nothing — only deletes `<data>/*/worktrees/*` checked out from the project at pwd; `--all` for every project in every data directory |
 | `/open-pr:watch` | workspace holding the repos, or inside one — lists them by `git remote` | the `watch` node of `<data>/<repo>/settings.json` (first run, or a setting you change in chat), its state and session prompts under `<data>/<repo>/watch/` (kept out of the data directory's git), and on each PR it takes a request from a "taking a look" reply, then one with the published review |
 | `/open-pr:menubar` | anywhere (macOS) | writes nothing itself; a click in its settings panel writes that one key into `<data>/<repo>/settings.json` |
 | `/open-pr:feedback` | anywhere | writes nothing locally — one issue on the plugin's own tracker, after you approve the text |
