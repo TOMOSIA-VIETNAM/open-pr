@@ -283,7 +283,7 @@ its Fix — the PR carries that text; removing the worktree, or asking to — th
 ## Step 10 — Asked for something outside the review flow
 
 User asks about memory, a re-scan, or the config — this run or a later PR-less chat → `Read`
-`cases/chat-requests.md`. Nothing asked → skip.
+`cases/chat-requests.md`. More findings after Step 9 posted → `Read` `cases/more-findings.md`. Nothing asked → skip.
 
 ---
 
