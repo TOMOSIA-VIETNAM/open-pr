@@ -142,7 +142,7 @@ Details on re-review, worktrees, and the guard before `fix`: [Re-review / fix fl
 | `/open-pr:review <PR_URL>` | Posts exactly **1** review. No code edits, no close, no merge. First run in a repo also sets it up |
 | `/open-pr:fix <PR_URL>` | Reads findings → weighs right/wrong → fixes → **1** commit → replies. 🔵 / 📝 always ask first |
 | `/open-pr:upgrade` | Brings local config up to the current schema — summarises, then asks; nothing written until you agree |
-| `/open-pr:clean` | Removes worktrees that `review` checked out (asks first). Memory / settings untouched |
+| `/open-pr:clean` | Removes worktrees that `review` checked out for the project at pwd (asks first); `--all` for every project. Memory / settings untouched |
 | `/open-pr:watch [review\|fix]` | Reviews a PR on a `/open-pr` comment and fixes your own PRs on "Fix now", one session per PR on your machine. [Details](./docs/watch.md) |
 | `/open-pr:menubar [close]` | macOS: the reviews and fixes in progress, "Fix now", settings and snooze in the menu bar; `close` removes it. [Details](./docs/watch.md#menu-bar-macos) |
 | `/open-pr:feedback` | Reports a problem with **this plugin** on its issue tracker — stripped of anything identifying your repo, and shown to you before it is posted |

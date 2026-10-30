@@ -1,5 +1,5 @@
 ---
-argument-hint: "[repo name...]"
+argument-hint: "[--all | repo name...]"
 description: Remove the git worktrees review checked PR code out into. Each one is a full checkout on disk; nothing else is touched.
 ---
 
@@ -26,9 +26,17 @@ None → say there is nothing to clean, STOP.
 
 ## Step 2 — Narrow, then size
 
-`ARGUMENTS` non-empty ⇒ keep only worktrees whose `<repo>` segment it names, case-insensitive; 0
-matched ⇒ STOP, listing the `<repo>`s found. Over what remains — never over what was just dropped,
-since each is a full checkout and `du` walks all of it:
+`ARGUMENTS`: empty ⇒ this project only, below · `--all` ⇒ every worktree · repo names ⇒ worktrees
+whose `<repo>` segment it names, case-insensitive, any project.
+
+Empty ⇒ `<scope>` = `git rev-parse --show-toplevel 2>/dev/null || pwd -P`; keep a worktree when
+Step 4's `--git-common-dir` line minus `/.git` is `<scope>` or under `<scope>/` (pwd may hold
+several repos). That line failing ⇒ orphan, not kept.
+
+0 kept ⇒ STOP: say how many other worktrees exist and that `--all` or a repo name reaches them.
+
+Size what remains — never what was just dropped, since each is a full checkout and `du` walks all of
+it:
 
 ```bash
 du -sh <each worktree>
