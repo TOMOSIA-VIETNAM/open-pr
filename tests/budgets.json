@@ -29,6 +29,6 @@
     "fix/first-run-gitlab": 8352,
     "review/more-findings-github": 9187
   },
-  "mean": 7975,
+  "mean": 7978,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand — lower them by hand when a change wins tokens back."
 }

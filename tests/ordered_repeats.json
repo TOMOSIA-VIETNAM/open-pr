@@ -108,6 +108,12 @@
       "file": "cases/pending-draft.md",
       "claim": "not-a-repeat",
       "reason": "The second `post` follows a `discard` that removed the draft the first one stopped on: it is a write, never a re-read of anything the run holds."
+    },
+    {
+      "sha": "01fc9dfbffbc",
+      "file": "cases/more-findings.md",
+      "claim": "not-a-repeat",
+      "reason": "Running the post Step again after more findings is a write of a body that now holds them; nothing on the PR is re-read, and the unpublished review it replaces carried none of them."
     }
   ]
 }
