@@ -803,6 +803,66 @@ def test_a_file_comment_the_vendor_refuses_lands_in_the_overview_once(shims, tmp
         assert files == [] and len(sent) == 1, "the refused request never reached the shim's log; the overview holds it once"
 
 
+# ------------------------------------- comment: findings added after the review went out ----
+COMMENT_ROUTE = {  # the vendor's create-one-comment endpoint and what it answers
+    "github": ("-X POST repos/o/r/pulls/5/comments", {"id": 301}),
+    "gitlab": ("merge_requests/9/discussions", {"id": "6a9c1750b37d", "notes": [{"id": 302}]}),
+    "bitbucket": ("pullrequests/7/comments", {"id": 303}),
+}
+COMMENT_SENT = {  # the in-hunk finding a.txt:2 RIGHT, as each vendor's request carries it
+    "github": {"body": SHOULD, "commit_id": "a" * 40, "path": "a.txt", "line": 2, "side": "RIGHT"},
+    "gitlab": {"body": SHOULD, "position": {"position_type": "text", "base_sha": "b", "start_sha": "s", "head_sha": "h",
+                                            "old_path": "a.txt", "new_path": "a.txt", "new_line": 2}},
+    "bitbucket": {"content": {"raw": SHOULD}, "inline": {"path": "a.txt", "to": 2}},
+}
+
+
+def _comment(shims, tmp_path, vendor, answer=None, lines=(2,)):
+    name = {"github": "gh", "gitlab": "glab", "bitbucket": "curl"}[vendor]
+    pat, ok = COMMENT_ROUTE[vendor]
+    serve(shims, name, [(pat, answer or ok)] + files_routes(vendor, PR_OF[vendor]))
+    f = tmp_path / "c.json"
+    f.write_text(json.dumps({"commit_id": "a" * 40, "comments": [
+        *({"path": "a.txt", "line": n, "side": "RIGHT", "body": SHOULD} for n in lines),
+        {"path": "a.txt", "line": 9, "side": "RIGHT", "body": SHOULD}]}))
+    r = run("comment", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", PR_OF[vendor],
+            "--payload", str(f), env_extra=env_for(shims))
+    log = shims["tmp"] / "calls.log.bodies"
+    bodies = [json.loads(b) for b in log.read_text().splitlines() if b.strip()] if log.exists() else []
+    calls = [l for l in shims["log"].read_text().splitlines() if pat in l]
+    return r, bodies, calls
+
+
+@pytest.mark.parametrize("vendor", VENDORS)
+def test_comment_posts_a_line_in_a_hunk_inline_and_hands_the_rest_to_the_overview(shims, tmp_path, vendor):
+    r, bodies, calls = _comment(shims, tmp_path, vendor)
+    assert r.returncode == 0, r.stderr
+    out = r.stdout.splitlines()
+    assert "moved_to_overview=a.txt:9" in out
+    assert f"inline=a.txt:2 id={ {'github': 301, 'gitlab': 302, 'bitbucket': 303}[vendor]}" in out, "GitLab: the note, not the discussion"
+    assert len(calls) == 1 and bodies == [COMMENT_SENT[vendor]], "only the in-hunk finding is sent, once"
+
+
+@pytest.mark.parametrize("vendor", VENDORS)
+def test_comment_that_fails_part_way_exits_1_and_names_what_landed(shims, tmp_path, vendor):
+    """The first in-hunk comment lands, the second is refused: stdout names the one that landed, so a
+    second run sends only the other."""
+    ok = COMMENT_ROUTE[vendor][1]
+    r, _, calls = _comment(shims, tmp_path, vendor, answer=Seq([ok, (1, "HTTP 422 Unprocessable Entity")]), lines=(2, 3))
+    assert r.returncode == 1
+    assert "failed part-way" in r.stderr and "no bulk undo" in r.stderr
+    inline = [l for l in r.stdout.splitlines() if l.startswith("inline=")]
+    assert inline == [f"inline=a.txt:2 id={ {'github': 301, 'gitlab': 302, 'bitbucket': 303}[vendor]}"]
+    assert len(calls) == 2, "stops at the refused comment"
+
+
+@pytest.mark.parametrize("vendor", VENDORS)
+def test_comment_whose_first_request_fails_prints_no_inline_line(shims, tmp_path, vendor):
+    r, _, _ = _comment(shims, tmp_path, vendor, answer=(1, "HTTP 422 Unprocessable Entity"))
+    assert r.returncode == 1
+    assert not any(l.startswith("inline=") for l in r.stdout.splitlines())
+
+
 def test_post_bitbucket_stages_nothing_and_publish_sends_overview_first(shims, tmp_path):
     f = tmp_path / "p.json"
     f.write_text(json.dumps(PAYLOAD))
@@ -1870,10 +1930,15 @@ def serve(shims, name, routes):
             continue
         items = payload if isinstance(payload, Seq) else [payload]
         for k, item in enumerate(items):   # a str is raw text: what the real CLI prints after its own --jq
-            (d / f"{i}.{k}.json").write_text(item if isinstance(item, str) else json.dumps(item))
+            if isinstance(item, tuple):    # (exit code, stderr) for that call alone, inside a Seq
+                (d / f"{i}.{k}.err").write_text(f"{item[0]}\n{item[1]}\n")
+            else:
+                (d / f"{i}.{k}.json").write_text(item if isinstance(item, str) else json.dumps(item))
         cases.append(f'''  *"{pat}"*) n=$(cat "{d}/{i}.n" 2>/dev/null || echo 0)
-      f="{d}/{i}.$n.json"; [ -f "$f" ] || f="{d}/{i}.{len(items) - 1}.json"
-      echo $((n + 1)) > "{d}/{i}.n"; cat "$f" ;;''')
+      k=$n; [ -f "{d}/{i}.$k.json" ] || [ -f "{d}/{i}.$k.err" ] || k={len(items) - 1}
+      echo $((n + 1)) > "{d}/{i}.n"
+      if [ -f "{d}/{i}.$k.err" ]; then sed 1d "{d}/{i}.$k.err" >&2; exit "$(head -n 1 "{d}/{i}.$k.err")"; fi
+      cat "{d}/{i}.$k.json" ;;''')
     make_shim(Path(shims["path"]), name, f'''printf '%s\\n' "{name} $*" >> "{shims['log']}"
 prev=""
 for a in "$@"; do
