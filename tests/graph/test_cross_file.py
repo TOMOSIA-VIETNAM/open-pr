@@ -354,12 +354,16 @@ def test_review_and_fix_end_with_the_feedback_hint_and_a_quiet_star_question():
 
 def test_more_findings_after_a_posted_review_ask_which_round_they_join():
     """Step 9 posts 1 review per round, so findings asked for after it would be refused or
-    improvised. The user picks: a reply under the posted overview, or a new round."""
+    improvised. The user picks: the same round (a LINE finding inline at its line, the rest in a
+    reply under the posted overview), or a new round."""
     review = " ".join(text(SRC / "commands" / "review.md").split())
     assert "More findings after Step 9 posted → `Read` `cases/more-findings.md`" in review
     case = " ".join(text(SRC / "cases" / "more-findings.md").split())
     assert "`Same round` when `<op> context --sections head` still prints Step 8's `<commit_id>`" in case
-    assert "ONE `<op> reply --kind top` on the posted overview" in case
+    assert "LINE findings: ONE `<op> comment --payload F`" in case
+    assert "Then the FILE findings + each `moved_to_overview=` one: ONE `<op> reply --kind top` on the posted overview" in case
+    assert "opening with the first finding — no preamble" in case
+    assert "None of them ⇒ no reply" in case
     assert "`New round` — run this command again on the same PR URL" in case
     assert "Chat already says which ⇒ no ask" in case
 

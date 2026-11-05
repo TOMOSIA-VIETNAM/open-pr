@@ -760,6 +760,39 @@ cmd_post() {
             printf 'state=UNPUBLISHED_LOCAL\n' ;;
     esac
 }
+# comment: line comments posted one by one, visible at once, never added to the posted review — for findings added
+# after the review went out. A comment whose line is in no hunk is not posted: `moved_to_overview=`.
+cmd_comment() {
+    parse_args "$@"; post_init
+    F=$(req payload); [ -s "$F" ] || die 1 "open-pr.sh comment: payload file missing/empty"
+    jq -e -n 'input | .commit_id and (.comments | type == "array")' "$F" >/dev/null 2>&1 \
+        || die 1 "open-pr.sh comment: payload must carry commit_id, comments[]"
+    place_all
+    jq -r 'select(.p.kind != "line") | "moved_to_overview=\(.c.path):\(.c.line)"' "$TMPD/placed"
+    case "$V" in
+        github) Q='{body: .c.body, commit_id: $p[0].commit_id, path: .p.new_path, line: .c.line, side: .c.side}' ;;
+        gitlab)
+            gl_mr_cached "$N" | jq '.diff_refs' > "$TMPD/gl.refs"
+            Q='{body: .c.body, position: ({position_type: "text", base_sha: $refs[0].base_sha, start_sha: $refs[0].start_sha,
+                head_sha: $refs[0].head_sha} + (.p | del(.kind)))}' ;;
+        bitbucket) Q='{content: {raw: .c.body}, inline: ({path: .p.new_path} + (if .c.side == "RIGHT" then {to: .c.line} else {from: .c.line} end))}' ;;
+    esac
+    [ -s "$TMPD/gl.refs" ] || printf 'null\n' > "$TMPD/gl.refs"
+    jq -c 'select(.p.kind == "line")' "$TMPD/placed" > "$TMPD/cm.lines"
+    while IFS= read -r line; do
+        printf '%s\n' "$line" | jq -c --slurpfile p "$F" --slurpfile refs "$TMPD/gl.refs" "$Q" > "$TMPD/cm.part.json"
+        case "$V" in
+            github) gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments" --input "$TMPD/cm.part.json" > "$TMPD/cm.out" < /dev/null ;;
+            gitlab) glab api -X POST -H "Content-Type: application/json" \
+                        "projects/$GL_PROJ/merge_requests/$N/discussions" --input "$TMPD/cm.part.json" > "$TMPD/cm.out" < /dev/null ;;
+            bitbucket) bb_curl -X POST -H "Content-Type: application/json" \
+                        "$BB_API/pullrequests/$N/comments" --data @"$TMPD/cm.part.json" > "$TMPD/cm.out" < /dev/null ;;
+        esac || { post_error_hint; err "open-pr.sh comment: posting is one request per comment and failed part-way: the inline= lines printed landed; re-post only what is missing (no bulk undo)."; exit 1; }
+        # GitLab answers with the discussion; its first note is the comment
+        id=$(jq -r '.notes[0].id // .id' "$TMPD/cm.out"); check_ident '^[0-9]+$' "$id"
+        printf '%s\n' "$line" | jq -r --arg id "$id" '"inline=\(.c.path):\(.c.line) id=\($id)"'
+    done < "$TMPD/cm.lines"
+}
 # Deletes the draft `post` exit 8 named, while it is still that one and this plugin's.
 cmd_discard() {
     parse_args "$@"; post_init
@@ -2117,6 +2150,12 @@ Diagnostic subcommands (cases/self-repair.md, commands/watch.md and commands/men
       runs before the jq gate; no option
 
 Case subcommands (rendered nowhere; a cases/ file that calls one names the call there):
+  comment --payload F
+      post each LINE comment visible at once, never into the posted review, one request each. Payload
+      `{"commit_id","comments":[{"path","line","side","body"}]}`; each body ends with its own finding
+      marker (none added). `inline=<path:line> id=<id>` per comment posted; a line in no hunk, or a
+      file outside the PR, is not posted: `moved_to_overview=<path:line>`. Exit 1 part-way: the
+      `inline=` lines printed landed; no bulk undo
   discard --draft-id I
       delete the pending draft `post` exit 8 named, only while it is still that one and this
       plugin's; `DISCARDED`. `NO-EQUIVALENT` on Bitbucket
@@ -2189,6 +2228,7 @@ case "$sub" in
     verify-line)  cmd_verify_line "$@" ;;
     post)         cmd_post "$@" ;;
     publish)      cmd_publish "$@" ;;
+    comment)      cmd_comment "$@" ;;
     discard)      cmd_discard "$@" ;;
     edit)         cmd_edit "$@" ;;
     delete)       cmd_delete "$@" ;;

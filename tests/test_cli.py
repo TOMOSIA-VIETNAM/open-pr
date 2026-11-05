@@ -803,6 +803,54 @@ def test_a_file_comment_the_vendor_refuses_lands_in_the_overview_once(shims, tmp
         assert files == [] and len(sent) == 1, "the refused request never reached the shim's log; the overview holds it once"
 
 
+# ------------------------------------- comment: findings added after the review went out ----
+COMMENT_ROUTE = {  # the vendor's create-one-comment endpoint and what it answers
+    "github": ("-X POST repos/o/r/pulls/5/comments", {"id": 301}),
+    "gitlab": ("merge_requests/9/discussions", {"id": "6a9c1750b37d", "notes": [{"id": 302}]}),
+    "bitbucket": ("pullrequests/7/comments", {"id": 303}),
+}
+COMMENT_SENT = {  # the in-hunk finding a.txt:2 RIGHT, as each vendor's request carries it
+    "github": {"body": SHOULD, "commit_id": "a" * 40, "path": "a.txt", "line": 2, "side": "RIGHT"},
+    "gitlab": {"body": SHOULD, "position": {"position_type": "text", "base_sha": "b", "start_sha": "s", "head_sha": "h",
+                                            "old_path": "a.txt", "new_path": "a.txt", "new_line": 2}},
+    "bitbucket": {"content": {"raw": SHOULD}, "inline": {"path": "a.txt", "to": 2}},
+}
+
+
+def _comment(shims, tmp_path, vendor, answer=None):
+    name = {"github": "gh", "gitlab": "glab", "bitbucket": "curl"}[vendor]
+    pat, ok = COMMENT_ROUTE[vendor]
+    serve(shims, name, [(pat, answer or ok)] + files_routes(vendor, PR_OF[vendor]))
+    f = tmp_path / "c.json"
+    f.write_text(json.dumps({"commit_id": "a" * 40, "comments": [
+        {"path": "a.txt", "line": 2, "side": "RIGHT", "body": SHOULD},
+        {"path": "a.txt", "line": 9, "side": "RIGHT", "body": SHOULD}]}))
+    r = run("comment", "--vendor", vendor, "--owner", "o", "--repo", "r", "--pr", PR_OF[vendor],
+            "--payload", str(f), env_extra=env_for(shims))
+    log = shims["tmp"] / "calls.log.bodies"
+    bodies = [json.loads(b) for b in log.read_text().splitlines() if b.strip()] if log.exists() else []
+    calls = [l for l in shims["log"].read_text().splitlines() if pat in l]
+    return r, bodies, calls
+
+
+@pytest.mark.parametrize("vendor", VENDORS)
+def test_comment_posts_a_line_in_a_hunk_inline_and_hands_the_rest_to_the_overview(shims, tmp_path, vendor):
+    r, bodies, calls = _comment(shims, tmp_path, vendor)
+    assert r.returncode == 0, r.stderr
+    out = r.stdout.splitlines()
+    assert "moved_to_overview=a.txt:9" in out
+    assert f"inline=a.txt:2 id={ {'github': 301, 'gitlab': 302, 'bitbucket': 303}[vendor]}" in out, "GitLab: the note, not the discussion"
+    assert len(calls) == 1 and bodies == [COMMENT_SENT[vendor]], "only the in-hunk finding is sent, once"
+
+
+@pytest.mark.parametrize("vendor", VENDORS)
+def test_comment_that_fails_part_way_exits_1_and_names_what_landed(shims, tmp_path, vendor):
+    r, _, _ = _comment(shims, tmp_path, vendor, answer=(1, "HTTP 422 Unprocessable Entity"))
+    assert r.returncode == 1
+    assert "failed part-way" in r.stderr and "no bulk undo" in r.stderr
+    assert not any(l.startswith("inline=") for l in r.stdout.splitlines())
+
+
 def test_post_bitbucket_stages_nothing_and_publish_sends_overview_first(shims, tmp_path):
     f = tmp_path / "p.json"
     f.write_text(json.dumps(PAYLOAD))
