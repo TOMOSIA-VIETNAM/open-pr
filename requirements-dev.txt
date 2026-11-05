@@ -1,4 +1,4 @@
 # Repo-side only. The plugin itself ships no dependency — it is markdown.
-pytest==9.1.1
+pytest==9.2.0
 tiktoken==0.14.0
 pytest-xdist==3.8.0
