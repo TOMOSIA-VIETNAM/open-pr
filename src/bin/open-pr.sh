@@ -649,6 +649,11 @@ JQ_PLACE='def place($changes): . as $c
           | .hit | if . then {kind: "line"} + . else {kind: "file"} end)
       end;
     def anchored: "`\(.path):\(.line)`\n\n\(.body)";'
+# gl_position($type; $refs): a GitLab draft/discussion position for placed comment `.`, $type "text" or "file".
+# bb_inline: a Bitbucket inline anchor on the line of placed comment `.` (RIGHT = to, LEFT = from).
+JQ_ANCHOR='def gl_position($type; $refs): {position_type: $type, base_sha: $refs.base_sha, start_sha: $refs.start_sha,
+        head_sha: $refs.head_sha} + (.p | del(.kind));
+    def bb_inline: {path: .p.new_path} + (if .c.side == "RIGHT" then {to: .c.line} else {from: .c.line} end);'
 # with_moved($m): the overview body with each finding in $m under its severity heading — the heading
 # added in severity order when missing, before any other `#### ` heading (the skipped-files list); a
 # finding without a severity goes last.
@@ -732,10 +737,9 @@ cmd_post() {
             gl_mr_cached "$N" | jq '.diff_refs' > "$TMPD/gl.refs"
             # One draft per line comment, then per file comment, then the overview. A file position
             # GitLab refuses (older than file-level comments) moves that finding into the overview.
-            jq -c --slurpfile refs "$TMPD/gl.refs" "$JQ_PLACE"'select(.p.kind != "overview")
+            jq -c --slurpfile refs "$TMPD/gl.refs" "$JQ_PLACE$JQ_ANCHOR"'select(.p.kind != "overview")
                 | {kind: .p.kind, rec: ., note: (if .p.kind == "line" then .c.body else .c | anchored end),
-                   position: ({position_type: (if .p.kind == "line" then "text" else "file" end), base_sha: $refs[0].base_sha,
-                               start_sha: $refs[0].start_sha, head_sha: $refs[0].head_sha} + (.p | del(.kind)))}' \
+                   position: gl_position(if .p.kind == "line" then "text" else "file" end; $refs[0])}' \
                 "$TMPD/placed" > "$TMPD/gl.all"
             for k in line file; do
                 jq -c --arg k "$k" 'select(.kind == $k)' "$TMPD/gl.all" | while IFS= read -r line; do
@@ -773,14 +777,13 @@ cmd_comment() {
         github) Q='{body: .c.body, commit_id: $p[0].commit_id, path: .p.new_path, line: .c.line, side: .c.side}' ;;
         gitlab)
             gl_mr_cached "$N" | jq '.diff_refs' > "$TMPD/gl.refs"
-            Q='{body: .c.body, position: ({position_type: "text", base_sha: $refs[0].base_sha, start_sha: $refs[0].start_sha,
-                head_sha: $refs[0].head_sha} + (.p | del(.kind)))}' ;;
-        bitbucket) Q='{content: {raw: .c.body}, inline: ({path: .p.new_path} + (if .c.side == "RIGHT" then {to: .c.line} else {from: .c.line} end))}' ;;
+            Q='{body: .c.body, position: gl_position("text"; $refs[0])}' ;;
+        bitbucket) Q='{content: {raw: .c.body}, inline: bb_inline}' ;;
     esac
     [ -s "$TMPD/gl.refs" ] || printf 'null\n' > "$TMPD/gl.refs"
     jq -c 'select(.p.kind == "line")' "$TMPD/placed" > "$TMPD/cm.lines"
     while IFS= read -r line; do
-        printf '%s\n' "$line" | jq -c --slurpfile p "$F" --slurpfile refs "$TMPD/gl.refs" "$Q" > "$TMPD/cm.part.json"
+        printf '%s\n' "$line" | jq -c --slurpfile p "$F" --slurpfile refs "$TMPD/gl.refs" "$JQ_ANCHOR$Q" > "$TMPD/cm.part.json"
         case "$V" in
             github) gh api -X POST "repos/$OWNER/$REPO/pulls/$N/comments" --input "$TMPD/cm.part.json" > "$TMPD/cm.out" < /dev/null ;;
             gitlab) glab api -X POST -H "Content-Type: application/json" \
@@ -896,8 +899,8 @@ cmd_publish() {
             # A path-only inline comment Bitbucket refuses joins the overview, edited in place.
             jq -c 'select(.p.kind != "overview")' "$TMPD/placed" > "$TMPD/bb.parts"
             while IFS= read -r line; do
-                printf '%s\n' "$line" | jq -c "$JQ_PLACE"'if .p.kind == "line"
-                    then {content: {raw: .c.body}, inline: ({path: .p.new_path} + (if .c.side == "RIGHT" then {to: .c.line} else {from: .c.line} end))}
+                printf '%s\n' "$line" | jq -c "$JQ_PLACE$JQ_ANCHOR"'if .p.kind == "line"
+                    then {content: {raw: .c.body}, inline: bb_inline}
                     else {content: {raw: (.c | anchored)}, inline: {path: .p.new_path}} end' > "$TMPD/bb.part.json"
                 k=$(printf '%s\n' "$line" | jq -r '.p.kind')
                 if bb_curl -X POST -H "Content-Type: application/json" \

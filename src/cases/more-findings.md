@@ -11,7 +11,9 @@ Else ONE CHOICE per `core/guardrails.md`, EXACTLY 2 options, `(Recommended)` on 
 
 - `Same round` — each `line` confirmed by `verify-line` as in Step 9. LINE findings: ONE
   `<op> comment --payload F`, F = `{"commit_id","comments":[…]}`, Step 8's `<commit_id>`, `comments[]`
-  as in Step 9. Then the FILE findings + each `moved_to_overview=` one: ONE `<op> reply --kind top` on
+  as in Step 9; exit 1 ⇒ the `inline=` lines it printed landed: one more `comment` with only the
+  comments no `inline=` line names, never the whole payload; fails again ⇒ name the unposted ones to
+  the user. Then the FILE findings + each `moved_to_overview=` one: ONE `<op> reply --kind top` on
   the posted overview — the one Step 9's `post-verify` `url=` names, never merely the newest review on
   the PR (id from "Reviews"; GitLab: its thread from "Review threads" — fetch both with
   `<op> context --sections reviews,threads`, Context did not). Body: each as `path:line` + severity +

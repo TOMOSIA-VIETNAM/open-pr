@@ -116,6 +116,12 @@
       "reason": "Running the post Step again after more findings is a write of a body that now holds them; nothing on the PR is re-read, and the unpublished review it replaces carried none of them."
     },
     {
+      "sha": "40bdd5d7f24b",
+      "file": "cases/more-findings.md",
+      "claim": "not-a-repeat",
+      "reason": "The second `comment` is a write of only the comments the first did not post; nothing on the PR is re-read, and the `inline=` lines already printed say which those are."
+    },
+    {
       "sha": "cf0b3a85994a",
       "file": "cases/star.md",
       "claim": "not-a-repeat",

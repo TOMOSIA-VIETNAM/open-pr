@@ -27,9 +27,9 @@
     "fix/known-repo-github": 8214,
     "fix/multi-pr-submodule": 9173,
     "fix/first-run-gitlab": 8464,
-    "review/more-findings-github": 9399,
+    "review/more-findings-github": 9449,
     "review/star-ask-github": 9347
   },
-  "mean": 8120,
+  "mean": 8122,
   "_note": "Ceilings measured by scripts/token_report.py (cl100k proxy), +2% headroom. --update-budgets rewrites EVERY ceiling, RAISING any that was tightened by hand — lower them by hand when a change wins tokens back."
 }
